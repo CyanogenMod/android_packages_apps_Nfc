@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeNfcTag.c
- * Original-Author : Trusted Logic S.A. (Jeremie Corbier)
- * Created         : 27-08-2009
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -183,7 +178,7 @@ static void trustednfc_jni_transceive_callback(void *pContext,
 }
 
 /* Functions */
-static jbyteArray com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doRead(JNIEnv *e,
+static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    jobject o)
 {
    NFCSTATUS status;
@@ -231,7 +226,7 @@ clean_and_return:
 }
  
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doWrite(JNIEnv *e,
+static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    jobject o, jbyteArray buf)
 {
    NFCSTATUS   status;
@@ -276,7 +271,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doConnect(JNIEnv *e,
+static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    jobject o)
 {
    phLibNfc_Handle handle = 0;
@@ -316,7 +311,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
    jclass cls;
@@ -383,7 +378,7 @@ clean_and_return:
    return result;
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doAsyncDisconnect(JNIEnv *e, jobject o)
+static void com_android_nfc_NativeNfcTag_doAsyncDisconnect(JNIEnv *e, jobject o)
 {
    NFCSTATUS status;
 
@@ -419,7 +414,7 @@ disconnect_on_failure:
    LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
 }
 
-static jbyteArray com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doTransceive(JNIEnv *e,
+static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
    jobject o, jbyteArray data)
 {
    uint8_t offset = 0;
@@ -519,7 +514,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeNfcTag_checkNDEF(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeNfcTag_checkNDEF(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
@@ -563,28 +558,28 @@ clean_and_return:
 static JNINativeMethod gMethods[] =
 {
    {"doConnect", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doConnect},
+      (void *)com_android_nfc_NativeNfcTag_doConnect},
    {"doDisconnect", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doDisconnect},
+      (void *)com_android_nfc_NativeNfcTag_doDisconnect},
    {"doAsyncDisconnect", "()V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doAsyncDisconnect},
+      (void *)com_android_nfc_NativeNfcTag_doAsyncDisconnect},
    {"doTransceive", "([B)[B",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doTransceive},
+      (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"checkNDEF", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_checkNDEF},
+      (void *)com_android_nfc_NativeNfcTag_checkNDEF},
    {"doRead", "()[B",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doRead},
+      (void *)com_android_nfc_NativeNfcTag_doRead},
    {"doWrite", "([B)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNfcTag_doWrite},
+      (void *)com_android_nfc_NativeNfcTag_doWrite},
 };
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeNfcTag(JNIEnv *e)
+int register_com_android_nfc_NativeNfcTag(JNIEnv *e)
 {
    if(sem_init(&trustednfc_jni_tag_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeNfcTag",
+      "com/android/nfc/NativeNfcTag",
       gMethods, NELEM(gMethods));
 }
 

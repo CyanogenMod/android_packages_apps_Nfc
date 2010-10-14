@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket.c
- * Original-Author : Trusted Logic S.A. (Daniel Tomas)
- * Created         : 04-03-2010
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -121,7 +116,7 @@ static void trustednfc_jni_send_callback(void *pContext, NFCSTATUS status)
 /*
  * Methods
  */
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap, jint timeout)
+static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap, jint timeout)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -172,7 +167,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_do
    }
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn, jint timeout)
+static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn, jint timeout)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -226,7 +221,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_do
    }   
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doClose(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeLlcpSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -247,7 +242,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_do
    return TRUE;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jbyteArray  data)
+static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jbyteArray  data)
 {
    NFCSTATUS ret;
    struct timespec ts;  
@@ -289,7 +284,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_do
    }     
 }
 
-static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray  buffer)
+static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray  buffer)
 {
    NFCSTATUS ret;
    struct timespec ts;  
@@ -330,7 +325,7 @@ static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doRece
    } 
 }
 
-static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, jobject o)
+static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -356,7 +351,7 @@ static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetR
    }
 }
 
-static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobject o)
+static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -389,35 +384,35 @@ static jint com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetR
 static JNINativeMethod gMethods[] =
 {
    {"doConnect", "(II)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doConnect},
+      (void *)com_android_nfc_NativeLlcpSocket_doConnect},
 
    {"doConnectBy", "(Ljava/lang/String;I)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doConnectBy},
+      (void *)com_android_nfc_NativeLlcpSocket_doConnectBy},
       
    {"doClose", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doClose},
+      (void *)com_android_nfc_NativeLlcpSocket_doClose},
       
    {"doSend", "([B)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doSend},
+      (void *)com_android_nfc_NativeLlcpSocket_doSend},
 
    {"doReceive", "([B)I",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doReceive},
+      (void *)com_android_nfc_NativeLlcpSocket_doReceive},
       
    {"doGetRemoteSocketMiu", "()I",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetRemoteSocketMIU}, 
+      (void *)com_android_nfc_NativeLlcpSocket_doGetRemoteSocketMIU},
            
    {"doGetRemoteSocketRw", "()I",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket_doGetRemoteSocketRW},  
+      (void *)com_android_nfc_NativeLlcpSocket_doGetRemoteSocketRW},
 };
 
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket(JNIEnv *e)
+int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e)
 {
    if(sem_init(&trustednfc_jni_llcp_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeLlcpSocket",gMethods, NELEM(gMethods));
+      "com/android/nfc/NativeLlcpSocket",gMethods, NELEM(gMethods));
 }
 
 } // namespace android

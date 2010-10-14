@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeNdefTag.c
- * Original-Author : Trusted Logic S.A. (Jeremie Corbier)
- * Created         : 09-12-2009
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -43,7 +38,7 @@ static void trustednfc_jni_tag_rw_callback(void *pContext, NFCSTATUS status)
    sem_post(&trustednfc_jni_ndef_tag_sem);
 }
 
-static jbyteArray com_trustedlogic_trustednfc_android_internal_NativeNdefTag_doRead(JNIEnv *e,
+static jbyteArray com_android_nfc_NativeNdefTag_doRead(JNIEnv *e,
    jobject o)
 {
    phLibNfc_Handle handle = 0;
@@ -89,7 +84,7 @@ clean_and_return:
    return buf;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeNdefTag_doWrite(JNIEnv *e,
+static jboolean com_android_nfc_NativeNdefTag_doWrite(JNIEnv *e,
    jobject o, jbyteArray buf)
 {
    NFCSTATUS      status;
@@ -140,18 +135,18 @@ clean_and_return:
 static JNINativeMethod gMethods[] =
 {
    {"doRead", "()[B",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNdefTag_doRead},
+      (void *)com_android_nfc_NativeNdefTag_doRead},
    {"doWrite", "([B)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeNdefTag_doWrite},
+      (void *)com_android_nfc_NativeNdefTag_doWrite},
 };
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeNdefTag(JNIEnv *e)
+int register_com_android_nfc_NativeNdefTag(JNIEnv *e)
 {
    if(sem_init(&trustednfc_jni_ndef_tag_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeNdefTag",
+      "com/android/nfc/NativeNdefTag",
       gMethods, NELEM(gMethods));
 }
 

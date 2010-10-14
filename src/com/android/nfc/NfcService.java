@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package com.trustedlogic.trustednfc.android.server;
+package com.android.nfc;
 
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
 import android.nfc.ILlcpConnectionlessSocket;
@@ -32,32 +36,22 @@ import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
 import android.nfc.Tag;
-//import android.nfc.NfcException;
-//import android.nfc.NfcManager;
 import android.nfc.NfcAdapter;
-import com.trustedlogic.trustednfc.android.internal.NativeLlcpConnectionlessSocket;
-import com.trustedlogic.trustednfc.android.internal.NativeLlcpServiceSocket;
-import com.trustedlogic.trustednfc.android.internal.NativeLlcpSocket;
-import com.trustedlogic.trustednfc.android.internal.NativeNfcManager;
-import com.trustedlogic.trustednfc.android.internal.NativeNfcTag;
-import com.trustedlogic.trustednfc.android.internal.NativeP2pDevice;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.provider.Settings;
 import android.util.Log;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 
 public class NfcService extends INfcAdapter.Stub implements Runnable {
 
-    /**
-     * NFC Service tag
-     */
+    static {
+        System.loadLibrary("nfc_jni");
+    }
+
     private static final String TAG = "NfcService";
 
     /**
@@ -1082,6 +1076,7 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
         mContext = context;
         mManager = new NativeNfcManager(mContext);
 
+        /* TODO(nxp)
         mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
                 NativeNfcManager.INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION));
 
@@ -1090,20 +1085,22 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
         mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
                 NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION));
+*/
 
         Thread thread = new Thread(null, this, "NfcService");
         thread.start();
 
         mManager.initializeNativeStructure();
 
-            int nfcState = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_ON, 0);
+        int nfcState = Settings.System.getInt(mContext.getContentResolver(),
+            Settings.System.NFC_ON, 0);
 
-            if (nfcState == NFC_STATE_ENABLED) {
-                if (this._enable()) {
-                }
+        if (nfcState == NFC_STATE_ENABLED) {
+            if (this._enable()) {
             }
+        }
 
+        ServiceManager.addService("nfc", this);
     }
 
     public void run() {

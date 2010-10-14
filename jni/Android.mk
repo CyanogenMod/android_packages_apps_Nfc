@@ -12,8 +12,6 @@ LOCAL_SRC_FILES:= \
     com_trustedlogic_trustednfc_android_internal_NativeNfcManager.cpp \
     com_trustedlogic_trustednfc_android_internal_NativeNfcTag.cpp \
     com_trustedlogic_trustednfc_android_internal_NativeP2pDevice.cpp \
-    com_trustedlogic_trustednfc_android_NdefMessage.cpp \
-    com_trustedlogic_trustednfc_android_NdefRecord.cpp \
     trustednfc_jni.cpp
 
 LOCAL_C_INCLUDES += \

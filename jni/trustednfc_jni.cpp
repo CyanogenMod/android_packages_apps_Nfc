@@ -14,14 +14,40 @@
  * limitations under the License.
  */
 
-/**
- * File            : trustednfc_jni.c
- * Original-Author : Trusted Logic S.A. (Jeremie Corbier)
- * Created         : 26-08-2009
- */
 #include "errno.h"
 #include "trustednfc_jni.h"
 #include "phLibNfcStatus.h"
+
+/*
+ * JNI Initialization
+ */
+jint JNI_OnLoad(JavaVM *jvm, void *reserved)
+{
+   JNIEnv *e;
+
+   LOGE("NFC Service : loading JNI\n");
+
+   // Check JNI version
+   if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6))
+      return JNI_ERR;
+
+   if (android::register_com_android_nfc_NativeNfcManager(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeNfcTag(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeNdefTag(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeP2pDevice(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeLlcpSocket(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeLlcpConnectionlessSocket(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeLlcpServiceSocket(e) == -1)
+      return JNI_ERR;
+
+   return JNI_VERSION_1_6;
+}
 
 namespace android {
 
@@ -185,44 +211,7 @@ jstring trustednfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
   return type;  
 }
 
-/*
- * JNI Initialization
- */
-// TODO: not used any more, to be removed
-/*
-jint JNI_OnLoad(JavaVM *jvm, void *reserved)
-{
-   JNIEnv *e;
 
-   LOGD("NFC Service : loading JNI\n");
-
-   // Check JNI version
-   if(jvm->GetEnv((void **)&e, JNI_VERSION_1_4))
-      return JNI_ERR;
-
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeNfcManager(e) == -1)
-      return JNI_ERR;   
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeNfcTag(e) == -1)
-      return JNI_ERR;
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeNdefTag(e) == -1)
-      return JNI_ERR;
-   if(android::register_com_trustedlogic_trustednfc_android_NdefMessage(e) == -1)
-      return JNI_ERR;
-   if(android::register_com_trustedlogic_trustednfc_android_NdefRecord(e) == -1)
-      return JNI_ERR;
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeP2pDevice(e) == -1)
-      return JNI_ERR;   
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket(e) == -1)
-      return JNI_ERR;    
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket(e) == -1)
-      return JNI_ERR;
-   if(android::register_com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket(e) == -1)
-      return JNI_ERR;
-
-
-   return JNI_VERSION_1_4;
-}
-*/
 
 //Display status code
 const char* trustednfc_jni_get_status_name(NFCSTATUS status)

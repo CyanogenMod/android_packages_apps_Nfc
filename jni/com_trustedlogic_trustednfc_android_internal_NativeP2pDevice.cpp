@@ -15,11 +15,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeP2pDevice.c
- * Original-Author : Trusted Logic S.A. (Daniel Tomas)
- * Created         : 04-03-2010
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -122,7 +117,7 @@ static void trustednfc_jni_transceive_callback(void *pContext,
    sem_post(&trustednfc_jni_peer_sem);
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
@@ -186,7 +181,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doDisconnect(JNIEnv *e,
+static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e,
    jobject o)
 {
    phLibNfc_Handle   handle = 0;
@@ -233,7 +228,7 @@ clean_and_return:
    return result;
 }
 
-static jbyteArray com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doTransceive(JNIEnv *e,
+static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
    jobject o, jbyteArray data)
 {
    NFCSTATUS status;
@@ -304,7 +299,7 @@ clean_and_return:
 }
 
 
-static jbyteArray com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doReceive(
+static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
    JNIEnv *e, jobject o)
 {
    NFCSTATUS status;
@@ -348,7 +343,7 @@ clean_and_return:
    return buf;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doSend(
+static jboolean com_android_nfc_NativeP2pDevice_doSend(
    JNIEnv *e, jobject o, jbyteArray buf)
 {
    NFCSTATUS status;
@@ -401,24 +396,24 @@ clean_and_return:
 static JNINativeMethod gMethods[] =
 {
    {"doConnect", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doConnect},
+      (void *)com_android_nfc_NativeP2pDevice_doConnect},
    {"doDisconnect", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doDisconnect},
+      (void *)com_android_nfc_NativeP2pDevice_doDisconnect},
    {"doTransceive", "([B)[B",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doTransceive},
+      (void *)com_android_nfc_NativeP2pDevice_doTransceive},
    {"doReceive", "()[B",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doReceive},
+      (void *)com_android_nfc_NativeP2pDevice_doReceive},
    {"doSend", "([B)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeP2pDevice_doSend},
+      (void *)com_android_nfc_NativeP2pDevice_doSend},
 };
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeP2pDevice(JNIEnv *e)
+int register_com_android_nfc_NativeP2pDevice(JNIEnv *e)
 {
    if(sem_init(&trustednfc_jni_peer_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeP2pDevice",
+      "com/android/nfc/NativeP2pDevice",
       gMethods, NELEM(gMethods));
 }
 

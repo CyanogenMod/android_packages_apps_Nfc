@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionLessSocket.c
- * Original-Author : Trusted Logic S.A. (Daniel Tomas)
- * Created         : 04-03-2010
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -29,8 +24,6 @@ static NFCSTATUS trustednfc_jni_cb_status = NFCSTATUS_FAILED;
 static uint8_t receivedSsap;
 
 namespace android {
-
-
 
 /*
  * Callbacks
@@ -67,7 +60,7 @@ static void trustednfc_jni_send_callback(void *pContext, NFCSTATUS status)
 /*
 * Methods
 */
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *e, jobject o, jint nsap, jbyteArray data)
+static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *e, jobject o, jint nsap, jbyteArray data)
 {
    NFCSTATUS ret;
    struct timespec ts;  
@@ -110,7 +103,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectio
    }  
 }
 
-static jobject com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv *e, jobject o, jint linkMiu)
+static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv *e, jobject o, jint linkMiu)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -190,7 +183,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NativeLlcpConnection
    }    
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doClose(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -221,18 +214,15 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectio
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doSendTo", "(I[B)Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doSendTo},
+   {"doSendTo", "(I[B)Z", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo},
       
-   {"doReceiveFrom", "(I)Landroid/nfc/LlcpPacket;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doReceiveFrom},
+   {"doReceiveFrom", "(I)Landroid/nfc/LlcpPacket;", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom},
       
-   {"doClose", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket_doClose},
+   {"doClose", "()Z", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doClose},
 };
 
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket(JNIEnv *e)
+int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e)
 {
 
    if(sem_init(&trustednfc_jni_llcp_send_sem, 0, 0) == -1)
@@ -242,7 +232,7 @@ int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionle
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeLlcpConnectionlessSocket",
+      "com/android/nfc/NativeLlcpConnectionlessSocket",
       gMethods, NELEM(gMethods));
 }
 

@@ -146,7 +146,7 @@ struct trustednfc_jni_native_data* trustednfc_jni_get_nat_ext(JNIEnv *e);
 trustednfc_jni_native_monitor_t* trustednfc_jni_init_monitor(void);
 trustednfc_jni_native_monitor_t* trustednfc_jni_get_monitor(void);
 
-/* P2P */   
+/* P2P */
 phLibNfc_Handle trustednfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
 jshort trustednfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
 
@@ -157,18 +157,13 @@ jstring trustednfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
 /* LLCP */
 phLibNfc_Handle trustednfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o);
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeNfcManager(JNIEnv *e);
-int register_com_trustedlogic_trustednfc_android_internal_NativeNfcTag(JNIEnv *e);
-
-int register_com_trustedlogic_trustednfc_android_internal_NativeNdefTag(JNIEnv *e);
-int register_com_trustedlogic_trustednfc_android_NdefMessage(JNIEnv *e);
-int register_com_trustedlogic_trustednfc_android_NdefRecord(JNIEnv *e);
-
-int register_com_trustedlogic_trustednfc_android_internal_NativeP2pDevice(JNIEnv *e);
-
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket(JNIEnv *e);
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket(JNIEnv *e);
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket(JNIEnv *e);
+int register_com_android_nfc_NativeNfcManager(JNIEnv *e);
+int register_com_android_nfc_NativeNfcTag(JNIEnv *e);
+int register_com_android_nfc_NativeNdefTag(JNIEnv *e);
+int register_com_android_nfc_NativeP2pDevice(JNIEnv *e);
+int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e);
+int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e);
+int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e);
 
 } // namespace android
 

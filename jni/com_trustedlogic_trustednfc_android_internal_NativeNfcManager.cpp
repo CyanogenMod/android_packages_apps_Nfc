@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeNfcManager.c
- * Original-Author : Trusted Logic S.A. (Jeremie Corbier)
- * Created         : 20-08-2009
- */
-
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -1328,7 +1322,7 @@ static void trustednfc_jni_reader_discovery(struct trustednfc_jni_native_data *n
    LOGD("phLibNfc_Mgt_IoCtl(PRBS Test) returned 0x%08x\n", ret);
 } 
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_readerDiscovery(JNIEnv *e, jobject o)
+static void com_android_nfc_NfcManager_readerDiscovery(JNIEnv *e, jobject o)
 {
     struct trustednfc_jni_native_data *nat;
 
@@ -1342,7 +1336,7 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_readerDiscov
     CONCURRENCY_UNLOCK();
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
+static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 {
     struct trustednfc_jni_native_data *nat;
 
@@ -1356,7 +1350,7 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_disableDisco
     CONCURRENCY_UNLOCK();
 }
     
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_enableDiscovery(
+static void com_android_nfc_NfcManager_enableDiscovery(
    JNIEnv *e, jobject o, jint mode)
 {
    NFCSTATUS ret;
@@ -1379,7 +1373,7 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_enableDiscov
    CONCURRENCY_UNLOCK();
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_disableDiscoveryMode(
+static void com_android_nfc_NfcManager_disableDiscoveryMode(
    JNIEnv *e, jobject o, jint mode)
 {
    struct trustednfc_jni_native_data *nat;
@@ -1394,7 +1388,7 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_disableDisco
    
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_init_native_struc(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject o)
 {
    NFCSTATUS status;
    struct trustednfc_jni_native_data *nat = NULL;
@@ -1424,13 +1418,13 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_init_nat
                  
    /* Initialize native cached references */
    cached_NfcManager_notifyNdefMessageListeners = e->GetMethodID(cls,
-      "notifyNdefMessageListeners","(Lcom/trustedlogic/trustednfc/android/internal/NativeNfcTag;)V");
+      "notifyNdefMessageListeners","(Lcom/android/nfc/NativeNfcTag;)V");
 
    cached_NfcManager_notifyTransactionListeners = e->GetMethodID(cls,
       "notifyTransactionListeners", "([B)V");
          
    cached_NfcManager_notifyLlcpLinkActivation = e->GetMethodID(cls,
-      "notifyLlcpLinkActivation","(Lcom/trustedlogic/trustednfc/android/internal/NativeP2pDevice;)V"); 
+      "notifyLlcpLinkActivation","(Lcom/android/nfc/NativeP2pDevice;)V");
          
    cached_NfcManager_notifyLlcpLinkDeactivated = e->GetMethodID(cls,
       "notifyLlcpLinkDeactivated","()V"); 
@@ -1439,13 +1433,13 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_init_nat
       "notifyTargetDeselected","()V"); 
       
       
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
+   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
       LOGD("Native Structure initialization failed [0x%08x]",nat->status);
       return FALSE;   
    }
          
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
+   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
       LOGD("Native Structure initialization failed [0x%08x]",nat->status);
       return FALSE;   
@@ -1456,7 +1450,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_init_nat
 }
  
 /* Init/Deinit method */
-static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_initialize(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 {
    struct trustednfc_jni_native_data *nat = NULL;
    int init_result = JNI_FALSE;
@@ -1489,7 +1483,7 @@ clean_and_return:
    return (init_result==TRUE)?JNI_TRUE:JNI_FALSE;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_deinitialize(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 {
    struct timespec ts;
    NFCSTATUS status;
@@ -1563,7 +1557,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_deinitia
 }
 
 /* Secure Element methods */
-static jintArray com_trustedlogic_trustednfc_android_internal_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o)
+static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    jintArray list= NULL;
@@ -1606,7 +1600,7 @@ static jintArray com_trustedlogic_trustednfc_android_internal_NfcManager_doGetSe
    return list;
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o, jint seID)
+static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o, jint seID)
 {
    NFCSTATUS ret;
    struct trustednfc_jni_native_data *nat;
@@ -1638,7 +1632,7 @@ clean_and_return:
    CONCURRENCY_UNLOCK();
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_doDeselectSecureElement(JNIEnv *e, jobject o, jint seID)
+static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobject o, jint seID)
 {
    NFCSTATUS ret;
    struct trustednfc_jni_native_data *nat;
@@ -1673,7 +1667,7 @@ clean_and_return:
 }
 
 /* Open Tag/P2p Methods */
-static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doOpenP2pConnection(JNIEnv *e, jobject o, jint timeout)
+static jobject com_android_nfc_NfcManager_doOpenP2pConnection(JNIEnv *e, jobject o, jint timeout)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -1723,7 +1717,7 @@ clean_and_return:
    return p2pDevice;
 }
 
-static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doOpenTagConnection(JNIEnv *e, jobject o, jint timeout)
+static jobject com_android_nfc_NfcManager_doOpenTagConnection(JNIEnv *e, jobject o, jint timeout)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -1773,7 +1767,7 @@ clean_and_return:
    return nfcTag;
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_doCancel(JNIEnv *e, jobject o)
+static void com_android_nfc_NfcManager_doCancel(JNIEnv *e, jobject o)
 {
    struct trustednfc_jni_native_data *nat;
 
@@ -1786,7 +1780,7 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_doCancel(JNI
 
 /* Llcp methods */
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    jboolean result = JNI_FALSE;
@@ -1826,7 +1820,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    LOGD("phLibNfc_Llcp_Activate(hRemoteDevice=0x%08x)", hLlcpHandle);
@@ -1847,7 +1841,7 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NfcManager_doActiva
 
 
 
-static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *e, jobject o, jint nSap)
+static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *e, jobject o, jint nSap)
 {
    NFCSTATUS ret;
    jobject connectionlessSocket = NULL;
@@ -1899,7 +1893,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
  
    
    /* Create new NativeLlcpConnectionlessSocket object */
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
+   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
    {
       return NULL;           
    } 
@@ -1929,7 +1923,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
    return connectionlessSocket;
 }
 
-static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, jobject o, jint nSap, jstring sn, jint miu, jint rw, jint linearBufferLength)
+static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, jobject o, jint nSap, jstring sn, jint miu, jint rw, jint linearBufferLength)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -2013,7 +2007,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
    LOGD("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpServiceSocket object */
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
+   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
    {
       LOGE("Llcp Socket object creation error");
       return NULL;           
@@ -2050,7 +2044,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
    return serviceSocket;
 }
 
-static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject o, jint nSap, jint miu, jint rw, jint linearBufferLength)
+static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject o, jint nSap, jint miu, jint rw, jint linearBufferLength)
 {
    jobject clientSocket = NULL;
    NFCSTATUS ret;
@@ -2093,7 +2087,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
    LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpSocket object */
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeLlcpSocket",&(clientSocket)) == -1)
+   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
    {
       LOGE("Llcp socket object creation error");  
       return NULL;           
@@ -2152,7 +2146,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateL
    return clientSocket;
 }
 
-static jint com_trustedlogic_trustednfc_android_internal_NfcManager_doGetLastError(JNIEnv *e, jobject o)
+static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
 {
    LOGW("Last Error Status = 0x%02x",lastErrorStatus);
    
@@ -2170,7 +2164,7 @@ static jint com_trustedlogic_trustednfc_android_internal_NfcManager_doGetLastErr
    }
 }
 
-static void com_trustedlogic_trustednfc_android_internal_NfcManager_doSetProperties(JNIEnv *e, jobject o, jint param, jint value)
+static void com_android_nfc_NfcManager_doSetProperties(JNIEnv *e, jobject o, jint param, jint value)
 {  
    NFCSTATUS ret;
    struct trustednfc_jni_native_data *nat;
@@ -2248,68 +2242,68 @@ static void com_trustedlogic_trustednfc_android_internal_NfcManager_doSetPropert
 static JNINativeMethod gMethods[] =
 {
    {"initializeNativeStructure", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_init_native_struc},
+      (void *)com_android_nfc_NfcManager_init_native_struc},
       
    {"initialize", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_initialize},
+      (void *)com_android_nfc_NfcManager_initialize},
  
    {"deinitialize", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_deinitialize},
+      (void *)com_android_nfc_NfcManager_deinitialize},
       
    {"enableDiscovery", "(I)V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_enableDiscovery},
+      (void *)com_android_nfc_NfcManager_enableDiscovery},
       
    {"disableDiscoveryMode", "(I)V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_disableDiscoveryMode},
+      (void *)com_android_nfc_NfcManager_disableDiscoveryMode},
       
    {"doGetSecureElementList", "()[I",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doGetSecureElementList},
+      (void *)com_android_nfc_NfcManager_doGetSecureElementList},
       
    {"doSelectSecureElement", "(I)V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doSelectSecureElement},
+      (void *)com_android_nfc_NfcManager_doSelectSecureElement},
       
    {"doDeselectSecureElement", "(I)V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doDeselectSecureElement},
+      (void *)com_android_nfc_NfcManager_doDeselectSecureElement},
       
-   {"doOpenP2pConnection", "(I)Lcom/trustedlogic/trustednfc/android/internal/NativeP2pDevice;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doOpenP2pConnection},  
+   {"doOpenP2pConnection", "(I)Lcom/android/nfc/NativeP2pDevice;",
+      (void *)com_android_nfc_NfcManager_doOpenP2pConnection},
       
-   {"doOpenTagConnection", "(I)Lcom/trustedlogic/trustednfc/android/internal/NativeNfcTag;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doOpenTagConnection},  
+   {"doOpenTagConnection", "(I)Lcom/android/nfc/NativeNfcTag;",
+      (void *)com_android_nfc_NfcManager_doOpenTagConnection},
       
    {"doCancel", "()V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doCancel},
+      (void *)com_android_nfc_NfcManager_doCancel},
       
    {"doCheckLlcp", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doCheckLlcp},        
+      (void *)com_android_nfc_NfcManager_doCheckLlcp},
       
    {"doActivateLlcp", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doActivateLlcp},
+      (void *)com_android_nfc_NfcManager_doActivateLlcp},
             
-   {"doCreateLlcpConnectionlessSocket", "(I)Lcom/trustedlogic/trustednfc/android/internal/NativeLlcpConnectionlessSocket;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpConnectionlessSocket},
+   {"doCreateLlcpConnectionlessSocket", "(I)Lcom/android/nfc/NativeLlcpConnectionlessSocket;",
+      (void *)com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket},
         
-   {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/trustedlogic/trustednfc/android/internal/NativeLlcpServiceSocket;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpServiceSocket},   
+   {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/android/nfc/NativeLlcpServiceSocket;",
+      (void *)com_android_nfc_NfcManager_doCreateLlcpServiceSocket},
       
-   {"doCreateLlcpSocket", "(IIII)Lcom/trustedlogic/trustednfc/android/internal/NativeLlcpSocket;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doCreateLlcpSocket},  
+   {"doCreateLlcpSocket", "(IIII)Lcom/android/nfc/NativeLlcpSocket;",
+      (void *)com_android_nfc_NfcManager_doCreateLlcpSocket},
       
    {"doGetLastError", "()I",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doGetLastError},
+      (void *)com_android_nfc_NfcManager_doGetLastError},
       
    {"doSetProperties", "(II)V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_doSetProperties},
+      (void *)com_android_nfc_NfcManager_doSetProperties},
 
    {"disableDiscovery", "()V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_disableDiscovery},
+      (void *)com_android_nfc_NfcManager_disableDiscovery},
 
    {"readerDiscovery", "()V",
-      (void *)com_trustedlogic_trustednfc_android_internal_NfcManager_readerDiscovery},
+      (void *)com_android_nfc_NfcManager_readerDiscovery},
 };   
   
       
-int register_com_trustedlogic_trustednfc_android_internal_NativeNfcManager(JNIEnv *e)
+int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
 {
    trustednfc_jni_native_monitor_t *trustednfc_jni_native_monitor;
 
@@ -2346,7 +2340,7 @@ int register_com_trustedlogic_trustednfc_android_internal_NativeNfcManager(JNIEn
    
    
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeNfcManager",
+      "com/android/nfc/NativeNfcManager",
       gMethods, NELEM(gMethods));
 }
 

@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * File            : com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket.c
- * Original-Author : Trusted Logic S.A. (Daniel Tomas)
- * Created         : 04-03-2010
- */
 #include <semaphore.h>
 
 #include "trustednfc_jni.h"
@@ -52,7 +47,7 @@ static void trustednfc_jni_llcp_accept_socket_callback(void*        pContext,
 /*
  * Methods
  */ 
-static jobject com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int timeout, jint miu, jint rw, jint linearBufferLength)
+static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int timeout, jint miu, jint rw, jint linearBufferLength)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -118,7 +113,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSoc
    if(trustednfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
       /* Create new LlcpSocket object */
-      if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/internal/NativeLlcpSocket",&(clientSocket)) == -1)
+      if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
       {
          LOGD("LLCP Socket creation error");
          return NULL;           
@@ -157,7 +152,7 @@ static jobject com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSoc
    } 
 }
 
-static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
+static jboolean com__NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -187,21 +182,21 @@ static jboolean com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSo
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doAccept", "(IIII)Lcom/trustedlogic/trustednfc/android/internal/NativeLlcpSocket;",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket_doAccept},
+   {"doAccept", "(IIII)Lcom/android/nfc/NativeLlcpSocket;",
+      (void *)com__NativeLlcpServiceSocket_doAccept},
       
    {"doClose", "()Z",
-      (void *)com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket_doClose},
+      (void *)com__NativeLlcpServiceSocket_doClose},
 };
 
 
-int register_com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket(JNIEnv *e)
+int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e)
 {
    if(sem_init(&trustednfc_jni_llcp_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
-      "com/trustedlogic/trustednfc/android/internal/NativeLlcpServiceSocket",
+      "com/android/nfc/NativeLlcpServiceSocket",
       gMethods, NELEM(gMethods));
 }
 
