@@ -67,7 +67,9 @@ extern "C" {
 #define ERROR_INSUFFICIENT_RESOURCES      -9
 
 /* Name strings for target types */
-#define TARGET_TYPE_ISO14443        "Iso14443"
+#define TARGET_TYPE_ISO14443_3A     "Iso14443-3A"
+#define TARGET_TYPE_ISO14443_3B     "Iso14443-3B"
+#define TARGET_TYPE_ISO14443_4      "Iso14443-4"
 #define TARGET_TYPE_MIFARE_UL       "MifareUL"
 #define TARGET_TYPE_MIFARE_1K       "Mifare1K"
 #define TARGET_TYPE_MIFARE_4K       "Mifare4K"

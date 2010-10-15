@@ -132,27 +132,6 @@ public class NativeNfcManager {
 
     private class NfcHandler extends Handler {
 
-        private int convertType(String typeName) {
-            if (typeName.equals("Iso14443")) {
-                return Tag.NFC_TAG_ISO14443_4B;
-            } else if (typeName.equals("MifareUL")) {
-                return Tag.NFC_TAG_MIFARE;
-            } else if (typeName.equals("Mifare1K")) {
-                return Tag.NFC_TAG_MIFARE;
-            } else if (typeName.equals("Mifare4K")) {
-                return Tag.NFC_TAG_MIFARE;
-            } else if (typeName.equals("MifareDESFIRE")) {
-                return Tag.NFC_TAG_MIFARE;
-            } else if (typeName.equals("Unknown Mifare")) {
-                return Tag.NFC_TAG_MIFARE;
-            } else if (typeName.equals("Felica")) {
-                return Tag.NFC_TAG_FELICA;
-            } else if (typeName.equals("Jewel")) {
-                return Tag.NFC_TAG_JEWEL;
-            } else {
-                return Tag.NFC_TAG_OTHER;
-            }
-        }
 
         @Override
         public void handleMessage(Message msg) {
@@ -169,7 +148,7 @@ public class NativeNfcManager {
                                     NdefMessage[] msgNdef = new NdefMessage[1];
                                     try {
                                         msgNdef[0] = new NdefMessage(buff);
-                                        NdefTag tag = new NdefTag(convertType(nativeTag.getType()), nativeTag.getUid(), nativeTag.getHandle(), msgNdef);
+                                        NdefTag tag = new NdefTag(nativeTag.getType(), nativeTag.getUid(), nativeTag.getHandle(), msgNdef);
                                         Intent intent = new Intent();
                                         intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
                                         intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
@@ -191,7 +170,7 @@ public class NativeNfcManager {
                                 }
                             } else {
                                 Intent intent = new Intent();
-                                Tag tag = new Tag(convertType(nativeTag.getType()), false, nativeTag.getUid(), nativeTag.getHandle());
+                                Tag tag = new Tag(nativeTag.getType(), false, nativeTag.getUid(), nativeTag.getHandle());
                                 intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
                                 intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

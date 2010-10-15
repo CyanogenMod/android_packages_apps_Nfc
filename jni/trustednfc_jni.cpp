@@ -25,7 +25,7 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
    JNIEnv *e;
 
-   LOGE("NFC Service : loading JNI\n");
+   LOGD("NFC Service : loading JNI\n");
 
    // Check JNI version
    if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6))

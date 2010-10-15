@@ -408,15 +408,19 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
    switch (type)
    {
       case phNfc_eISO14443_4A_PICC:
-      case phNfc_eISO14443_A_PICC:
+      case phNfc_eISO14443_4B_PICC:
         {
-          return TARGET_TYPE_ISO14443;
+          return TARGET_TYPE_ISO14443_4;
         }break;
         
-      case phNfc_eISO14443_4B_PICC:
+      case phNfc_eISO14443_A_PICC:
+        {
+          return TARGET_TYPE_ISO14443_3A;
+        }break;
+
       case phNfc_eISO14443_B_PICC:
         {
-          return TARGET_TYPE_ISO14443;
+          return TARGET_TYPE_ISO14443_3B;
         }break;
         
       case phNfc_eMifare_PICC:
