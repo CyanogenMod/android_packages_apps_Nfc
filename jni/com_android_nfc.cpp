@@ -15,7 +15,7 @@
  */
 
 #include "errno.h"
-#include "trustednfc_jni.h"
+#include "com_android_nfc.h"
 #include "phLibNfcStatus.h"
 
 /*
@@ -51,12 +51,12 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 namespace android {
 
-extern struct trustednfc_jni_native_data *exported_nat;
+extern struct nfc_jni_native_data *exported_nat;
 
 /*
  * JNI Utils
  */
-int trustednfc_jni_cache_object(JNIEnv *e, const char *clsname,
+int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    jobject *cached_obj)
 {
    jclass cls;
@@ -94,7 +94,7 @@ int trustednfc_jni_cache_object(JNIEnv *e, const char *clsname,
 }
 
 
-struct trustednfc_jni_native_data* trustednfc_jni_get_nat(JNIEnv *e, jobject o)
+struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
@@ -102,17 +102,17 @@ struct trustednfc_jni_native_data* trustednfc_jni_get_nat(JNIEnv *e, jobject o)
    /* Retrieve native structure address */
    c = e->GetObjectClass(o);
    f = e->GetFieldID(c, "mNative", "I");
-   return (struct trustednfc_jni_native_data*)e->GetIntField(o, f);
+   return (struct nfc_jni_native_data*)e->GetIntField(o, f);
 }
 
-struct trustednfc_jni_native_data* trustednfc_jni_get_nat_ext(JNIEnv *e)
+struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e)
 {
    return exported_nat;
 }
 
-static trustednfc_jni_native_monitor_t *trustednfc_jni_native_monitor = NULL;
+static nfc_jni_native_monitor_t *nfc_jni_native_monitor = NULL;
 
-trustednfc_jni_native_monitor_t* trustednfc_jni_init_monitor(void)
+nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
 {
 
    pthread_mutexattr_t recursive_attr;
@@ -120,38 +120,38 @@ trustednfc_jni_native_monitor_t* trustednfc_jni_init_monitor(void)
    pthread_mutexattr_init(&recursive_attr);
    pthread_mutexattr_settype(&recursive_attr, PTHREAD_MUTEX_RECURSIVE_NP);
 
-   if(trustednfc_jni_native_monitor == NULL)
+   if(nfc_jni_native_monitor == NULL)
    {
-      trustednfc_jni_native_monitor = (trustednfc_jni_native_monitor_t*)malloc(sizeof(trustednfc_jni_native_monitor_t));
+      nfc_jni_native_monitor = (nfc_jni_native_monitor_t*)malloc(sizeof(nfc_jni_native_monitor_t));
    }
 
-   if(trustednfc_jni_native_monitor != NULL)
+   if(nfc_jni_native_monitor != NULL)
    {
-      memset(trustednfc_jni_native_monitor, 0, sizeof(trustednfc_jni_native_monitor_t));
+      memset(nfc_jni_native_monitor, 0, sizeof(nfc_jni_native_monitor_t));
 
-      if(pthread_mutex_init(&trustednfc_jni_native_monitor->reentrance_mutex, &recursive_attr) == -1)
+      if(pthread_mutex_init(&nfc_jni_native_monitor->reentrance_mutex, &recursive_attr) == -1)
       {
          LOGE("NFC Manager Reentrance Mutex creation retruned 0x%08x", errno);
          return NULL;
       }
 
-      if(pthread_mutex_init(&trustednfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
+      if(pthread_mutex_init(&nfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
       {
          LOGE("NFC Manager Concurrency Mutex creation retruned 0x%08x", errno);
          return NULL;
       }
    }
 
-   return trustednfc_jni_native_monitor;
+   return nfc_jni_native_monitor;
 } 
 
-trustednfc_jni_native_monitor_t* trustednfc_jni_get_monitor(void)
+nfc_jni_native_monitor_t* nfc_jni_get_monitor(void)
 {
-   return trustednfc_jni_native_monitor;
+   return nfc_jni_native_monitor;
 }
    
 
-phLibNfc_Handle trustednfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o)
+phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
@@ -162,7 +162,7 @@ phLibNfc_Handle trustednfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o)
    return e->GetIntField(o, f);
 }
 
-jshort trustednfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o)
+jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
@@ -174,7 +174,7 @@ jshort trustednfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o)
 }
 
 
-phLibNfc_Handle trustednfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o)
+phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
@@ -185,7 +185,7 @@ phLibNfc_Handle trustednfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o)
    return e->GetIntField(o, f);
 }
 
-phLibNfc_Handle trustednfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
+phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
@@ -196,7 +196,7 @@ phLibNfc_Handle trustednfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
    return e->GetIntField(o, f);
 }
 
-jstring trustednfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
+jstring nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
 {
   jclass c;
   jfieldID f;
@@ -214,7 +214,7 @@ jstring trustednfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
 
 
 //Display status code
-const char* trustednfc_jni_get_status_name(NFCSTATUS status)
+const char* nfc_jni_get_status_name(NFCSTATUS status)
 {
    #define STATUS_ENTRY(status) { status, #status }
  

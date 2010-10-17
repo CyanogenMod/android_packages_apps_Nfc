@@ -14,15 +14,10 @@
  * limitations under the License.
  */
 
-/**
- * File            : trustednfc_jni.h
- * Original-Author : Trusted Logic S.A. (Jeremie Corbier)
- * Created         : 26-08-2009
- */
-#ifndef __TRUSTEDNFC_JNI_H__
-#define __TRUSTEDNFC_JNI_H__
+#ifndef __COM_ANDROID_NFC_JNI_H__
+#define __COM_ANDROID_NFC_JNI_H__
 
-#define LOG_TAG "Trusted_NFC_JNI"
+#define LOG_TAG "NFC JNI"
 
 #include <JNIHelp.h>
 #include <jni.h>
@@ -81,9 +76,9 @@ extern "C" {
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN
-#define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, trustednfc_jni_get_status_name(status));
+#define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, nfc_jni_get_status_name(status));
 
-struct trustednfc_jni_native_data
+struct nfc_jni_native_data
 {
    /* Thread handle */
    pthread_t thread;
@@ -122,7 +117,7 @@ struct trustednfc_jni_native_data
    
 };
 
-typedef struct trustednfc_jni_native_monitor
+typedef struct nfc_jni_native_monitor
 {
    /* Mutex protecting native library against reentrance */
    pthread_mutex_t reentrance_mutex;
@@ -130,34 +125,34 @@ typedef struct trustednfc_jni_native_monitor
    /* Mutex protecting native library against concurrency */
    pthread_mutex_t concurrency_mutex;
 
-} trustednfc_jni_native_monitor_t;
+} nfc_jni_native_monitor_t;
 
 /* TODO: treat errors and add traces */
-#define REENTRANCE_LOCK()        pthread_mutex_lock(&trustednfc_jni_get_monitor()->reentrance_mutex)
-#define REENTRANCE_UNLOCK()      pthread_mutex_unlock(&trustednfc_jni_get_monitor()->reentrance_mutex)
-#define CONCURRENCY_LOCK()       pthread_mutex_lock(&trustednfc_jni_get_monitor()->concurrency_mutex)
-#define CONCURRENCY_UNLOCK()     pthread_mutex_unlock(&trustednfc_jni_get_monitor()->concurrency_mutex)
+#define REENTRANCE_LOCK()        pthread_mutex_lock(&nfc_jni_get_monitor()->reentrance_mutex)
+#define REENTRANCE_UNLOCK()      pthread_mutex_unlock(&nfc_jni_get_monitor()->reentrance_mutex)
+#define CONCURRENCY_LOCK()       pthread_mutex_lock(&nfc_jni_get_monitor()->concurrency_mutex)
+#define CONCURRENCY_UNLOCK()     pthread_mutex_unlock(&nfc_jni_get_monitor()->concurrency_mutex)
 
 namespace android {
 
-const char* trustednfc_jni_get_status_name(NFCSTATUS status);
-int trustednfc_jni_cache_object(JNIEnv *e, const char *clsname,
+const char* nfc_jni_get_status_name(NFCSTATUS status);
+int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    jobject *cached_obj);
-struct trustednfc_jni_native_data* trustednfc_jni_get_nat(JNIEnv *e, jobject o);
-struct trustednfc_jni_native_data* trustednfc_jni_get_nat_ext(JNIEnv *e);
-trustednfc_jni_native_monitor_t* trustednfc_jni_init_monitor(void);
-trustednfc_jni_native_monitor_t* trustednfc_jni_get_monitor(void);
+struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o);
+struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e);
+nfc_jni_native_monitor_t* nfc_jni_init_monitor(void);
+nfc_jni_native_monitor_t* nfc_jni_get_monitor(void);
 
 /* P2P */
-phLibNfc_Handle trustednfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
-jshort trustednfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
+phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
+jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
 
 /* TAG */
-phLibNfc_Handle trustednfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o);
-jstring trustednfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
+phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o);
+jstring nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
 
 /* LLCP */
-phLibNfc_Handle trustednfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o);
+phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o);
 
 int register_com_android_nfc_NativeNfcManager(JNIEnv *e);
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e);

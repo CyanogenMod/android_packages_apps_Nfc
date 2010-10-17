@@ -5,14 +5,14 @@ include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
 
 LOCAL_SRC_FILES:= \
-    com_trustedlogic_trustednfc_android_internal_NativeLlcpConnectionlessSocket.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeLlcpServiceSocket.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeLlcpSocket.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeNdefTag.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeNfcManager.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeNfcTag.cpp \
-    com_trustedlogic_trustednfc_android_internal_NativeP2pDevice.cpp \
-    trustednfc_jni.cpp
+    com_android_nfc_NativeLlcpConnectionlessSocket.cpp \
+    com_android_nfc_NativeLlcpServiceSocket.cpp \
+    com_android_nfc_NativeLlcpSocket.cpp \
+    com_android_nfc_NativeNdefTag.cpp \
+    com_android_nfc_NativeNfcManager.cpp \
+    com_android_nfc_NativeNfcTag.cpp \
+    com_android_nfc_NativeP2pDevice.cpp \
+    com_android_nfc.cpp
 
 LOCAL_C_INCLUDES += \
     $(JNI_H_INCLUDE) \

@@ -16,11 +16,11 @@
 
 #include <semaphore.h>
 
-#include "trustednfc_jni.h"
+#include "com_android_nfc.h"
 
-static sem_t trustednfc_jni_llcp_send_sem;
-static sem_t trustednfc_jni_llcp_receive_sem;
-static NFCSTATUS trustednfc_jni_cb_status = NFCSTATUS_FAILED;
+static sem_t nfc_jni_llcp_send_sem;
+static sem_t nfc_jni_llcp_receive_sem;
+static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 static uint8_t receivedSsap;
 
 namespace android {
@@ -29,13 +29,13 @@ namespace android {
  * Callbacks
  */
 
-static void trustednfc_jni_receive_callback(void* pContext, uint8_t ssap, NFCSTATUS status)
+static void nfc_jni_receive_callback(void* pContext, uint8_t ssap, NFCSTATUS status)
 {  
    uint8_t* receiveSsap = (uint8_t*)pContext;
    
-   LOG_CALLBACK("trustednfc_jni_receiveFrom_callback", status);
+   LOG_CALLBACK("nfc_jni_receiveFrom_callback", status);
 
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
    
    if(status == NFCSTATUS_SUCCESS)
    {
@@ -43,18 +43,18 @@ static void trustednfc_jni_receive_callback(void* pContext, uint8_t ssap, NFCSTA
       LOGD("RECEIVE UI_FRAME FROM SAP %d OK \n",*receiveSsap);
    }
    
-   sem_post(&trustednfc_jni_llcp_receive_sem);  
+   sem_post(&nfc_jni_llcp_receive_sem);  
 }
 
-static void trustednfc_jni_send_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
 {     
    PHNFC_UNUSED_VARIABLE(pContext);
    
-   LOG_CALLBACK("trustednfc_jni_sendTo_callback", status);
+   LOG_CALLBACK("nfc_jni_sendTo_callback", status);
 
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
    
-   sem_post(&trustednfc_jni_llcp_send_sem);  
+   sem_post(&nfc_jni_llcp_send_sem);  
 }
 
 /*
@@ -68,7 +68,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    phNfc_sData_t sSendBuffer;
    
    /* Retrieve socket handle */
-   hLlcpSocket = trustednfc_jni_get_nfc_socket_handle(e,o);
+   hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
    
    sSendBuffer.buffer = (uint8_t*)e->GetByteArrayElements(data, NULL);
    sSendBuffer.length = (uint32_t)e->GetArrayLength(data);   
@@ -78,22 +78,22 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    ret = phLibNfc_Llcp_SendTo(hLlcpSocket,
                               nsap,
                               &sSendBuffer,
-                              trustednfc_jni_send_callback,
+                              nfc_jni_send_callback,
                               (void*)hLlcpSocket);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE;
    } 
-   LOGD("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&trustednfc_jni_llcp_send_sem) == -1)
+   if(sem_wait(&nfc_jni_llcp_send_sem) == -1)
       return FALSE;   
 
 
-   if(trustednfc_jni_cb_status == NFCSTATUS_SUCCESS)
+   if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
       return TRUE; 
    }
@@ -116,7 +116,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    jbyteArray receivedData;
    
    /* Create new LlcpPacket object */
-   if(trustednfc_jni_cache_object(e,"com/trustedlogic/trustednfc/android/LlcpPacket",&(llcpPacket)) == -1)
+   if(nfc_jni_cache_object(e,"android/nfc/LlcpPacket",&(llcpPacket)) == -1)
    {
       LOGD("Find LlcpPacket class error");
       return NULL;           
@@ -131,7 +131,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    } 
    
    /* Retrieve socket handle */
-   hLlcpSocket = trustednfc_jni_get_nfc_socket_handle(e,o);
+   hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
    LOGD("Socket Handle = 0x%02x",hLlcpSocket);
    
    LOGD("Link LIU = %d",linkMiu);
@@ -143,22 +143,22 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_RecvFrom(hLlcpSocket,
                                 &sReceiveBuffer,
-                                trustednfc_jni_receive_callback,
+                                nfc_jni_receive_callback,
                                 &ssap);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return NULL;
    } 
-   LOGD("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&trustednfc_jni_llcp_receive_sem) == -1)
+   if(sem_wait(&nfc_jni_llcp_receive_sem) == -1)
       return NULL; 
       
 
-   if(trustednfc_jni_cb_status == NFCSTATUS_SUCCESS)
+   if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
       LOGD("Data Received From SSAP = %d\n",ssap);
       
@@ -190,7 +190,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doClose(JNIEnv *e
    LOGD("Close Connectionless socket");
    
    /* Retrieve socket handle */
-   hLlcpSocket = trustednfc_jni_get_nfc_socket_handle(e,o);
+   hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
 
    LOGD("phLibNfc_Llcp_Close()");
    REENTRANCE_LOCK();
@@ -198,12 +198,12 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doClose(JNIEnv *e
    REENTRANCE_UNLOCK();
    if(ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGD("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return TRUE;
    }
    else
    {
-      LOGE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE;
    }
 }
@@ -225,10 +225,10 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e)
 {
 
-   if(sem_init(&trustednfc_jni_llcp_send_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_llcp_send_sem, 0, 0) == -1)
       return -1;
       
-   if(sem_init(&trustednfc_jni_llcp_receive_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_llcp_receive_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,

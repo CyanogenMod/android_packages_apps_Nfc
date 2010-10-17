@@ -18,7 +18,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include "trustednfc_jni.h"
+#include "com_android_nfc.h"
 
 #define ERROR_BUFFER_TOO_SMALL -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
@@ -32,12 +32,12 @@ static phLibNfc_Handle              hLlcpHandle;
 static NFCSTATUS                    lastErrorStatus = NFCSTATUS_FAILED;
 static phLibNfc_Llcp_eLinkStatus_t  g_eLinkStatus = phFriNfc_LlcpMac_eLinkDefault;
 
-static sem_t trustednfc_jni_manager_sem;
-static sem_t trustednfc_jni_llcp_sem;
-static sem_t trustednfc_jni_open_sem;
-static sem_t trustednfc_jni_init_sem;
+static sem_t nfc_jni_manager_sem;
+static sem_t nfc_jni_llcp_sem;
+static sem_t nfc_jni_open_sem;
+static sem_t nfc_jni_init_sem;
 
-static NFCSTATUS            trustednfc_jni_cb_status = NFCSTATUS_FAILED;
+static NFCSTATUS            nfc_jni_cb_status = NFCSTATUS_FAILED;
 
 static jmethodID cached_NfcManager_notifyNdefMessageListeners;
 static jmethodID cached_NfcManager_notifyTransactionListeners;
@@ -48,18 +48,18 @@ static jmethodID cached_NfcManager_notifyTargetDeselected;
 namespace android {
 
 phLibNfc_Handle     hIncommingLlcpSocket;
-sem_t               trustednfc_jni_llcp_listen_sem;
+sem_t               nfc_jni_llcp_listen_sem;
 
-struct trustednfc_jni_native_data *exported_nat = NULL;
+struct nfc_jni_native_data *exported_nat = NULL;
 
 /* Internal functions declaration */
-static void *trustednfc_jni_client_thread(void *arg);
-static void trustednfc_jni_init_callback(void *pContext, NFCSTATUS status);
-static void trustednfc_jni_deinit_callback(void *pContext, NFCSTATUS status);
-static void trustednfc_jni_discover_callback(void *pContext, NFCSTATUS status);
-static void trustednfc_jni_se_set_mode_callback(void *context,
+static void *nfc_jni_client_thread(void *arg);
+static void nfc_jni_init_callback(void *pContext, NFCSTATUS status);
+static void nfc_jni_deinit_callback(void *pContext, NFCSTATUS status);
+static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status);
+static void nfc_jni_se_set_mode_callback(void *context,
    phLibNfc_Handle handle, NFCSTATUS status);
-static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *nat);
+static void nfc_jni_start_discovery(struct nfc_jni_native_data *nat);
 
 static phLibNfc_eConfigLinkType parseLinkType(const char* link_name)
 {
@@ -108,12 +108,12 @@ static phLibNfc_eConfigLinkType parseLinkType(const char* link_name)
  */
 static void client_kill_deferred_call(void* arg)
 {
-   struct trustednfc_jni_native_data *nat = (struct trustednfc_jni_native_data *)arg;
+   struct nfc_jni_native_data *nat = (struct nfc_jni_native_data *)arg;
    
    nat->running = FALSE;
 }
 
-static void kill_client(trustednfc_jni_native_data *nat)
+static void kill_client(nfc_jni_native_data *nat)
 {
    phDal4Nfc_Message_Wrapper_t  wrapper;
    phLibNfc_DeferredCall_t     *pMsg;
@@ -133,7 +133,7 @@ static void kill_client(trustednfc_jni_native_data *nat)
 
 
 /* Initialization function */
-static int trustednfc_jni_initialize(struct trustednfc_jni_native_data *nat)
+static int nfc_jni_initialize(struct nfc_jni_native_data *nat)
 {
    struct timespec ts;
    NFCSTATUS status;
@@ -157,18 +157,18 @@ static int trustednfc_jni_initialize(struct trustednfc_jni_native_data *nat)
    REENTRANCE_UNLOCK();
    if(status == NFCSTATUS_ALREADY_INITIALISED)
    {
-      LOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
    else if(status != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+   LOGD("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    
    /* TODO: here would be a good place to perform HW reset of the chip */
    
-   if(pthread_create(&(nat->thread), NULL, trustednfc_jni_client_thread,
+   if(pthread_create(&(nat->thread), NULL, nfc_jni_client_thread,
          nat) != 0)
    {
       LOGE("pthread_create failed");
@@ -177,17 +177,17 @@ static int trustednfc_jni_initialize(struct trustednfc_jni_native_data *nat)
      
    LOGD("phLibNfc_Mgt_Initialize()");
    REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_Initialize(gHWRef, trustednfc_jni_init_callback, (void *)nat);
+   status = phLibNfc_Mgt_Initialize(gHWRef, nfc_jni_init_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Mgt_Initialize() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGE("phLibNfc_Mgt_Initialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Mgt_Initialize returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+   LOGD("phLibNfc_Mgt_Initialize returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
   
    /* Wait for callback response */
-   sem_wait(&trustednfc_jni_init_sem);
+   sem_wait(&nfc_jni_init_sem);
 
    /* Initialization Status */
    if(nat->status != NFCSTATUS_SUCCESS)
@@ -200,7 +200,7 @@ static int trustednfc_jni_initialize(struct trustednfc_jni_native_data *nat)
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_SUCCESS)
    {
-      LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
    else
    {
@@ -236,19 +236,19 @@ static int trustednfc_jni_initialize(struct trustednfc_jni_native_data *nat)
           /* Set SE mode - Off */
           LOGD("******  Initialize Secure Element ******");
           REENTRANCE_LOCK();
-          status = phLibNfc_SE_SetMode(SE_List[i].hSecureElement,phLibNfc_SE_ActModeOff, trustednfc_jni_se_set_mode_callback,(void *)nat);
+          status = phLibNfc_SE_SetMode(SE_List[i].hSecureElement,phLibNfc_SE_ActModeOff, nfc_jni_se_set_mode_callback,(void *)nat);
           REENTRANCE_UNLOCK();
        
           LOGD("phLibNfc_SE_SetMode for SE 0x%02x returned 0x%02x",SE_List[i].hSecureElement, status);
           if(status != NFCSTATUS_PENDING)
           {
-            LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+            LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
             goto clean_and_return;
           }
-          LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+          LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
           /* Wait for callback response */
-          sem_wait(&trustednfc_jni_manager_sem);
+          sem_wait(&nfc_jni_manager_sem);
         }
       }
       else
@@ -274,7 +274,7 @@ clean_and_return:
 
 
 /* Deinitialization function */
-static void trustednfc_jni_deinitialize(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_deinitialize(struct nfc_jni_native_data *nat)
 {
    struct timespec ts;
    NFCSTATUS status;
@@ -286,17 +286,17 @@ static void trustednfc_jni_deinitialize(struct trustednfc_jni_native_data *nat)
    
    LOGD("phLibNfc_Mgt_DeInitialize() - 0x%08x", nat);
    REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_DeInitialize(gHWRef, trustednfc_jni_deinit_callback, (void *)nat);
+   status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    if (status == NFCSTATUS_PENDING)
    {
-      LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
       clock_gettime(CLOCK_REALTIME, &ts);
       ts.tv_sec += 10; 
   
       /* Wait for callback response */
-      if(sem_timedwait(&trustednfc_jni_manager_sem, &ts) == -1)
+      if(sem_timedwait(&nfc_jni_manager_sem, &ts) == -1)
       {
          LOGW("Operation timed out");
          bStackReset = TRUE;
@@ -304,7 +304,7 @@ static void trustednfc_jni_deinitialize(struct trustednfc_jni_native_data *nat)
    }
    else
    {
-      LOGW("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGW("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       bStackReset = TRUE;
    }
 
@@ -331,11 +331,11 @@ static void trustednfc_jni_deinitialize(struct trustednfc_jni_native_data *nat)
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
    else
    {
-      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
 
    LOGI("NFC Deinitialized");
@@ -345,7 +345,7 @@ static void trustednfc_jni_deinitialize(struct trustednfc_jni_native_data *nat)
  * Last-chance fallback when there is no clean way to recover
  * Performs a software reset
   */
-void emergency_recovery(struct trustednfc_jni_native_data *nat)
+void emergency_recovery(struct nfc_jni_native_data *nat)
 {
    phLibNfc_sADD_Cfg_t discovery_cfg;
    phLibNfc_Registry_Info_t registration_cfg;
@@ -357,23 +357,23 @@ void emergency_recovery(struct trustednfc_jni_native_data *nat)
    memcpy(&registration_cfg, &nat->registry_info, sizeof(phLibNfc_Registry_Info_t));
    
    /* Deinit */
-   trustednfc_jni_deinitialize(nat);
+   nfc_jni_deinitialize(nat);
    
    /* Reinit */
-   trustednfc_jni_initialize(nat);
+   nfc_jni_initialize(nat);
 
    /* Restore polling loop configuration */
    memcpy(&nat->discovery_cfg, &discovery_cfg, sizeof(phLibNfc_sADD_Cfg_t));
    memcpy(&nat->registry_info, &registration_cfg, sizeof(phLibNfc_Registry_Info_t));
 
    /* Restart polling loop */
-   trustednfc_jni_start_discovery(nat);
+   nfc_jni_start_discovery(nat);
 }
 
 /*
  * Restart the polling loop when unable to perform disconnect
   */
-void trustednfc_jni_restart_discovery(struct trustednfc_jni_native_data *nat)
+void nfc_jni_restart_discovery(struct nfc_jni_native_data *nat)
 {
    int ret;
 
@@ -382,7 +382,7 @@ void trustednfc_jni_restart_discovery(struct trustednfc_jni_native_data *nat)
    /* Restart Polling loop */
    LOGD("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_RESUME,nat->discovery_cfg, trustednfc_jni_discover_callback, (void *)nat);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_RESUME,nat->discovery_cfg, nfc_jni_discover_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_Mgt_ConfigureDiscovery(%s-%s-%s-%s-%s-%s, %s-%x-%x) returned 0x%08x\n",
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A==TRUE?"3A":"",
@@ -467,14 +467,14 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
 /*
  * NFC stack message processing
  */
-static void *trustednfc_jni_client_thread(void *arg)
+static void *nfc_jni_client_thread(void *arg)
 {
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    JNIEnv *e;
    JavaVMAttachArgs thread_args;
    phDal4Nfc_Message_Wrapper_t wrapper;
 
-   nat = (struct trustednfc_jni_native_data *)arg;
+   nat = (struct nfc_jni_native_data *)arg;
 
    thread_args.name = "NFC Message Loop";
    thread_args.version = nat->env_version;
@@ -516,11 +516,11 @@ static void *trustednfc_jni_client_thread(void *arg)
    return NULL;
 }
 
-extern uint8_t trustednfc_jni_is_ndef;
-extern uint8_t *trustednfc_jni_ndef_buf;
-extern uint32_t trustednfc_jni_ndef_buf_len;
+extern uint8_t nfc_jni_is_ndef;
+extern uint8_t *nfc_jni_ndef_buf;
+extern uint32_t nfc_jni_ndef_buf_len;
 
-static phLibNfc_sNfcIPCfg_t trustednfc_jni_nfcip1_cfg =
+static phLibNfc_sNfcIPCfg_t nfc_jni_nfcip1_cfg =
 {
    3,
    { 0x46, 0x66, 0x6D }
@@ -531,16 +531,16 @@ static phLibNfc_sNfcIPCfg_t trustednfc_jni_nfcip1_cfg =
  */
 
 /* P2P - LLCP callbacks */
-static void trustednfc_jni_llcp_linkStatus_callback(void *pContext,
+static void nfc_jni_llcp_linkStatus_callback(void *pContext,
                                                     phFriNfc_LlcpMac_eLinkStatus_t   eLinkStatus)
 {
    phFriNfc_Llcp_sLinkParameters_t  sLinkParams;
    JNIEnv *e;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
-   nat = (struct trustednfc_jni_native_data *)pContext;
+   nat = (struct nfc_jni_native_data *)pContext;
    
-   LOGD("Callback: trustednfc_jni_llcp_linkStatus_callback()");
+   LOGD("Callback: nfc_jni_llcp_linkStatus_callback()");
 
    nat->vm->GetEnv( (void **)&e, nat->env_version);
    
@@ -570,53 +570,53 @@ static void trustednfc_jni_llcp_linkStatus_callback(void *pContext,
    }
 }
 
-static void trustednfc_jni_checkLlcp_callback(void *context,
+static void nfc_jni_checkLlcp_callback(void *context,
                                               NFCSTATUS status)
 {
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
    
    PHNFC_UNUSED_VARIABLE(context);
 
-   LOG_CALLBACK("trustednfc_jni_checkLlcp_callback", status);
+   LOG_CALLBACK("nfc_jni_checkLlcp_callback", status);
 
    if(status == NFCSTATUS_SUCCESS)
    {
       LOGD("%s return status = 0x%x\n", __func__, status);
 
-      sem_post(&trustednfc_jni_llcp_sem);
+      sem_post(&nfc_jni_llcp_sem);
    }
 }
 
-static void trustednfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status)
 {
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
    
-   LOG_CALLBACK("trustednfc_jni_llcpcfg_callback", status);
+   LOG_CALLBACK("nfc_jni_llcpcfg_callback", status);
 
-   sem_post(&trustednfc_jni_manager_sem);
+   sem_post(&nfc_jni_manager_sem);
 }
 
-static void trustednfc_jni_p2pcfg_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_p2pcfg_callback(void *pContext, NFCSTATUS status)
 {
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
 
-   LOG_CALLBACK("trustednfc_jni_p2pcfg_callback", status);
+   LOG_CALLBACK("nfc_jni_p2pcfg_callback", status);
 
-   sem_post(&trustednfc_jni_manager_sem);
+   sem_post(&nfc_jni_manager_sem);
 }
 
-static void trustednfc_jni_llcp_transport_listen_socket_callback(void              *pContext,
+static void nfc_jni_llcp_transport_listen_socket_callback(void              *pContext,
                                                                  phLibNfc_Handle   IncomingSocket)
 {
    PHNFC_UNUSED_VARIABLE(pContext);
 
-   LOGD("Callback: trustednfc_jni_llcp_transport_listen_socket_callback()");
+   LOGD("Callback: nfc_jni_llcp_transport_listen_socket_callback()");
 
    if(IncomingSocket != 0)
    {
       LOGD("Listen CB \n");
       hIncommingLlcpSocket = IncomingSocket;
-      sem_post(&trustednfc_jni_llcp_listen_sem);  
+      sem_post(&nfc_jni_llcp_listen_sem);  
    }
    else
    {
@@ -624,12 +624,12 @@ static void trustednfc_jni_llcp_transport_listen_socket_callback(void           
    }
 }
 
-void trustednfc_jni_llcp_transport_socket_err_callback(void*      pContext,
+void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
                                                        uint8_t    nErrCode)
 {
    PHNFC_UNUSED_VARIABLE(pContext);
 
-   LOGD("Callback: trustednfc_jni_llcp_transport_socket_err_callback()");
+   LOGD("Callback: nfc_jni_llcp_transport_socket_err_callback()");
 
    if(nErrCode == PHFRINFC_LLCP_ERR_FRAME_REJECTED)
    {
@@ -641,29 +641,29 @@ void trustednfc_jni_llcp_transport_socket_err_callback(void*      pContext,
    }
 }
 
-static void trustednfc_jni_connect_callback(void *pContext,
+static void nfc_jni_connect_callback(void *pContext,
    phLibNfc_Handle hRemoteDev,
    phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo, NFCSTATUS status)
 {
-   LOG_CALLBACK("trustednfc_jni_connect_callback", status);
+   LOG_CALLBACK("nfc_jni_connect_callback", status);
 }
 
 
-static void trustednfc_jni_discover_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status)
 {
-   LOG_CALLBACK("trustednfc_jni_discover_callback", status);
+   LOG_CALLBACK("nfc_jni_discover_callback", status);
 
-   //sem_post(&trustednfc_jni_manager_sem);
+   //sem_post(&nfc_jni_manager_sem);
 }
 
 
-static void trustednfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCSTATUS status)
+static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCSTATUS status)
 {
-   LOG_CALLBACK("trustednfc_jni_ioctl_callback", status);
+   LOG_CALLBACK("nfc_jni_ioctl_callback", status);
 }
 
 
-static void trustednfc_jni_Discovery_notification_callback(void *pContext,
+static void nfc_jni_Discovery_notification_callback(void *pContext,
    phLibNfc_RemoteDevList_t *psRemoteDevList,
    uint8_t uNofRemoteDev, NFCSTATUS status)
 {
@@ -677,17 +677,17 @@ static void trustednfc_jni_Discovery_notification_callback(void *pContext,
    const char * typeName;
    jbyteArray tagUid;
    jbyteArray generalBytes = NULL;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    struct timespec ts;
    int i;
 
-   nat = (struct trustednfc_jni_native_data *)pContext;
+   nat = (struct nfc_jni_native_data *)pContext;
    
    nat->vm->GetEnv( (void **)&e, nat->env_version);
    
    if(status == NFCSTATUS_DESELECTED)
    {
-      LOG_CALLBACK("trustednfc_jni_Discovery_notification_callback: Target deselected", status); 
+      LOG_CALLBACK("nfc_jni_Discovery_notification_callback: Target deselected", status); 
          
       /* Notify manager that a target was deselected */
       e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTargetDeselected);
@@ -699,7 +699,7 @@ static void trustednfc_jni_Discovery_notification_callback(void *pContext,
    }
    else
    {
-      LOG_CALLBACK("trustednfc_jni_Discovery_notification_callback", status);
+      LOG_CALLBACK("nfc_jni_Discovery_notification_callback", status);
       LOGI("Discovered %d tags", uNofRemoteDev);
       
       if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
@@ -816,7 +816,7 @@ static void trustednfc_jni_Discovery_notification_callback(void *pContext,
    } 
 }
 
-static void trustednfc_jni_open_notification_callback(void *pContext,
+static void nfc_jni_open_notification_callback(void *pContext,
    phLibNfc_RemoteDevList_t *psRemoteDevList,
    uint8_t uNofRemoteDev, NFCSTATUS status)
 {
@@ -829,17 +829,17 @@ static void trustednfc_jni_open_notification_callback(void *pContext,
    jstring type = NULL;
    jbyteArray generalBytes = NULL;
    const char * typeName;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    NFCSTATUS ret;
    int i;
    
-   nat = (struct trustednfc_jni_native_data *)pContext;
+   nat = (struct nfc_jni_native_data *)pContext;
    
    nat->vm->GetEnv( (void **)&e, nat->env_version);
    
    if(status == NFCSTATUS_DESELECTED)
    {
-      LOG_CALLBACK("trustednfc_jni_open_notification_callback: Target deselected", status); 
+      LOG_CALLBACK("nfc_jni_open_notification_callback: Target deselected", status); 
          
       /* Notify manager that a target was deselected */
       e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTargetDeselected);
@@ -851,7 +851,7 @@ static void trustednfc_jni_open_notification_callback(void *pContext,
    }
    else
    {   
-      LOG_CALLBACK("trustednfc_jni_open_notification_callback", status);
+      LOG_CALLBACK("nfc_jni_open_notification_callback", status);
       LOGI("Discovered %d tags", uNofRemoteDev);
       
       
@@ -942,44 +942,44 @@ static void trustednfc_jni_open_notification_callback(void *pContext,
       
       e->DeleteLocalRef(tag);
       
-      sem_post(&trustednfc_jni_open_sem);
+      sem_post(&nfc_jni_open_sem);
    }
 }
 
-static void trustednfc_jni_init_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_init_callback(void *pContext, NFCSTATUS status)
 {
-   LOG_CALLBACK("trustednfc_jni_init_callback", status);
+   LOG_CALLBACK("nfc_jni_init_callback", status);
 
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
-   nat = (struct trustednfc_jni_native_data *)pContext;
+   nat = (struct nfc_jni_native_data *)pContext;
 
    nat->status = status;
 
-   sem_post(&trustednfc_jni_init_sem);
+   sem_post(&nfc_jni_init_sem);
 }
 
-static void trustednfc_jni_deinit_callback(void *pContext, NFCSTATUS status)
+static void nfc_jni_deinit_callback(void *pContext, NFCSTATUS status)
 {
-   struct trustednfc_jni_native_data *nat =
-      (struct trustednfc_jni_native_data *)pContext;
+   struct nfc_jni_native_data *nat =
+      (struct nfc_jni_native_data *)pContext;
 
-   LOG_CALLBACK("trustednfc_jni_deinit_callback", status);
+   LOG_CALLBACK("nfc_jni_deinit_callback", status);
 
    nat->status = status;
    kill_client(nat);
 
-   sem_post(&trustednfc_jni_manager_sem);
+   sem_post(&nfc_jni_manager_sem);
 }
 
 /* Set Secure Element mode callback*/
-static void trustednfc_jni_smartMX_setModeCb (void*            pContext,
+static void nfc_jni_smartMX_setModeCb (void*            pContext,
 							                                phLibNfc_Handle  hSecureElement,
                                               NFCSTATUS        status)
 {
 
-  struct trustednfc_jni_native_data *nat =
-    (struct trustednfc_jni_native_data *)pContext;
+  struct nfc_jni_native_data *nat =
+    (struct nfc_jni_native_data *)pContext;
       
 	if(status==NFCSTATUS_SUCCESS)
 	{
@@ -992,22 +992,22 @@ static void trustednfc_jni_smartMX_setModeCb (void*            pContext,
   }
 	
 	nat->status = status;
-	sem_post(&trustednfc_jni_open_sem);
+	sem_post(&nfc_jni_open_sem);
 }
 
 /* Card Emulation callback */
-static void trustednfc_jni_transaction_callback(void *context,
+static void nfc_jni_transaction_callback(void *context,
    phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
    phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status)
 {
    JNIEnv *e;
    jobject aid_array;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    phNfc_sData_t *aid;
 
-   LOG_CALLBACK("trustednfc_jni_transaction_callback", status);
+   LOG_CALLBACK("nfc_jni_transaction_callback", status);
 
-   nat = (struct trustednfc_jni_native_data *)context;
+   nat = (struct nfc_jni_native_data *)context;
 
    nat->vm->GetEnv( (void **)&e, nat->env_version);
 
@@ -1042,12 +1042,12 @@ static void trustednfc_jni_transaction_callback(void *context,
    e->DeleteLocalRef(aid_array);
 }
 
-static void trustednfc_jni_se_set_mode_callback(void *context,
+static void nfc_jni_se_set_mode_callback(void *context,
    phLibNfc_Handle handle, NFCSTATUS status)
 {
-   LOG_CALLBACK("trustednfc_jni_se_set_mode_callback", status);
+   LOG_CALLBACK("nfc_jni_se_set_mode_callback", status);
 
-   sem_post(&trustednfc_jni_manager_sem);
+   sem_post(&nfc_jni_manager_sem);
 }
 
 /*
@@ -1055,7 +1055,7 @@ static void trustednfc_jni_se_set_mode_callback(void *context,
  */
  
  /* Discovery Method */
-static void trustednfc_jni_start_tag_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_start_tag_discovery(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -1085,7 +1085,7 @@ static void trustednfc_jni_start_tag_discovery(struct trustednfc_jni_native_data
    
    /* Register for the reader mode */
    REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, trustednfc_jni_open_notification_callback, (void *)nat);
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_open_notification_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
       nat->registry_info.Jewel==TRUE?"J":"",
@@ -1102,13 +1102,13 @@ static void trustednfc_jni_start_tag_discovery(struct trustednfc_jni_native_data
    /* Start Polling loop */
 #if 0
    LOGD("******  Start NFC Discovery ******");
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, trustednfc_jni_discover_callback, (void *)nat);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, nfc_jni_discover_callback, (void *)nat);
    LOGD("phLibNfc_Mgt_ConfigureDiscovery returned 0x%x\n", ret);
 #endif
 
 }
 
-static void trustednfc_jni_start_p2p_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_start_p2p_discovery(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
    
@@ -1141,18 +1141,18 @@ static void trustednfc_jni_start_p2p_discovery(struct trustednfc_jni_native_data
 
 
    /*REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_SetP2P_ConfigParams(&trustednfc_jni_nfcip1_cfg,trustednfc_jni_p2pcfg_callback, (void *)nat);
+   ret = phLibNfc_Mgt_SetP2P_ConfigParams(&nfc_jni_nfcip1_cfg,nfc_jni_p2pcfg_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_Mgt_SetP2P_ConfigParams returned 0x%x\n", ret);
    if(ret != NFCSTATUS_PENDING)
       return;*/
 
    /* Wait for callback response */
-   //sem_wait(&trustednfc_jni_manager_sem);
+   //sem_wait(&nfc_jni_manager_sem);
 
    /* Register for the p2p mode */
    REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, trustednfc_jni_open_notification_callback, (void *)nat);
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_open_notification_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
       nat->registry_info.Jewel==TRUE?"J":"",
@@ -1169,13 +1169,13 @@ static void trustednfc_jni_start_p2p_discovery(struct trustednfc_jni_native_data
    /* Start Polling loop */
 #if 0
    LOGD("******  Start NFC Discovery ******");
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, trustednfc_jni_discover_callback, (void *)nat);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, nfc_jni_discover_callback, (void *)nat);
    LOGD("phLibNfc_Mgt_ConfigureDiscovery returned 0x%x\n", ret);
 #endif
 }
 
 
-static void trustednfc_jni_start_card_emu_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_start_card_emu_discovery(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
    
@@ -1183,7 +1183,7 @@ static void trustednfc_jni_start_card_emu_discovery(struct trustednfc_jni_native
 
    /* Register for the card emulation mode */
    REENTRANCE_LOCK();
-   ret = phLibNfc_SE_NtfRegister(trustednfc_jni_transaction_callback,(void *)nat);
+   ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
    if(ret != NFCSTATUS_SUCCESS)
@@ -1191,7 +1191,7 @@ static void trustednfc_jni_start_card_emu_discovery(struct trustednfc_jni_native
 }
 
 
-static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_start_discovery(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
    phLibNfc_Llcp_sLinkParameters_t LlcpConfigInfo;
@@ -1232,18 +1232,18 @@ static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *na
     
    REENTRANCE_LOCK();
    ret = phLibNfc_Mgt_SetLlcp_ConfigParams(&LlcpConfigInfo,
-                                           trustednfc_jni_llcpcfg_callback,
+                                           nfc_jni_llcpcfg_callback,
                                            (void *)nat);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
       return;
 
    /* Wait for callback response */
-   sem_wait(&trustednfc_jni_manager_sem);
+   sem_wait(&nfc_jni_manager_sem);
    
    /* Register for the reader mode */
    REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, trustednfc_jni_Discovery_notification_callback, (void *)nat);
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
       nat->registry_info.Jewel==TRUE?"J":"",
@@ -1259,7 +1259,7 @@ static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *na
    
    /* Register for the card emulation mode */
    REENTRANCE_LOCK();
-   ret = phLibNfc_SE_NtfRegister(trustednfc_jni_transaction_callback,(void *)nat);
+   ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
    if(ret != NFCSTATUS_SUCCESS)
@@ -1268,7 +1268,7 @@ static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *na
    /* Start Polling loop */
    LOGD("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, trustednfc_jni_discover_callback, (void *)nat);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, nfc_jni_discover_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_Mgt_ConfigureDiscovery(%s-%s-%s-%s-%s-%s, %s-%x-%x) returned 0x%08x\n",
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A==TRUE?"3A":"",
@@ -1281,7 +1281,7 @@ static void trustednfc_jni_start_discovery(struct trustednfc_jni_native_data *na
       nat->discovery_cfg.NfcIP_Mode, nat->discovery_cfg.Duration, ret);
 } 
 
-static void trustednfc_jni_stop_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_stop_discovery(struct nfc_jni_native_data *nat)
 {
    phLibNfc_sADD_Cfg_t discovery_cfg;
    NFCSTATUS ret;
@@ -1295,7 +1295,7 @@ static void trustednfc_jni_stop_discovery(struct trustednfc_jni_native_data *nat
    /* Start Polling loop */
    LOGD("******  Stop NFC Discovery ******");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,discovery_cfg, trustednfc_jni_discover_callback, (void *)nat);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,discovery_cfg, nfc_jni_discover_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_Mgt_ConfigureDiscovery(%s-%s-%s-%s-%s-%s, %s-%x-%x) returned 0x%08x\n",
       discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A==TRUE?"3A":"",
@@ -1308,7 +1308,7 @@ static void trustednfc_jni_stop_discovery(struct trustednfc_jni_native_data *nat
       discovery_cfg.NfcIP_Mode, discovery_cfg.Duration, ret);
 } 
 
-static void trustednfc_jni_reader_discovery(struct trustednfc_jni_native_data *nat)
+static void nfc_jni_reader_discovery(struct nfc_jni_native_data *nat)
 {
    static unsigned char ioctl[2] = {03,00};
    static unsigned char resp[16];
@@ -1321,35 +1321,35 @@ static void trustednfc_jni_reader_discovery(struct trustednfc_jni_native_data *n
 
    LOGD("******  Start PRBS Test ******");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_IoCtl(gHWRef, DEVMGMT_PRBS_TEST, &gInputParam, &gOutputParam, trustednfc_jni_ioctl_callback, (void *)nat);
+   ret = phLibNfc_Mgt_IoCtl(gHWRef, DEVMGMT_PRBS_TEST, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    LOGD("phLibNfc_Mgt_IoCtl(PRBS Test) returned 0x%08x\n", ret);
 } 
 
 static void com_android_nfc_NfcManager_readerDiscovery(JNIEnv *e, jobject o)
 {
-    struct trustednfc_jni_native_data *nat;
+    struct nfc_jni_native_data *nat;
 
     CONCURRENCY_LOCK();
 
     /* Retrieve native structure address */
-    nat = trustednfc_jni_get_nat(e, o);
+    nat = nfc_jni_get_nat(e, o);
    
-    trustednfc_jni_reader_discovery(nat);
+    nfc_jni_reader_discovery(nat);
 
     CONCURRENCY_UNLOCK();
 }
 
 static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 {
-    struct trustednfc_jni_native_data *nat;
+    struct nfc_jni_native_data *nat;
 
     CONCURRENCY_LOCK();
 
     /* Retrieve native structure address */
-    nat = trustednfc_jni_get_nat(e, o);
+    nat = nfc_jni_get_nat(e, o);
    
-    trustednfc_jni_stop_discovery(nat);
+    nfc_jni_stop_discovery(nat);
 
     CONCURRENCY_UNLOCK();
 }
@@ -1358,20 +1358,20 @@ static void com_android_nfc_NfcManager_enableDiscovery(
    JNIEnv *e, jobject o, jint mode)
 {
    NFCSTATUS ret;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    CONCURRENCY_LOCK();
    
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
    
    if(mode == DISCOVERY_MODE_TAG_READER)
    {
-      trustednfc_jni_start_discovery(nat);  
+      nfc_jni_start_discovery(nat);  
    }
    else if(DISCOVERY_MODE_CARD_EMULATION)
    {
-      trustednfc_jni_start_card_emu_discovery(nat);    
+      nfc_jni_start_card_emu_discovery(nat);    
    }
 
    CONCURRENCY_UNLOCK();
@@ -1380,13 +1380,13 @@ static void com_android_nfc_NfcManager_enableDiscovery(
 static void com_android_nfc_NfcManager_disableDiscoveryMode(
    JNIEnv *e, jobject o, jint mode)
 {
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    if((mode < 0) || (mode >= DISCOVERY_MODE_TABLE_SIZE))
       return;
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
 
    nat->discovery_modes_state[mode] = DISCOVERY_MODE_DISABLED;
    
@@ -1395,7 +1395,7 @@ static void com_android_nfc_NfcManager_disableDiscoveryMode(
 static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject o)
 {
    NFCSTATUS status;
-   struct trustednfc_jni_native_data *nat = NULL;
+   struct nfc_jni_native_data *nat = NULL;
    jclass cls;
    jobject obj;
    jfieldID f;
@@ -1403,10 +1403,10 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    LOGD("******  Init Native Structure ******"); 
 
    /* Initialize native structure */
-   nat = (trustednfc_jni_native_data*)malloc(sizeof(struct trustednfc_jni_native_data));
+   nat = (nfc_jni_native_data*)malloc(sizeof(struct nfc_jni_native_data));
    if(nat == NULL)
    {
-      LOGD("Native Structure initialization failed 0x%08x[%s]", nat->status, trustednfc_jni_get_status_name(nat->status));
+      LOGD("Native Structure initialization failed 0x%08x[%s]", nat->status, nfc_jni_get_status_name(nat->status));
       if(nat)
          kill_client(nat);
       return FALSE;   
@@ -1437,13 +1437,13 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       "notifyTargetDeselected","()V"); 
       
       
-   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
       LOGD("Native Structure initialization failed [0x%08x]",nat->status);
       return FALSE;   
    }
          
-   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
       LOGD("Native Structure initialization failed [0x%08x]",nat->status);
       return FALSE;   
@@ -1456,7 +1456,7 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
 /* Init/Deinit method */
 static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 {
-   struct trustednfc_jni_native_data *nat = NULL;
+   struct nfc_jni_native_data *nat = NULL;
    int init_result = JNI_FALSE;
 #ifdef TNFC_EMULATOR_ONLY
    char value[PROPERTY_VALUE_MAX];
@@ -1474,11 +1474,11 @@ static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 #endif
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
    exported_nat = nat;
 
    /* Perform the initialization */
-   init_result = trustednfc_jni_initialize(nat);
+   init_result = nfc_jni_initialize(nat);
 
 clean_and_return:
    CONCURRENCY_UNLOCK();
@@ -1491,11 +1491,11 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 {
    struct timespec ts;
    NFCSTATUS status;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    int bStackReset = FALSE;
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
 
    /* Clear previous configuration */
    memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
@@ -1503,17 +1503,17 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
    
    LOGD("phLibNfc_Mgt_DeInitialize()");
    REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_DeInitialize(gHWRef, trustednfc_jni_deinit_callback, (void *)nat);
+   status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_callback, (void *)nat);
    REENTRANCE_UNLOCK();
    if (status == NFCSTATUS_PENDING)
    {
-      LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
       clock_gettime(CLOCK_REALTIME, &ts);
       ts.tv_sec += 10; 
   
       /* Wait for callback response */
-      if(sem_timedwait(&trustednfc_jni_manager_sem, &ts) == -1)
+      if(sem_timedwait(&nfc_jni_manager_sem, &ts) == -1)
       {
          LOGW("Operation timed out");
          bStackReset = TRUE;
@@ -1521,7 +1521,7 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
    }
    else
    {
-      LOGW("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGW("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       bStackReset = TRUE;
    }
 
@@ -1548,11 +1548,11 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
    else
    {
-      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, trustednfc_jni_get_status_name(status));
+      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
 
    LOGI("NFC Deinitialized");
@@ -1576,10 +1576,10 @@ static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jo
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return list;  
    }
-   LOGD("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    LOGD("Nb SE: %d", se_count);
    list =e->NewIntArray(se_count);
@@ -1607,12 +1607,12 @@ static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jo
 static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o, jint seID)
 {
    NFCSTATUS ret;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    CONCURRENCY_LOCK();
    
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    nat->seId = seID;
 
    LOGD("******  Select Secure Element ******"); 
@@ -1620,17 +1620,17 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
    LOGD("phLibNfc_SE_SetMode(0x%08x, ...)", seID);
    /* Set SE mode - Virtual */
    REENTRANCE_LOCK();
-   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeVirtual, trustednfc_jni_se_set_mode_callback,(void *)nat);    
+   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,(void *)nat);    
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Wait for callback response */
-   sem_wait(&trustednfc_jni_manager_sem);
+   sem_wait(&nfc_jni_manager_sem);
 
 clean_and_return:
    CONCURRENCY_UNLOCK();
@@ -1639,12 +1639,12 @@ clean_and_return:
 static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobject o, jint seID)
 {
    NFCSTATUS ret;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    CONCURRENCY_LOCK();
    
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    nat->seId = 0;
 
    LOGD("******  Deselect Secure Element ******"); 
@@ -1652,19 +1652,19 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
    LOGD("phLibNfc_SE_SetMode(0x%02x, ...)", seID);
    /* Set SE mode - Off */
    REENTRANCE_LOCK();
-   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeOff, trustednfc_jni_se_set_mode_callback,(void *)nat);
+   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeOff, nfc_jni_se_set_mode_callback,(void *)nat);
    REENTRANCE_UNLOCK();
        
    LOGD("phLibNfc_SE_SetMode for SE 0x%02x returned 0x%02x",seID, ret);
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Wait for callback response */
-   sem_wait(&trustednfc_jni_manager_sem);
+   sem_wait(&nfc_jni_manager_sem);
 
 clean_and_return:
    CONCURRENCY_UNLOCK();
@@ -1675,7 +1675,7 @@ static jobject com_android_nfc_NfcManager_doOpenP2pConnection(JNIEnv *e, jobject
 {
    NFCSTATUS ret;
    struct timespec ts;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    jobject p2pDevice = NULL;
    int semResult;
 
@@ -1684,20 +1684,20 @@ static jobject com_android_nfc_NfcManager_doOpenP2pConnection(JNIEnv *e, jobject
    LOGD("Open P2p");
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    
-   trustednfc_jni_start_p2p_discovery(nat);
+   nfc_jni_start_p2p_discovery(nat);
   
    /* Timeout */
    if(timeout != 0)
    {
       clock_gettime(CLOCK_REALTIME, &ts);
       ts.tv_sec += timeout; 
-      semResult = sem_timedwait(&trustednfc_jni_open_sem, &ts);
+      semResult = sem_timedwait(&nfc_jni_open_sem, &ts);
    }
    else
    {  
-      semResult = sem_wait(&trustednfc_jni_open_sem);
+      semResult = sem_wait(&nfc_jni_open_sem);
    }
 
    if (semResult)
@@ -1726,7 +1726,7 @@ static jobject com_android_nfc_NfcManager_doOpenTagConnection(JNIEnv *e, jobject
    NFCSTATUS ret;
    struct timespec ts;
    jobject nfcTag = NULL;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    int semResult;
 
    CONCURRENCY_LOCK();
@@ -1734,20 +1734,20 @@ static jobject com_android_nfc_NfcManager_doOpenTagConnection(JNIEnv *e, jobject
    LOGD("Open Tag");
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    
-   trustednfc_jni_start_tag_discovery(nat);
+   nfc_jni_start_tag_discovery(nat);
 
    /* Timeout */
    if(timeout != 0)
    {
       clock_gettime(CLOCK_REALTIME, &ts);
       ts.tv_sec += timeout; 
-      semResult = sem_timedwait(&trustednfc_jni_open_sem, &ts);
+      semResult = sem_timedwait(&nfc_jni_open_sem, &ts);
    }
    else
    {  
-      semResult = sem_wait(&trustednfc_jni_open_sem);
+      semResult = sem_wait(&nfc_jni_open_sem);
    }
 
    if (semResult)
@@ -1773,13 +1773,13 @@ clean_and_return:
 
 static void com_android_nfc_NfcManager_doCancel(JNIEnv *e, jobject o)
 {
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
   
    nat->status = NFCSTATUS_FAILED;
-   sem_post(&trustednfc_jni_open_sem);
+   sem_post(&nfc_jni_open_sem);
 }
 
 /* Llcp methods */
@@ -1788,33 +1788,33 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    jboolean result = JNI_FALSE;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    
    CONCURRENCY_LOCK();
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    
    /* Check LLCP compliancy */
    LOGD("phLibNfc_Llcp_CheckLlcp(hLlcpHandle=0x%08x)", hLlcpHandle);
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_CheckLlcp(hLlcpHandle,
-                                 trustednfc_jni_checkLlcp_callback,
-                                 trustednfc_jni_llcp_linkStatus_callback,
+                                 nfc_jni_checkLlcp_callback,
+                                 nfc_jni_llcp_linkStatus_callback,
                                  (void*)nat);
    REENTRANCE_UNLOCK();
    /* In case of a NFCIP return NFCSTATUS_SUCCESS and in case of an another protocol NFCSTATUS_PENDING */
    if(ret != NFCSTATUS_PENDING && ret != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
                                     
    /* Wait for callback response */
-   sem_wait(&trustednfc_jni_llcp_sem);
+   sem_wait(&nfc_jni_llcp_sem);
 
-   if(trustednfc_jni_cb_status == NFCSTATUS_SUCCESS)
+   if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
       result = JNI_TRUE;
    }
@@ -1833,12 +1833,12 @@ static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
    REENTRANCE_UNLOCK();
    if(ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("phLibNfc_Llcp_Activate() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGD("phLibNfc_Llcp_Activate() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return JNI_TRUE;
    }
    else
    {
-      LOGE("phLibNfc_Llcp_Activate() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Activate() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return JNI_FALSE;   
    }
 }
@@ -1850,12 +1850,12 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    NFCSTATUS ret;
    jobject connectionlessSocket = NULL;
    phLibNfc_Handle hLlcpSocket;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    jclass clsNativeConnectionlessSocket;
    jfieldID f;
    
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
    
    /* Create socket */
    LOGD("phLibNfc_Llcp_Socket(hRemoteDevice=0x%08x, eType=phFriNfc_LlcpTransport_eConnectionLess, ...)", hLlcpHandle);
@@ -1865,17 +1865,17 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
                               NULL,
                               NULL,
                               &hLlcpSocket,
-                              trustednfc_jni_llcp_transport_socket_err_callback,
+                              nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
    REENTRANCE_UNLOCK();
  
    if(ret != NFCSTATUS_SUCCESS)
    {
       lastErrorStatus = ret;
-      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return NULL;
    }
-   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    
    /* Bind socket */
@@ -1886,18 +1886,18 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    if(ret != NFCSTATUS_SUCCESS)
    {
       lastErrorStatus = ret;
-      LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       /* Close socket created */
       REENTRANCE_LOCK();
       ret = phLibNfc_Llcp_Close(hLlcpSocket); 
       REENTRANCE_UNLOCK();
       return NULL;
    }
-   LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
  
    
    /* Create new NativeLlcpConnectionlessSocket object */
-   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
    {
       return NULL;           
    } 
@@ -1934,13 +1934,13 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    phLibNfc_Llcp_sSocketOptions_t sOptions;
    phNfc_sData_t sWorkingBuffer;
    phNfc_sData_t serviceName;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    jobject serviceSocket = NULL;
    jclass clsNativeLlcpServiceSocket;
    jfieldID f;  
   
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
    
    /* Set Connection Oriented socket options */
    sOptions.miu = miu;
@@ -1959,17 +1959,17 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
                               &sOptions,
                               &sWorkingBuffer,
                               &hLlcpSocket,
-                              trustednfc_jni_llcp_transport_socket_err_callback,
+                              nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
    REENTRANCE_UNLOCK();
                                                      
    if(ret != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       lastErrorStatus = ret;
       return NULL;
    }
-   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Bind socket */
    LOGD("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
@@ -1979,12 +1979,12 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    if(ret != NFCSTATUS_SUCCESS)
    {
       lastErrorStatus = ret;
-      LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       /* Close socket created */
       ret = phLibNfc_Llcp_Close(hLlcpSocket); 
       return NULL;
    }
-   LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Service socket */
    serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
@@ -1994,13 +1994,13 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Listen( hLlcpSocket,
                                &serviceName,
-                               trustednfc_jni_llcp_transport_listen_socket_callback,
+                               nfc_jni_llcp_transport_listen_socket_callback,
                                (void*)nat);
    REENTRANCE_UNLOCK();
                                
    if(ret != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       lastErrorStatus = ret;
       /* Close created socket */
       REENTRANCE_LOCK();
@@ -2008,10 +2008,10 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
       REENTRANCE_UNLOCK();
       return NULL;
    }                         
-   LOGD("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpServiceSocket object */
-   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
    {
       LOGE("Llcp Socket object creation error");
       return NULL;           
@@ -2055,12 +2055,12 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
    phLibNfc_Handle hLlcpSocket;
    phLibNfc_Llcp_sSocketOptions_t sOptions;
    phNfc_sData_t sWorkingBuffer;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
    jclass clsNativeLlcpSocket;
    jfieldID f;
    
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o); 
    
    /* Set Connection Oriented socket options */
    sOptions.miu = miu;
@@ -2078,20 +2078,20 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
                               &sOptions,
                               &sWorkingBuffer,
                               &hLlcpSocket,
-                              trustednfc_jni_llcp_transport_socket_err_callback,
+                              nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
    REENTRANCE_UNLOCK();
 
    if(ret != NFCSTATUS_SUCCESS)
    {
-      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       lastErrorStatus = ret;
       return NULL;
    }
-   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpSocket object */
-   if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
    {
       LOGE("Llcp socket object creation error");  
       return NULL;           
@@ -2116,14 +2116,14 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
       if(ret != NFCSTATUS_SUCCESS)
       {
          lastErrorStatus = ret;
-         LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+         LOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
          /* Close socket created */
          REENTRANCE_LOCK();
          ret = phLibNfc_Llcp_Close(hLlcpSocket); 
          REENTRANCE_UNLOCK();
          return NULL;
       }
-      LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       
       /* Set socket SAP */
       f = e->GetFieldID(clsNativeLlcpSocket, "mSap", "I");
@@ -2171,10 +2171,10 @@ static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
 static void com_android_nfc_NfcManager_doSetProperties(JNIEnv *e, jobject o, jint param, jint value)
 {  
    NFCSTATUS ret;
-   struct trustednfc_jni_native_data *nat;
+   struct nfc_jni_native_data *nat;
 
    /* Retrieve native structure address */
-   nat = trustednfc_jni_get_nat(e, o);
+   nat = nfc_jni_get_nat(e, o);
    
    switch(param)
    {
@@ -2309,34 +2309,34 @@ static JNINativeMethod gMethods[] =
       
 int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
 {
-   trustednfc_jni_native_monitor_t *trustednfc_jni_native_monitor;
+   nfc_jni_native_monitor_t *nfc_jni_native_monitor;
 
-   trustednfc_jni_native_monitor = trustednfc_jni_init_monitor();
-   if(trustednfc_jni_native_monitor == NULL)
+   nfc_jni_native_monitor = nfc_jni_init_monitor();
+   if(nfc_jni_native_monitor == NULL)
    {
       LOGE("NFC Manager cannot recover native monitor %x\n", errno);
       return -1;
    }
 
-   if(sem_init(&trustednfc_jni_manager_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_manager_sem, 0, 0) == -1)
    {
       LOGE("NFC Manager Semaphore creation %x\n", errno);
       return -1;
    }
    
-   if(sem_init(&trustednfc_jni_open_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_open_sem, 0, 0) == -1)
    {
       LOGE("NFC Open Semaphore creation %x\n", errno);
       return -1;
    }
    
-   if(sem_init(&trustednfc_jni_init_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_init_sem, 0, 0) == -1)
    {
       LOGE("NFC Init Semaphore creation %x\n", errno);
       return -1;
    }
    
-   if(sem_init(&trustednfc_jni_llcp_listen_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_llcp_listen_sem, 0, 0) == -1)
    {
       LOGE("NFC Listen Semaphore creation %x\n", errno);
       return -1;

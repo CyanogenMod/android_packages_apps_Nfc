@@ -16,31 +16,31 @@
 
 #include <semaphore.h>
 
-#include "trustednfc_jni.h"
+#include "com_android_nfc.h"
 
-static sem_t trustednfc_jni_llcp_sem;
-static NFCSTATUS trustednfc_jni_cb_status = NFCSTATUS_FAILED;
+static sem_t nfc_jni_llcp_sem;
+static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 
 
 namespace android {
 
 extern phLibNfc_Handle hIncommingLlcpSocket;
-extern sem_t trustednfc_jni_llcp_listen_sem;
-extern void trustednfc_jni_llcp_transport_socket_err_callback(void*      pContext,
+extern sem_t nfc_jni_llcp_listen_sem;
+extern void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
                                                               uint8_t    nErrCode);
 /*
  * Callbacks
  */
-static void trustednfc_jni_llcp_accept_socket_callback(void*        pContext,
+static void nfc_jni_llcp_accept_socket_callback(void*        pContext,
                                                        NFCSTATUS    status)
 {
    PHNFC_UNUSED_VARIABLE(pContext);
 
-   LOG_CALLBACK("trustednfc_jni_llcp_accept_socket_callback", status);
+   LOG_CALLBACK("nfc_jni_llcp_accept_socket_callback", status);
 
-   trustednfc_jni_cb_status = status;
+   nfc_jni_cb_status = status;
    
-   sem_post(&trustednfc_jni_llcp_sem);
+   sem_post(&nfc_jni_llcp_sem);
 }
  
  
@@ -65,7 +65,7 @@ static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int t
       ts.tv_sec  += timeout; 
   
       /* Wait for tag Notification */
-      if(sem_timedwait(&trustednfc_jni_llcp_listen_sem, &ts) == -1)
+      if(sem_timedwait(&nfc_jni_llcp_listen_sem, &ts) == -1)
       {
          return NULL;   
       }
@@ -73,7 +73,7 @@ static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int t
    else
    {
       /* Wait for tag Notification */
-      if(sem_wait(&trustednfc_jni_llcp_listen_sem) == -1)
+      if(sem_wait(&nfc_jni_llcp_listen_sem) == -1)
       {
          return NULL;   
       }   
@@ -93,27 +93,27 @@ static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int t
    ret = phLibNfc_Llcp_Accept( hIncommingLlcpSocket,
                                &sOptions,
                                &sWorkingBuffer,
-                               trustednfc_jni_llcp_transport_socket_err_callback,
-                               trustednfc_jni_llcp_accept_socket_callback,
+                               nfc_jni_llcp_transport_socket_err_callback,
+                               nfc_jni_llcp_accept_socket_callback,
                                (void*)hIncommingLlcpSocket);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+      LOGE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return NULL;
    }                                
-   LOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, trustednfc_jni_get_status_name(ret));
+   LOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
                                
    /* Wait for tag Notification */
-   if(sem_wait(&trustednfc_jni_llcp_sem) == -1)
+   if(sem_wait(&nfc_jni_llcp_sem) == -1)
    {
          return NULL;   
    }
    
-   if(trustednfc_jni_cb_status == NFCSTATUS_SUCCESS)
+   if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
       /* Create new LlcpSocket object */
-      if(trustednfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
+      if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
       {
          LOGD("LLCP Socket creation error");
          return NULL;           
@@ -159,7 +159,7 @@ static jboolean com__NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
    LOGD("Close Service socket");
    
    /* Retrieve socket handle */
-   hLlcpSocket = trustednfc_jni_get_nfc_socket_handle(e,o);
+   hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
 
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Close(hLlcpSocket);
@@ -192,7 +192,7 @@ static JNINativeMethod gMethods[] =
 
 int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e)
 {
-   if(sem_init(&trustednfc_jni_llcp_sem, 0, 0) == -1)
+   if(sem_init(&nfc_jni_llcp_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,

@@ -21,29 +21,26 @@ import android.annotation.SdkConstant.SdkConstantType;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
-
 import android.nfc.FormatException;
 import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.NdefMessage;
 import android.nfc.Tag;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
 
 /**
  * Native interface to the NFC Manager functions
  */
 public class NativeNfcManager {
+    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION = "com.android.nfc.action.INTERNAL_LLCP_LINK_STATE_CHANGED";
+
+    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA = "com.android.nfc.extra.INTERNAL_LLCP_LINK_STATE";
 
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA = "com.trustedlogic.trustednfc.android.extra.INTERNAL_LLCP_LINK_STATE";
-
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION = "com.trustedlogic.trustednfc.android.action.INTERNAL_LLCP_LINK_STATE_CHANGED";
-
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.trustedlogic.trustednfc.android.action.INTERNAL_TARGET_DESELECTED";
+    public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
     /* Native structure */
     private int mNative;
