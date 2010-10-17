@@ -284,7 +284,7 @@ static void nfc_jni_deinitialize(struct nfc_jni_native_data *nat)
    memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
    memset(&nat->registry_info, 0, sizeof(phLibNfc_Registry_Info_t));
    
-   LOGD("phLibNfc_Mgt_DeInitialize() - 0x%08x", nat);
+   LOGD("phLibNfc_Mgt_DeInitialize() - %p", nat);
    REENTRANCE_LOCK();
    status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_callback, (void *)nat);
    REENTRANCE_UNLOCK();
@@ -459,6 +459,10 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
         {
           return TARGET_TYPE_JEWEL;
         }break; 
+      default:
+        {
+          return TARGET_TYPE_UNKNOWN;
+        }
    }
 
    return TARGET_TYPE_UNKNOWN;
@@ -984,7 +988,7 @@ static void nfc_jni_smartMX_setModeCb (void*            pContext,
 	if(status==NFCSTATUS_SUCCESS)
 	{
 		LOGD("SE Set Mode is Successful");
-		LOGD("SE Handle: %lu", hSecureElement);		
+		LOGD("SE Handle: %u", hSecureElement);
 	}
 	else
 	{

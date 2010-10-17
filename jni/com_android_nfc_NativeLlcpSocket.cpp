@@ -157,12 +157,12 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
-      LOGD("LLCP Connect request OK",ret);
+      LOGD("LLCP Connect request OK");
       return TRUE; 
    }
    else
    {
-      LOGD("LLCP Connect request KO",ret);   
+      LOGD("LLCP Connect request KO");
       return FALSE;    
    }
 }
