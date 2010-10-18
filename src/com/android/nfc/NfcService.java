@@ -38,6 +38,7 @@ import android.nfc.NdefMessage;
 import android.nfc.Tag;
 import android.nfc.NfcAdapter;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
@@ -46,7 +47,7 @@ import android.os.ServiceManager;
 import android.provider.Settings;
 import android.util.Log;
 
-public class NfcService extends INfcAdapter.Stub implements Runnable {
+public class NfcService extends INfcAdapter.Stub {
 
     static {
         System.loadLibrary("nfc_jni");
@@ -188,6 +189,9 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
     private final Context mContext;
 
+    // TODO: none of these appear to be synchronized but are
+    // read/written from different threads (notably Binder threads)...
+
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
 
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
@@ -200,9 +204,7 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
     private int mNbSocketCreated = 0;
 
-    private boolean mIsNfcEnabled = false;
-
-    private NfcHandler mNfcHandler;
+    private volatile boolean mIsNfcEnabled = false;
 
     private int mSelectedSeId = 0;
 
@@ -215,6 +217,9 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
     private boolean mOpenPending = false;
 
     private final NativeNfcManager mManager;
+
+    private final HandlerThread mBackgroundThread = new HandlerThread("NfcBackgroundThread");
+    private final Handler mBackgroundHandler;
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
 
@@ -1146,7 +1151,7 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
     };
 
-    public NfcService(Context context) {
+    public NfcService(final Context context) {
         super();
         mContext = context;
         mManager = new NativeNfcManager(mContext);
@@ -1160,29 +1165,24 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
         mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
                 NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION));
-*/
-
-        Thread thread = new Thread(null, this, "NfcService");
-        thread.start();
+        */
 
         mManager.initializeNativeStructure();
 
-        int nfcState = Settings.System.getInt(mContext.getContentResolver(),
-            Settings.System.NFC_ON, 0);
+        mBackgroundThread.start();
+        mBackgroundHandler= new Handler(mBackgroundThread.getLooper());
+        mBackgroundHandler.post(new Runnable() {
+                public void run() {
+                    int nfcState = Settings.System.getInt(mContext.getContentResolver(),
+                            Settings.System.NFC_ON, 0);
 
-        if (nfcState == NFC_STATE_ENABLED) {
-            if (this._enable()) {
-            }
-        }
+                    if (nfcState == NFC_STATE_ENABLED) {
+                        NfcService.this._enable(false);
+                    }
+                }
+            });
 
         ServiceManager.addService("nfc", this);
-    }
-
-    public void run() {
-        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-        Looper.prepare();
-        mNfcHandler = new NfcHandler();
-        Looper.loop();
     }
 
     public int createLlcpConnectionlessSocket(int sap) throws RemoteException {
@@ -1456,29 +1456,35 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
     public boolean disable() throws RemoteException {
         boolean isSuccess = false;
         mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-        if (isEnabled()) {
+        boolean previouslyEnabled = isEnabled();
+        Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
+
+        if (previouslyEnabled) {
             isSuccess = mManager.deinitialize();
+            Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
             if (isSuccess) {
                 mIsNfcEnabled = false;
             }
         }
 
-        updateNfcOnSetting();
+        updateNfcOnSetting(previouslyEnabled);
 
         return isSuccess;
     }
 
     public boolean enable() throws RemoteException {
-        boolean isSuccess = false;
         mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-        if (!isEnabled()) {
+
+        boolean isSuccess = false;
+        boolean previouslyEnabled = isEnabled();
+        if (!previouslyEnabled) {
             reset();
-            isSuccess = _enable();
+            isSuccess = _enable(previouslyEnabled);
         }
         return isSuccess;
     }
 
-    private boolean _enable() {
+    private boolean _enable(boolean oldEnabledState) {
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
             /* Check persistent properties */
@@ -1512,12 +1518,12 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
             mIsNfcEnabled = false;
         }
 
-        updateNfcOnSetting();
+        updateNfcOnSetting(oldEnabledState);
 
         return isSuccess;
     }
 
-    private void updateNfcOnSetting() {
+    private void updateNfcOnSetting(boolean oldEnabledState) {
         int state;
 
         if (mIsNfcEnabled) {
@@ -1527,6 +1533,12 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
         }
 
         Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_ON, state);
+
+        if (oldEnabledState != mIsNfcEnabled) {
+            Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
+            intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
+            mContext.sendBroadcast(intent);
+        }
     }
 
     private void checkProperties() {
@@ -1956,6 +1968,8 @@ public class NfcService extends INfcAdapter.Stub implements Runnable {
 
     // Reset all internals
     private void reset() {
+        // TODO: none of these appear to be synchronized but are
+        // read/written from different threads (notably Binder threads)...
 
         // Clear tables
         mObjectMap.clear();
