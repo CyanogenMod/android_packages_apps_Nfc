@@ -4,12 +4,10 @@
         android:sharedUserId="android.uid.nfc"
         android:sharedUserLabel="@string/nfcUserLabel"
 >
-    <uses-permission android:name="android.permission.NFC_ADMIN" />
-    <uses-permission android:name="android.permission.NFC_RAW" />
-    <uses-permission android:name="android.permission.NFC_NOTIFY" />
-    <uses-permission android:name="android.permission.NFC_LLCP" />
+    <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
 
     <application android:icon="@drawable/icon"
             android:label="@string/app_name"

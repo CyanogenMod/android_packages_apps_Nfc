@@ -42,6 +42,8 @@ public class NativeNfcManager {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
+    private static final String NFC_PERM = android.Manifest.permission.NFC;
+
     /* Native structure */
     private int mNative;
 
@@ -192,8 +194,7 @@ public class NativeNfcManager {
                         TransactionIntent.setAction(NfcAdapter.ACTION_TRANSACTION_DETECTED);
                         TransactionIntent.putExtra(NfcAdapter.EXTRA_AID, aid);
                         Log.d(TAG, "Broadcasting Card Emulation event");
-                        mContext.sendOrderedBroadcast(TransactionIntent,
-                                android.Manifest.permission.NFC_NOTIFY);
+                        mContext.sendOrderedBroadcast(TransactionIntent, NFC_PERM);
                         break;
 
                     case MSG_LLCP_LINK_ACTIVATION:
@@ -252,8 +253,7 @@ public class NativeNfcManager {
                         LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
                                 NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
                         Log.d(TAG, "Broadcasting LLCP deactivation");
-                        mContext.sendOrderedBroadcast(LlcpLinkIntent,
-                                android.Manifest.permission.NFC_LLCP);
+                        mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
                         break;
 
                     case MSG_TARGET_DESELECTED:
@@ -262,8 +262,7 @@ public class NativeNfcManager {
                         Intent TargetDeselectedIntent = new Intent();
                         TargetDeselectedIntent.setAction(INTERNAL_TARGET_DESELECTED_ACTION);
                         Log.d(TAG, "Broadcasting Intent");
-                        mContext.sendOrderedBroadcast(TargetDeselectedIntent,
-                                android.Manifest.permission.NFC_LLCP);
+                        mContext.sendOrderedBroadcast(TargetDeselectedIntent, NFC_PERM);
                         break;
 
                     default:
