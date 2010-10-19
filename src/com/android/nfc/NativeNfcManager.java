@@ -157,8 +157,8 @@ public class NativeNfcManager {
                                             mContext.startActivity(intent);
                                         } catch (ActivityNotFoundException e) {
                                             Log.w(TAG, "No activity found, disconnecting");
-                                            nativeTag.doAsyncDisconnect();
                                         }
+                                        nativeTag.doAsyncDisconnect();
                                     } catch (FormatException e) {
                                         Log.w(TAG, "Unable to create NDEF message object (tag empty or not well formated)");
                                         nativeTag.doAsyncDisconnect();
