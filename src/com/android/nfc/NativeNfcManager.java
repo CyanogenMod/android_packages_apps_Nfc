@@ -18,10 +18,8 @@ package com.android.nfc;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
-import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
-import android.nfc.FormatException;
 import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.NdefMessage;
@@ -49,23 +47,13 @@ public class NativeNfcManager {
 
     private final Context mContext;
 
-    private final Handler mNfcHandler;
+    private final NfcService mNfcService;
 
     private static final String TAG = "NativeNfcManager";
 
-    private static final int MSG_NDEF_TAG = 0;
-
-    private static final int MSG_CARD_EMULATION = 1;
-
-    private static final int MSG_LLCP_LINK_ACTIVATION = 2;
-
-    private static final int MSG_LLCP_LINK_DEACTIVATED = 3;
-
-    private static final int MSG_TARGET_DESELECTED = 4;
-
-    public NativeNfcManager(Context context) {
-        mNfcHandler = new NfcHandler();
+    public NativeNfcManager(Context context, NfcService service) {
         mContext = context;
+        mNfcService = service;
     }
 
     /**
@@ -129,209 +117,40 @@ public class NativeNfcManager {
 
     public native boolean doActivateLlcp();
 
-    private class NfcHandler extends Handler {
-
-
-        @Override
-        public void handleMessage(Message msg) {
-
-            try {
-                switch (msg.what) {
-                    case MSG_NDEF_TAG:
-                        Log.d(TAG, "Tag detected, notifying applications");
-                        NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
-                        if (nativeTag.doConnect()) {
-                            if (nativeTag.checkNDEF()) {
-                                byte[] buff = nativeTag.doRead();
-                                if (buff != null) {
-                                    NdefMessage[] msgNdef = new NdefMessage[1];
-                                    try {
-                                        msgNdef[0] = new NdefMessage(buff);
-                                        NdefTag tag = new NdefTag(nativeTag.getType(), nativeTag.getUid(), nativeTag.getHandle(), msgNdef);
-                                        Intent intent = new Intent();
-                                        intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
-                                        intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                        Log.d(TAG, "NDEF tag found, starting corresponding activity");
-                                        try {
-                                            mContext.startActivity(intent);
-                                        } catch (ActivityNotFoundException e) {
-                                            Log.w(TAG, "No activity found, disconnecting");
-                                        }
-                                        nativeTag.doAsyncDisconnect();
-                                    } catch (FormatException e) {
-                                        Log.w(TAG, "Unable to create NDEF message object (tag empty or not well formated)");
-                                        nativeTag.doAsyncDisconnect();
-                                    }
-                                } else {
-                                    Log.w(TAG, "Unable to read NDEF message (tag empty or not well formated)");
-                                    nativeTag.doAsyncDisconnect();
-                                }
-                            } else {
-                                Intent intent = new Intent();
-                                Tag tag = new Tag(nativeTag.getType(), false, nativeTag.getUid(), nativeTag.getHandle());
-                                intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-                                intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
-                                try {
-                                    mContext.startActivity(intent);
-                                } catch (ActivityNotFoundException e) {
-                                    Log.w(TAG, "No activity found, disconnecting");
-                                    nativeTag.doAsyncDisconnect();
-                                }
-                            }
-                        } else {
-                            Log.w(TAG, "Failed to connect to tag");
-                            nativeTag.doAsyncDisconnect();
-                        }
-                        break;
-                    case MSG_CARD_EMULATION:
-                        Log.d(TAG, "Card Emulation message");
-                        byte[] aid = (byte[]) msg.obj;
-                        /* Send broadcast ordered */
-                        Intent TransactionIntent = new Intent();
-                        TransactionIntent.setAction(NfcAdapter.ACTION_TRANSACTION_DETECTED);
-                        TransactionIntent.putExtra(NfcAdapter.EXTRA_AID, aid);
-                        Log.d(TAG, "Broadcasting Card Emulation event");
-                        mContext.sendOrderedBroadcast(TransactionIntent, NFC_PERM);
-                        break;
-
-                    case MSG_LLCP_LINK_ACTIVATION:
-                        NativeP2pDevice device = (NativeP2pDevice) msg.obj;
-
-                        Log.d(TAG, "LLCP Activation message");
-
-                        if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
-                            if (device.doConnect()) {
-                                /* Check Llcp compliancy */
-                                if (doCheckLlcp()) {
-                                    /* Activate Llcp Link */
-                                    if (doActivateLlcp()) {
-                                        Log.d(TAG, "Initiator Activate LLCP OK");
-                                        /* Broadcast Intent Link LLCP activated */
-                                        Intent LlcpLinkIntent = new Intent();
-                                        LlcpLinkIntent
-                                                .setAction(INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION);
-                                        LlcpLinkIntent.putExtra(
-                                                INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA,
-                                                NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-                                        Log.d(TAG, "Broadcasting internal LLCP activation");
-                                        mContext.sendBroadcast(LlcpLinkIntent);
-                                    }
-
-                                } else {
-                                    device.doDisconnect();
-                                }
-
-                            }
-
-                        } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {
-                            /* Check Llcp compliancy */
-                            if (doCheckLlcp()) {
-                                /* Activate Llcp Link */
-                                if (doActivateLlcp()) {
-                                    Log.d(TAG, "Target Activate LLCP OK");
-                                    /* Broadcast Intent Link LLCP activated */
-                                    Intent LlcpLinkIntent = new Intent();
-                                    LlcpLinkIntent
-                                            .setAction(INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION);
-                                    LlcpLinkIntent.putExtra(INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA,
-                                            NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-                                    Log.d(TAG, "Broadcasting internal LLCP activation");
-                                    mContext.sendBroadcast(LlcpLinkIntent);
-                                }
-                            }
-                        }
-                        break;
-
-                    case MSG_LLCP_LINK_DEACTIVATED:
-                        /* Broadcast Intent Link LLCP activated */
-                        Log.d(TAG, "LLCP Link Deactivated message");
-                        Intent LlcpLinkIntent = new Intent();
-                        LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
-                        LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                                NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-                        Log.d(TAG, "Broadcasting LLCP deactivation");
-                        mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
-                        break;
-
-                    case MSG_TARGET_DESELECTED:
-                        /* Broadcast Intent Target Deselected */
-                        Log.d(TAG, "Target Deselected");
-                        Intent TargetDeselectedIntent = new Intent();
-                        TargetDeselectedIntent.setAction(INTERNAL_TARGET_DESELECTED_ACTION);
-                        Log.d(TAG, "Broadcasting Intent");
-                        mContext.sendOrderedBroadcast(TargetDeselectedIntent, NFC_PERM);
-                        break;
-
-                    default:
-                        Log.e(TAG, "Unknown message received");
-                        break;
-                }
-            } catch (Exception e) {
-                // Log, don't crash!
-                Log.e(TAG, "Exception in NfcHandler.handleMessage:", e);
-            }
-        }
-    };
 
     /**
      * Notifies Ndef Message
      */
     private void notifyNdefMessageListeners(NativeNfcTag tag) {
-        Message msg = mNfcHandler.obtainMessage();
-
-        msg.what = MSG_NDEF_TAG;
-        msg.obj = tag;
-
-        mNfcHandler.sendMessage(msg);
+        mNfcService.sendMessage(NfcService.MSG_NDEF_TAG, tag);
     }
 
     /**
      * Notifies transaction
      */
     private void notifyTargetDeselected() {
-        Message msg = mNfcHandler.obtainMessage();
-
-        msg.what = MSG_TARGET_DESELECTED;
-
-        mNfcHandler.sendMessage(msg);
+        mNfcService.sendMessage(NfcService.MSG_TARGET_DESELECTED, null);
     }
 
     /**
      * Notifies transaction
      */
     private void notifyTransactionListeners(byte[] aid) {
-        Message msg = mNfcHandler.obtainMessage();
-
-        msg.what = MSG_CARD_EMULATION;
-        msg.obj = aid;
-
-        mNfcHandler.sendMessage(msg);
+        mNfcService.sendMessage(NfcService.MSG_CARD_EMULATION, aid);
     }
 
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
     private void notifyLlcpLinkActivation(NativeP2pDevice device) {
-        Message msg = mNfcHandler.obtainMessage();
-
-        msg.what = MSG_LLCP_LINK_ACTIVATION;
-        msg.obj = device;
-
-        mNfcHandler.sendMessage(msg);
+        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_ACTIVATION, device);
     }
 
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
     private void notifyLlcpLinkDeactivated() {
-        Message msg = mNfcHandler.obtainMessage();
-
-        msg.what = MSG_LLCP_LINK_DEACTIVATED;
-
-        mNfcHandler.sendMessage(msg);
+        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, null);
     }
 
 }

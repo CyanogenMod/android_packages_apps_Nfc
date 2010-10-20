@@ -177,6 +177,15 @@ static void nfc_jni_transceive_callback(void *pContext,
    sem_post(&nfc_jni_tag_sem);
 }
 
+static void nfc_jni_presencecheck_callback(void *pContext, NFCSTATUS status)
+{
+   LOG_CALLBACK("nfc_jni_presencecheck_callback", status);
+
+   nfc_jni_cb_status = status;
+
+   sem_post(&nfc_jni_tag_sem);
+}
+
 /* Functions */
 static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    jobject o)
@@ -514,7 +523,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_checkNDEF(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
@@ -550,6 +559,39 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject o)
+{
+   phLibNfc_Handle handle = 0;
+   NFCSTATUS status;
+   jboolean result = JNI_FALSE;
+
+   CONCURRENCY_LOCK();
+
+   handle = nfc_jni_get_nfc_tag_handle(e, o);
+
+   LOGD("phLibNfc_RemoteDev_CheckPresence()");
+   REENTRANCE_LOCK();
+   status = phLibNfc_RemoteDev_CheckPresence(handle, nfc_jni_presencecheck_callback, (void *)e);
+   REENTRANCE_UNLOCK();
+   if(status != NFCSTATUS_PENDING)
+   {
+      LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      goto clean_and_return;
+   }
+   LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+   /* Wait for callback response */
+   sem_wait(&nfc_jni_tag_sem);
+
+   if (nfc_jni_cb_status == NFCSTATUS_SUCCESS)
+   {
+       result = JNI_TRUE;
+   }
+
+clean_and_return:
+   CONCURRENCY_UNLOCK();
+   return result;
+}
 
 
 /*
@@ -565,12 +607,14 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doAsyncDisconnect},
    {"doTransceive", "([B)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
-   {"checkNDEF", "()Z",
-      (void *)com_android_nfc_NativeNfcTag_checkNDEF},
+   {"doCheckNdef", "()Z",
+      (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
    {"doRead", "()[B",
       (void *)com_android_nfc_NativeNfcTag_doRead},
    {"doWrite", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doWrite},
+   {"doPresenceCheck", "()Z",
+      (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
 };
 
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e)
