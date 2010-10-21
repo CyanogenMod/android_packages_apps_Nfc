@@ -511,7 +511,7 @@ public class NfcService extends Service {
             /* store preference */
             mPrefsEditor.putBoolean(PREF_SECURE_ELEMENT_ON, false);
             mPrefsEditor.putInt(PREF_SECURE_ELEMENT_ID, 0);
-            mPrefsEditor.commit();
+            mPrefsEditor.apply();
 
             return ErrorCodes.SUCCESS;
         }
@@ -627,7 +627,7 @@ public class NfcService extends Service {
             /* store */
             mPrefsEditor.putBoolean(PREF_SECURE_ELEMENT_ON, true);
             mPrefsEditor.putInt(PREF_SECURE_ELEMENT_ID, mSelectedSeId);
-            mPrefsEditor.commit();
+            mPrefsEditor.apply();
 
             mNfcSecureElementState = true;
 
@@ -663,7 +663,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putInt(PREF_LLCP_LTO, val);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_LLCP_LTO, val);
@@ -677,7 +677,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putInt(PREF_LLCP_MIU, val);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_LLCP_MIU, val);
@@ -691,7 +691,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putInt(PREF_LLCP_WKS, val);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_LLCP_WKS, val);
@@ -705,7 +705,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putInt(PREF_LLCP_OPT, val);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_LLCP_OPT, val);
@@ -715,7 +715,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putBoolean(PREF_DISCOVERY_A, b);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A, b ? 1 : 0);
@@ -725,7 +725,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putBoolean(PREF_DISCOVERY_B, b);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B, b ? 1 : 0);
@@ -735,7 +735,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putBoolean(PREF_DISCOVERY_F, b);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F, b ? 1 : 0);
@@ -745,7 +745,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putBoolean(PREF_DISCOVERY_15693, b);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693, b ? 1 : 0);
@@ -755,7 +755,7 @@ public class NfcService extends Service {
 
                 /* Store value */
                 mPrefsEditor.putBoolean(PREF_DISCOVERY_NFCIP, b);
-                mPrefsEditor.commit();
+                mPrefsEditor.apply();
 
                 /* Update JNI */
                 mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP, b ? 1 : 0);
@@ -1736,7 +1736,7 @@ public class NfcService extends Service {
         int state;
 
         mPrefsEditor.putBoolean(PREF_NFC_ON, mIsNfcEnabled);
-        mPrefsEditor.commit();
+        mPrefsEditor.apply();
 
         if (oldEnabledState != mIsNfcEnabled) {
             Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
