@@ -21,19 +21,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-
 public class NfcReceiver extends BroadcastReceiver {
     private static final String TAG = "NfcService";
-
-    private static NfcService mNfcService;
-
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "Internal NFC Intent received");
-
         if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
-            mNfcService = new NfcService(context);
+            Log.i(TAG, "Starting NFC service");
+
+            context.startService(new Intent(context, NfcService.class));
         }
     }
 }
-

@@ -20,35 +20,31 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
+import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
 import android.nfc.ILlcpConnectionlessSocket;
 import android.nfc.ILlcpServiceSocket;
-import android.nfc.INfcAdapter;
 import android.nfc.ILlcpSocket;
+import android.nfc.INfcAdapter;
 import android.nfc.INfcTag;
 import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
-import android.nfc.Tag;
 import android.nfc.NfcAdapter;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.Message;
-import android.os.Process;
+import android.nfc.Tag;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.provider.Settings;
 import android.util.Log;
 
-public class NfcService extends INfcAdapter.Stub {
-
+public class NfcService extends Service {
     static {
         System.loadLibrary("nfc_jni");
     }
@@ -60,134 +56,80 @@ public class NfcService extends INfcAdapter.Stub {
     private static final String ADMIN_PERM = android.Manifest.permission.WRITE_SECURE_SETTINGS;
     private static final String ADMIN_PERM_ERROR = "WRITE_SECURE_SETTINGS permission required";
 
-    /**
-     * NFC features disabled state
-     */
-    private static final short NFC_STATE_DISABLED = 0x00;
+    private static final String PREF = "NfcServicePrefs";
 
-    /**
-     * NFC features enabled state
-     */
-    private static final short NFC_STATE_ENABLED = 0x01;
+    private static final String PREF_NFC_ON = "nfc_on";
+    private static final boolean NFC_ON_DEFAULT = true;
 
-    /**
-     * NFC Discovery for Reader mode
-     */
+    private static final String PREF_SECURE_ELEMENT_ON = "secure_element_on";
+    private static final boolean SECURE_ELEMENT_ON_DEFAULT = false;
+
+    private static final String PREF_SECURE_ELEMENT_ID = "secure_element_id";
+    private static final int SECURE_ELEMENT_ID_DEFAULT = 0;
+
+    private static final String PREF_LLCP_LTO = "llcp_lto";
+    private static final int LLCP_LTO_DEFAULT = 150;
+    private static final int LLCP_LTO_MAX = 255;
+
+    /** Maximum Information Unit */
+    private static final String PREF_LLCP_MIU = "llcp_miu";
+    private static final int LLCP_MIU_DEFAULT = 128;
+    private static final int LLCP_MIU_MAX = 2176;
+
+    /** Well Known Service List */
+    private static final String PREF_LLCP_WKS = "llcp_wks";
+    private static final int LLCP_WKS_DEFAULT = 1;
+    private static final int LLCP_WKS_MAX = 15;
+
+    private static final String PREF_LLCP_OPT = "llcp_opt";
+    private static final int LLCP_OPT_DEFAULT = 0;
+    private static final int LLCP_OPT_MAX = 3;
+
+    private static final String PREF_DISCOVERY_A = "discovery_a";
+    private static final boolean DISCOVERY_A_DEFAULT = true;
+
+    private static final String PREF_DISCOVERY_B = "discovery_b";
+    private static final boolean DISCOVERY_B_DEFAULT = true;
+
+    private static final String PREF_DISCOVERY_F = "discovery_f";
+    private static final boolean DISCOVERY_F_DEFAULT = true;
+
+    private static final String PREF_DISCOVERY_15693 = "discovery_15693";
+    private static final boolean DISCOVERY_15693_DEFAULT = true;
+
+    private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
+    private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
+
+    /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
 
-    /**
-     * NFC Discovery for Card Emulation Mode
-     */
+    /** Card Emulation Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_CARD_EMULATION = 2;
 
-    /**
-     * LLCP Service Socket type
-     */
     private static final int LLCP_SERVICE_SOCKET_TYPE = 0;
-
-    /**
-     * LLCP Socket type
-     */
     private static final int LLCP_SOCKET_TYPE = 1;
-
-    /**
-     * LLCP Connectionless socket type
-     */
     private static final int LLCP_CONNECTIONLESS_SOCKET_TYPE = 2;
+    private static final int LLCP_SOCKET_NB_MAX = 5;  // Maximum number of socket managed
+    private static final int LLCP_RW_MAX_VALUE = 15;  // Receive Window
 
-    /**
-     * Maximun number of sockets managed
-     */
-    private static final int LLCP_SOCKET_NB_MAX = 5;
-
-    /**
-     * Default value for the Maximum Information Unit parameter
-     */
-    private static final int LLCP_LTO_DEFAULT_VALUE = 150;
-
-    /**
-     * Default value for the Maximum Information Unit parameter
-     */
-    private static final int LLCP_LTO_MAX_VALUE = 255;
-
-    /**
-     * Maximun value for the Receive Window
-     */
-    private static final int LLCP_RW_MAX_VALUE = 15;
-
-    /**
-     * Default value for the Maximum Information Unit parameter
-     */
-    private static final int LLCP_MIU_DEFAULT_VALUE = 128;
-
-    /**
-     * Default value for the Maximum Information Unit parameter
-     */
-    private static final int LLCP_MIU_MAX_VALUE = 2176;
-
-    /**
-     * Default value for the Well Known Service List parameter
-     */
-    private static final int LLCP_WKS_DEFAULT_VALUE = 1;
-
-    /**
-     * Max value for the Well Known Service List parameter
-     */
-    private static final int LLCP_WKS_MAX_VALUE = 15;
-
-    /**
-     * Default value for the Option parameter
-     */
-    private static final int LLCP_OPT_DEFAULT_VALUE = 0;
-
-    /**
-     * Max value for the Option parameter
-     */
-    private static final int LLCP_OPT_MAX_VALUE = 3;
-
-    /**
-     * LLCP Properties
-     */
     private static final int PROPERTY_LLCP_LTO = 0;
-
-    private static final int PROPERTY_LLCP_MIU = 1;
-
-    private static final int PROPERTY_LLCP_WKS = 2;
-
-    private static final int PROPERTY_LLCP_OPT = 3;
-
     private static final String PROPERTY_LLCP_LTO_VALUE = "llcp.lto";
-
+    private static final int PROPERTY_LLCP_MIU = 1;
     private static final String PROPERTY_LLCP_MIU_VALUE = "llcp.miu";
-
+    private static final int PROPERTY_LLCP_WKS = 2;
     private static final String PROPERTY_LLCP_WKS_VALUE = "llcp.wks";
-
+    private static final int PROPERTY_LLCP_OPT = 3;
     private static final String PROPERTY_LLCP_OPT_VALUE = "llcp.opt";
-
-    /**
-     * NFC Reader Properties
-     */
     private static final int PROPERTY_NFC_DISCOVERY_A = 4;
-
-    private static final int PROPERTY_NFC_DISCOVERY_B = 5;
-
-    private static final int PROPERTY_NFC_DISCOVERY_F = 6;
-
-    private static final int PROPERTY_NFC_DISCOVERY_15693 = 7;
-
-    private static final int PROPERTY_NFC_DISCOVERY_NFCIP = 8;
-
     private static final String PROPERTY_NFC_DISCOVERY_A_VALUE = "discovery.iso14443A";
-
+    private static final int PROPERTY_NFC_DISCOVERY_B = 5;
     private static final String PROPERTY_NFC_DISCOVERY_B_VALUE = "discovery.iso14443B";
-
+    private static final int PROPERTY_NFC_DISCOVERY_F = 6;
     private static final String PROPERTY_NFC_DISCOVERY_F_VALUE = "discovery.felica";
-
+    private static final int PROPERTY_NFC_DISCOVERY_15693 = 7;
     private static final String PROPERTY_NFC_DISCOVERY_15693_VALUE = "discovery.iso15693";
-
+    private static final int PROPERTY_NFC_DISCOVERY_NFCIP = 8;
     private static final String PROPERTY_NFC_DISCOVERY_NFCIP_VALUE = "discovery.nfcip";
-
-    private final Context mContext;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -210,16 +152,652 @@ public class NfcService extends INfcAdapter.Stub {
 
     private int mTimeout = 0;
 
-    private int mNfcState;
+    private boolean mNfcState;
 
-    private int mNfcSecureElementState;
+    private boolean mNfcSecureElementState;
 
     private boolean mOpenPending = false;
 
-    private final NativeNfcManager mManager;
+    private Context mContext;
+    private NativeNfcManager mManager;
+    private SharedPreferences mPrefs;
+    private SharedPreferences.Editor mPrefsEditor;
 
-    private final HandlerThread mBackgroundThread = new HandlerThread("NfcBackgroundThread");
-    private final Handler mBackgroundHandler;
+    @Override
+    public void onCreate() {
+        mContext = this;
+        mManager = new NativeNfcManager(mContext);
+        mManager.initializeNativeStructure();
+
+        mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        mPrefsEditor = mPrefs.edit();
+
+        mIsNfcEnabled = false;
+
+        ServiceManager.addService("nfc", mNfcAdapter);
+
+        IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
+        filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
+        mContext.registerReceiver(mReceiver, filter);
+
+        finishStartup();
+    }
+
+    public void finishStartup() {
+        // runs at BOOT_COMPLETE time, can really turn on NFC now
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                boolean nfc_on = mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT);
+                if (nfc_on) {
+                    _enable(false);
+                }
+            }
+        };
+        t.start();
+    }
+
+    @Override
+    public void onDestroy() {
+        // NFC service is persistent, it should not be destroyed by framework
+        Log.wtf(TAG, "NFC service is under attack!");
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        // Applications should not attempt to bindService() to NFC service
+        return null;
+    }
+
+    private final INfcAdapter.Stub mNfcAdapter = new INfcAdapter.Stub() {
+        public boolean enable() throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            boolean isSuccess = false;
+            boolean previouslyEnabled = isEnabled();
+            if (!previouslyEnabled) {
+                reset();
+                isSuccess = _enable(previouslyEnabled);
+            }
+            return isSuccess;
+        }
+
+        public boolean disable() throws RemoteException {
+            boolean isSuccess = false;
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            boolean previouslyEnabled = isEnabled();
+            Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
+
+            if (previouslyEnabled) {
+                isSuccess = mManager.deinitialize();
+                Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
+                if (isSuccess) {
+                    mIsNfcEnabled = false;
+                }
+            }
+
+            updateNfcOnSetting(previouslyEnabled);
+
+            return isSuccess;
+        }
+
+        public int createLlcpConnectionlessSocket(int sap) throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            /* Check SAP is not already used */
+
+            /* Check nb socket created */
+            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
+                /* Store the socket handle */
+                int sockeHandle = mGeneratedSocketHandle;
+
+                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+                    NativeLlcpConnectionlessSocket socket;
+
+                    socket = mManager.doCreateLlcpConnectionlessSocket(sap);
+                    if (socket != null) {
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
+
+                        return sockeHandle;
+                    } else {
+                        /*
+                         * socket creation error - update the socket handle
+                         * generation
+                         */
+                        mGeneratedSocketHandle -= 1;
+
+                        /* Get Error Status */
+                        int errorStatus = mManager.doGetLastError();
+
+                        switch (errorStatus) {
+                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                            default:
+                                return ErrorCodes.ERROR_SOCKET_CREATION;
+                        }
+                    }
+                } else {
+                    /* Check SAP is not already used */
+                    if (!CheckSocketSap(sap)) {
+                        return ErrorCodes.ERROR_SAP_USED;
+                    }
+
+                    NativeLlcpConnectionlessSocket socket = new NativeLlcpConnectionlessSocket(sap);
+
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(sockeHandle, socket);
+
+                    /* Update the number of socket created */
+                    mNbSocketCreated++;
+
+                    /* Create new registered socket */
+                    RegisteredSocket registeredSocket = new RegisteredSocket(
+                            LLCP_CONNECTIONLESS_SOCKET_TYPE, sockeHandle, sap);
+
+                    /* Put this socket into a list of registered socket */
+                    mRegisteredSocketList.add(registeredSocket);
+                }
+
+                /* update socket handle generation */
+                mGeneratedSocketHandle++;
+
+                return sockeHandle;
+
+            } else {
+                /* No socket available */
+                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+            }
+
+        }
+
+        public int createLlcpServiceSocket(int sap, String sn, int miu, int rw, int linearBufferLength)
+                throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
+                int sockeHandle = mGeneratedSocketHandle;
+
+                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+                    NativeLlcpServiceSocket socket;
+
+                    socket = mManager.doCreateLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
+                    if (socket != null) {
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
+                    } else {
+                        /* socket creation error - update the socket handle counter */
+                        mGeneratedSocketHandle -= 1;
+
+                        /* Get Error Status */
+                        int errorStatus = mManager.doGetLastError();
+
+                        switch (errorStatus) {
+                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                            default:
+                                return ErrorCodes.ERROR_SOCKET_CREATION;
+                        }
+                    }
+                } else {
+
+                    /* Check SAP is not already used */
+                    if (!CheckSocketSap(sap)) {
+                        return ErrorCodes.ERROR_SAP_USED;
+                    }
+
+                    /* Service Name */
+                    if (!CheckSocketServiceName(sn)) {
+                        return ErrorCodes.ERROR_SERVICE_NAME_USED;
+                    }
+
+                    /* Check socket options */
+                    if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
+                        return ErrorCodes.ERROR_SOCKET_OPTIONS;
+                    }
+
+                    NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sn);
+
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(sockeHandle, socket);
+
+                    /* Update the number of socket created */
+                    mNbSocketCreated++;
+
+                    /* Create new registered socket */
+                    RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SERVICE_SOCKET_TYPE,
+                            sockeHandle, sap, sn, miu, rw, linearBufferLength);
+
+                    /* Put this socket into a list of registered socket */
+                    mRegisteredSocketList.add(registeredSocket);
+                }
+
+                /* update socket handle generation */
+                mGeneratedSocketHandle += 1;
+
+                Log.d(TAG, "Llcp Service Socket Handle =" + sockeHandle);
+                return sockeHandle;
+            } else {
+                /* No socket available */
+                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+            }
+        }
+
+        public int createLlcpSocket(int sap, int miu, int rw, int linearBufferLength)
+                throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
+
+                int sockeHandle = mGeneratedSocketHandle;
+
+                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+                    NativeLlcpSocket socket;
+
+                    socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
+
+                    if (socket != null) {
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
+                    } else {
+                        /*
+                         * socket creation error - update the socket handle
+                         * generation
+                         */
+                        mGeneratedSocketHandle -= 1;
+
+                        /* Get Error Status */
+                        int errorStatus = mManager.doGetLastError();
+
+                        switch (errorStatus) {
+                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                            default:
+                                return ErrorCodes.ERROR_SOCKET_CREATION;
+                        }
+                    }
+                } else {
+
+                    /* Check SAP is not already used */
+                    if (!CheckSocketSap(sap)) {
+                        return ErrorCodes.ERROR_SAP_USED;
+                    }
+
+                    /* Check Socket options */
+                    if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
+                        return ErrorCodes.ERROR_SOCKET_OPTIONS;
+                    }
+
+                    NativeLlcpSocket socket = new NativeLlcpSocket(sap, miu, rw);
+
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(sockeHandle, socket);
+
+                    /* Update the number of socket created */
+                    mNbSocketCreated++;
+                    /* Create new registered socket */
+                    RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SOCKET_TYPE,
+                            sockeHandle, sap, miu, rw, linearBufferLength);
+
+                    /* Put this socket into a list of registered socket */
+                    mRegisteredSocketList.add(registeredSocket);
+                }
+
+                /* update socket handle generation */
+                mGeneratedSocketHandle++;
+
+                return sockeHandle;
+            } else {
+                /* No socket available */
+                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+            }
+        }
+
+        public int deselectSecureElement() throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            if (mSelectedSeId == 0) {
+                return ErrorCodes.ERROR_NO_SE_CONNECTED;
+            }
+
+            mManager.doDeselectSecureElement(mSelectedSeId);
+            mNfcSecureElementState = false;
+            mSelectedSeId = 0;
+
+            /* store preference */
+            mPrefsEditor.putBoolean(PREF_SECURE_ELEMENT_ON, false);
+            mPrefsEditor.putInt(PREF_SECURE_ELEMENT_ID, 0);
+            mPrefsEditor.commit();
+
+            return ErrorCodes.SUCCESS;
+        }
+
+        public ILlcpConnectionlessSocket getLlcpConnectionlessInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mLlcpConnectionlessSocketService;
+        }
+
+        public ILlcpSocket getLlcpInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mLlcpSocket;
+        }
+
+        public ILlcpServiceSocket getLlcpServiceInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mLlcpServerSocketService;
+        }
+
+        public INfcTag getNfcTagInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mNfcTagService;
+        }
+
+        public int getOpenTimeout() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mTimeout;
+        }
+
+        public IP2pInitiator getP2pInitiatorInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mP2pInitiatorService;
+        }
+
+        public IP2pTarget getP2pTargetInterface() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mP2pTargetService;
+        }
+
+        public String getProperties(String param) throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            if (param == null) {
+                return null;
+            }
+
+            if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
+                return Integer.toString(mPrefs.getInt(PREF_LLCP_LTO, LLCP_LTO_DEFAULT));
+            } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
+                return Integer.toString(mPrefs.getInt(PREF_LLCP_MIU, LLCP_MIU_DEFAULT));
+            } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
+                return Integer.toString(mPrefs.getInt(PREF_LLCP_WKS, LLCP_WKS_DEFAULT));
+            } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
+                return Integer.toString(mPrefs.getInt(PREF_LLCP_OPT, LLCP_OPT_DEFAULT));
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
+                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_A, DISCOVERY_A_DEFAULT));
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
+                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_B, DISCOVERY_B_DEFAULT));
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
+                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_F, DISCOVERY_F_DEFAULT));
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
+                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_NFCIP, DISCOVERY_NFCIP_DEFAULT));
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
+                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_15693, DISCOVERY_15693_DEFAULT));
+            } else {
+                return "Unknown property";
+            }
+        }
+
+        public int[] getSecureElementList() throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            int[] list = null;
+            if (mIsNfcEnabled == true) {
+                list = mManager.doGetSecureElementList();
+            }
+            return list;
+        }
+
+        public int getSelectedSecureElement() throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            return mSelectedSeId;
+        }
+
+        public boolean isEnabled() throws RemoteException {
+            return mIsNfcEnabled;
+        }
+
+        public int openP2pConnection() throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            if (!mOpenPending) {
+                NativeP2pDevice device;
+                mOpenPending = true;
+                device = mManager.doOpenP2pConnection(mTimeout);
+                if (device != null) {
+                    /* add device to the Hmap */
+                    mObjectMap.put(device.getHandle(), device);
+                    return device.getHandle();
+                } else {
+                    mOpenPending = false;
+                    /* Restart polling loop for notification */
+                    mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                    return ErrorCodes.ERROR_IO;
+                }
+            } else {
+                return ErrorCodes.ERROR_BUSY;
+            }
+
+        }
+
+        public void openTagConnection(Tag tag) throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            NativeNfcTag nativeTag = new NativeNfcTag(tag.getHandle(), "", tag.getId());
+
+            mObjectMap.put(nativeTag.getHandle(), nativeTag);
+        }
+
+        public int selectSecureElement(int seId) throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            if (mSelectedSeId == seId) {
+                return ErrorCodes.ERROR_SE_ALREADY_SELECTED;
+            }
+
+            if (mSelectedSeId != 0) {
+                return ErrorCodes.ERROR_SE_CONNECTED;
+            }
+
+            mSelectedSeId = seId;
+            mManager.doSelectSecureElement(mSelectedSeId);
+
+            /* store */
+            mPrefsEditor.putBoolean(PREF_SECURE_ELEMENT_ON, true);
+            mPrefsEditor.putInt(PREF_SECURE_ELEMENT_ID, mSelectedSeId);
+            mPrefsEditor.commit();
+
+            mNfcSecureElementState = true;
+
+            return ErrorCodes.SUCCESS;
+
+        }
+
+        public void setOpenTimeout(int timeout) throws RemoteException {
+            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mTimeout = timeout;
+        }
+
+        public int setProperties(String param, String value) throws RemoteException {
+            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            if (isEnabled()) {
+                return ErrorCodes.ERROR_NFC_ON;
+            }
+
+            int val;
+
+            /* Check params validity */
+            if (param == null || value == null) {
+                return ErrorCodes.ERROR_INVALID_PARAM;
+            }
+
+            if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
+                val = Integer.parseInt(value);
+
+                /* Check params */
+                if (val > LLCP_LTO_MAX)
+                    return ErrorCodes.ERROR_INVALID_PARAM;
+
+                /* Store value */
+                mPrefsEditor.putInt(PREF_LLCP_LTO, val);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_LLCP_LTO, val);
+
+            } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
+                val = Integer.parseInt(value);
+
+                /* Check params */
+                if ((val < LLCP_MIU_DEFAULT) || (val > LLCP_MIU_MAX))
+                    return ErrorCodes.ERROR_INVALID_PARAM;
+
+                /* Store value */
+                mPrefsEditor.putInt(PREF_LLCP_MIU, val);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_LLCP_MIU, val);
+
+            } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
+                val = Integer.parseInt(value);
+
+                /* Check params */
+                if (val > LLCP_WKS_MAX)
+                    return ErrorCodes.ERROR_INVALID_PARAM;
+
+                /* Store value */
+                mPrefsEditor.putInt(PREF_LLCP_WKS, val);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_LLCP_WKS, val);
+
+            } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
+                val = Integer.parseInt(value);
+
+                /* Check params */
+                if (val > LLCP_OPT_MAX)
+                    return ErrorCodes.ERROR_INVALID_PARAM;
+
+                /* Store value */
+                mPrefsEditor.putInt(PREF_LLCP_OPT, val);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_LLCP_OPT, val);
+
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
+                boolean b = Boolean.parseBoolean(value);
+
+                /* Store value */
+                mPrefsEditor.putBoolean(PREF_DISCOVERY_A, b);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A, b ? 1 : 0);
+
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
+                boolean b = Boolean.parseBoolean(value);
+
+                /* Store value */
+                mPrefsEditor.putBoolean(PREF_DISCOVERY_B, b);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B, b ? 1 : 0);
+
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
+                boolean b = Boolean.parseBoolean(value);
+
+                /* Store value */
+                mPrefsEditor.putBoolean(PREF_DISCOVERY_F, b);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F, b ? 1 : 0);
+
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
+                boolean b = Boolean.parseBoolean(value);
+
+                /* Store value */
+                mPrefsEditor.putBoolean(PREF_DISCOVERY_15693, b);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693, b ? 1 : 0);
+
+            } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
+                boolean b = Boolean.parseBoolean(value);
+
+                /* Store value */
+                mPrefsEditor.putBoolean(PREF_DISCOVERY_NFCIP, b);
+                mPrefsEditor.commit();
+
+                /* Update JNI */
+                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP, b ? 1 : 0);
+
+            } else {
+                return ErrorCodes.ERROR_INVALID_PARAM;
+            }
+
+            return ErrorCodes.SUCCESS;
+        }
+
+        public NdefMessage localGet() throws RemoteException {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        public void localSet(NdefMessage message) throws RemoteException {
+            // TODO Auto-generated method stub
+
+        }
+    };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
 
@@ -230,31 +808,6 @@ public class NfcService extends INfcAdapter.Stub {
 
         private int concurrencyFlags;
         private Object sync;
-
-        private void enterCritical(int mask, int current) {
-            int result = -1;
-            try {
-                while (result != 0) {
-                    synchronized(this) {
-                        result = concurrencyFlags & mask;
-                    }
-                    sync.wait();
-                }
-            }
-            catch(InterruptedException e) {
-            }
-            // Set flag
-            concurrencyFlags |= current;
-        }
-
-        private void leaveCritical(int current) {
-            synchronized(this) {
-                // Clear flag
-                concurrencyFlags &= ~current;
-            }
-            // Release waiting threads
-            sync.notifyAll();
-        }
 
         public int close(int nativeHandle) throws RemoteException {
             mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
@@ -1137,367 +1690,16 @@ public class NfcService extends INfcAdapter.Stub {
         }
     };
 
-    private class NfcHandler extends Handler {
-
-        @Override
-        public void handleMessage(Message msg) {
-            try {
-
-            } catch (Exception e) {
-                // Log, don't crash!
-                Log.e(TAG, "Exception in NfcHandler.handleMessage:", e);
-            }
-        }
-
-    };
-
-    public NfcService(final Context context) {
-        super();
-        mContext = context;
-        mManager = new NativeNfcManager(mContext);
-
-        /* TODO(nxp)
-        mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
-                NativeNfcManager.INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION));
-
-        mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
-                NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED));
-
-        mContext.registerReceiver(mNfcServiceReceiver, new IntentFilter(
-                NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION));
-        */
-
-        mManager.initializeNativeStructure();
-
-        mBackgroundThread.start();
-        mBackgroundHandler= new Handler(mBackgroundThread.getLooper());
-        mBackgroundHandler.post(new Runnable() {
-                public void run() {
-                    int nfcState = Settings.System.getInt(mContext.getContentResolver(),
-                            Settings.System.NFC_ON, 0);
-
-                    if (nfcState == NFC_STATE_ENABLED) {
-                        NfcService.this._enable(false);
-                    }
-                }
-            });
-
-        ServiceManager.addService("nfc", this);
-    }
-
-    public int createLlcpConnectionlessSocket(int sap) throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        /* Check SAP is not already used */
-
-        /* Check nb socket created */
-        if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
-            /* Store the socket handle */
-            int sockeHandle = mGeneratedSocketHandle;
-
-            if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                NativeLlcpConnectionlessSocket socket;
-
-                socket = mManager.doCreateLlcpConnectionlessSocket(sap);
-                if (socket != null) {
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
-
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
-
-                    return sockeHandle;
-                } else {
-                    /*
-                     * socket creation error - update the socket handle
-                     * generation
-                     */
-                    mGeneratedSocketHandle -= 1;
-
-                    /* Get Error Status */
-                    int errorStatus = mManager.doGetLastError();
-
-                    switch (errorStatus) {
-                        case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                            return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                        case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                        default:
-                            return ErrorCodes.ERROR_SOCKET_CREATION;
-                    }
-                }
-            } else {
-                /* Check SAP is not already used */
-                if (!CheckSocketSap(sap)) {
-                    return ErrorCodes.ERROR_SAP_USED;
-                }
-
-                NativeLlcpConnectionlessSocket socket = new NativeLlcpConnectionlessSocket(sap);
-
-                /* Add the socket into the socket map */
-                mSocketMap.put(sockeHandle, socket);
-
-                /* Update the number of socket created */
-                mNbSocketCreated++;
-
-                /* Create new registered socket */
-                RegisteredSocket registeredSocket = new RegisteredSocket(
-                        LLCP_CONNECTIONLESS_SOCKET_TYPE, sockeHandle, sap);
-
-                /* Put this socket into a list of registered socket */
-                mRegisteredSocketList.add(registeredSocket);
-            }
-
-            /* update socket handle generation */
-            mGeneratedSocketHandle++;
-
-            return sockeHandle;
-
-        } else {
-            /* No socket available */
-            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-        }
-
-    }
-
-    public int createLlcpServiceSocket(int sap, String sn, int miu, int rw, int linearBufferLength)
-            throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
-            int sockeHandle = mGeneratedSocketHandle;
-
-            if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                NativeLlcpServiceSocket socket;
-
-                socket = mManager.doCreateLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
-                if (socket != null) {
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
-                } else {
-                    /* socket creation error - update the socket handle counter */
-                    mGeneratedSocketHandle -= 1;
-
-                    /* Get Error Status */
-                    int errorStatus = mManager.doGetLastError();
-
-                    switch (errorStatus) {
-                        case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                            return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                        case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                        default:
-                            return ErrorCodes.ERROR_SOCKET_CREATION;
-                    }
-                }
-            } else {
-
-                /* Check SAP is not already used */
-                if (!CheckSocketSap(sap)) {
-                    return ErrorCodes.ERROR_SAP_USED;
-                }
-
-                /* Service Name */
-                if (!CheckSocketServiceName(sn)) {
-                    return ErrorCodes.ERROR_SERVICE_NAME_USED;
-                }
-
-                /* Check socket options */
-                if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
-                    return ErrorCodes.ERROR_SOCKET_OPTIONS;
-                }
-
-                NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sn);
-
-                /* Add the socket into the socket map */
-                mSocketMap.put(sockeHandle, socket);
-
-                /* Update the number of socket created */
-                mNbSocketCreated++;
-
-                /* Create new registered socket */
-                RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SERVICE_SOCKET_TYPE,
-                        sockeHandle, sap, sn, miu, rw, linearBufferLength);
-
-                /* Put this socket into a list of registered socket */
-                mRegisteredSocketList.add(registeredSocket);
-            }
-
-            /* update socket handle generation */
-            mGeneratedSocketHandle += 1;
-
-            Log.d(TAG, "Llcp Service Socket Handle =" + sockeHandle);
-            return sockeHandle;
-        } else {
-            /* No socket available */
-            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-        }
-    }
-
-    public int createLlcpSocket(int sap, int miu, int rw, int linearBufferLength)
-            throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
-
-            int sockeHandle = mGeneratedSocketHandle;
-
-            if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                NativeLlcpSocket socket;
-
-                socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
-
-                if (socket != null) {
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
-                } else {
-                    /*
-                     * socket creation error - update the socket handle
-                     * generation
-                     */
-                    mGeneratedSocketHandle -= 1;
-
-                    /* Get Error Status */
-                    int errorStatus = mManager.doGetLastError();
-
-                    switch (errorStatus) {
-                        case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                            return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                        case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                        default:
-                            return ErrorCodes.ERROR_SOCKET_CREATION;
-                    }
-                }
-            } else {
-
-                /* Check SAP is not already used */
-                if (!CheckSocketSap(sap)) {
-                    return ErrorCodes.ERROR_SAP_USED;
-                }
-
-                /* Check Socket options */
-                if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
-                    return ErrorCodes.ERROR_SOCKET_OPTIONS;
-                }
-
-                NativeLlcpSocket socket = new NativeLlcpSocket(sap, miu, rw);
-
-                /* Add the socket into the socket map */
-                mSocketMap.put(sockeHandle, socket);
-
-                /* Update the number of socket created */
-                mNbSocketCreated++;
-                /* Create new registered socket */
-                RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SOCKET_TYPE,
-                        sockeHandle, sap, miu, rw, linearBufferLength);
-
-                /* Put this socket into a list of registered socket */
-                mRegisteredSocketList.add(registeredSocket);
-            }
-
-            /* update socket handle generation */
-            mGeneratedSocketHandle++;
-
-            return sockeHandle;
-        } else {
-            /* No socket available */
-            return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-        }
-    }
-
-    public int deselectSecureElement() throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        if (mSelectedSeId == 0) {
-            return ErrorCodes.ERROR_NO_SE_CONNECTED;
-        }
-
-        mManager.doDeselectSecureElement(mSelectedSeId);
-        mNfcSecureElementState = 0;
-        mSelectedSeId = 0;
-
-        /* Store that a secure element is deselected */
-        Settings.System.putInt(mContext.getContentResolver(),
-                Settings.System.NFC_SECURE_ELEMENT_ON, 0);
-
-        /* Reset Secure Element ID */
-        Settings.System.putInt(mContext.getContentResolver(),
-                Settings.System.NFC_SECURE_ELEMENT_ID, 0);
-
-
-        return ErrorCodes.SUCCESS;
-    }
-
-    public boolean disable() throws RemoteException {
-        boolean isSuccess = false;
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-        boolean previouslyEnabled = isEnabled();
-        Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
-
-        if (previouslyEnabled) {
-            isSuccess = mManager.deinitialize();
-            Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
-            if (isSuccess) {
-                mIsNfcEnabled = false;
-            }
-        }
-
-        updateNfcOnSetting(previouslyEnabled);
-
-        return isSuccess;
-    }
-
-    public boolean enable() throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        boolean isSuccess = false;
-        boolean previouslyEnabled = isEnabled();
-        if (!previouslyEnabled) {
-            reset();
-            isSuccess = _enable(previouslyEnabled);
-        }
-        return isSuccess;
-    }
-
     private boolean _enable(boolean oldEnabledState) {
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
-            /* Check persistent properties */
-            checkProperties();
-
             /* Check Secure Element setting */
-            mNfcSecureElementState = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_SECURE_ELEMENT_ON, 0);
+            mNfcSecureElementState = mPrefs.getBoolean(PREF_SECURE_ELEMENT_ON,
+                    SECURE_ELEMENT_ON_DEFAULT);
 
-            if (mNfcSecureElementState == 1) {
-
-                int secureElementId = Settings.System.getInt(mContext.getContentResolver(),
-                        Settings.System.NFC_SECURE_ELEMENT_ID, 0);
+            if (mNfcSecureElementState) {
+                int secureElementId = mPrefs.getInt(PREF_SECURE_ELEMENT_ID,
+                        SECURE_ELEMENT_ID_DEFAULT);
                 int[] Se_list = mManager.doGetSecureElementList();
                 if (Se_list != null) {
                     for (int i = 0; i < Se_list.length; i++) {
@@ -1526,444 +1728,14 @@ public class NfcService extends INfcAdapter.Stub {
     private void updateNfcOnSetting(boolean oldEnabledState) {
         int state;
 
-        if (mIsNfcEnabled) {
-            state = NFC_STATE_ENABLED;
-        } else {
-            state = NFC_STATE_DISABLED;
-        }
-
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_ON, state);
+        mPrefsEditor.putBoolean(PREF_NFC_ON, mIsNfcEnabled);
+        mPrefsEditor.commit();
 
         if (oldEnabledState != mIsNfcEnabled) {
             Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
             intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
             mContext.sendBroadcast(intent);
         }
-    }
-
-    private void checkProperties() {
-        int value;
-
-        /* LLCP LTO */
-        value = Settings.System.getInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_LTO,
-                LLCP_LTO_DEFAULT_VALUE);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_LTO, value);
-        mManager.doSetProperties(PROPERTY_LLCP_LTO, value);
-
-        /* LLCP MIU */
-        value = Settings.System.getInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_MIU,
-                LLCP_MIU_DEFAULT_VALUE);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_MIU, value);
-        mManager.doSetProperties(PROPERTY_LLCP_MIU, value);
-
-        /* LLCP WKS */
-        value = Settings.System.getInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_WKS,
-                LLCP_WKS_DEFAULT_VALUE);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_WKS, value);
-        mManager.doSetProperties(PROPERTY_LLCP_WKS, value);
-
-        /* LLCP OPT */
-        value = Settings.System.getInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_OPT,
-                LLCP_OPT_DEFAULT_VALUE);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_OPT, value);
-        mManager.doSetProperties(PROPERTY_LLCP_OPT, value);
-
-        /* NFC READER A */
-        value = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_DISCOVERY_A, 1);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_A,
-                value);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A, value);
-
-        /* NFC READER B */
-        value = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_DISCOVERY_B, 1);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_B,
-                value);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B, value);
-
-        /* NFC READER F */
-        value = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_DISCOVERY_F, 1);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_F,
-                value);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F, value);
-
-        /* NFC READER 15693 */
-        value = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_DISCOVERY_15693, 1);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_15693,
-                value);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693, value);
-
-        /* NFC NFCIP */
-        value = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.NFC_DISCOVERY_NFCIP, 1);
-        Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_NFCIP,
-                value);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP, value);
-    }
-
-    public ILlcpConnectionlessSocket getLlcpConnectionlessInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mLlcpConnectionlessSocketService;
-    }
-
-    public ILlcpSocket getLlcpInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mLlcpSocket;
-    }
-
-    public ILlcpServiceSocket getLlcpServiceInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mLlcpServerSocketService;
-    }
-
-    public INfcTag getNfcTagInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mNfcTagService;
-    }
-
-    public int getOpenTimeout() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mTimeout;
-    }
-
-    public IP2pInitiator getP2pInitiatorInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mP2pInitiatorService;
-    }
-
-    public IP2pTarget getP2pTargetInterface() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        return mP2pTargetService;
-    }
-
-    public String getProperties(String param) throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        int value;
-
-        if (param == null) {
-            return "Wrong parameter";
-        }
-
-        if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_LLCP_LTO, 0);
-        } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_LLCP_MIU, 0);
-        } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_LLCP_WKS, 0);
-        } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_LLCP_OPT, 0);
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_A, 0);
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_B, 0);
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_F, 0);
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_NFCIP, 0);
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
-            value = Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_15693, 0);
-        } else {
-            return "Unknown property";
-        }
-
-        if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)
-                || param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)
-                || param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)
-                || param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)
-                || param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
-            if (value == 0) {
-                return "false";
-            } else if (value == 1) {
-                return "true";
-            } else {
-                return "Unknown Value";
-            }
-        }else{
-            return "" + value;
-        }
-
-    }
-
-    public int[] getSecureElementList() throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        int[] list = null;
-        if (mIsNfcEnabled == true) {
-            list = mManager.doGetSecureElementList();
-        }
-        return list;
-    }
-
-    public int getSelectedSecureElement() throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        return mSelectedSeId;
-    }
-
-    public boolean isEnabled() throws RemoteException {
-        return mIsNfcEnabled;
-    }
-
-    public int openP2pConnection() throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        if (!mOpenPending) {
-            NativeP2pDevice device;
-            mOpenPending = true;
-            device = mManager.doOpenP2pConnection(mTimeout);
-            if (device != null) {
-                /* add device to the Hmap */
-                mObjectMap.put(device.getHandle(), device);
-                return device.getHandle();
-            } else {
-                mOpenPending = false;
-                /* Restart polling loop for notification */
-                mManager.enableDiscovery(DISCOVERY_MODE_READER);
-                return ErrorCodes.ERROR_IO;
-            }
-        } else {
-            return ErrorCodes.ERROR_BUSY;
-        }
-
-    }
-
-    public void openTagConnection(Tag tag) throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-
-        NativeNfcTag nativeTag = new NativeNfcTag(tag.getHandle(), "", tag.getId());
-
-        mObjectMap.put(nativeTag.getHandle(), nativeTag);
-    }
-
-    public int selectSecureElement(int seId) throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        // Check if NFC is enabled
-        if (!mIsNfcEnabled) {
-            return ErrorCodes.ERROR_NOT_INITIALIZED;
-        }
-
-        if (mSelectedSeId == seId) {
-            return ErrorCodes.ERROR_SE_ALREADY_SELECTED;
-        }
-
-        if (mSelectedSeId != 0) {
-            return ErrorCodes.ERROR_SE_CONNECTED;
-        }
-
-        mSelectedSeId = seId;
-        mManager.doSelectSecureElement(mSelectedSeId);
-
-        /* Store that a secure element is selected */
-        Settings.System.putInt(mContext.getContentResolver(),
-                Settings.System.NFC_SECURE_ELEMENT_ON, 1);
-
-        /* Store the ID of the Secure Element Selected */
-        Settings.System.putInt(mContext.getContentResolver(),
-                Settings.System.NFC_SECURE_ELEMENT_ID, mSelectedSeId);
-
-        mNfcSecureElementState = 1;
-
-        return ErrorCodes.SUCCESS;
-
-    }
-
-    public void setOpenTimeout(int timeout) throws RemoteException {
-        mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
-        mTimeout = timeout;
-    }
-
-    public int setProperties(String param, String value) throws RemoteException {
-        mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
-
-        if (isEnabled()) {
-            return ErrorCodes.ERROR_NFC_ON;
-        }
-
-        int val;
-
-        /* Check params validity */
-        if (param == null || value == null) {
-            return ErrorCodes.ERROR_INVALID_PARAM;
-        }
-
-        if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
-            val = Integer.parseInt(value);
-
-            /* Check params */
-            if (val > LLCP_LTO_MAX_VALUE)
-                return ErrorCodes.ERROR_INVALID_PARAM;
-
-            /* Store value */
-            Settings.System
-                    .putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_LTO, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_LLCP_LTO, val);
-
-        } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
-            val = Integer.parseInt(value);
-
-            /* Check params */
-            if ((val < LLCP_MIU_DEFAULT_VALUE) || (val > LLCP_MIU_MAX_VALUE))
-                return ErrorCodes.ERROR_INVALID_PARAM;
-
-            /* Store value */
-            Settings.System
-                    .putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_MIU, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_LLCP_MIU, val);
-
-        } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
-            val = Integer.parseInt(value);
-
-            /* Check params */
-            if (val > LLCP_WKS_MAX_VALUE)
-                return ErrorCodes.ERROR_INVALID_PARAM;
-
-            /* Store value */
-            Settings.System
-                    .putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_WKS, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_LLCP_WKS, val);
-
-        } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
-            val = Integer.parseInt(value);
-
-            /* Check params */
-            if (val > LLCP_OPT_MAX_VALUE)
-                return ErrorCodes.ERROR_INVALID_PARAM;
-
-            /* Store value */
-            Settings.System
-                    .putInt(mContext.getContentResolver(), Settings.System.NFC_LLCP_OPT, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_LLCP_OPT, val);
-
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
-
-            /* Check params */
-            if (value.equals("true")) {
-                val = 1;
-            } else if (value.equals("false")) {
-                val = 0;
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-            /* Store value */
-            Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_A,
-                    val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A, val);
-
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
-
-            /* Check params */
-            if (value.equals("true")) {
-                val = 1;
-            } else if (value.equals("false")) {
-                val = 0;
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            /* Store value */
-            Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_B,
-                    val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B, val);
-
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
-
-            /* Check params */
-            if (value.equals("true")) {
-                val = 1;
-            } else if (value.equals("false")) {
-                val = 0;
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            /* Store value */
-            Settings.System.putInt(mContext.getContentResolver(), Settings.System.NFC_DISCOVERY_F,
-                    val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F, val);
-
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
-
-            /* Check params */
-            if (value.equals("true")) {
-                val = 1;
-            } else if (value.equals("false")) {
-                val = 0;
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            /* Store value */
-            Settings.System.putInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_15693, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693, val);
-
-        } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
-
-            /* Check params */
-            if (value.equals("true")) {
-                val = 1;
-            } else if (value.equals("false")) {
-                val = 0;
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            /* Store value */
-            Settings.System.putInt(mContext.getContentResolver(),
-                    Settings.System.NFC_DISCOVERY_NFCIP, val);
-
-            /* Update JNI */
-            mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP, val);
-        } else {
-            return ErrorCodes.ERROR_INVALID_PARAM;
-        }
-
-        return ErrorCodes.SUCCESS;
-    }
-
-    public NdefMessage localGet() throws RemoteException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    public void localSet(NdefMessage message) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
     // Reset all internals
@@ -1982,7 +1754,7 @@ public class NfcService extends INfcAdapter.Stub {
         mIsNfcEnabled = false;
         mSelectedSeId = 0;
         mTimeout = 0;
-        mNfcState = NFC_STATE_DISABLED;
+        mNfcState = false;
         mOpenPending = false;
     }
 
@@ -2030,7 +1802,7 @@ public class NfcService extends INfcAdapter.Stub {
 
     private boolean CheckSocketOptions(int miu, int rw, int linearBufferlength) {
 
-        if (rw > LLCP_RW_MAX_VALUE || miu < LLCP_MIU_DEFAULT_VALUE || linearBufferlength < miu) {
+        if (rw > LLCP_RW_MAX_VALUE || miu < LLCP_MIU_DEFAULT || linearBufferlength < miu) {
             return false;
         }
         return true;
@@ -2112,122 +1884,110 @@ public class NfcService extends INfcAdapter.Stub {
         }
     }
 
-    private final BroadcastReceiver mNfcServiceReceiver = new BroadcastReceiver() {
+    private void activateLlcpLink() {
+        /* check if sockets are registered */
+        ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
+
+        Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
+
+        while (it.hasNext()) {
+            RegisteredSocket registeredSocket = it.next();
+
+            switch (registeredSocket.mType) {
+            case LLCP_SERVICE_SOCKET_TYPE:
+                Log.d(TAG, "Registered Llcp Service Socket");
+                NativeLlcpServiceSocket serviceSocket;
+
+                serviceSocket = mManager.doCreateLlcpServiceSocket(
+                        registeredSocket.mSap, registeredSocket.mServiceName,
+                        registeredSocket.mMiu, registeredSocket.mRw,
+                        registeredSocket.mlinearBufferLength);
+
+                if (serviceSocket != null) {
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(registeredSocket.mHandle, serviceSocket);
+                } else {
+                    /* socket creation error - update the socket
+                     * handle counter */
+                    mGeneratedSocketHandle -= 1;
+                }
+                break;
+
+            case LLCP_SOCKET_TYPE:
+                Log.d(TAG, "Registered Llcp Socket");
+                NativeLlcpSocket clientSocket;
+                clientSocket = mManager.doCreateLlcpSocket(registeredSocket.mSap,
+                        registeredSocket.mMiu, registeredSocket.mRw,
+                        registeredSocket.mlinearBufferLength);
+                if (clientSocket != null) {
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(registeredSocket.mHandle, clientSocket);
+                } else {
+                    /* socket creation error - update the socket
+                     * handle counter */
+                    mGeneratedSocketHandle -= 1;
+                }
+                break;
+
+            case LLCP_CONNECTIONLESS_SOCKET_TYPE:
+                Log.d(TAG, "Registered Llcp Connectionless Socket");
+                NativeLlcpConnectionlessSocket connectionlessSocket;
+                connectionlessSocket = mManager.doCreateLlcpConnectionlessSocket(
+                        registeredSocket.mSap);
+                if (connectionlessSocket != null) {
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
+                } else {
+                    /* socket creation error - update the socket
+                     * handle counter */
+                    mGeneratedSocketHandle -= 1;
+                }
+                break;
+            }
+        }
+
+        /* Remove all registered socket from the list */
+        mRegisteredSocketList.clear();
+
+        /* Broadcast Intent Link LLCP activated */
+        Intent LlcpLinkIntent = new Intent();
+        LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
+
+        LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
+                NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
+
+        Log.d(TAG, "Broadcasting LLCP activation");
+        mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
+    }
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.d(TAG, "Internal NFC Intent received");
-
-            /* LLCP Link deactivation */
             if (intent.getAction().equals(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED)) {
-                mLlcpLinkState = intent.getIntExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
+                Log.d(TAG, "LLCP_LINK_STATE_CHANGED");
+
+                mLlcpLinkState = intent.getIntExtra(
+                        NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
                         NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
 
                 if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_DEACTIVATED) {
                     /* restart polling loop */
                     mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                } else if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+                    activateLlcpLink();
                 }
-
-            }
-            /* LLCP Link activation */
-            else if (intent.getAction().equals(
-                    NativeNfcManager.INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION)) {
-
-                mLlcpLinkState = intent.getIntExtra(
-                        NativeNfcManager.INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA,
-                        NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    /* check if sockets are registered */
-                    ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
-
-                    Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
-
-                    while (it.hasNext()) {
-                        RegisteredSocket registeredSocket = it.next();
-
-                        switch (registeredSocket.mType) {
-                            case LLCP_SERVICE_SOCKET_TYPE:
-                                Log.d(TAG, "Registered Llcp Service Socket");
-                                NativeLlcpServiceSocket serviceSocket;
-
-                                serviceSocket = mManager.doCreateLlcpServiceSocket(
-                                        registeredSocket.mSap, registeredSocket.mServiceName,
-                                        registeredSocket.mMiu, registeredSocket.mRw,
-                                        registeredSocket.mlinearBufferLength);
-
-                                if (serviceSocket != null) {
-                                    /* Add the socket into the socket map */
-                                    mSocketMap.put(registeredSocket.mHandle, serviceSocket);
-                                } else {
-                                    /*
-                                     * socket creation error - update the socket
-                                     * handle counter
-                                     */
-                                    mGeneratedSocketHandle -= 1;
-                                }
-                                break;
-
-                            case LLCP_SOCKET_TYPE:
-                                Log.d(TAG, "Registered Llcp Socket");
-                                NativeLlcpSocket clientSocket;
-                                clientSocket = mManager.doCreateLlcpSocket(registeredSocket.mSap,
-                                        registeredSocket.mMiu, registeredSocket.mRw,
-                                        registeredSocket.mlinearBufferLength);
-                                if (clientSocket != null) {
-                                    /* Add the socket into the socket map */
-                                    mSocketMap.put(registeredSocket.mHandle, clientSocket);
-                                } else {
-                                    /*
-                                     * socket creation error - update the socket
-                                     * handle counter
-                                     */
-                                    mGeneratedSocketHandle -= 1;
-                                }
-                                break;
-
-                            case LLCP_CONNECTIONLESS_SOCKET_TYPE:
-                                Log.d(TAG, "Registered Llcp Connectionless Socket");
-                                NativeLlcpConnectionlessSocket connectionlessSocket;
-                                connectionlessSocket = mManager
-                                        .doCreateLlcpConnectionlessSocket(registeredSocket.mSap);
-                                if (connectionlessSocket != null) {
-                                    /* Add the socket into the socket map */
-                                    mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
-                                } else {
-                                    /*
-                                     * socket creation error - update the socket
-                                     * handle counter
-                                     */
-                                    mGeneratedSocketHandle -= 1;
-                                }
-                                break;
-
-                        }
-                    }
-
-                    /* Remove all registered socket from the list */
-                    mRegisteredSocketList.clear();
-
-                    /* Broadcast Intent Link LLCP activated */
-                    Intent LlcpLinkIntent = new Intent();
-                    LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
-
-                    LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                            NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-
-                    Log.d(TAG, "Broadcasting LLCP activation");
-                    mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
-                }
-            }
-            /* Target Deactivated */
-            else if (intent.getAction().equals(
+            } else if (intent.getAction().equals(
                     NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
-                if(mOpenPending != false){
-                    mOpenPending = false;
-                }
+                Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
+
+                mOpenPending = false;
                 /* Restart polling loop for notification */
                 mManager.enableDiscovery(DISCOVERY_MODE_READER);
 
+            } else if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
+                Log.i(TAG, "Completing NFC service startup");
+
+                finishStartup();
             }
         }
     };
