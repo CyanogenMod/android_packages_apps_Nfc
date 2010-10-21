@@ -1410,9 +1410,7 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    nat = (nfc_jni_native_data*)malloc(sizeof(struct nfc_jni_native_data));
    if(nat == NULL)
    {
-      LOGD("Native Structure initialization failed 0x%08x[%s]", nat->status, nfc_jni_get_status_name(nat->status));
-      if(nat)
-         kill_client(nat);
+      LOGD("malloc of nfc_jni_native_data failed");
       return FALSE;   
    }
    
@@ -1443,13 +1441,13 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       
    if(nfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
-      LOGD("Native Structure initialization failed [0x%08x]",nat->status);
-      return FALSE;   
+      LOGD("Native Structure initialization failed");
+      return FALSE;
    }
          
    if(nfc_jni_cache_object(e,"com/android/nfc/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
-      LOGD("Native Structure initialization failed [0x%08x]",nat->status);
+      LOGD("Native Structure initialization failed");
       return FALSE;   
    }
 

@@ -183,7 +183,7 @@ public class NfcService extends Service {
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
-        mIsNfcEnabled = false;
+        mIsNfcEnabled = false;  // real preference read later
 
         ServiceManager.addService("nfc", mNfcAdapter);
 
