@@ -16,6 +16,8 @@
 
 package com.android.nfc;
 
+import android.util.Log;
+
 /**
  * Native interface to the NFC tag functions
  */
@@ -26,27 +28,96 @@ public class NativeNfcTag {
 
     private byte[] mUid;
 
-    public native boolean doConnect();
+    private final String TAG = "NativeNfcTag";
 
-    public native boolean doDisconnect();
+    private PresenceCheckWatchdog mWatchdog;
+    private class PresenceCheckWatchdog extends Thread {
 
-    public native void doAsyncDisconnect();
+        private boolean isPresent = true;
+        private boolean isRunning = true;
 
-    public native byte[] doTransceive(byte[] data);
+        public void reset() {
+            this.interrupt();
+        }
 
-    public native boolean checkNDEF();
+        public void end() {
+            isRunning = false;
+            this.interrupt();
+        }
 
-    public native byte[] doRead();
-
-    public native boolean doWrite(byte[] buf);
-
-    private NativeNfcTag() {
+        @Override
+        public void run() {
+            Log.d(TAG, "Starting background presence check");
+            while (isPresent && isRunning) {
+                try {
+                    Thread.sleep(1000);
+                    isPresent = doPresenceCheck();
+                } catch (InterruptedException e) {
+                    // Activity detected, loop
+                }
+            }
+            // Restart the polling loop if the tag is not here any more
+            if (!isPresent) {
+                Log.d(TAG, "Tag lost, restarting polling loop");
+                doAsyncDisconnect();
+            }
+            Log.d(TAG, "Stopping background presence check");
+        }
     }
 
-    public NativeNfcTag(int handle, String type, byte[] uid) {
-        mHandle = handle;
-        mType = type;
-        mUid = uid.clone();
+    private native boolean doConnect();
+    public synchronized boolean connect() {
+        boolean isSuccess = doConnect();
+        if (isSuccess) {
+            mWatchdog = new PresenceCheckWatchdog();
+            mWatchdog.start();
+        }
+        return isSuccess;
+    }
+
+    private native boolean doDisconnect();
+    public synchronized boolean disconnect() {
+        mWatchdog.end();
+        return doDisconnect();
+    }
+
+    private native void doAsyncDisconnect();
+    public synchronized void asyncDisconnect() {
+        mWatchdog.end();
+        doAsyncDisconnect();
+    }
+
+    private native byte[] doTransceive(byte[] data);
+    public synchronized byte[] transceive(byte[] data) {
+        mWatchdog.reset();
+        return doTransceive(data);
+    }
+
+    private native boolean doCheckNdef();
+    public synchronized boolean checkNdef() {
+        mWatchdog.reset();
+        return doCheckNdef();
+    }
+
+    private native byte[] doRead();
+    public synchronized byte[] read() {
+        mWatchdog.reset();
+        return doRead();
+    }
+
+    private native boolean doWrite(byte[] buf);
+    public synchronized boolean write(byte[] buf) {
+        mWatchdog.reset();
+        return doWrite(buf);
+    }
+
+    private native boolean doPresenceCheck();
+    public synchronized boolean presenceCheck() {
+        mWatchdog.reset();
+        return doPresenceCheck();
+    }
+
+    private NativeNfcTag() {
     }
 
     public int getHandle() {
