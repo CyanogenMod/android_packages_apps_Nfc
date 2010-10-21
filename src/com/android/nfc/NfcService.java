@@ -1681,6 +1681,8 @@ public class NfcService extends Service {
     private boolean _enable(boolean oldEnabledState) {
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
+            applyProperties();
+
             /* Check Secure Element setting */
             mNfcSecureElementState = mPrefs.getBoolean(PREF_SECURE_ELEMENT_ON,
                     SECURE_ELEMENT_ON_DEFAULT);
@@ -1712,6 +1714,23 @@ public class NfcService extends Service {
 
         return isSuccess;
     }
+
+    private void applyProperties() {
+        mManager.doSetProperties(PROPERTY_LLCP_LTO, mPrefs.getInt(PREF_LLCP_LTO, LLCP_LTO_DEFAULT));
+        mManager.doSetProperties(PROPERTY_LLCP_MIU, mPrefs.getInt(PREF_LLCP_MIU, LLCP_MIU_DEFAULT));
+        mManager.doSetProperties(PROPERTY_LLCP_WKS, mPrefs.getInt(PREF_LLCP_WKS, LLCP_WKS_DEFAULT));
+        mManager.doSetProperties(PROPERTY_LLCP_OPT, mPrefs.getInt(PREF_LLCP_OPT, LLCP_OPT_DEFAULT));
+        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A,
+                mPrefs.getBoolean(PREF_DISCOVERY_A, DISCOVERY_A_DEFAULT) ? 1 : 0);
+        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B,
+                mPrefs.getBoolean(PREF_DISCOVERY_B, DISCOVERY_B_DEFAULT) ? 1 : 0);
+        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F,
+                mPrefs.getBoolean(PREF_DISCOVERY_F, DISCOVERY_F_DEFAULT) ? 1 : 0);
+        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693,
+                mPrefs.getBoolean(PREF_DISCOVERY_15693, DISCOVERY_15693_DEFAULT) ? 1 : 0);
+        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP,
+                mPrefs.getBoolean(PREF_DISCOVERY_NFCIP, DISCOVERY_NFCIP_DEFAULT) ? 1 : 0);
+     }
 
     private void updateNfcOnSetting(boolean oldEnabledState) {
         int state;
