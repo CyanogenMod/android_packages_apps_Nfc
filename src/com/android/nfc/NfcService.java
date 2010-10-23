@@ -1978,6 +1978,7 @@ public class NfcService extends Service {
         mHandler.sendMessage(msg);
     }
 
+
     private final Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -1993,12 +1994,17 @@ public class NfcService extends Service {
                                    NdefMessage[] msgNdef = new NdefMessage[1];
                                    try {
                                        msgNdef[0] = new NdefMessage(buff);
-                                       NdefTag tag = new NdefTag(nativeTag.getType(), nativeTag.getUid(), nativeTag.getHandle(), msgNdef);
+                                       NdefTag tag = new NdefTag(nativeTag.getUid(),
+                                               TagTarget.internalTypeToRawTargets(nativeTag.getType()),
+                                               null, null, nativeTag.getHandle(),
+                                               TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
+                                               new NdefMessage[][] {msgNdef});
                                        Intent intent = new Intent();
                                        intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
                                        intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                        Log.d(TAG, "NDEF tag found, starting corresponding activity");
+                                       Log.d(TAG, tag.toString());
                                        try {
                                            mContext.startActivity(intent);
                                        } catch (ActivityNotFoundException e) {
@@ -2015,11 +2021,14 @@ public class NfcService extends Service {
                                }
                            } else {
                                Intent intent = new Intent();
-                               Tag tag = new Tag(nativeTag.getType(), false, nativeTag.getUid(), nativeTag.getHandle());
+                               Tag tag = new Tag(nativeTag.getUid(), false,
+                                       TagTarget.internalTypeToRawTargets(nativeTag.getType()),
+                                       null, null, nativeTag.getHandle());
                                intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
                                intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
+                               Log.d(TAG, tag.toString());
                                try {
                                    mContext.startActivity(intent);
                                } catch (ActivityNotFoundException e) {
