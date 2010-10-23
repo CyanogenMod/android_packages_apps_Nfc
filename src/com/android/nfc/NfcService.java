@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
-import android.app.Service;
+import android.app.Application;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -42,13 +42,12 @@ import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
 
-public class NfcService extends Service {
+public class NfcService extends Application {
     static {
         System.loadLibrary("nfc_jni");
     }
@@ -141,34 +140,24 @@ public class NfcService extends Service {
     static final int MSG_LLCP_LINK_DEACTIVATED = 3;
     static final int MSG_TARGET_DESELECTED = 4;
 
-
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
-
-    private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
-
-    private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
-
     private final LinkedList<RegisteredSocket> mRegisteredSocketList = new LinkedList<RegisteredSocket>();
-
     private int mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
-
     private int mGeneratedSocketHandle = 0;
-
     private int mNbSocketCreated = 0;
-
     private volatile boolean mIsNfcEnabled = false;
-
     private int mSelectedSeId = 0;
-
-    private int mTimeout = 0;
-
-    private boolean mNfcState;
-
     private boolean mNfcSecureElementState;
-
     private boolean mOpenPending = false;
 
+    // fields below are used in multiple threads and protected by synchronized(this)
+    private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
+    private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
+    private int mTimeout = 0;
+    private boolean mBootComplete = false;
+
+    // fields below are final after onCreate()
     private Context mContext;
     private NativeNfcManager mManager;
     private SharedPreferences mPrefs;
@@ -176,6 +165,10 @@ public class NfcService extends Service {
 
     @Override
     public void onCreate() {
+        super.onCreate();
+
+        Log.i(TAG, "Starting NFC service");
+
         mContext = this;
         mManager = new NativeNfcManager(mContext, this);
         mManager.initializeNativeStructure();
@@ -189,13 +182,9 @@ public class NfcService extends Service {
 
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
         filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
+        filter.addAction(Intent.ACTION_BOOT_COMPLETED);
         mContext.registerReceiver(mReceiver, filter);
 
-        finishStartup();
-    }
-
-    public void finishStartup() {
-        // runs at BOOT_COMPLETE time, can really turn on NFC now
         Thread t = new Thread() {
             @Override
             public void run() {
@@ -209,15 +198,10 @@ public class NfcService extends Service {
     }
 
     @Override
-    public void onDestroy() {
-        // NFC service is persistent, it should not be destroyed by framework
+    public void onTerminate() {
+        super.onTerminate();
+        // NFC application is persistent, it should not be destroyed by framework
         Log.wtf(TAG, "NFC service is under attack!");
-    }
-
-    @Override
-    public IBinder onBind(Intent intent) {
-        // Applications should not attempt to bindService() to NFC service
-        return null;
     }
 
     private final INfcAdapter.Stub mNfcAdapter = new INfcAdapter.Stub() {
@@ -272,12 +256,13 @@ public class NfcService extends Service {
 
                     socket = mManager.doCreateLlcpConnectionlessSocket(sap);
                     if (socket != null) {
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
+                        synchronized(NfcService.this) {
+                            /* Update the number of socket created */
+                            mNbSocketCreated++;
 
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
-
+                            /* Add the socket into the socket map */
+                            mSocketMap.put(sockeHandle, socket);
+                        }
                         return sockeHandle;
                     } else {
                         /*
@@ -306,12 +291,13 @@ public class NfcService extends Service {
 
                     NativeLlcpConnectionlessSocket socket = new NativeLlcpConnectionlessSocket(sap);
 
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
+                    synchronized(NfcService.this) {
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
 
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
-
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+                    }
                     /* Create new registered socket */
                     RegisteredSocket registeredSocket = new RegisteredSocket(
                             LLCP_CONNECTIONLESS_SOCKET_TYPE, sockeHandle, sap);
@@ -349,10 +335,12 @@ public class NfcService extends Service {
 
                     socket = mManager.doCreateLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
                     if (socket != null) {
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
+                        synchronized(NfcService.this) {
+                            /* Update the number of socket created */
+                            mNbSocketCreated++;
+                            /* Add the socket into the socket map */
+                            mSocketMap.put(sockeHandle, socket);
+                        }
                     } else {
                         /* socket creation error - update the socket handle counter */
                         mGeneratedSocketHandle -= 1;
@@ -387,13 +375,13 @@ public class NfcService extends Service {
                     }
 
                     NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sn);
+                    synchronized(NfcService.this) {
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
 
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
-
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
-
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+                    }
                     /* Create new registered socket */
                     RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SERVICE_SOCKET_TYPE,
                             sockeHandle, sap, sn, miu, rw, linearBufferLength);
@@ -432,10 +420,12 @@ public class NfcService extends Service {
                     socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
 
                     if (socket != null) {
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
+                        synchronized(NfcService.this) {
+                            /* Update the number of socket created */
+                            mNbSocketCreated++;
+                            /* Add the socket into the socket map */
+                            mSocketMap.put(sockeHandle, socket);
+                        }
                     } else {
                         /*
                          * socket creation error - update the socket handle
@@ -468,12 +458,13 @@ public class NfcService extends Service {
                     }
 
                     NativeLlcpSocket socket = new NativeLlcpSocket(sap, miu, rw);
+                    synchronized(NfcService.this) {
+                        /* Add the socket into the socket map */
+                        mSocketMap.put(sockeHandle, socket);
 
-                    /* Add the socket into the socket map */
-                    mSocketMap.put(sockeHandle, socket);
-
-                    /* Update the number of socket created */
-                    mNbSocketCreated++;
+                        /* Update the number of socket created */
+                        mNbSocketCreated++;
+                    }
                     /* Create new registered socket */
                     RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SOCKET_TYPE,
                             sockeHandle, sap, miu, rw, linearBufferLength);
@@ -536,7 +527,7 @@ public class NfcService extends Service {
             return mNfcTagService;
         }
 
-        public int getOpenTimeout() throws RemoteException {
+        public synchronized int getOpenTimeout() throws RemoteException {
             mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
             return mTimeout;
         }
@@ -635,7 +626,7 @@ public class NfcService extends Service {
 
         }
 
-        public void setOpenTimeout(int timeout) throws RemoteException {
+        public synchronized void setOpenTimeout(int timeout) throws RemoteException {
             mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
             mTimeout = timeout;
         }
@@ -1089,8 +1080,10 @@ public class NfcService extends Service {
                             socket.getRw(), socket.getLinearBufferLength());
                     if (clientSocket != null) {
                         /* Add the socket into the socket map */
-                        mSocketMap.put(clientSocket.getHandle(), clientSocket);
-                        mNbSocketCreated++;
+                        synchronized(this) {
+                            mSocketMap.put(clientSocket.getHandle(), clientSocket);
+                            mNbSocketCreated++;
+                        }
                         return clientSocket.getHandle();
                     } else {
                         return ErrorCodes.ERROR_IO;
@@ -1738,15 +1731,17 @@ public class NfcService extends Service {
         mPrefsEditor.putBoolean(PREF_NFC_ON, mIsNfcEnabled);
         mPrefsEditor.apply();
 
-        if (oldEnabledState != mIsNfcEnabled) {
-            Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
-            intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
-            mContext.sendBroadcast(intent);
+        synchronized(this) {
+            if (mBootComplete && oldEnabledState != mIsNfcEnabled) {
+                Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
+                intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
+                mContext.sendBroadcast(intent);
+            }
         }
     }
 
     // Reset all internals
-    private void reset() {
+    private synchronized void reset() {
         // TODO: none of these appear to be synchronized but are
         // read/written from different threads (notably Binder threads)...
 
@@ -1761,11 +1756,10 @@ public class NfcService extends Service {
         mIsNfcEnabled = false;
         mSelectedSeId = 0;
         mTimeout = 0;
-        mNfcState = false;
         mOpenPending = false;
     }
 
-    private Object findObject(int key) {
+    private synchronized Object findObject(int key) {
         Object device = null;
 
         device = mObjectMap.get(key);
@@ -1776,15 +1770,15 @@ public class NfcService extends Service {
         return device;
     }
 
-    void registerTagObject(NativeNfcTag nativeTag) {
+    synchronized void registerTagObject(NativeNfcTag nativeTag) {
         mObjectMap.put(nativeTag.getHandle(), nativeTag);
     }
 
-    void unregisterObject(int handle) {
+    synchronized void unregisterObject(int handle) {
         mObjectMap.remove(handle);
     }
 
-    private Object findSocket(int key) {
+    private synchronized Object findSocket(int key) {
         Object socket = null;
 
         socket = mSocketMap.get(key);
@@ -1916,7 +1910,9 @@ public class NfcService extends Service {
 
                 if (serviceSocket != null) {
                     /* Add the socket into the socket map */
-                    mSocketMap.put(registeredSocket.mHandle, serviceSocket);
+                    synchronized(NfcService.this) {
+                        mSocketMap.put(registeredSocket.mHandle, serviceSocket);
+                    }
                 } else {
                     /* socket creation error - update the socket
                      * handle counter */
@@ -1932,7 +1928,9 @@ public class NfcService extends Service {
                         registeredSocket.mlinearBufferLength);
                 if (clientSocket != null) {
                     /* Add the socket into the socket map */
-                    mSocketMap.put(registeredSocket.mHandle, clientSocket);
+                    synchronized(NfcService.this) {
+                        mSocketMap.put(registeredSocket.mHandle, clientSocket);
+                    }
                 } else {
                     /* socket creation error - update the socket
                      * handle counter */
@@ -1947,7 +1945,9 @@ public class NfcService extends Service {
                         registeredSocket.mSap);
                 if (connectionlessSocket != null) {
                     /* Add the socket into the socket map */
-                    mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
+                    synchronized(NfcService.this) {
+                        mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
+                    }
                 } else {
                     /* socket creation error - update the socket
                      * handle counter */
@@ -2151,9 +2151,16 @@ public class NfcService extends Service {
                 mManager.enableDiscovery(DISCOVERY_MODE_READER);
 
             } else if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
-                Log.i(TAG, "Completing NFC service startup");
+                Log.i(TAG, "Boot complete");
 
-                finishStartup();
+                synchronized(this) {
+                    mBootComplete = true;
+
+                    // now its safe to send the NFC state
+                    Intent sendIntent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
+                    sendIntent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
+                    mContext.sendBroadcast(sendIntent);
+                }
             }
         }
     };
