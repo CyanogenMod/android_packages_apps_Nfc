@@ -156,6 +156,7 @@ public class NfcService extends Application {
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
     private int mTimeout = 0;
     private boolean mBootComplete = false;
+    private boolean mScreenOn;
 
     // fields below are final after onCreate()
     private Context mContext;
@@ -177,12 +178,15 @@ public class NfcService extends Application {
         mPrefsEditor = mPrefs.edit();
 
         mIsNfcEnabled = false;  // real preference read later
+        mScreenOn = true;  // assume screen is on during boot
 
         ServiceManager.addService("nfc", mNfcAdapter);
 
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
         filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
         filter.addAction(Intent.ACTION_BOOT_COMPLETED);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
         mContext.registerReceiver(mReceiver, filter);
 
         Thread t = new Thread() {
@@ -1291,7 +1295,7 @@ public class NfcService extends Application {
                 return ErrorCodes.SUCCESS;
             }
             /* Restart polling loop for notification */
-            mManager.enableDiscovery(DISCOVERY_MODE_READER);
+            maybeEnableDiscovery();
             mOpenPending = false;
             return ErrorCodes.ERROR_DISCONNECT;
         }
@@ -1537,7 +1541,7 @@ public class NfcService extends Application {
                 return buff;
             }
             /* Restart polling loop for notification */
-            mManager.enableDiscovery(DISCOVERY_MODE_READER);
+            maybeEnableDiscovery();
             mOpenPending = false;
             return null;
         }
@@ -1603,7 +1607,7 @@ public class NfcService extends Application {
                     /* remove the device from the hmap */
                     unregisterObject(nativeHandle);
                     /* Restart polling loop for notification */
-                    mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                    maybeEnableDiscovery();
                 }
             }
             return isSuccess;
@@ -1695,10 +1699,11 @@ public class NfcService extends Application {
                 }
             }
 
-            /* Start polling loop */
-            mManager.enableDiscovery(DISCOVERY_MODE_READER);
-
             mIsNfcEnabled = true;
+
+            /* Start polling loop */
+            maybeEnableDiscovery();
+
         } else {
             mIsNfcEnabled = false;
         }
@@ -1706,6 +1711,20 @@ public class NfcService extends Application {
         updateNfcOnSetting(oldEnabledState);
 
         return isSuccess;
+    }
+
+    /** Enable active tag discovery if screen is on and NFC is enabled */
+    private synchronized void maybeEnableDiscovery() {
+        if (mScreenOn && mIsNfcEnabled) {
+            mManager.enableDiscovery(DISCOVERY_MODE_READER);
+        }
+    }
+
+    /** Disable active tag discovery if necessary */
+    private synchronized void maybeDisableDiscovery() {
+        if (mIsNfcEnabled) {
+            mManager.disableDiscovery();
+        }
     }
 
     private void applyProperties() {
@@ -2138,7 +2157,7 @@ public class NfcService extends Application {
 
                 if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_DEACTIVATED) {
                     /* restart polling loop */
-                    mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                    maybeEnableDiscovery();
                 } else if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
                     activateLlcpLink();
                 }
@@ -2148,7 +2167,7 @@ public class NfcService extends Application {
 
                 mOpenPending = false;
                 /* Restart polling loop for notification */
-                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                maybeEnableDiscovery();
 
             } else if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
                 Log.i(TAG, "Boot complete");
@@ -2160,6 +2179,17 @@ public class NfcService extends Application {
                     Intent sendIntent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
                     sendIntent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
                     mContext.sendBroadcast(sendIntent);
+                }
+            } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
+                synchronized (NfcService.this) {
+                    mScreenOn = true;
+                    maybeEnableDiscovery();
+                }
+
+            } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+                synchronized (NfcService.this) {
+                    mScreenOn = false;
+                    maybeDisableDiscovery();
                 }
             }
         }
