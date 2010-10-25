@@ -22,6 +22,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
+#define EEDATA_SETTINGS_NUMBER 18
 
 static phLibNfc_sConfig_t   gDrvCfg;
 static void                 *gHWRef;
@@ -36,6 +37,7 @@ static sem_t nfc_jni_manager_sem;
 static sem_t nfc_jni_llcp_sem;
 static sem_t nfc_jni_open_sem;
 static sem_t nfc_jni_init_sem;
+static sem_t nfc_jni_ioctl_sem;
 
 static NFCSTATUS            nfc_jni_cb_status = NFCSTATUS_FAILED;
 
@@ -51,6 +53,40 @@ phLibNfc_Handle     hIncommingLlcpSocket;
 sem_t               nfc_jni_llcp_listen_sem;
 
 struct nfc_jni_native_data *exported_nat = NULL;
+
+/* TODO: move product specific configuration such as this
+ * antenna tuning into product specific configuration */
+uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
+	// DIFFERENTIAL_ANTENNA
+
+	// RF Settings
+	{0x00,0x9B,0xD1,0x0D} // Tx consumption higher than 0x0D (average 50mA)
+	,{0x00,0x9B,0xD2,0x24} // GSP setting for this threshold
+	,{0x00,0x9B,0xD3,0x0A} // Tx consumption higher than 0x0A (average 40mA)
+	,{0x00,0x9B,0xD4,0x22} // GSP setting for this threshold
+	,{0x00,0x9B,0xD5,0x08} // Tx consumption higher than 0x08 (average 30mA)
+	,{0x00,0x9B,0xD6,0x1E} // GSP setting for this threshold
+	,{0x00,0x9B,0xDD,0x1C} // GSP setting for this threshold
+	,{0x00,0x9B,0x84,0x13} // ANACM2 setting
+	,{0x00,0x99,0x81,0x7F} // ANAVMID setting PCD
+	,{0x00,0x99,0x31,0x70} // ANAVMID setting PICC
+
+	// Enable PBTF
+	,{0x00,0x98,0x00,0x3F} // SECURE_ELEMENT_CONFIGURATION - No Secure Element
+	,{0x00,0x9F,0x09,0x00} // SWP_PBTF_RFU
+	,{0x00,0x9F,0x0A,0x05} // SWP_PBTF_RFLD  --> RFLEVEL Detector for PBTF
+	,{0x00,0x9E,0xD1,0xFF} //
+
+	// Change RF Level Detector ANARFLDWU
+	,{0x00,0x99,0x23,0x02} // Default Value is 0x01
+
+	// Polling Loop Optimisation Detection  - 0x86 to enable - 0x00 to disable
+	,{0x00,0x9E,0x74,0x00} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
+
+	// Polling Loop - Card Emulation Timeout
+	,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
+	,{0x00,0x9F,0x36,0x60} // Default value 0x0411 = 50 ms ---> New Value : 0x1460 = 250 ms
+};
 
 /* Internal functions declaration */
 static void *nfc_jni_client_thread(void *arg);
@@ -131,11 +167,22 @@ static void kill_client(nfc_jni_native_data *nat)
    phDal4Nfc_msgsnd(gDrvCfg.nClientId, (struct msgbuf *)&wrapper, sizeof(phLibNfc_Message_t), 0);
 }
 
+static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCSTATUS status)
+{
+   LOG_CALLBACK("nfc_jni_ioctl_callback", status);
+
+   nfc_jni_cb_status = status;
+
+   sem_post(&nfc_jni_ioctl_sem);
+}
+
+
 
 /* Initialization function */
 static int nfc_jni_initialize(struct nfc_jni_native_data *nat)
 {
    struct timespec ts;
+   uint8_t resp[16];
    NFCSTATUS status;
    phLibNfc_StackCapabilities_t caps;
    char value[PROPERTY_VALUE_MAX];
@@ -194,6 +241,35 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat)
    {
       goto clean_and_return;
    }
+
+   // Update EEPROM settings
+   LOGD("******  START EEPROM SETTINGS UPDATE ******");
+   for(i=0; i< EEDATA_SETTINGS_NUMBER; i++)
+   {
+	   gInputParam.buffer  = EEDATA_Settings[i];
+	   gInputParam.length  = 0x04;
+	   gOutputParam.buffer = resp;
+
+	   LOGD("> EEPROM SETTING: %d",i);
+	   REENTRANCE_LOCK();
+	   status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_WRITE, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)nat);
+	   REENTRANCE_UNLOCK();
+	   if(status != NFCSTATUS_PENDING)
+	   {
+	      LOGE("phLibNfc_Mgt_IoCtl() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+	      goto clean_and_return;
+	   }
+	   /* Wait for callback response */
+	   sem_wait(&nfc_jni_ioctl_sem);
+
+	   /* Initialization Status */
+	   if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+	   {
+	      goto clean_and_return;
+	   }
+   }
+   LOGD("******  ALL EEPROM SETTINGS UPDATED  ******");
+
 
    REENTRANCE_LOCK();
    status = phLibNfc_Mgt_GetstackCapabilities(&caps, (void *)nat);
@@ -659,13 +735,6 @@ static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status)
 
    //sem_post(&nfc_jni_manager_sem);
 }
-
-
-static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCSTATUS status)
-{
-   LOG_CALLBACK("nfc_jni_ioctl_callback", status);
-}
-
 
 static void nfc_jni_Discovery_notification_callback(void *pContext,
    phLibNfc_RemoteDevList_t *psRemoteDevList,
@@ -2327,26 +2396,31 @@ int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
       LOGE("NFC Manager Semaphore creation %x\n", errno);
       return -1;
    }
-   
+
    if(sem_init(&nfc_jni_open_sem, 0, 0) == -1)
    {
       LOGE("NFC Open Semaphore creation %x\n", errno);
       return -1;
    }
-   
+
    if(sem_init(&nfc_jni_init_sem, 0, 0) == -1)
    {
       LOGE("NFC Init Semaphore creation %x\n", errno);
       return -1;
    }
-   
+
    if(sem_init(&nfc_jni_llcp_listen_sem, 0, 0) == -1)
    {
       LOGE("NFC Listen Semaphore creation %x\n", errno);
       return -1;
    }
-   
-   
+
+   if(sem_init(&nfc_jni_ioctl_sem, 0, 0) == -1)
+   {
+      LOGE("NFC IOCTL Semaphore creation %x\n", errno);
+      return -1;
+   }
+
    return jniRegisterNativeMethods(e,
       "com/android/nfc/NativeNfcManager",
       gMethods, NELEM(gMethods));
