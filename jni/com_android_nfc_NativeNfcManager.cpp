@@ -1216,6 +1216,7 @@ static void nfc_jni_start_discovery(struct nfc_jni_native_data *nat)
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
    nat->discovery_cfg.NfcIP_Mode = phNfc_ePassive212;//phNfc_eP2P_ALL;
    nat->discovery_cfg.Duration = 300000; /* in ms */
+   nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
 
 
    nat->registry_info.MifareUL = TRUE;
