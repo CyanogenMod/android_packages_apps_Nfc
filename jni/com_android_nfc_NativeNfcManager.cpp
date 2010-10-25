@@ -1225,6 +1225,7 @@ static void nfc_jni_start_discovery(struct nfc_jni_native_data *nat)
    nat->registry_info.Jewel = TRUE;
    nat->registry_info.Felica = TRUE;
    nat->registry_info.NFC = TRUE;   
+   nat->registry_info.ISO15693 = TRUE;
    LOGD("******  NFC Config Mode Reader ******");
       
    /* LLCP Params */
@@ -1371,7 +1372,7 @@ static void com_android_nfc_NfcManager_enableDiscovery(
    
    if(mode == DISCOVERY_MODE_TAG_READER)
    {
-      nfc_jni_start_discovery(nat);  
+      nfc_jni_start_discovery(nat);
    }
    else if(DISCOVERY_MODE_CARD_EMULATION)
    {
