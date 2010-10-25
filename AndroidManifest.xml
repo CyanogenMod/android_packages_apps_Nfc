@@ -8,15 +8,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
 
-    <application android:icon="@drawable/icon"
-            android:label="@string/app_name"
-            android:persistent="true" >
-        <service android:name=".NfcService" >
-        </service>
-        <receiver android:name=".NfcReceiver" >
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
+    <application android:name=".NfcService"
+                 android:icon="@drawable/icon"
+                 android:label="@string/app_name"
+                 android:persistent="true" >
     </application>
 </manifest>
