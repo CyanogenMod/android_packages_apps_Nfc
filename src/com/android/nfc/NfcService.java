@@ -16,11 +16,8 @@
 
 package com.android.nfc;
 
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.ListIterator;
-
 import android.app.Application;
+import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -46,6 +43,10 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.ListIterator;
 
 public class NfcService extends Application {
     static {
@@ -139,6 +140,8 @@ public class NfcService extends Application {
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
     static final int MSG_LLCP_LINK_DEACTIVATED = 3;
     static final int MSG_TARGET_DESELECTED = 4;
+    static final int MSG_SHOW_MY_TAG_ICON = 5;
+    static final int MSG_HIDE_MY_TAG_ICON = 6;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -209,6 +212,10 @@ public class NfcService extends Application {
     }
 
     private final INfcAdapter.Stub mNfcAdapter = new INfcAdapter.Stub() {
+        /** Protected by "this" */
+        // TODO read this from permanent storage at boot time
+        NdefMessage mLocalMessage = null;
+        
         public boolean enable() throws RemoteException {
             mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
@@ -762,14 +769,25 @@ public class NfcService extends Application {
             return ErrorCodes.SUCCESS;
         }
 
+        @Override
         public NdefMessage localGet() throws RemoteException {
-            // TODO Auto-generated method stub
-            return null;
+            synchronized (this) {
+                return mLocalMessage;
+            }
         }
 
+        @Override
         public void localSet(NdefMessage message) throws RemoteException {
-            // TODO Auto-generated method stub
-
+            synchronized (this) {
+                mLocalMessage = message;
+                // Send a message to the UI thread to show or hide the icon so the requests are
+                // serialized and the icon can't get out of sync with reality.
+                if (message != null) {
+                    sendMessage(MSG_SHOW_MY_TAG_ICON, null);
+                } else {
+                    sendMessage(MSG_HIDE_MY_TAG_ICON, null);
+                }
+            }
         }
     };
 
@@ -2137,6 +2155,20 @@ public class NfcService extends Application {
                Log.d(TAG, "Broadcasting Intent");
                mContext.sendOrderedBroadcast(TargetDeselectedIntent, NFC_PERM);
                break;
+
+           case MSG_SHOW_MY_TAG_ICON: {
+               StatusBarManager sb = (StatusBarManager) getSystemService(
+                       Context.STATUS_BAR_SERVICE);
+               sb.setIcon("nfc", R.drawable.stat_sys_nfc, 0);
+               break;
+           }
+
+           case MSG_HIDE_MY_TAG_ICON: {
+               StatusBarManager sb = (StatusBarManager) getSystemService(
+                       Context.STATUS_BAR_SERVICE);
+               sb.removeIcon("nfc");
+               break;
+           }
 
            default:
                Log.e(TAG, "Unknown message received");
