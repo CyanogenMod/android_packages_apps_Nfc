@@ -16,6 +16,11 @@
 
 package com.android.nfc;
 
+import com.android.internal.nfc.LlcpServiceSocket;
+import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.mytag.MyTagClient;
+import com.android.nfc.mytag.MyTagServer;
+
 import android.app.Application;
 import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
@@ -53,6 +58,8 @@ public class NfcService extends Application {
         System.loadLibrary("nfc_jni");
     }
 
+    public static final String SERVICE_NAME = "nfc";
+    
     private static final String TAG = "NfcService";
 
     private static final String NFC_PERM = android.Manifest.permission.NFC;
@@ -142,6 +149,7 @@ public class NfcService extends Application {
     static final int MSG_TARGET_DESELECTED = 4;
     static final int MSG_SHOW_MY_TAG_ICON = 5;
     static final int MSG_HIDE_MY_TAG_ICON = 6;
+    static final int MSG_MOCK_NDEF_TAG = 7;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -166,6 +174,14 @@ public class NfcService extends Application {
     private NativeNfcManager mManager;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
+    private MyTagServer mMyTagServer; 
+    private MyTagClient mMyTagClient;
+
+    private static NfcService sService;
+
+    public static NfcService getInstance() {
+        return sService;
+    }
 
     @Override
     public void onCreate() {
@@ -173,9 +189,15 @@ public class NfcService extends Application {
 
         Log.i(TAG, "Starting NFC service");
 
+        sService = this;
+
         mContext = this;
         mManager = new NativeNfcManager(mContext, this);
         mManager.initializeNativeStructure();
+
+        mMyTagServer = new MyTagServer();
+        mMyTagClient = new MyTagClient(this);
+//        mMyTagServer.start();
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -183,7 +205,7 @@ public class NfcService extends Application {
         mIsNfcEnabled = false;  // real preference read later
         mScreenOn = true;  // assume screen is on during boot
 
-        ServiceManager.addService("nfc", mNfcAdapter);
+        ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
         filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
@@ -217,7 +239,7 @@ public class NfcService extends Application {
         NdefMessage mLocalMessage = null;
         
         public boolean enable() throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             boolean isSuccess = false;
             boolean previouslyEnabled = isEnabled();
@@ -230,7 +252,7 @@ public class NfcService extends Application {
 
         public boolean disable() throws RemoteException {
             boolean isSuccess = false;
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
             boolean previouslyEnabled = isEnabled();
             Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
@@ -248,7 +270,7 @@ public class NfcService extends Application {
         }
 
         public int createLlcpConnectionlessSocket(int sap) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -331,7 +353,7 @@ public class NfcService extends Application {
 
         public int createLlcpServiceSocket(int sap, String sn, int miu, int rw, int linearBufferLength)
                 throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -414,7 +436,7 @@ public class NfcService extends Application {
 
         public int createLlcpSocket(int sap, int miu, int rw, int linearBufferLength)
                 throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -495,7 +517,7 @@ public class NfcService extends Application {
         }
 
         public int deselectSecureElement() throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -519,42 +541,42 @@ public class NfcService extends Application {
         }
 
         public ILlcpConnectionlessSocket getLlcpConnectionlessInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mLlcpConnectionlessSocketService;
         }
 
         public ILlcpSocket getLlcpInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mLlcpSocket;
         }
 
         public ILlcpServiceSocket getLlcpServiceInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mLlcpServerSocketService;
         }
 
         public INfcTag getNfcTagInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mNfcTagService;
         }
 
         public synchronized int getOpenTimeout() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mTimeout;
         }
 
         public IP2pInitiator getP2pInitiatorInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mP2pInitiatorService;
         }
 
         public IP2pTarget getP2pTargetInterface() throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mP2pTargetService;
         }
 
         public String getProperties(String param) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             if (param == null) {
                 return null;
@@ -584,7 +606,7 @@ public class NfcService extends Application {
         }
 
         public int[] getSecureElementList() throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             int[] list = null;
             if (mIsNfcEnabled == true) {
@@ -594,7 +616,7 @@ public class NfcService extends Application {
         }
 
         public int getSelectedSecureElement() throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             return mSelectedSeId;
         }
@@ -608,7 +630,7 @@ public class NfcService extends Application {
         }
 
         public int selectSecureElement(int seId) throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -638,12 +660,12 @@ public class NfcService extends Application {
         }
 
         public synchronized void setOpenTimeout(int timeout) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             mTimeout = timeout;
         }
 
         public int setProperties(String param, String value) throws RemoteException {
-            mContext.enforceCallingPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             if (isEnabled()) {
                 return ErrorCodes.ERROR_NFC_ON;
@@ -771,6 +793,8 @@ public class NfcService extends Application {
 
         @Override
         public NdefMessage localGet() throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
             synchronized (this) {
                 return mLocalMessage;
             }
@@ -778,6 +802,8 @@ public class NfcService extends Application {
 
         @Override
         public void localSet(NdefMessage message) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
             synchronized (this) {
                 mLocalMessage = message;
                 // Send a message to the UI thread to show or hide the icon so the requests are
@@ -802,7 +828,7 @@ public class NfcService extends Application {
         private Object sync;
 
         public int close(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
             boolean isSuccess = false;
@@ -844,7 +870,7 @@ public class NfcService extends Application {
         }
 
         public int connect(int nativeHandle, int sap) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
             boolean isSuccess = false;
@@ -870,7 +896,7 @@ public class NfcService extends Application {
         }
 
         public int connectByName(int nativeHandle, String sn) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
             boolean isSuccess = false;
@@ -896,7 +922,7 @@ public class NfcService extends Application {
         }
 
         public int getConnectTimeout(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -915,7 +941,7 @@ public class NfcService extends Application {
         }
 
         public int getLocalSap(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -934,7 +960,7 @@ public class NfcService extends Application {
         }
 
         public int getLocalSocketMiu(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -953,7 +979,7 @@ public class NfcService extends Application {
         }
 
         public int getLocalSocketRw(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -972,7 +998,7 @@ public class NfcService extends Application {
         }
 
         public int getRemoteSocketMiu(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -995,7 +1021,7 @@ public class NfcService extends Application {
         }
 
         public int getRemoteSocketRw(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -1018,7 +1044,7 @@ public class NfcService extends Application {
         }
 
         public int receive(int nativeHandle, byte[] receiveBuffer) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
             int receiveLength = 0;
@@ -1043,7 +1069,7 @@ public class NfcService extends Application {
         }
 
         public int send(int nativeHandle, byte[] data) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
             boolean isSuccess = false;
@@ -1068,7 +1094,7 @@ public class NfcService extends Application {
         }
 
         public void setConnectTimeout(int nativeHandle, int timeout) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
 
@@ -1084,7 +1110,7 @@ public class NfcService extends Application {
     private final ILlcpServiceSocket mLlcpServerSocketService = new ILlcpServiceSocket.Stub() {
 
         public int accept(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpServiceSocket socket = null;
             NativeLlcpSocket clientSocket = null;
@@ -1120,7 +1146,7 @@ public class NfcService extends Application {
         }
 
         public void close(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpServiceSocket socket = null;
             boolean isSuccess = false;
@@ -1155,7 +1181,7 @@ public class NfcService extends Application {
         }
 
         public int getAcceptTimeout(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpServiceSocket socket = null;
 
@@ -1174,7 +1200,7 @@ public class NfcService extends Application {
         }
 
         public void setAcceptTimeout(int nativeHandle, int timeout) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpServiceSocket socket = null;
 
@@ -1189,7 +1215,7 @@ public class NfcService extends Application {
     private final ILlcpConnectionlessSocket mLlcpConnectionlessSocketService = new ILlcpConnectionlessSocket.Stub() {
 
         public void close(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpConnectionlessSocket socket = null;
             boolean isSuccess = false;
@@ -1224,7 +1250,7 @@ public class NfcService extends Application {
         }
 
         public int getSap(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpConnectionlessSocket socket = null;
 
@@ -1243,7 +1269,7 @@ public class NfcService extends Application {
         }
 
         public LlcpPacket receiveFrom(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpConnectionlessSocket socket = null;
             LlcpPacket packet;
@@ -1267,7 +1293,7 @@ public class NfcService extends Application {
         }
 
         public int sendTo(int nativeHandle, LlcpPacket packet) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpConnectionlessSocket socket = null;
             boolean isSuccess = false;
@@ -1295,7 +1321,7 @@ public class NfcService extends Application {
     private final INfcTag mNfcTagService = new INfcTag.Stub() {
 
         public int close(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
 
@@ -1319,7 +1345,7 @@ public class NfcService extends Application {
         }
 
         public int connect(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
 
@@ -1338,7 +1364,7 @@ public class NfcService extends Application {
         }
 
         public String getType(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
             String type;
@@ -1410,7 +1436,7 @@ public class NfcService extends Application {
         }
 
         public byte[] transceive(int nativeHandle, byte[] data) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
             byte[] response;
@@ -1430,7 +1456,7 @@ public class NfcService extends Application {
         }
 
         public NdefMessage read(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag;
 
@@ -1457,7 +1483,7 @@ public class NfcService extends Application {
         }
 
         public int write(int nativeHandle, NdefMessage msg) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag;
 
@@ -1502,7 +1528,7 @@ public class NfcService extends Application {
     private final IP2pInitiator mP2pInitiatorService = new IP2pInitiator.Stub() {
 
         public byte[] getGeneralBytes(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1523,7 +1549,7 @@ public class NfcService extends Application {
         }
 
         public int getMode(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1541,7 +1567,7 @@ public class NfcService extends Application {
         }
 
         public byte[] receive(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1565,7 +1591,7 @@ public class NfcService extends Application {
         }
 
         public boolean send(int nativeHandle, byte[] data) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
             boolean isSuccess = false;
@@ -1587,7 +1613,7 @@ public class NfcService extends Application {
     private final IP2pTarget mP2pTargetService = new IP2pTarget.Stub() {
 
         public int connect(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1607,7 +1633,7 @@ public class NfcService extends Application {
         }
 
         public boolean disconnect(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
             boolean isSuccess = false;
@@ -1633,7 +1659,7 @@ public class NfcService extends Application {
         }
 
         public byte[] getGeneralBytes(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1654,7 +1680,7 @@ public class NfcService extends Application {
         }
 
         public int getMode(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1672,7 +1698,7 @@ public class NfcService extends Application {
         }
 
         public byte[] transceive(int nativeHandle, byte[] data) throws RemoteException {
-            mContext.enforceCallingPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;
 
@@ -1735,6 +1761,7 @@ public class NfcService extends Application {
     private synchronized void maybeEnableDiscovery() {
         if (mScreenOn && mIsNfcEnabled) {
             mManager.enableDiscovery(DISCOVERY_MODE_READER);
+//            mMyTagServer.start();
         }
     }
 
@@ -1742,6 +1769,7 @@ public class NfcService extends Application {
     private synchronized void maybeDisableDiscovery() {
         if (mIsNfcEnabled) {
             mManager.disableDiscovery();
+//            mMyTagServer.stop();
         }
     }
 
@@ -1926,6 +1954,29 @@ public class NfcService extends Application {
         }
     }
 
+    /** For use by code in this process */
+    public LlcpSocket createLlcpSocket(int sap, int miu, int rw, int linearBufferLength) {
+        try {
+            int handle = mNfcAdapter.createLlcpSocket(sap, miu, rw, linearBufferLength);
+            return new LlcpSocket(mLlcpSocket, handle);
+        } catch (RemoteException e) {
+            // This will never happen since the code is calling into it's own process
+            throw new IllegalStateException("unable to talk to myself", e);
+        }
+    }
+
+    /** For use by code in this process */
+    public LlcpServiceSocket createLlcpServiceSocket(int sap, String sn, int miu, int rw,
+            int linearBufferLength) {
+        try {
+            int handle = mNfcAdapter.createLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
+            return new LlcpServiceSocket(mLlcpServerSocketService, mLlcpSocket, handle);
+        } catch (RemoteException e) {
+            // This will never happen since the code is calling into it's own process
+            throw new IllegalStateException("unable to talk to myself", e);
+        }
+    }
+
     private void activateLlcpLink() {
         /* check if sockets are registered */
         ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
@@ -2008,6 +2059,14 @@ public class NfcService extends Application {
         mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
     }
 
+    public void sendMockNdefTag(NdefMessage msg) {
+        NdefTag tag = NdefTag.createMockNdefTag(new byte[] { 0x00 },
+                new String[] { Tag.TARGET_OTHER },
+                null, null, new String[] { NdefTag.TARGET_OTHER },
+                new NdefMessage[][] { new NdefMessage[] { msg } });
+        sendMessage(MSG_MOCK_NDEF_TAG, tag);
+    }
+
     void sendMessage(int what, Object obj) {
         Message msg = mHandler.obtainMessage();
         msg.what = what;
@@ -2015,11 +2074,22 @@ public class NfcService extends Application {
         mHandler.sendMessage(msg);
     }
 
-
     private final Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
            switch (msg.what) {
+           case MSG_MOCK_NDEF_TAG: {
+               NdefTag tag = (NdefTag) msg.obj;
+               Intent intent = buildNdefTagIntent(tag);
+               Log.d(TAG, "mock NDEF tag, starting corresponding activity");
+               Log.d(TAG, tag.toString());
+               try {
+                   mContext.startActivity(intent);
+               } catch (ActivityNotFoundException e) {
+                   Log.w(TAG, "No activity found for mock tag");
+               }
+           }
+
            case MSG_NDEF_TAG:
                Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
@@ -2035,10 +2105,7 @@ public class NfcService extends Application {
                                        null, null, nativeTag.getHandle(),
                                        TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
                                        new NdefMessage[][] {msgNdef});
-                               Intent intent = new Intent();
-                               intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
-                               intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-                               intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                               Intent intent = buildNdefTagIntent(tag);
                                Log.d(TAG, "NDEF tag found, starting corresponding activity");
                                Log.d(TAG, tag.toString());
                                try {
@@ -2174,6 +2241,14 @@ public class NfcService extends Application {
                Log.e(TAG, "Unknown message received");
                break;
            }
+        }
+
+        private Intent buildNdefTagIntent(NdefTag tag) {
+            Intent intent = new Intent();
+               intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
+               intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
+               intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            return intent;
         }
     };
 
