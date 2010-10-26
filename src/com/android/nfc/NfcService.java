@@ -2111,6 +2111,7 @@ public class NfcService extends Application {
                                Log.d(TAG, tag.toString());
                                try {
                                    mContext.startActivity(intent);
+                                   registerTagObject(nativeTag);
                                } catch (ActivityNotFoundException e) {
                                    Log.w(TAG, "No activity found, disconnecting");
                                    nativeTag.asyncDisconnect();
@@ -2135,6 +2136,7 @@ public class NfcService extends Application {
                        Log.d(TAG, tag.toString());
                        try {
                            mContext.startActivity(intent);
+                           registerTagObject(nativeTag);
                        } catch (ActivityNotFoundException e) {
                            Log.w(TAG, "No activity found, disconnecting");
                            nativeTag.asyncDisconnect();
