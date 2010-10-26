@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
+import android.os.AsyncTask;
 import android.util.Log;
 
 import java.io.IOException;
@@ -43,7 +44,6 @@ public class MyTagClient extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        NfcService service = NfcService.getInstance();
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter();
         NdefMessage msg = adapter.getLocalNdefMessage();
         
@@ -59,20 +59,30 @@ public class MyTagClient extends BroadcastReceiver {
             return;
         }
 
-        try {
-            // Connect to the my tag server on the remote side
-            LlcpSocket sock = service.createLlcpSocket(0, 128, 1, 1024);
-            sock.connect(MyTagServer.SERVICE_NAME);
+        new SendAsync().execute(msg);
+    }
 
-            // Push the local NDEF message to the server
-            sock.send(msg.toByteArray());
-            sock.close();
+    final class SendAsync extends AsyncTask<NdefMessage, Void, Void> {
+        @Override
+        public Void doInBackground(NdefMessage... msgs) {
+            NfcService service = NfcService.getInstance();
+            NdefMessage msg = msgs[0];
+            try {
+                // Connect to the my tag server on the remote side
+                LlcpSocket sock = service.createLlcpSocket(0, 128, 1, 1024);
+                sock.connect(MyTagServer.SERVICE_NAME);
 
-        } catch (IOException e) {
-            Log.e(TAG, "couldn't send tag", e);
-        } catch (LlcpException e) {
-            // Most likely the other side doesn't support the my tag protocol
-            Log.e(TAG, "couldn't send tag", e);
+                // Push the local NDEF message to the server
+                sock.send(msg.toByteArray());
+                sock.close();
+
+            } catch (IOException e) {
+                Log.e(TAG, "couldn't send tag", e);
+            } catch (LlcpException e) {
+                // Most likely the other side doesn't support the my tag protocol
+                Log.e(TAG, "couldn't send tag", e);
+            }
+            return null;
         }
     }
 }
