@@ -2255,7 +2255,7 @@ public class NfcService extends Application {
 
     private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
         protected Void doInBackground(Boolean... enable) {
-            if (enable.length < 0 || enable[1]) {
+            if (enable != null && enable.length > 0 && enable[0]) {
                 maybeEnableDiscovery();
             } else {
                 maybeDisableDiscovery();
@@ -2307,7 +2307,7 @@ public class NfcService extends Application {
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(true);
+                new EnableDisableDiscoveryTask().execute(new Boolean(true));
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
                 synchronized (NfcService.this) {
                     mScreenOn = false;
@@ -2316,7 +2316,7 @@ public class NfcService extends Application {
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(false);
+                new EnableDisableDiscoveryTask().execute(new Boolean(false));
             }
         }
     };
