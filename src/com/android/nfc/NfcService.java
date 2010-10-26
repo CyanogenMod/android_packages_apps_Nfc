@@ -43,6 +43,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
@@ -2252,6 +2253,17 @@ public class NfcService extends Application {
         }
     };
 
+    private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
+        protected Void doInBackground(Boolean... enable) {
+            if (enable.length < 0 || enable[1]) {
+                maybeEnableDiscovery();
+            } else {
+                maybeDisableDiscovery();
+            }
+            return null;
+        }
+    }
+
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -2290,14 +2302,21 @@ public class NfcService extends Application {
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
                 synchronized (NfcService.this) {
                     mScreenOn = true;
-                    maybeEnableDiscovery();
                 }
-
+                // Perform discovery enable in thread to protect against ANR when the
+                // NFC stack wedges. This is *not* the correct way to fix this issue -
+                // configuration of the local NFC adapter should be very quick and should
+                // be safe on the main thread, and the NFC stack should not wedge.
+                new EnableDisableDiscoveryTask().execute(true);
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
                 synchronized (NfcService.this) {
                     mScreenOn = false;
-                    maybeDisableDiscovery();
                 }
+                // Perform discovery disable in thread to protect against ANR when the
+                // NFC stack wedges. This is *not* the correct way to fix this issue -
+                // configuration of the local NFC adapter should be very quick and should
+                // be safe on the main thread, and the NFC stack should not wedge.
+                new EnableDisableDiscoveryTask().execute(false);
             }
         }
     };
