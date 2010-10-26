@@ -198,7 +198,6 @@ public class NfcService extends Application {
 
         mMyTagServer = new MyTagServer();
         mMyTagClient = new MyTagClient(this);
-//        mMyTagServer.start();
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -1959,6 +1958,10 @@ public class NfcService extends Application {
     public LlcpSocket createLlcpSocket(int sap, int miu, int rw, int linearBufferLength) {
         try {
             int handle = mNfcAdapter.createLlcpSocket(sap, miu, rw, linearBufferLength);
+            if (ErrorCodes.isError(handle)) {
+                Log.e(TAG, "unable to create socket: " + ErrorCodes.asString(handle));
+                return null;
+            }
             return new LlcpSocket(mLlcpSocket, handle);
         } catch (RemoteException e) {
             // This will never happen since the code is calling into it's own process
@@ -1971,6 +1974,10 @@ public class NfcService extends Application {
             int linearBufferLength) {
         try {
             int handle = mNfcAdapter.createLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
+            if (ErrorCodes.isError(handle)) {
+                Log.e(TAG, "unable to create socket: " + ErrorCodes.asString(handle));
+                return null;
+            }
             return new LlcpServiceSocket(mLlcpServerSocketService, mLlcpSocket, handle);
         } catch (RemoteException e) {
             // This will never happen since the code is calling into it's own process

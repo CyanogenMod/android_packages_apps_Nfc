@@ -34,7 +34,8 @@ import java.io.IOException;
  * are typically set on the client side by using {@link NfcAdapter#setLocalNdefMessage}.
  */
 public class MyTagServer {
-    private static final String TAG = "MyTagServer";
+    private static final String TAG = "~~~~~~~~~~~~~~~";
+    private static final boolean DBG = true;
 
     static final String SERVICE_NAME = "com.android.mytag";
     static final int SERVICE_SAP = 0x20;
@@ -53,6 +54,7 @@ public class MyTagServer {
 
         @Override
         public void run() {
+            if (DBG) Log.d(TAG, "starting connection thread");
             try {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream(1024);
                 byte[] partial = new byte[1024];
@@ -91,9 +93,17 @@ public class MyTagServer {
             while(mRunning) {
                 mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, SERVICE_NAME,
                         128, 1, 1024);
+                if (mServerSocket == null) {
+                    continue;
+                }
                 try {
-                    LlcpSocket communicationSocket = mServerSocket.accept();
-                    new ConnectionThread(communicationSocket).start();
+                    if (mRunning) {
+                        LlcpSocket communicationSocket = mServerSocket.accept();
+                        if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
+                        if (communicationSocket != null) {
+                            new ConnectionThread(communicationSocket).start();
+                        }
+                    }
                 } catch (LlcpException e) {
                     Log.e(TAG, "llcp error", e);
                 } catch (IOException e) {
@@ -106,20 +116,28 @@ public class MyTagServer {
 
         public void shutdown() {
             mRunning = false;
-            mServerSocket.close();
+            if (mServerSocket != null) {
+                mServerSocket.close();
+            }
         }
     };
 
     public void start() {
         synchronized (this) {
-            mServerThread = new ServerThread();
-            mServerThread.start();
+            if (DBG) Log.d(TAG, "start, thread = " + mServerThread);
+            if (mServerThread == null) {
+                if (DBG) Log.d(TAG, "starting new server thread");
+                mServerThread = new ServerThread();
+                mServerThread.start();
+            }
         }
     }
 
     public void stop() {
         synchronized (this) {
+            if (DBG) Log.d(TAG, "stop, thread = " + mServerThread);
             if (mServerThread != null) {
+                if (DBG) Log.d(TAG, "shuting down server thread");
                 mServerThread.shutdown();
                 mServerThread = null;
             }
