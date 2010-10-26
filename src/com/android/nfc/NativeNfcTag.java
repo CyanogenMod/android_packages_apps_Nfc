@@ -77,43 +77,57 @@ public class NativeNfcTag {
 
     private native boolean doDisconnect();
     public synchronized boolean disconnect() {
-        mWatchdog.end();
+        if (mWatchdog != null) {
+            mWatchdog.end();
+        }
         return doDisconnect();
     }
 
     private native void doAsyncDisconnect();
     public synchronized void asyncDisconnect() {
-        mWatchdog.end();
+        if (mWatchdog != null) {
+            mWatchdog.end();
+        }
         doAsyncDisconnect();
     }
 
     private native byte[] doTransceive(byte[] data);
     public synchronized byte[] transceive(byte[] data) {
-        mWatchdog.reset();
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
         return doTransceive(data);
     }
 
     private native boolean doCheckNdef();
     public synchronized boolean checkNdef() {
-        mWatchdog.reset();
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
         return doCheckNdef();
     }
 
     private native byte[] doRead();
     public synchronized byte[] read() {
-        mWatchdog.reset();
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
         return doRead();
     }
 
     private native boolean doWrite(byte[] buf);
     public synchronized boolean write(byte[] buf) {
-        mWatchdog.reset();
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
         return doWrite(buf);
     }
 
     private native boolean doPresenceCheck();
     public synchronized boolean presenceCheck() {
-        mWatchdog.reset();
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
         return doPresenceCheck();
     }
 
