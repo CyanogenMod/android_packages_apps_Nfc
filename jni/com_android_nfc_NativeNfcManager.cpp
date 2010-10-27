@@ -561,6 +561,7 @@ static void *nfc_jni_client_thread(void *arg)
    thread_args.group = NULL;
 
    nat->vm->AttachCurrentThread(&e, &thread_args);
+   pthread_setname_np(pthread_self(), "message");
 
    LOGI("NFC client started");
    nat->running = TRUE;
