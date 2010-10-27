@@ -167,7 +167,6 @@ public class NfcService extends Application {
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
     private int mTimeout = 0;
-    private boolean mBootComplete = false;
     private boolean mScreenOn;
 
     // fields below are final after onCreate()
@@ -209,7 +208,6 @@ public class NfcService extends Application {
 
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
         filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
-        filter.addAction(Intent.ACTION_BOOT_COMPLETED);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         mContext.registerReceiver(mReceiver, filter);
@@ -237,7 +235,7 @@ public class NfcService extends Application {
         /** Protected by "this" */
         // TODO read this from permanent storage at boot time
         NdefMessage mLocalMessage = null;
-        
+
         public boolean enable() throws RemoteException {
             mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
@@ -1797,8 +1795,9 @@ public class NfcService extends Application {
         mPrefsEditor.apply();
 
         synchronized(this) {
-            if (mBootComplete && oldEnabledState != mIsNfcEnabled) {
+            if (oldEnabledState != mIsNfcEnabled) {
                 Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
+                intent.setFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
                 intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
                 mContext.sendBroadcast(intent);
             }
@@ -2303,17 +2302,6 @@ public class NfcService extends Application {
                 /* Restart polling loop for notification */
                 maybeEnableDiscovery();
 
-            } else if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
-                Log.i(TAG, "Boot complete");
-
-                synchronized(this) {
-                    mBootComplete = true;
-
-                    // now its safe to send the NFC state
-                    Intent sendIntent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGE);
-                    sendIntent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
-                    mContext.sendBroadcast(sendIntent);
-                }
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
                 // Perform discovery enable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -

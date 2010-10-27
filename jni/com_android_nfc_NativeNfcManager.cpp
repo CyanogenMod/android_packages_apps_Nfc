@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <stdlib.h>
 
 #include "com_android_nfc.h"
 
@@ -427,6 +428,9 @@ void emergency_recovery(struct nfc_jni_native_data *nat)
    phLibNfc_Registry_Info_t registration_cfg;
    
    LOGW("Emergency recovery called");
+
+   LOGE("force restart of NFC service");
+   abort();  // force a noisy crash
    
    /* Save current polling loop configuration */
    memcpy(&discovery_cfg, &nat->discovery_cfg, sizeof(phLibNfc_sADD_Cfg_t));
@@ -434,7 +438,7 @@ void emergency_recovery(struct nfc_jni_native_data *nat)
    
    /* Deinit */
    nfc_jni_deinitialize(nat);
-   
+
    /* Reinit */
    nfc_jni_initialize(nat);
 
