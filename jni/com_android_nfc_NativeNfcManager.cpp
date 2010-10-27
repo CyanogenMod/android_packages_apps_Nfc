@@ -652,7 +652,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    {
       LOGI("LLCP Link deactivated");
       /* Notify manager that the LLCP is lost or deactivated */
-      e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkDeactivated);
+      e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkDeactivated, nat->tag);
       if(e->ExceptionCheck())
       {
          LOGE("Exception occured");
@@ -1515,7 +1515,7 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       "notifyLlcpLinkActivation","(Lcom/android/nfc/NativeP2pDevice;)V");
          
    cached_NfcManager_notifyLlcpLinkDeactivated = e->GetMethodID(cls,
-      "notifyLlcpLinkDeactivated","()V"); 
+      "notifyLlcpLinkDeactivated","(Lcom/android/nfc/NativeP2pDevice;)V"); 
       
    cached_NfcManager_notifyTargetDeselected = e->GetMethodID(cls,
       "notifyTargetDeselected","()V"); 

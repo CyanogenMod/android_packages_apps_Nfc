@@ -27,6 +27,7 @@ uint8_t nfc_jni_p2p_presence_check = 0;
 namespace android {
 
 static phNfc_sData_t sGeneralBytes;
+extern void nfc_jni_restart_discovery(struct nfc_jni_native_data *nat);
 
 /*
  * Callbacks
@@ -141,6 +142,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
    if(status != NFCSTATUS_PENDING)
    {
       LOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      nfc_jni_restart_discovery(nfc_jni_get_nat_ext(e));
       goto clean_and_return;
    }
    LOGD("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));

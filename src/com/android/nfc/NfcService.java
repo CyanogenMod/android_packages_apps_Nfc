@@ -80,7 +80,7 @@ public class NfcService extends Application {
     private static final int SECURE_ELEMENT_ID_DEFAULT = 0;
 
     private static final String PREF_LLCP_LTO = "llcp_lto";
-    private static final int LLCP_LTO_DEFAULT = 150;
+    private static final int LLCP_LTO_DEFAULT = 250;
     private static final int LLCP_LTO_MAX = 255;
 
     /** Maximum Information Unit */
@@ -206,8 +206,7 @@ public class NfcService extends Application {
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
-        IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
-        filter.addAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
+        IntentFilter filter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         mContext.registerReceiver(mReceiver, filter);
@@ -2176,21 +2175,20 @@ public class NfcService extends Application {
                            /* Activate Llcp Link */
                            if (mManager.doActivateLlcp()) {
                                Log.d(TAG, "Initiator Activate LLCP OK");
-                               /* Broadcast Intent Link LLCP activated */
-                               Intent LlcpLinkIntent = new Intent();
-                               LlcpLinkIntent
-                                       .setAction(mManager.INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION);
-                               LlcpLinkIntent.putExtra(
-                                       mManager.INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA,
-                                       NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-                               Log.d(TAG, "Broadcasting internal LLCP activation");
-                               mContext.sendBroadcast(LlcpLinkIntent);
+                               activateLlcpLink();
+                           } else {
+                               /* should not happen */
+                               Log.w(TAG, "Initiator Activate LLCP NOK. Disconnect.");
+                               device.doDisconnect();
                            }
 
                        } else {
+                           Log.d(TAG, "Remote Target does not support LLCP. Disconnect.");
                            device.doDisconnect();
                        }
-
+                   } else {
+                       Log.d(TAG, "Cannot connect remote Target. Restart polling loop.");
+                       /* resume should be done in doConnect */
                    }
 
                } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {
@@ -2199,22 +2197,20 @@ public class NfcService extends Application {
                        /* Activate Llcp Link */
                        if (mManager.doActivateLlcp()) {
                            Log.d(TAG, "Target Activate LLCP OK");
-                           /* Broadcast Intent Link LLCP activated */
-                           Intent LlcpLinkIntent = new Intent();
-                           LlcpLinkIntent
-                                   .setAction(mManager.INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION);
-                           LlcpLinkIntent.putExtra(mManager.INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA,
-                                   NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-                           Log.d(TAG, "Broadcasting internal LLCP activation");
-                           mContext.sendBroadcast(LlcpLinkIntent);
-                       }
+                           activateLlcpLink();
+                      }
                    }
                }
                break;
 
            case MSG_LLCP_LINK_DEACTIVATED:
+               device = (NativeP2pDevice) msg.obj;
+
+               Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
+               /* Restart polling loop */
+               device.doDisconnect();
+
                /* Broadcast Intent Link LLCP activated */
-               Log.d(TAG, "LLCP Link Deactivated message");
                Intent LlcpLinkIntent = new Intent();
                LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
                LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
@@ -2281,20 +2277,7 @@ public class NfcService extends Application {
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equals(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED)) {
-                Log.d(TAG, "LLCP_LINK_STATE_CHANGED");
-
-                mLlcpLinkState = intent.getIntExtra(
-                        NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                        NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_DEACTIVATED) {
-                    /* restart polling loop */
-                    maybeEnableDiscovery();
-                } else if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    activateLlcpLink();
-                }
-            } else if (intent.getAction().equals(
+            if (intent.getAction().equals(
                     NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
                 Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
 
