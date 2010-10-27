@@ -2265,9 +2265,15 @@ public class NfcService extends Application {
     private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
         protected Void doInBackground(Boolean... enable) {
             if (enable != null && enable.length > 0 && enable[0]) {
-                maybeEnableDiscovery();
+                synchronized (NfcService.this) {
+                    mScreenOn = true;
+                    maybeEnableDiscovery();
+                }
             } else {
-                maybeDisableDiscovery();
+                synchronized (NfcService.this) {
+                    mScreenOn = false;
+                    maybeDisableDiscovery();
+                }
             }
             return null;
         }
@@ -2309,18 +2315,12 @@ public class NfcService extends Application {
                     mContext.sendBroadcast(sendIntent);
                 }
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
-                synchronized (NfcService.this) {
-                    mScreenOn = true;
-                }
                 // Perform discovery enable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
                 new EnableDisableDiscoveryTask().execute(new Boolean(true));
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
-                synchronized (NfcService.this) {
-                    mScreenOn = false;
-                }
                 // Perform discovery disable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
