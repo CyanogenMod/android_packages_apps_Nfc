@@ -65,6 +65,7 @@ extern "C" {
 #define TARGET_TYPE_ISO14443_3A     "Iso14443-3A"
 #define TARGET_TYPE_ISO14443_3B     "Iso14443-3B"
 #define TARGET_TYPE_ISO14443_4      "Iso14443-4"
+#define TARGET_TYPE_ISO15693        "Iso15693"
 #define TARGET_TYPE_MIFARE_UL       "MifareUL"
 #define TARGET_TYPE_MIFARE_1K       "Mifare1K"
 #define TARGET_TYPE_MIFARE_4K       "Mifare4K"

@@ -370,7 +370,7 @@ static void nfc_jni_deinitialize(struct nfc_jni_native_data *nat)
       LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
       clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec += 10; 
+      ts.tv_sec += 1;
   
       /* Wait for callback response */
       if(sem_timedwait(&nfc_jni_manager_sem, &ts) == -1)
@@ -494,6 +494,7 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
         }break;
         
       case phNfc_eISO14443_A_PICC:
+      case phNfc_eISO14443_3A_PICC:
         {
           return TARGET_TYPE_ISO14443_3A;
         }break;
@@ -503,6 +504,11 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
           return TARGET_TYPE_ISO14443_3B;
         }break;
         
+      case phNfc_eISO15693_PICC:
+        {
+          return TARGET_TYPE_ISO15693;
+        }break;
+
       case phNfc_eMifare_PICC:
         {
           switch(sak)
