@@ -36,13 +36,13 @@ import java.io.IOException;
 public class MyTagServer {
     private static final String TAG = "~~~~~~~~~~~~~~~";
     private static final boolean DBG = true;
+    private static final int SERVICE_SAP = 0x20;
 
     static final String SERVICE_NAME = "com.android.mytag";
-    static final int SERVICE_SAP = 0x20;
 
     NfcService mService = NfcService.getInstance();
     /** Protected by 'this', null when stopped, non-null when running */
-    ServerThread mServerThread;
+    ServerThread mServerThread = null;
 
     /** Connection class, used to handle incoming connections */
     private class ConnectionThread extends Thread {
@@ -65,15 +65,18 @@ public class MyTagServer {
                 while(!connectionBroken) {
                     try {
                         size = mSock.receive(partial);
+                        if (DBG) Log.d(TAG, "read " + size + " bytes");
                         buffer.write(partial, 0, size);
                     } catch (IOException e) {
                         // Connection broken
                         connectionBroken = true;
+                        if (DBG) Log.d(TAG, "connection broken");
                     }
                 }
 
                 // Build NDEF message from the stream
                 NdefMessage msg = new NdefMessage(buffer.toByteArray());
+                if (DBG) Log.d(TAG, "got message " + msg.toString());
 
                 // Send the intent for the fake tag
                 mService.sendMockNdefTag(msg);
@@ -90,14 +93,18 @@ public class MyTagServer {
 
         @Override
         public void run() {
-            while(mRunning) {
-                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, SERVICE_NAME,
+            while (mRunning) {
+                if (DBG) Log.d(TAG, "about create LLCP service socket");
+                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
                         128, 1, 1024);
                 if (mServerSocket == null) {
+                    Log.d(TAG, "failed to create LLCP service socket");
                     continue;
                 }
+                if (DBG) Log.d(TAG, "created LLCP service socket");
                 try {
                     if (mRunning) {
+                        if (DBG) Log.d(TAG, "about to accept");
                         LlcpSocket communicationSocket = mServerSocket.accept();
                         if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
                         if (communicationSocket != null) {

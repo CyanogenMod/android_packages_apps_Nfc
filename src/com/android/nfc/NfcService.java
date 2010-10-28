@@ -254,6 +254,8 @@ public class NfcService extends Application {
             Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
             if (previouslyEnabled) {
+                /* tear down the my tag server */
+                mMyTagServer.stop();
                 isSuccess = mManager.deinitialize();
                 Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
@@ -445,6 +447,7 @@ public class NfcService extends Application {
                 int sockeHandle = mGeneratedSocketHandle;
 
                 if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+                    Log.d(TAG, "creating llcp socket while activated");
                     NativeLlcpSocket socket;
 
                     socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
@@ -466,6 +469,8 @@ public class NfcService extends Application {
                         /* Get Error Status */
                         int errorStatus = mManager.doGetLastError();
 
+                        Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(errorStatus));
+
                         switch (errorStatus) {
                             case ErrorCodes.ERROR_BUFFER_TO_SMALL:
                                 return ErrorCodes.ERROR_BUFFER_TO_SMALL;
@@ -476,6 +481,7 @@ public class NfcService extends Application {
                         }
                     }
                 } else {
+                    Log.d(TAG, "registering llcp socket while not activated");
 
                     /* Check SAP is not already used */
                     if (!CheckSocketSap(sap)) {
@@ -1745,6 +1751,9 @@ public class NfcService extends Application {
             /* Start polling loop */
             maybeEnableDiscovery();
 
+            /* bring up the my tag server */
+            //mMyTagServer.start();
+
         } else {
             mIsNfcEnabled = false;
         }
@@ -1758,7 +1767,6 @@ public class NfcService extends Application {
     private synchronized void maybeEnableDiscovery() {
         if (mScreenOn && mIsNfcEnabled) {
             mManager.enableDiscovery(DISCOVERY_MODE_READER);
-//            mMyTagServer.start();
         }
     }
 
@@ -1766,7 +1774,6 @@ public class NfcService extends Application {
     private synchronized void maybeDisableDiscovery() {
         if (mIsNfcEnabled) {
             mManager.disableDiscovery();
-//            mMyTagServer.stop();
         }
     }
 
@@ -2007,11 +2014,13 @@ public class NfcService extends Application {
                         registeredSocket.mlinearBufferLength);
 
                 if (serviceSocket != null) {
+                    Log.d(TAG, "service socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, serviceSocket);
                     }
                 } else {
+                    Log.d(TAG, "FAILED to create service socket");
                     /* socket creation error - update the socket
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
@@ -2025,11 +2034,13 @@ public class NfcService extends Application {
                         registeredSocket.mMiu, registeredSocket.mRw,
                         registeredSocket.mlinearBufferLength);
                 if (clientSocket != null) {
+                    Log.d(TAG, "socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, clientSocket);
                     }
                 } else {
+                    Log.d(TAG, "FAILED to create service socket");
                     /* socket creation error - update the socket
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
@@ -2042,11 +2053,13 @@ public class NfcService extends Application {
                 connectionlessSocket = mManager.doCreateLlcpConnectionlessSocket(
                         registeredSocket.mSap);
                 if (connectionlessSocket != null) {
+                    Log.d(TAG, "connectionless socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
                     }
                 } else {
+                    Log.d(TAG, "FAILED to create service socket");
                     /* socket creation error - update the socket
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
@@ -2173,6 +2186,7 @@ public class NfcService extends Application {
                Log.d(TAG, "LLCP Activation message");
 
                if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
+                   Log.d(TAG, "NativeP2pDevice.MODE_P2P_TARGET");
                    if (device.doConnect()) {
                        /* Check Llcp compliancy */
                        if (mManager.doCheckLlcp()) {
@@ -2196,6 +2210,7 @@ public class NfcService extends Application {
                    }
 
                } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {
+                   Log.d(TAG, "NativeP2pDevice.MODE_P2P_INITIATOR");
                    /* Check Llcp compliancy */
                    if (mManager.doCheckLlcp()) {
                        /* Activate Llcp Link */
@@ -2203,6 +2218,8 @@ public class NfcService extends Application {
                            Log.d(TAG, "Target Activate LLCP OK");
                            activateLlcpLink();
                       }
+                   } else {
+                       Log.d(TAG, "checkLlcp failed");
                    }
                }
                break;

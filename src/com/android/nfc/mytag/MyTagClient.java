@@ -37,6 +37,7 @@ import java.io.IOException;
  */
 public class MyTagClient extends BroadcastReceiver {
     private static final String TAG = "MyTagClient";
+    private static final boolean DBG = true;
 
     public MyTagClient(Context context) {
         context.registerReceiver(this, new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED));
@@ -44,10 +45,12 @@ public class MyTagClient extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (DBG) Log.d(TAG, "LLCP connection up and running");
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter();
         NdefMessage msg = adapter.getLocalNdefMessage();
         
         if (msg == null) {
+            if (DBG) Log.d(TAG, "No MyTag set, exiting");
             // Nothing to send to the server
             return;
         }
@@ -56,6 +59,7 @@ public class MyTagClient extends BroadcastReceiver {
                     NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
 
         if (linkState != NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+            if (DBG) Log.d(TAG, "LLCP connection not activated, exiting");
             return;
         }
 
@@ -68,12 +72,17 @@ public class MyTagClient extends BroadcastReceiver {
             NfcService service = NfcService.getInstance();
             NdefMessage msg = msgs[0];
             try {
+                if (DBG) Log.d(TAG, "about to create socket");
                 // Connect to the my tag server on the remote side
                 LlcpSocket sock = service.createLlcpSocket(0, 128, 1, 1024);
-                sock.connect(MyTagServer.SERVICE_NAME);
+                if (DBG) Log.d(TAG, "about to connect");
+//                sock.connect(MyTagServer.SERVICE_NAME);
+                sock.connect(0x20);
 
                 // Push the local NDEF message to the server
+                if (DBG) Log.d(TAG, "about to send");
                 sock.send(msg.toByteArray());
+                if (DBG) Log.d(TAG, "about to close");
                 sock.close();
 
             } catch (IOException e) {
