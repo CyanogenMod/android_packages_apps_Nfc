@@ -2153,6 +2153,7 @@ public class NfcService extends Application {
                                null, null, nativeTag.getHandle());
                        intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
                        intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
+                       intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                        Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
                        Log.d(TAG, tag.toString());
@@ -2274,8 +2275,10 @@ public class NfcService extends Application {
 
         private Intent buildNdefTagIntent(NdefTag tag) {
             Intent intent = new Intent();
-               intent.setAction(NfcAdapter.ACTION_NDEF_TAG_DISCOVERED);
+               intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
                intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
+               intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
+               intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, tag.getNdefMessages());
                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             return intent;
         }
