@@ -21,9 +21,9 @@
 
 #include "com_android_nfc.h"
 
-#define ERROR_BUFFER_TOO_SMALL -12
+#define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER 18
+#define EEDATA_SETTINGS_NUMBER       22
 
 static phLibNfc_sConfig_t   gDrvCfg;
 static void                 *gHWRef;
@@ -87,6 +87,12 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	// Polling Loop - Card Emulation Timeout
 	,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
 	,{0x00,0x9F,0x36,0x60} // Default value 0x0411 = 50 ms ---> New Value : 0x1460 = 250 ms
+
+	//LLC Timer
+	,{0x00,0x9C,0x31,0x00} //
+	,{0x00,0x9C,0x32,0x00} // 
+	,{0x00,0x9C,0x0C,0x00} //
+	,{0x00,0x9C,0x0D,0x00} //
 };
 
 /* Internal functions declaration */
