@@ -119,7 +119,7 @@ public class NativeNfcManager {
 
 
     /**
-     * Notifies Ndef Message
+     * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
     private void notifyNdefMessageListeners(NativeNfcTag tag) {
         mNfcService.sendMessage(NfcService.MSG_NDEF_TAG, tag);
@@ -149,8 +149,8 @@ public class NativeNfcManager {
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
-    private void notifyLlcpLinkDeactivated() {
-        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, null);
+    private void notifyLlcpLinkDeactivated(NativeP2pDevice device) {
+        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
     }
 
 }
