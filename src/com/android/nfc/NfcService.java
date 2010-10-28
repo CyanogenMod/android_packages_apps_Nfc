@@ -1989,12 +1989,16 @@ public class NfcService extends Application {
 
         Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
 
+        /* Mark the link state */
+        mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_ACTIVATED;
+
         while (it.hasNext()) {
             RegisteredSocket registeredSocket = it.next();
 
             switch (registeredSocket.mType) {
             case LLCP_SERVICE_SOCKET_TYPE:
                 Log.d(TAG, "Registered Llcp Service Socket");
+                Log.d(TAG, "SAP: " + registeredSocket.mSap + ", SN: " + registeredSocket.mServiceName);
                 NativeLlcpServiceSocket serviceSocket;
 
                 serviceSocket = mManager.doCreateLlcpServiceSocket(
@@ -2209,6 +2213,9 @@ public class NfcService extends Application {
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
                /* Restart polling loop */
                device.doDisconnect();
+
+               /* Mark the link state */
+               mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
 
                /* Broadcast Intent Link LLCP activated */
                Intent LlcpLinkIntent = new Intent();
