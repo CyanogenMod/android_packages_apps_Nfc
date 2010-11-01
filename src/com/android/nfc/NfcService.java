@@ -2249,6 +2249,7 @@ public class NfcService extends Application {
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
                if (nativeTag.connect()) {
                    if (nativeTag.checkNdef()) {
+                       boolean generateEmptyIntent = false;
                        byte[] buff = nativeTag.read();
                        if (buff != null) {
                            NdefMessage[] msgNdef = new NdefMessage[1];
@@ -2270,12 +2271,29 @@ public class NfcService extends Application {
                                    nativeTag.disconnect();
                                }
                            } catch (FormatException e) {
-                               Log.w(TAG, "Unable to create NDEF message object (tag empty or not well formated)");
-                               nativeTag.disconnect();
+                               // Create an intent anyway, without NDEF messages
+                               generateEmptyIntent = true;
                            }
                        } else {
-                           Log.w(TAG, "Unable to read NDEF message (tag empty or not well formated)");
-                           nativeTag.disconnect();
+                           // Create an intent anyway, without NDEF messages
+                           generateEmptyIntent = true;
+                       }
+                       if (generateEmptyIntent) {
+                           // Create an intent with an empty ndef message array
+                           NdefTag tag = new NdefTag(nativeTag.getUid(),
+                                   TagTarget.internalTypeToRawTargets(nativeTag.getType()),
+                                   null, null, nativeTag.getHandle(),
+                                   TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
+                                   new NdefMessage[][] { {} });
+                           Intent intent = buildNdefTagIntent(tag);
+                           Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
+                           try {
+                               mContext.startActivity(intent);
+                               registerTagObject(nativeTag);
+                           } catch (ActivityNotFoundException e) {
+                               Log.w(TAG, "No activity found, disconnecting");
+                               nativeTag.disconnect();
+                           }
                        }
                    } else {
                        Intent intent = new Intent();
