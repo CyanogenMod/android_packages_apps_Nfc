@@ -483,6 +483,17 @@ void nfc_jni_restart_discovery(struct nfc_jni_native_data *nat)
    if (ret != NFCSTATUS_PENDING)
    {
    	emergency_recovery(nat);
+   }
+   else
+   {
+/* Wait for callback response */
+        sem_wait(&nfc_jni_manager_sem);
+        if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+        {
+                LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);
+                return;
+        }
+        LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);;
    }     
 }
 
@@ -748,9 +759,9 @@ static void nfc_jni_connect_callback(void *pContext,
 
 static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status)
 {
-   LOG_CALLBACK("nfc_jni_discover_callback", status);
+   nfc_jni_cb_status = status;
 
-   //sem_post(&nfc_jni_manager_sem);
+   sem_post(&nfc_jni_manager_sem);
 }
 
 static void nfc_jni_Discovery_notification_callback(void *pContext,
@@ -1371,6 +1382,15 @@ static void nfc_jni_start_discovery(struct nfc_jni_native_data *nat)
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693==TRUE?"RFID":"",
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation==FALSE?"CE":"",
       nat->discovery_cfg.NfcIP_Mode, nat->discovery_cfg.Duration, ret);
+
+   /* Wait for callback response */
+   sem_wait(&nfc_jni_manager_sem);
+   if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+   {
+      LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);
+      return;
+   }
+   LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);
 } 
 
 static void nfc_jni_stop_discovery(struct nfc_jni_native_data *nat)
@@ -1398,6 +1418,16 @@ static void nfc_jni_stop_discovery(struct nfc_jni_native_data *nat)
       discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693==TRUE?"RFID":"",
       discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation==FALSE?"CE":"",
       discovery_cfg.NfcIP_Mode, discovery_cfg.Duration, ret);
+
+   /* Wait for callback response */
+   sem_wait(&nfc_jni_manager_sem);
+   if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+   {
+      LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);
+      return;
+   }
+   LOGD("phLibNfc_Mgt_ConfigureDiscovery callback returned 0x%08x ", nfc_jni_cb_status);
+
 } 
 
 static void nfc_jni_reader_discovery(struct nfc_jni_native_data *nat)
