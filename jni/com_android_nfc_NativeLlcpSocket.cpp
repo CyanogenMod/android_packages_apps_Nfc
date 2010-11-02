@@ -304,25 +304,28 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
                             nfc_jni_receive_callback,
                             (void*)hLlcpSocket);
    REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_PENDING)
+   if((ret != NFCSTATUS_SUCCESS) && (ret != NFCSTATUS_PENDING))
    {
-      LOGE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      return 0;
-   } 
+       /* Return status should be either SUCCESS or PENDING */
+       LOGE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+       return 0;
+   }
    LOGD("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-  
-   /* Wait for callback response */
+
+   /* Wait for callback response (happen if status is either SUCCESS or PENDING) */
    if(sem_wait(&nfc_jni_llcp_sem) == -1)
-      return FALSE;   
+   {
+      return 0;
+   }
 
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
-      return sReceiveBuffer.length; 
+      return sReceiveBuffer.length;
    }
    else
    {
-      return 0;    
-   } 
+      return 0;
+   }
 }
 
 static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, jobject o)
