@@ -1807,7 +1807,7 @@ public class NfcService extends Application {
             maybeEnableDiscovery();
 
             /* bring up the my tag server */
-            //mMyTagServer.start();
+            mMyTagServer.start();
 
         } else {
             mIsNfcEnabled = false;
