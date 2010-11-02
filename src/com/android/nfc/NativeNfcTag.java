@@ -59,7 +59,7 @@ public class NativeNfcTag {
             // Restart the polling loop if the tag is not here any more
             if (!isPresent) {
                 Log.d(TAG, "Tag lost, restarting polling loop");
-                doAsyncDisconnect();
+                doDisconnect();
             }
             Log.d(TAG, "Stopping background presence check");
         }
@@ -81,14 +81,6 @@ public class NativeNfcTag {
             mWatchdog.end();
         }
         return doDisconnect();
-    }
-
-    private native void doAsyncDisconnect();
-    public synchronized void asyncDisconnect() {
-        if (mWatchdog != null) {
-            mWatchdog.end();
-        }
-        doAsyncDisconnect();
     }
 
     private native byte[] doTransceive(byte[] data);

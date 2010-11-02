@@ -95,10 +95,6 @@ public class NativeNfcManager {
 
     public native void doDeselectSecureElement(int seID);
 
-    public native NativeP2pDevice doOpenP2pConnection(int timeout);
-
-    public native NativeNfcTag doOpenTagConnection(int timeout);
-
     public native int doGetLastError();
 
     public native void doSetProperties(int param, int value);
