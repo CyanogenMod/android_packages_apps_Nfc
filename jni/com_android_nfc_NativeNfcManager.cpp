@@ -829,6 +829,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
    struct timespec ts;
    phNfc_sData_t data;
    int i;
+   int target_index = 0; // Target that will be reported (if multiple can be >0)
 
    nat = (struct nfc_jni_native_data *)pContext;
    
@@ -897,46 +898,58 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
                                   psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length, 
                                   (jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo);
              
-            e->SetObjectField(tag, f, generalBytes);        
-        } 
+            e->SetObjectField(tag, f, generalBytes);
+         }
       }
       else
       {
-         tag_cls = e->GetObjectClass(nat->cached_NfcTag);
-         if(e->ExceptionCheck())
-         {
+        tag_cls = e->GetObjectClass(nat->cached_NfcTag);
+        if(e->ExceptionCheck())
+        {
             kill_client(nat);
             return;
-         }
-      
-         /* New tag instance */
-         ctor = e->GetMethodID(tag_cls, "<init>", "()V");
-         tag = e->NewObject(tag_cls, ctor);
-         
-         /* Set tag UID */
-         f = e->GetFieldID(tag_cls, "mUid", "[B");
-         data = get_target_uid(psRemoteDevList->psRemoteDevInfo);
-         tagUid = e->NewByteArray(data.length);
-         if(data.length > 0)
-         {
-             e->SetByteArrayRegion(tagUid, 0, data.length, (jbyte *)data.buffer);
-         }
-         e->SetObjectField(tag, f, tagUid);
-         /* Set tag type */
-         typeName = get_target_type_name( psRemoteDevList->psRemoteDevInfo->RemDevType,
-                                          psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-         LOGD("Discovered tag: type=0x%08x[%s]", psRemoteDevList->psRemoteDevInfo->RemDevType, typeName);
-         f = e->GetFieldID(tag_cls, "mType", "Ljava/lang/String;");
-         e->SetObjectField(tag, f, e->NewStringUTF(typeName));
+        }
+
+        /* New tag instance */
+        ctor = e->GetMethodID(tag_cls, "<init>", "()V");
+        tag = e->NewObject(tag_cls, ctor);
+
+        if(status == NFCSTATUS_MULTIPLE_PROTOCOLS)
+        {
+            LOGD("Multiple Protocol TAG detected\n");
+            /* Since on most multi proto cards Mifare (emu) is first, and ISO second,
+             * we prefer the second standard above Mifare. Proper fix is to parse it.
+             */
+            target_index = 1;
+        }
+        else
+        {
+            LOGD("Simple Protocol TAG detected\n");
+            target_index = 0;
+        }
+        /* Set tag UID */
+        f = e->GetFieldID(tag_cls, "mUid", "[B");
+        data = get_target_uid(psRemoteDevList[target_index].psRemoteDevInfo);
+        tagUid = e->NewByteArray(data.length);
+        if(data.length > 0)
+        {
+            e->SetByteArrayRegion(tagUid, 0, data.length, (jbyte *)data.buffer);
+        }
+        e->SetObjectField(tag, f, tagUid);
+
+        /* Set tag type */
+        typeName = get_target_type_name( psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
+                          psRemoteDevList[target_index].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
+        LOGD("Discovered tag: type=0x%08x[%s]", psRemoteDevList[target_index].psRemoteDevInfo->RemDevType, typeName);
+        f = e->GetFieldID(tag_cls, "mType", "Ljava/lang/String;");
+        e->SetObjectField(tag, f, e->NewStringUTF(typeName));
+
       }
-      
       /* Set tag handle */
       f = e->GetFieldID(tag_cls, "mHandle", "I");
-      e->SetIntField(tag, f,(jint)psRemoteDevList->hTargetDev);
-      LOGD("Target handle = 0x%08x",psRemoteDevList->hTargetDev);
-      
+      e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
+      LOGD("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
       nat->tag = e->NewGlobalRef(tag);
-   
    
       /* Notify the service */   
       LOGD("Notify Nfc Service");
