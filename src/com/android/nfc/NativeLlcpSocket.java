@@ -30,8 +30,6 @@ public class NativeLlcpSocket {
 
     private int mLocalRw;
 
-    private int mTimeout;
-
     public NativeLlcpSocket(){
 
     }
@@ -42,9 +40,9 @@ public class NativeLlcpSocket {
         mLocalRw = rw;
     }
 
-    public native boolean doConnect(int nSap, int timeout);
+    public native boolean doConnect(int nSap);
 
-    public native boolean doConnectBy(String sn, int timeout);
+    public native boolean doConnectBy(String sn);
 
     public native boolean doClose();
 
@@ -55,16 +53,6 @@ public class NativeLlcpSocket {
     public native int doGetRemoteSocketMiu();
 
     public native int doGetRemoteSocketRw();
-
-
-
-    public void setConnectTimeout(int timeout){
-        mTimeout = timeout;
-    }
-
-    public int getConnectTimeout(){
-        return mTimeout;
-    }
 
     public int getSap(){
         return mSap;

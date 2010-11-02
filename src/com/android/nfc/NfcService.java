@@ -168,12 +168,10 @@ public class NfcService extends Application {
     private volatile boolean mIsNfcEnabled = false;
     private int mSelectedSeId = 0;
     private boolean mNfcSecureElementState;
-    private boolean mOpenPending = false;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
-    private int mTimeout = 0;
     private boolean mScreenOn;
 
     // fields below are final after onCreate()
@@ -623,11 +621,6 @@ public class NfcService extends Application {
             return mNfcTagService;
         }
 
-        public synchronized int getOpenTimeout() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            return mTimeout;
-        }
-
         @Override
         public IP2pInitiator getP2pInitiatorInterface() throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
@@ -728,11 +721,6 @@ public class NfcService extends Application {
 
             return ErrorCodes.SUCCESS;
 
-        }
-
-        public synchronized void setOpenTimeout(int timeout) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            mTimeout = timeout;
         }
 
         @Override
@@ -978,7 +966,7 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpSocket) findSocket(nativeHandle);
             if (socket != null) {
-                isSuccess = socket.doConnect(sap, socket.getConnectTimeout());
+                isSuccess = socket.doConnect(sap);
                 if (isSuccess) {
                     return ErrorCodes.SUCCESS;
                 } else {
@@ -1005,7 +993,7 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpSocket) findSocket(nativeHandle);
             if (socket != null) {
-                isSuccess = socket.doConnectBy(sn, socket.getConnectTimeout());
+                isSuccess = socket.doConnectBy(sn);
                 if (isSuccess) {
                     return ErrorCodes.SUCCESS;
                 } else {
@@ -1015,26 +1003,6 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_IO;
             }
 
-        }
-
-        @Override
-        public int getConnectTimeout(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeLlcpSocket socket = null;
-
-            // Check if NFC is enabled
-            if (!mIsNfcEnabled) {
-                return ErrorCodes.ERROR_NOT_INITIALIZED;
-            }
-
-            /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
-            if (socket != null) {
-                return socket.getConnectTimeout();
-            } else {
-                return 0;
-            }
         }
 
         @Override
@@ -1196,20 +1164,6 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_IO;
             }
         }
-
-        @Override
-        public void setConnectTimeout(int nativeHandle, int timeout) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeLlcpSocket socket = null;
-
-            /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
-            if (socket != null) {
-                socket.setConnectTimeout(timeout);
-            }
-        }
-
     };
 
     private final ILlcpServiceSocket mLlcpServerSocketService = new ILlcpServiceSocket.Stub() {
@@ -1230,7 +1184,7 @@ public class NfcService extends Application {
                 /* find the socket in the hmap */
                 socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
                 if (socket != null) {
-                    clientSocket = socket.doAccept(socket.getAcceptTimeout(), socket.getMiu(),
+                    clientSocket = socket.doAccept(socket.getMiu(),
                             socket.getRw(), socket.getLinearBufferLength());
                     if (clientSocket != null) {
                         /* Add the socket into the socket map */
@@ -1284,39 +1238,6 @@ public class NfcService extends Application {
                     /* Update mNbSocketCreated */
                     mNbSocketCreated--;
                 }
-            }
-        }
-
-        @Override
-        public int getAcceptTimeout(int nativeHandle) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeLlcpServiceSocket socket = null;
-
-            // Check if NFC is enabled
-            if (!mIsNfcEnabled) {
-                return ErrorCodes.ERROR_NOT_INITIALIZED;
-            }
-
-            /* find the socket in the hmap */
-            socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
-            if (socket != null) {
-                return socket.getAcceptTimeout();
-            } else {
-                return 0;
-            }
-        }
-
-        @Override
-        public void setAcceptTimeout(int nativeHandle, int timeout) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeLlcpServiceSocket socket = null;
-
-            /* find the socket in the hmap */
-            socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
-            if (socket != null) {
-                socket.setAcceptTimeout(timeout);
             }
         }
     };
@@ -1454,7 +1375,6 @@ public class NfcService extends Application {
             }
             /* Restart polling loop for notification */
             maybeEnableDiscovery();
-            mOpenPending = false;
             return ErrorCodes.ERROR_DISCONNECT;
         }
 
@@ -1714,7 +1634,6 @@ public class NfcService extends Application {
             }
             /* Restart polling loop for notification */
             maybeEnableDiscovery();
-            mOpenPending = false;
             return null;
         }
 
@@ -1778,7 +1697,6 @@ public class NfcService extends Application {
             device = (NativeP2pDevice) findObject(nativeHandle);
             if (device != null) {
                 if (isSuccess = device.doDisconnect()) {
-                    mOpenPending = false;
                     /* remove the device from the hmap */
                     unregisterObject(nativeHandle);
                     /* Restart polling loop for notification */
@@ -1956,8 +1874,6 @@ public class NfcService extends Application {
         mNbSocketCreated = 0;
         mIsNfcEnabled = false;
         mSelectedSeId = 0;
-        mTimeout = 0;
-        mOpenPending = false;
     }
 
     private synchronized Object findObject(int key) {
@@ -2458,7 +2374,6 @@ public class NfcService extends Application {
                     NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
                 Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
 
-                mOpenPending = false;
                 /* Restart polling loop for notification */
                 maybeEnableDiscovery();
 

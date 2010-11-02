@@ -356,74 +356,6 @@ clean_and_return:
 }
 
 
-/* Deinitialization function */
-static void nfc_jni_deinitialize(struct nfc_jni_native_data *nat)
-{
-   struct timespec ts;
-   NFCSTATUS status;
-   int bStackReset = FALSE;
-
-   /* Clear previous configuration */
-   memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
-   memset(&nat->registry_info, 0, sizeof(phLibNfc_Registry_Info_t));
-   
-   LOGD("phLibNfc_Mgt_DeInitialize() - %p", nat);
-   REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_callback, (void *)nat);
-   REENTRANCE_UNLOCK();
-   if (status == NFCSTATUS_PENDING)
-   {
-      LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-
-      clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec += 1;
-  
-      /* Wait for callback response */
-      if(sem_timedwait(&nfc_jni_manager_sem, &ts) == -1)
-      {
-         LOGW("Operation timed out");
-         bStackReset = TRUE;
-      }
-   }
-   else
-   {
-      LOGW("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-      bStackReset = TRUE;
-   }
-
-   if(bStackReset == TRUE)
-   {
-      /* Complete deinit. failed, try minimal reset (clean internal structures and free memory) */
-      LOGW("Reseting stack...");
-      REENTRANCE_LOCK();
-      status = phLibNfc_Mgt_DeInitialize(gHWRef, NULL, NULL);
-      REENTRANCE_UNLOCK();
-      if (status != NFCSTATUS_SUCCESS)
-      {
-         /* NOTE: by design, this could not happen */
-         LOGE("Reset failed [0x%08x]", status);
-      }
-      /* Force result to success (deinit shall not fail!) */
-      nat->status = NFCSTATUS_SUCCESS;
-   }
-
-   /* Unconfigure driver */
-   LOGD("phLibNfc_Mgt_UnConfigureDriver()");
-   REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_UnConfigureDriver(gHWRef);
-   REENTRANCE_UNLOCK();
-   if(status != NFCSTATUS_SUCCESS)
-   {
-      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
-   else
-   {
-      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
-
-   LOGI("NFC Deinitialized");
-}
-
 /*
  * Last-chance fallback when there is no clean way to recover
  * Performs a software reset
@@ -437,23 +369,6 @@ void emergency_recovery(struct nfc_jni_native_data *nat)
 
    LOGE("force restart of NFC service");
    abort();  // force a noisy crash
-   
-   /* Save current polling loop configuration */
-   memcpy(&discovery_cfg, &nat->discovery_cfg, sizeof(phLibNfc_sADD_Cfg_t));
-   memcpy(&registration_cfg, &nat->registry_info, sizeof(phLibNfc_Registry_Info_t));
-   
-   /* Deinit */
-   nfc_jni_deinitialize(nat);
-
-   /* Reinit */
-   nfc_jni_initialize(nat);
-
-   /* Restore polling loop configuration */
-   memcpy(&nat->discovery_cfg, &discovery_cfg, sizeof(phLibNfc_sADD_Cfg_t));
-   memcpy(&nat->registry_info, &registration_cfg, sizeof(phLibNfc_Registry_Info_t));
-
-   /* Restart polling loop */
-   nfc_jni_start_discovery_locked(nat);
 }
 
 /*
@@ -1558,8 +1473,8 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
       LOGD("phLibNfc_Mgt_DeInitialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
       clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec += 10; 
-  
+      ts.tv_sec += 5;
+
       /* Wait for callback response */
       if(sem_timedwait(&nfc_jni_manager_sem, &ts) == -1)
       {
@@ -1742,7 +1657,8 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
                                  nfc_jni_llcp_linkStatus_callback,
                                  (void*)nat);
    REENTRANCE_UNLOCK();
-   /* In case of a NFCIP return NFCSTATUS_SUCCESS and in case of an another protocol NFCSTATUS_PENDING */
+   /* In case of a NFCIP return NFCSTATUS_SUCCESS and in case of an another protocol
+    * NFCSTATUS_PENDING. In this case NFCSTATUS_SUCCESS will also cause the callback. */
    if(ret != NFCSTATUS_PENDING && ret != NFCSTATUS_SUCCESS)
    {
       LOGE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));

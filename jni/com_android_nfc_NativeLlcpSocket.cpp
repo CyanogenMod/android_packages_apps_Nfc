@@ -116,7 +116,7 @@ static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
 /*
  * Methods
  */
-static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap, jint timeout)
+static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -139,21 +139,9 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    }
    LOGD("phLibNfc_Llcp_Connect(%d) returned 0x%04x[%s]", nSap, ret, nfc_jni_get_status_name(ret));
    
-   if(timeout != 0)
-   {
-      clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec  += timeout;
-
-      /* Wait for callback response */
-      if(sem_timedwait(&nfc_jni_llcp_sem, &ts) == -1)
-         return FALSE;   
-   }
-   else
-   {
-      /* Wait for callback response */
-      if(sem_wait(&nfc_jni_llcp_sem) == -1)
-         return FALSE;     
-   }
+   /* Wait for callback response */
+   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+      return FALSE;
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
@@ -167,7 +155,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    }
 }
 
-static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn, jint timeout)
+static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -195,21 +183,9 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject 
    }   
    LOGD("phLibNfc_Llcp_ConnectByUri() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
-   if(timeout != 0)
-   {
-      clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec  += timeout;
-
-      /* Wait for callback response */
-      if(sem_timedwait(&nfc_jni_llcp_sem, &ts) == -1)
-         return FALSE;   
-   }
-   else
-   {
-      /* Wait for callback response */
-      if(sem_wait(&nfc_jni_llcp_sem) == -1)
-         return FALSE;     
-   }
+   /* Wait for callback response */
+   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+      return FALSE;
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
@@ -386,10 +362,10 @@ static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobj
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doConnect", "(II)Z",
+   {"doConnect", "(I)Z",
       (void *)com_android_nfc_NativeLlcpSocket_doConnect},
 
-   {"doConnectBy", "(Ljava/lang/String;I)Z",
+   {"doConnectBy", "(Ljava/lang/String;)Z",
       (void *)com_android_nfc_NativeLlcpSocket_doConnectBy},
       
    {"doClose", "()Z",

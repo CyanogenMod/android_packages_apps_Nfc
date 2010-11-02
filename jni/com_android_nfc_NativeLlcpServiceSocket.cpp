@@ -47,7 +47,7 @@ static void nfc_jni_llcp_accept_socket_callback(void*        pContext,
 /*
  * Methods
  */ 
-static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int timeout, jint miu, jint rw, jint linearBufferLength)
+static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, jint rw, jint linearBufferLength)
 {
    NFCSTATUS ret;
    struct timespec ts;
@@ -57,26 +57,11 @@ static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int t
    jclass clsNativeLlcpSocket;
    jobject clientSocket = 0;
 
-   /* Wait for connection request */
-   if(timeout != 0)
+
+   /* Wait for tag Notification */
+   if(sem_wait(&nfc_jni_llcp_listen_sem) == -1)
    {
-      LOGD("Accept timeout set to %d s\n", timeout);
-      clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec  += timeout; 
-  
-      /* Wait for tag Notification */
-      if(sem_timedwait(&nfc_jni_llcp_listen_sem, &ts) == -1)
-      {
-         return NULL;   
-      }
-   }
-   else
-   {
-      /* Wait for tag Notification */
-      if(sem_wait(&nfc_jni_llcp_listen_sem) == -1)
-      {
-         return NULL;   
-      }   
+      return NULL;
    }
    
    /* Set socket options with the socket options of the service */
@@ -152,7 +137,7 @@ static jobject com__NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, int t
    } 
 }
 
-static jboolean com__NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
+static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
@@ -182,11 +167,11 @@ static jboolean com__NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doAccept", "(IIII)Lcom/android/nfc/NativeLlcpSocket;",
-      (void *)com__NativeLlcpServiceSocket_doAccept},
+   {"doAccept", "(III)Lcom/android/nfc/NativeLlcpSocket;",
+      (void *)com_NativeLlcpServiceSocket_doAccept},
       
    {"doClose", "()Z",
-      (void *)com__NativeLlcpServiceSocket_doClose},
+      (void *)com_NativeLlcpServiceSocket_doClose},
 };
 
 
