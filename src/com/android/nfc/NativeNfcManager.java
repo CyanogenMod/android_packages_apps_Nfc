@@ -78,17 +78,6 @@ public class NativeNfcManager {
 
     public native void disableDiscovery();
 
-    public native void readerDiscovery();
-
-    /**
-     * Disables an NFCManager mode of operation. Allows to disable tag reader,
-     * peer to peer initiator or target modes.
-     *
-     * @param mode discovery mode to enable. Must be one of the provided
-     *            NFCManager.DISCOVERY_MODE_* constants.
-     */
-    public native void disableDiscoveryMode(int mode);
-
     public native int[] doGetSecureElementList();
 
     public native void doSelectSecureElement(int seID);
