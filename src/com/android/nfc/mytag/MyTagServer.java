@@ -66,7 +66,12 @@ public class MyTagServer {
                     try {
                         size = mSock.receive(partial);
                         if (DBG) Log.d(TAG, "read " + size + " bytes");
-                        buffer.write(partial, 0, size);
+                        if (size < 0) {
+                            connectionBroken = true;
+                            break;
+                        } else {
+                            buffer.write(partial, 0, size);
+                        }
                     } catch (IOException e) {
                         // Connection broken
                         connectionBroken = true;
@@ -93,31 +98,29 @@ public class MyTagServer {
 
         @Override
         public void run() {
-            while (mRunning) {
-                if (DBG) Log.d(TAG, "about create LLCP service socket");
-                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
-                        128, 1, 1024);
-                if (mServerSocket == null) {
-                    Log.d(TAG, "failed to create LLCP service socket");
-                    continue;
-                }
-                if (DBG) Log.d(TAG, "created LLCP service socket");
-                try {
-                    if (mRunning) {
-                        if (DBG) Log.d(TAG, "about to accept");
-                        LlcpSocket communicationSocket = mServerSocket.accept();
-                        if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
-                        if (communicationSocket != null) {
-                            new ConnectionThread(communicationSocket).start();
-                        }
+            if (DBG) Log.d(TAG, "about create LLCP service socket");
+            mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
+                    128, 1, 1024);
+            if (mServerSocket == null) {
+                Log.d(TAG, "failed to create LLCP service socket");
+                return;
+            }
+            if (DBG) Log.d(TAG, "created LLCP service socket");
+            try {
+                while (mRunning) {
+                    if (DBG) Log.d(TAG, "about to accept");
+                    LlcpSocket communicationSocket = mServerSocket.accept();
+                    if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
+                    if (communicationSocket != null) {
+                        new ConnectionThread(communicationSocket).start();
                     }
-                } catch (LlcpException e) {
-                    Log.e(TAG, "llcp error", e);
-                } catch (IOException e) {
-                    Log.e(TAG, "IO error", e);
-                } finally {
-                    if (mServerSocket != null) mServerSocket.close();
                 }
+            } catch (LlcpException e) {
+                Log.e(TAG, "llcp error", e);
+            } catch (IOException e) {
+                Log.e(TAG, "IO error", e);
+            } finally {
+                if (mServerSocket != null) mServerSocket.close();
             }
         }
 

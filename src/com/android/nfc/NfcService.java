@@ -458,7 +458,8 @@ public class NfcService extends Application {
                         return ErrorCodes.ERROR_SOCKET_OPTIONS;
                     }
 
-                    NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sn);
+                    NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sap, sn, miu, rw,
+                            linearBufferLength);
                     synchronized(NfcService.this) {
                         /* Add the socket into the socket map */
                         mSocketMap.put(sockeHandle, socket);
@@ -2158,6 +2159,7 @@ public class NfcService extends Application {
                } catch (ActivityNotFoundException e) {
                    Log.w(TAG, "No activity found for mock tag");
                }
+               break;
            }
 
            case MSG_NDEF_TAG:
