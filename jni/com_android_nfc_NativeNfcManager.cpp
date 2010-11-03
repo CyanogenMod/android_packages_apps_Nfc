@@ -571,6 +571,53 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
    return TARGET_TYPE_UNKNOWN;
 }
 
+ /*
++ *  Utility to recover UID from target infos
++ */
+static phNfc_sData_t get_target_uid(phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
+{
+    phNfc_sData_t uid;
+
+    switch(psRemoteDevInfo->RemDevType)
+    {
+    case phNfc_eISO14443_A_PICC:
+    case phNfc_eISO14443_4A_PICC:
+    case phNfc_eISO14443_3A_PICC:
+    case phNfc_eMifare_PICC:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Uid;
+        uid.length = psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength;
+        break;
+    case phNfc_eISO14443_B_PICC:
+    case phNfc_eISO14443_4B_PICC:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.Pupi;
+        uid.length = sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.Pupi);
+        break;
+    case phNfc_eFelica_PICC:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.Felica_Info.IDm;
+        uid.length = psRemoteDevInfo->RemoteDevInfo.Felica_Info.IDmLength;
+        break;
+    case phNfc_eJewel_PICC:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.Jewel_Info.Uid;
+        uid.length = psRemoteDevInfo->RemoteDevInfo.Jewel_Info.UidLength;
+        break;
+    case phNfc_eISO15693_PICC:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Uid;
+        uid.length = psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.UidLength;
+        break;
+    case phNfc_eNfcIP1_Target:
+    case phNfc_eNfcIP1_Initiator:
+        uid.buffer = psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.NFCID;
+        uid.length = psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.NFCID_Length;
+        break;
+    default:
+        uid.buffer = NULL;
+        uid.length = 0;
+        break;
+    }
+
+    return uid;
+}
+
 /*
  * NFC stack message processing
  */
@@ -780,6 +827,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
    jbyteArray generalBytes = NULL;
    struct nfc_jni_native_data *nat;
    struct timespec ts;
+   phNfc_sData_t data;
    int i;
 
    nat = (struct nfc_jni_native_data *)pContext;
@@ -867,10 +915,13 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
          
          /* Set tag UID */
          f = e->GetFieldID(tag_cls, "mUid", "[B");
-         tagUid = e->NewByteArray(psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength);
-         e->SetByteArrayRegion(tagUid, 0, psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength,(jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Uid);      
-         e->SetObjectField(tag, f, tagUid); 
-      
+         data = get_target_uid(psRemoteDevList->psRemoteDevInfo);
+         tagUid = e->NewByteArray(data.length);
+         if(data.length > 0)
+         {
+             e->SetByteArrayRegion(tagUid, 0, data.length, (jbyte *)data.buffer);
+         }
+         e->SetObjectField(tag, f, tagUid);
          /* Set tag type */
          typeName = get_target_type_name( psRemoteDevList->psRemoteDevInfo->RemDevType,
                                           psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
@@ -1025,7 +1076,7 @@ static void nfc_jni_open_notification_callback(void *pContext,
          tagUid = e->NewByteArray(psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength);
          e->SetByteArrayRegion(tagUid, 0, psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength,(jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Uid);      
          e->SetObjectField(tag, f, tagUid); 
-               
+
          /* Set tag type */
          typeName = get_target_type_name( psRemoteDevList->psRemoteDevInfo->RemDevType,
                                           psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
