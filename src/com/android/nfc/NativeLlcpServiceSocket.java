@@ -38,8 +38,12 @@ public class NativeLlcpServiceSocket {
 
     }
 
-    public NativeLlcpServiceSocket(String serviceName){
+    public NativeLlcpServiceSocket(int sap, String serviceName, int miu, int rw, int linearBufferLength){
+        mSap = sap;
         mServiceName = serviceName;
+        mLocalMiu = miu;
+        mLocalRw = rw;
+        mLocalLinearBufferLength = linearBufferLength;
     }
 
     public native NativeLlcpSocket doAccept(int miu, int rw, int linearBufferLength);

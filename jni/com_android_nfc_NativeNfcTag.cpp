@@ -333,7 +333,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    handle = nfc_jni_get_nfc_tag_handle(e, o);
    
    /* Disconnect */
-   LOGI("Disconnecting from target (handle = 0x%x)", handle);
+   LOGI("Disconnecting from tag (handle = 0x%x)", handle);
    
    /* Presence Check */
    do
