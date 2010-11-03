@@ -26,6 +26,10 @@ public class NativeNfcTag {
 
     private String mType;
 
+    private byte[] mPollBytes;
+
+    private byte[] mActivationBytes;
+
     private byte[] mUid;
 
     private final String TAG = "NativeNfcTag";
@@ -137,4 +141,13 @@ public class NativeNfcTag {
     public byte[] getUid() {
         return mUid;
     }
+
+    public byte[] getPollBytes() {
+        return mPollBytes;
+    }
+
+    public byte[] getActivationBytes() {
+        return mActivationBytes;
+    }
+
 }
