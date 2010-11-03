@@ -87,7 +87,7 @@ public class NfcService extends Application {
     private static final int SECURE_ELEMENT_ID_DEFAULT = 0;
 
     private static final String PREF_LLCP_LTO = "llcp_lto";
-    private static final int LLCP_LTO_DEFAULT = 250;
+    private static final int LLCP_LTO_DEFAULT = 150;
     private static final int LLCP_LTO_MAX = 255;
 
     /** Maximum Information Unit */
