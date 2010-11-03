@@ -1840,11 +1840,16 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
       return NULL;
    }
    LOGD("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   
+
    /* Service socket */
-   serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
-   serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
-   
+   if (sn == NULL) {
+       serviceName.buffer = NULL;
+       serviceName.length = 0;
+   } else {
+       serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
+       serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
+   }
+
    LOGD("phLibNfc_Llcp_Listen(hSocket=0x%08x, ...)", hLlcpSocket);
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Listen( hLlcpSocket,
