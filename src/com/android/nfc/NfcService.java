@@ -2301,8 +2301,13 @@ public class NfcService extends Application {
                device = (NativeP2pDevice) msg.obj;
 
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
-               /* Restart polling loop */
-               device.doDisconnect();
+               if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
+                   Log.d(TAG, "disconnecting from target");
+                   /* Restart polling loop */
+                   device.doDisconnect();
+               } else {
+                   Log.d(TAG, "not disconnecting from initiator");
+               }
 
                /* Mark the link state */
                mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
