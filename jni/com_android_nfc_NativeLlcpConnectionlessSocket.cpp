@@ -18,8 +18,8 @@
 
 #include "com_android_nfc.h"
 
-static sem_t nfc_jni_llcp_send_sem;
-static sem_t nfc_jni_llcp_receive_sem;
+static sem_t *nfc_jni_llcp_send_sem;
+static sem_t *nfc_jni_llcp_receive_sem;
 static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 static uint8_t receivedSsap;
 
@@ -43,7 +43,7 @@ static void nfc_jni_receive_callback(void* pContext, uint8_t ssap, NFCSTATUS sta
       LOGD("RECEIVE UI_FRAME FROM SAP %d OK \n",*receiveSsap);
    }
    
-   sem_post(&nfc_jni_llcp_receive_sem);  
+   sem_post(nfc_jni_llcp_receive_sem);
 }
 
 static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
@@ -54,7 +54,7 @@ static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
 
    nfc_jni_cb_status = status;
    
-   sem_post(&nfc_jni_llcp_send_sem);  
+   sem_post(nfc_jni_llcp_send_sem);
 }
 
 /*
@@ -89,7 +89,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    LOGD("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_llcp_send_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_send_sem) == -1)
       return FALSE;   
 
 
@@ -154,7 +154,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    LOGD("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_llcp_receive_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_receive_sem) == -1)
       return NULL; 
       
 
@@ -224,11 +224,12 @@ static JNINativeMethod gMethods[] =
 
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e)
 {
-
-   if(sem_init(&nfc_jni_llcp_send_sem, 0, 0) == -1)
+    nfc_jni_llcp_send_sem = (sem_t *)malloc(sizeof(sem_t));
+    nfc_jni_llcp_receive_sem = (sem_t *)malloc(sizeof(sem_t));
+   if(sem_init(nfc_jni_llcp_send_sem, 0, 0) == -1)
       return -1;
       
-   if(sem_init(&nfc_jni_llcp_receive_sem, 0, 0) == -1)
+   if(sem_init(nfc_jni_llcp_receive_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,

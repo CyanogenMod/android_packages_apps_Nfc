@@ -18,7 +18,7 @@
 
 #include "com_android_nfc.h"
 
-static sem_t nfc_jni_llcp_sem;
+static sem_t *nfc_jni_llcp_sem;
 static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 
 namespace android {
@@ -36,7 +36,7 @@ static void nfc_jni_disconnect_callback(void*        pContext,
    
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_llcp_sem);
+   sem_post(nfc_jni_llcp_sem);
 }
 
  
@@ -84,7 +84,7 @@ static void nfc_jni_connect_callback(void* pContext, uint8_t nErrCode, NFCSTATUS
       }
    }
    
-   sem_post(&nfc_jni_llcp_sem);
+   sem_post(nfc_jni_llcp_sem);
 } 
 
 
@@ -99,7 +99,7 @@ static void nfc_jni_receive_callback(void* pContext, NFCSTATUS    status)
    
    nfc_jni_cb_status = status;
    
-   sem_post(&nfc_jni_llcp_sem);
+   sem_post(nfc_jni_llcp_sem);
 }
 
 static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
@@ -110,7 +110,7 @@ static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_llcp_sem);
+   sem_post(nfc_jni_llcp_sem);
 }
 
 /*
@@ -140,7 +140,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    LOGD("phLibNfc_Llcp_Connect(%d) returned 0x%04x[%s]", nSap, ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_sem) == -1)
       return FALSE;
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
@@ -184,7 +184,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject 
    LOGD("phLibNfc_Llcp_ConnectByUri() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_sem) == -1)
       return FALSE;
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
@@ -246,7 +246,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jb
    LOGD("phLibNfc_Llcp_Send() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_sem) == -1)
       return FALSE;   
 
 
@@ -289,7 +289,7 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
    LOGD("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Wait for callback response (happen if status is either SUCCESS or PENDING) */
-   if(sem_wait(&nfc_jni_llcp_sem) == -1)
+   if(sem_wait(nfc_jni_llcp_sem) == -1)
    {
       return 0;
    }
@@ -387,7 +387,8 @@ static JNINativeMethod gMethods[] =
 
 int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e)
 {
-   if(sem_init(&nfc_jni_llcp_sem, 0, 0) == -1)
+    nfc_jni_llcp_sem = (sem_t *)malloc(sizeof(sem_t));
+   if(sem_init(nfc_jni_llcp_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,

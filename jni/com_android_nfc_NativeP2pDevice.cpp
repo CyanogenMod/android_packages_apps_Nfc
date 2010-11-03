@@ -19,7 +19,7 @@
 
 #include "com_android_nfc.h"
 
-static sem_t nfc_jni_peer_sem;
+static sem_t *nfc_jni_peer_sem;
 static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 
 
@@ -37,7 +37,7 @@ static void nfc_jni_presence_check_callback(void* pContext, NFCSTATUS status)
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
  
 static void nfc_jni_connect_callback(void *pContext,
@@ -58,7 +58,7 @@ static void nfc_jni_connect_callback(void *pContext,
    
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
 
 static void nfc_jni_disconnect_callback(void *pContext, phLibNfc_Handle hRemoteDev, NFCSTATUS status)
@@ -67,7 +67,7 @@ static void nfc_jni_disconnect_callback(void *pContext, phLibNfc_Handle hRemoteD
       
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
 
 static void nfc_jni_receive_callback(void *pContext, phNfc_sData_t *data, NFCSTATUS status)
@@ -83,7 +83,7 @@ static void nfc_jni_receive_callback(void *pContext, phNfc_sData_t *data, NFCSTA
    else
       *ptr = NULL;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
 
 static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
@@ -92,7 +92,7 @@ static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
 
 /*
@@ -109,7 +109,7 @@ static void nfc_jni_transceive_callback(void *pContext,
    nfc_jni_cb_status = status;
    nfc_jni_transceive_buffer = pResBuffer;
 
-   sem_post(&nfc_jni_peer_sem);
+   sem_post(nfc_jni_peer_sem);
 }
 
 static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
@@ -142,7 +142,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
     LOGD("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
-    sem_wait(&nfc_jni_peer_sem);
+    sem_wait(nfc_jni_peer_sem);
 
     if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
     {
@@ -205,7 +205,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
         }
         LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
         /* Wait for callback response */
-        sem_wait(&nfc_jni_peer_sem);
+        sem_wait(nfc_jni_peer_sem);
     } while(nfc_jni_cb_status == NFCSTATUS_SUCCESS);
 
     LOGD("Target removed from the RF Field\n");
@@ -223,7 +223,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
-    sem_wait(&nfc_jni_peer_sem);
+    sem_wait(nfc_jni_peer_sem);
 
     /* Disconnect Status */
     if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
@@ -282,7 +282,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
    LOGD("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   sem_wait(&nfc_jni_peer_sem);
+   sem_wait(nfc_jni_peer_sem);
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
    {
       goto clean_and_return;
@@ -335,7 +335,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
    LOGD("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   if(sem_wait(&nfc_jni_peer_sem) == -1)
+   if(sem_wait(nfc_jni_peer_sem) == -1)
    {
       goto clean_and_return;   
    }
@@ -382,7 +382,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doSend(
    LOGD("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   sem_wait(&nfc_jni_peer_sem);
+   sem_wait(nfc_jni_peer_sem);
 
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
    {
@@ -419,7 +419,8 @@ static JNINativeMethod gMethods[] =
 
 int register_com_android_nfc_NativeP2pDevice(JNIEnv *e)
 {
-   if(sem_init(&nfc_jni_peer_sem, 0, 0) == -1)
+    nfc_jni_peer_sem = (sem_t *)malloc(sizeof(sem_t));
+   if(sem_init(nfc_jni_peer_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
