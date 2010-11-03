@@ -851,7 +851,10 @@ public class NfcService extends Application {
                         }
                     }
 
-                    sendMessage(MSG_SHOW_MY_TAG_ICON, null);
+                    // Only show the icon if NFC is enabled.
+                    if (mIsNfcEnabled) {
+                        sendMessage(MSG_SHOW_MY_TAG_ICON, null);
+                    }
                 } else {
                     context.deleteFile(MY_TAG_FILE_NAME);
                     sendMessage(MSG_HIDE_MY_TAG_ICON, null);
