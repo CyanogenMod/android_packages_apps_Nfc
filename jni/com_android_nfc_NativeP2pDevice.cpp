@@ -190,25 +190,10 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     /* Disconnect */
     LOGD("Disconnecting from target (handle = 0x%x)", handle);
 
-    /* Presence Check */
-    do
-    {
-        LOGD("phLibNfc_RemoteDev_CheckPresence()");
-        REENTRANCE_LOCK();
-        status = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)e);
-        REENTRANCE_UNLOCK();
-        if(status != NFCSTATUS_PENDING)
-        {
-             LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-             /* Disconnect Target */
-             break;
-        }
-        LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-        /* Wait for callback response */
-        sem_wait(nfc_jni_peer_sem);
-    } while(nfc_jni_cb_status == NFCSTATUS_SUCCESS);
-
-    LOGD("Target removed from the RF Field\n");
+    /* NativeNfcTag waits for tag to leave the field here with presence check.
+     * We do not in P2P path because presence check is not safe while transceive may be
+     * in progress.
+     */
 
     LOGD("phLibNfc_RemoteDev_Disconnect()");
     REENTRANCE_LOCK();
