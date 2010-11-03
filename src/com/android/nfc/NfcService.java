@@ -1449,7 +1449,7 @@ public class NfcService extends Application {
             if (tag != null) {
                 /* Remove the device from the hmap */
                 unregisterObject(nativeHandle);
-                tag.asyncDisconnect();
+                tag.disconnect();
                 return ErrorCodes.SUCCESS;
             }
             /* Restart polling loop for notification */
@@ -2267,15 +2267,15 @@ public class NfcService extends Application {
                                    registerTagObject(nativeTag);
                                } catch (ActivityNotFoundException e) {
                                    Log.w(TAG, "No activity found, disconnecting");
-                                   nativeTag.asyncDisconnect();
+                                   nativeTag.disconnect();
                                }
                            } catch (FormatException e) {
                                Log.w(TAG, "Unable to create NDEF message object (tag empty or not well formated)");
-                               nativeTag.asyncDisconnect();
+                               nativeTag.disconnect();
                            }
                        } else {
                            Log.w(TAG, "Unable to read NDEF message (tag empty or not well formated)");
-                           nativeTag.asyncDisconnect();
+                           nativeTag.disconnect();
                        }
                    } else {
                        Intent intent = new Intent();
@@ -2293,12 +2293,12 @@ public class NfcService extends Application {
                            registerTagObject(nativeTag);
                        } catch (ActivityNotFoundException e) {
                            Log.w(TAG, "No activity found, disconnecting");
-                           nativeTag.asyncDisconnect();
+                           nativeTag.disconnect();
                        }
                    }
                } else {
                    Log.w(TAG, "Failed to connect to tag");
-                   nativeTag.asyncDisconnect();
+                   nativeTag.disconnect();
                }
                break;
            case MSG_CARD_EMULATION:
