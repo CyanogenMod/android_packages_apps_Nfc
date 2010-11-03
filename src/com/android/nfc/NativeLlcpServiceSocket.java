@@ -32,8 +32,6 @@ public class NativeLlcpServiceSocket {
 
     private int mSap;
 
-    private int mTimeout;
-
     private String mServiceName;
 
     public NativeLlcpServiceSocket(){
@@ -44,20 +42,12 @@ public class NativeLlcpServiceSocket {
         mServiceName = serviceName;
     }
 
-    public native NativeLlcpSocket doAccept(int timeout, int miu, int rw, int linearBufferLength);
+    public native NativeLlcpSocket doAccept(int miu, int rw, int linearBufferLength);
 
     public native boolean doClose();
 
     public int getHandle(){
         return mHandle;
-    }
-
-    public void setAcceptTimeout(int timeout){
-        mTimeout = timeout;
-    }
-
-    public int getAcceptTimeout(){
-        return mTimeout;
     }
 
     public int getRw(){
