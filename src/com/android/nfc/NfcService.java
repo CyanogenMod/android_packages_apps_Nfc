@@ -790,16 +790,6 @@ public class NfcService extends Application {
 
             return ErrorCodes.SUCCESS;
         }
-
-        @Override
-        public NdefMessage localGet() throws RemoteException {
-            throw new UnsupportedOperationException("local tag not supported");
-        }
-
-        @Override
-        public void localSet(NdefMessage message) throws RemoteException {
-            throw new UnsupportedOperationException("local tag not supported");
-        }
     };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
