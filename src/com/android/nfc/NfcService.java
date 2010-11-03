@@ -1224,25 +1224,30 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
+            boolean closed = false;
             socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
             if (socket != null) {
                 if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
                     isSuccess = socket.doClose();
                     if (isSuccess) {
-                        /* Remove the socket closed from the hmap */
-                        RemoveSocket(nativeHandle);
-                        /* Update mNbSocketCreated */
-                        mNbSocketCreated--;
+                        closed = true;
                     }
                 } else {
+                    closed = true;
+                }
+            }
+
+            // If the socket is closed remove it from the socket lists
+            if (closed) {
+                synchronized (this) {
                     /* Remove the socket closed from the hmap */
                     RemoveSocket(nativeHandle);
 
-                    /* Remove registered socket from the list */
-                    RemoveRegisteredSocket(nativeHandle);
-
                     /* Update mNbSocketCreated */
                     mNbSocketCreated--;
+
+                    /* Remove registered socket from the list */
+                    RemoveRegisteredSocket(nativeHandle);
                 }
             }
         }
@@ -2078,6 +2083,10 @@ public class NfcService extends Application {
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
                 }
+
+                // NOTE: don't remove this socket from the registered sockets list.
+                // If it's removed it won't be created the next time an LLCP
+                // connection is activated and the server won't be found.
                 break;
 
             case LLCP_SOCKET_TYPE:
@@ -2098,6 +2107,8 @@ public class NfcService extends Application {
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
                 }
+                // This socket has been created, remove it from the registered sockets list.
+                it.remove();
                 break;
 
             case LLCP_CONNECTIONLESS_SOCKET_TYPE:
@@ -2117,12 +2128,11 @@ public class NfcService extends Application {
                      * handle counter */
                     mGeneratedSocketHandle -= 1;
                 }
+                // This socket has been created, remove it from the registered sockets list.
+                it.remove();
                 break;
             }
         }
-
-        /* Remove all registered socket from the list */
-        mRegisteredSocketList.clear();
 
         /* Broadcast Intent Link LLCP activated */
         Intent LlcpLinkIntent = new Intent();
