@@ -872,6 +872,9 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       f = e->GetFieldID(tag_cls, "mHandle", "I");
       e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
       LOGD("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
+      if (nat->tag != NULL) {
+          e->DeleteGlobalRef(nat->tag);
+      }
       nat->tag = e->NewGlobalRef(tag);
    
       /* Notify the service */   
@@ -902,136 +905,6 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       }
       e->DeleteLocalRef(tag);
    } 
-}
-
-static void nfc_jni_open_notification_callback(void *pContext,
-   phLibNfc_RemoteDevList_t *psRemoteDevList,
-   uint8_t uNofRemoteDev, NFCSTATUS status)
-{
-   JNIEnv *e;
-   jclass tag_cls = NULL;
-   jobject tag;
-   jmethodID ctor;
-   jfieldID f;
-   jbyteArray tagUid;
-   jstring type = NULL;
-   jbyteArray generalBytes = NULL;
-   const char * typeName;
-   struct nfc_jni_native_data *nat;
-   NFCSTATUS ret;
-   int i;
-   
-   nat = (struct nfc_jni_native_data *)pContext;
-   
-   nat->vm->GetEnv( (void **)&e, nat->env_version);
-   
-   if(status == NFCSTATUS_DESELECTED)
-   {
-      LOG_CALLBACK("nfc_jni_open_notification_callback: Target deselected", status); 
-         
-      /* Notify manager that a target was deselected */
-      e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTargetDeselected);
-      if(e->ExceptionCheck())
-      {
-         LOGE("Exception occured");
-         kill_client(nat);
-      } 
-   }
-   else
-   {   
-      LOG_CALLBACK("nfc_jni_open_notification_callback", status);
-      LOGI("Discovered %d tags", uNofRemoteDev);
-      
-      
-      if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
-          || (psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target))
-      {
-         LOGD("P2P Device detected\n");
-         
-         tag_cls = e->GetObjectClass(nat->cached_P2pDevice);
-         if(e->ExceptionCheck())
-         {
-            kill_client(nat);
-            return;
-         } 
-         
-         /* New target instance */
-         ctor = e->GetMethodID(tag_cls, "<init>", "()V");
-         tag = e->NewObject(tag_cls, ctor);
-      
-         /* Set P2P Target mode */
-         f = e->GetFieldID(tag_cls, "mMode", "I"); 
-         if(psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
-         {
-            LOGD("P2P Initiator\n");  
-            e->SetIntField(tag, f, (jint)MODE_P2P_INITIATOR);  
-         }
-         else
-         {    
-            LOGD("P2P Target\n");
-            e->SetIntField(tag, f, (jint)MODE_P2P_TARGET);     
-         }
-          
-         if(psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
-         {
-            /* Set General Bytes */
-            f = e->GetFieldID(tag_cls, "mGeneralBytes", "[B");
-
-            LOGD("General Bytes length =");
-            for(i=0;i<psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length;i++)
-            {
-               LOGD("0x%02x ", psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);          
-            }
-    
-            generalBytes = e->NewByteArray(psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length);   
-             
-            e->SetByteArrayRegion(generalBytes, 0, 
-                                  psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length, 
-                                  (jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo);
-             
-            e->SetObjectField(tag, f, generalBytes);        
-         }   
-      }
-      else
-      {
-         LOGD("Tag detected\n");
-         tag_cls = e->GetObjectClass(nat->cached_NfcTag);
-         if(e->ExceptionCheck())
-         {
-            kill_client(nat);
-            return;
-         } 
-         
-         /* New tag instance */
-         ctor = e->GetMethodID(tag_cls, "<init>", "()V");
-         tag = e->NewObject(tag_cls, ctor);
-         
-         /* Set tag UID */
-         LOGD("Set Tag UID\n");
-         f = e->GetFieldID(tag_cls, "mUid", "[B");
-         tagUid = e->NewByteArray(psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength);
-         e->SetByteArrayRegion(tagUid, 0, psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.UidLength,(jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Uid);      
-         e->SetObjectField(tag, f, tagUid); 
-
-         /* Set tag type */
-         typeName = get_target_type_name( psRemoteDevList->psRemoteDevInfo->RemDevType,
-                                          psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-         LOGD("Discovered tag: type=0x%08x[%s]", psRemoteDevList->psRemoteDevInfo->RemDevType, typeName);
-         f = e->GetFieldID(tag_cls, "mType", "Ljava/lang/String;");
-         e->SetObjectField(tag, f, e->NewStringUTF(typeName));
-      }
-       
-      /* Set tag handle */
-      LOGD("Tag Handle: 0x%08x",psRemoteDevList->hTargetDev);
-      f = e->GetFieldID(tag_cls, "mHandle", "I");
-      e->SetIntField(tag, f,(jint)psRemoteDevList->hTargetDev);
-      
-      nat->tag = e->NewGlobalRef(tag); 
-      
-      e->DeleteLocalRef(tag);
-      
-      sem_post(nfc_jni_open_sem);
-   }
 }
 
 static void nfc_jni_init_callback(void *pContext, NFCSTATUS status)
@@ -1374,7 +1247,7 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       LOGD("malloc of nfc_jni_native_data failed");
       return FALSE;   
    }
-   
+   memset(nat, 0, sizeof(*nat));
    e->GetJavaVM(&(nat->vm));
    nat->env_version = e->GetVersion();
    nat->manager = e->NewGlobalRef(o);
