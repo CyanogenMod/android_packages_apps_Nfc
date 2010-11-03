@@ -2180,6 +2180,12 @@ int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
       return -1;
    }
 
+   if(sem_init(nfc_jni_llcp_sem, 0, 0) == -1)
+   {
+      LOGE("NFC Manager Semaphore creation %x\n", errno);
+      return -1;
+   }
+
    if(sem_init(nfc_jni_open_sem, 0, 0) == -1)
    {
       LOGE("NFC Open Semaphore creation %x\n", errno);
