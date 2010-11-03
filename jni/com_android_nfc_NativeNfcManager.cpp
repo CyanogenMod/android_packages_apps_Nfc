@@ -1590,18 +1590,9 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 
    if(bStackReset == TRUE)
    {
-      /* Complete deinit. failed, try minimal reset (clean internal structures and free memory) */
+      /* Complete deinit. failed, try hard restart of NFC */
       LOGW("Reseting stack...");
-      REENTRANCE_LOCK();
-      status = phLibNfc_Mgt_DeInitialize(gHWRef, NULL, NULL);
-      REENTRANCE_UNLOCK();
-      if (status != NFCSTATUS_SUCCESS)
-      {
-         /* NOTE: by design, this could not happen */
-         LOGE("Reset failed [0x%08x]", status);
-      }
-      /* Force result to success (deinit shall not fail!) */
-      nat->status = NFCSTATUS_SUCCESS;
+      emergency_recovery(nat);
    }
 
    /* Unconfigure driver */
