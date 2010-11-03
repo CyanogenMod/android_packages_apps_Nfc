@@ -226,50 +226,6 @@ public class NfcService extends Application {
             }
         };
         t.start();
-
-        Context context = getApplicationContext();
-
-        // Set this to null by default. If there isn't a tag on disk or if there
-        // was an error reading the tag then this will cause the status bar icon
-        // to be removed.
-        NdefMessage myTag = null;
-
-        FileInputStream input = null;
-
-        try {
-            input = context.openFileInput(MY_TAG_FILE_NAME);
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-
-            byte[] buffer = new byte[4096];
-            int read = 0;
-            while ((read = input.read(buffer)) > 0) {
-                bytes.write(buffer, 0, read);
-            }
-
-            myTag = new NdefMessage(bytes.toByteArray());
-        } catch (FileNotFoundException e) {
-            // Ignore.
-        } catch (IOException e) {
-            Log.e(TAG, "Could not read mytag file: ", e);
-            context.deleteFile(MY_TAG_FILE_NAME);
-        } catch (FormatException e) {
-            Log.e(TAG, "Invalid NdefMessage for mytag", e);
-            context.deleteFile(MY_TAG_FILE_NAME);
-        } finally {
-            try {
-                if (input != null) {
-                    input.close();
-                }
-            } catch (IOException e) {
-                // Ignore
-            }
-        }
-
-        try {
-            mNfcAdapter.localSet(myTag);
-        } catch (RemoteException e) {
-            // Ignore
-        }
     }
 
     @Override
@@ -1866,6 +1822,55 @@ public class NfcService extends Application {
                 intent.setFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
                 intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
                 mContext.sendBroadcast(intent);
+            }
+
+            if (mIsNfcEnabled) {
+
+                Context context = getApplicationContext();
+
+                // Set this to null by default. If there isn't a tag on disk
+                // or if there was an error reading the tag then this will cause
+                // the status bar icon to be removed.
+                NdefMessage myTag = null;
+
+                FileInputStream input = null;
+
+                try {
+                    input = context.openFileInput(MY_TAG_FILE_NAME);
+                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+                    byte[] buffer = new byte[4096];
+                    int read = 0;
+                    while ((read = input.read(buffer)) > 0) {
+                        bytes.write(buffer, 0, read);
+                    }
+
+                    myTag = new NdefMessage(bytes.toByteArray());
+                } catch (FileNotFoundException e) {
+                    // Ignore.
+                } catch (IOException e) {
+                    Log.e(TAG, "Could not read mytag file: ", e);
+                    context.deleteFile(MY_TAG_FILE_NAME);
+                } catch (FormatException e) {
+                    Log.e(TAG, "Invalid NdefMessage for mytag", e);
+                    context.deleteFile(MY_TAG_FILE_NAME);
+                } finally {
+                    try {
+                        if (input != null) {
+                            input.close();
+                        }
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                }
+
+                try {
+                    mNfcAdapter.localSet(myTag);
+                } catch (RemoteException e) {
+                    // Ignore
+                }
+            } else {
+                sendMessage(MSG_HIDE_MY_TAG_ICON, null);
             }
         }
     }
