@@ -25,6 +25,8 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libnfc
 
+#LOCAL_CFLAGS += -O0 -g
+
 LOCAL_MODULE := libnfc_jni
 LOCAL_MODULE_TAGS := optional
 

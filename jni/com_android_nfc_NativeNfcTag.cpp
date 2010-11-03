@@ -18,7 +18,7 @@
 
 #include "com_android_nfc.h"
 
-static sem_t nfc_jni_tag_sem;
+static sem_t *nfc_jni_tag_sem;
 static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 static phLibNfc_Data_t nfc_jni_ndef_rw;
 static phLibNfc_Handle handle;
@@ -43,7 +43,7 @@ extern void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat);
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_connect_callback(void *pContext,
@@ -54,7 +54,7 @@ static void nfc_jni_connect_callback(void *pContext,
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_checkndef_callback(void *pContext,
@@ -77,7 +77,7 @@ static void nfc_jni_checkndef_callback(void *pContext,
       nfc_jni_is_ndef = FALSE;
    }
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_disconnect_callback(void *pContext,
@@ -95,7 +95,7 @@ static void nfc_jni_disconnect_callback(void *pContext,
    
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_async_disconnect_callback(void *pContext,
@@ -118,7 +118,7 @@ static void nfc_jni_presence_check_callback(void* pContext,NFCSTATUS  status)
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_async_presence_check_callback(void* pContext,NFCSTATUS  status)
@@ -174,7 +174,7 @@ static void nfc_jni_transceive_callback(void *pContext,
    nfc_jni_cb_status = status;
    nfc_jni_transceive_buffer = pResBuffer;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 static void nfc_jni_presencecheck_callback(void *pContext, NFCSTATUS status)
@@ -183,7 +183,7 @@ static void nfc_jni_presencecheck_callback(void *pContext, NFCSTATUS status)
 
    nfc_jni_cb_status = status;
 
-   sem_post(&nfc_jni_tag_sem);
+   sem_post(nfc_jni_tag_sem);
 }
 
 /* Functions */
@@ -216,7 +216,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    LOGD("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
     
    /* Wait for callback response */
-   sem_wait(&nfc_jni_tag_sem);
+   sem_wait(nfc_jni_tag_sem);
 
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
    {
@@ -262,7 +262,7 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    LOGD("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   sem_wait(&nfc_jni_tag_sem);
+   sem_wait(nfc_jni_tag_sem);
 
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
    {
@@ -305,7 +305,7 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    LOGD("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   sem_wait(&nfc_jni_tag_sem);
+   sem_wait(nfc_jni_tag_sem);
    
    /* Connect Status */
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
@@ -350,7 +350,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
       }
       LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       /* Wait for callback response */
-      sem_wait(&nfc_jni_tag_sem);
+      sem_wait(nfc_jni_tag_sem);
 
     } while(nfc_jni_cb_status == NFCSTATUS_SUCCESS);
 
@@ -370,7 +370,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
-    sem_wait(&nfc_jni_tag_sem);
+    sem_wait(nfc_jni_tag_sem);
    
     /* Disconnect Status */
     if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
@@ -456,7 +456,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     LOGD("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
-    sem_wait(&nfc_jni_tag_sem);
+    sem_wait(nfc_jni_tag_sem);
 
     if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
     {
@@ -508,7 +508,7 @@ static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
    }
    LOGD("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    /* Wait for callback response */
-   sem_wait(&nfc_jni_tag_sem);
+   sem_wait(nfc_jni_tag_sem);
 
    if (nfc_jni_is_ndef == FALSE)
    {
@@ -544,7 +544,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
    LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
-   sem_wait(&nfc_jni_tag_sem);
+   sem_wait(nfc_jni_tag_sem);
 
    if (nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
@@ -580,7 +580,8 @@ static JNINativeMethod gMethods[] =
 
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e)
 {
-   if(sem_init(&nfc_jni_tag_sem, 0, 0) == -1)
+    nfc_jni_tag_sem = (sem_t *)malloc(sizeof(sem_t));
+   if(sem_init(nfc_jni_tag_sem, 0, 0) == -1)
       return -1;
 
    return jniRegisterNativeMethods(e,
