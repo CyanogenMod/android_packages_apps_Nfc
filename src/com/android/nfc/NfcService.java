@@ -876,7 +876,12 @@ public class NfcService extends Application {
 
                     try {
                         out = context.openFileOutput(MY_TAG_FILE_NAME, Context.MODE_PRIVATE);
-                        out.write(message.toByteArray());
+                        byte[] bytes = message.toByteArray();
+                        if (bytes.length == 0) {
+                            Log.w(TAG, "Setting a empty mytag");
+                        }
+
+                        out.write(bytes);
                     } catch (IOException e) {
                         Log.e(TAG, "Could not write mytag file", e);
                     } finally {
