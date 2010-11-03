@@ -22,7 +22,6 @@
 static sem_t nfc_jni_peer_sem;
 static NFCSTATUS nfc_jni_cb_status = NFCSTATUS_FAILED;
 
-uint8_t nfc_jni_p2p_presence_check = 0;
 
 namespace android {
 
@@ -36,10 +35,7 @@ static void nfc_jni_presence_check_callback(void* pContext, NFCSTATUS status)
 {   
    LOG_CALLBACK("nfc_jni_presence_check_callback", status);
 
-   if(status != NFCSTATUS_SUCCESS)
-   {
-      nfc_jni_p2p_presence_check = 1; 
-   }
+   nfc_jni_cb_status = status;
 
    sem_post(&nfc_jni_peer_sem);
 }
@@ -65,8 +61,7 @@ static void nfc_jni_connect_callback(void *pContext,
    sem_post(&nfc_jni_peer_sem);
 }
 
-static void nfc_jni_disconnect_callback(void *pContext,
-   phLibNfc_Handle hRemoteDev, NFCSTATUS status)
+static void nfc_jni_disconnect_callback(void *pContext, phLibNfc_Handle hRemoteDev, NFCSTATUS status)
 {
    LOG_CALLBACK("nfc_jni_disconnect_callback", status);
       
@@ -75,8 +70,7 @@ static void nfc_jni_disconnect_callback(void *pContext,
    sem_post(&nfc_jni_peer_sem);
 }
 
-static void nfc_jni_receive_callback(void *pContext,
-   phNfc_sData_t *data, NFCSTATUS status)
+static void nfc_jni_receive_callback(void *pContext, phNfc_sData_t *data, NFCSTATUS status)
 {
    phNfc_sData_t **ptr = (phNfc_sData_t **)pContext;
 
@@ -120,114 +114,129 @@ static void nfc_jni_transceive_callback(void *pContext,
 
 static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
 {
-   phLibNfc_Handle handle = 0;
-   NFCSTATUS status;
-   jboolean result = JNI_FALSE;
+    phLibNfc_Handle handle = 0;
+    NFCSTATUS status;
+    jboolean result = JNI_FALSE;
 
-   jclass target_cls = NULL;
-   jobject tag;
-   jmethodID ctor;
-   jfieldID f;
-   jbyteArray generalBytes = NULL;
-   int i;
+    jclass target_cls = NULL;
+    jobject tag;
+    jmethodID ctor;
+    jfieldID f;
+    jbyteArray generalBytes = NULL;
+    int i;
 
-   CONCURRENCY_LOCK();
+    CONCURRENCY_LOCK();
 
-   handle = nfc_jni_get_p2p_device_handle(e, o);
+    handle = nfc_jni_get_p2p_device_handle(e, o);
 
-   LOGD("phLibNfc_RemoteDev_Connect(P2P)");
-   REENTRANCE_LOCK();
-   status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback, (void*)e);
-   REENTRANCE_UNLOCK();
-   if(status != NFCSTATUS_PENDING)
-   {
+    LOGD("phLibNfc_RemoteDev_Connect(P2P)");
+    REENTRANCE_LOCK();
+    status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback, (void*)e);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
       LOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
       goto clean_and_return;
-   }
-   LOGD("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    }
+    LOGD("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
-   /* Wait for callback response */
-   sem_wait(&nfc_jni_peer_sem);
+    /* Wait for callback response */
+    sem_wait(&nfc_jni_peer_sem);
 
-   if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
-   {
-      goto clean_and_return;
-   }
+    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+    {
+        LOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
+        goto clean_and_return;
+    }
 
-   /* Set General Bytes */
-   target_cls = e->GetObjectClass(o);
-   
-   f = e->GetFieldID(target_cls, "mGeneralBytes", "[B");
-   
-   LOGD("General Bytes Length = %d", sGeneralBytes.length); 
-   LOGD("General Bytes =");
-   for(i=0;i<sGeneralBytes.length;i++)
-   {
+    /* Set General Bytes */
+    target_cls = e->GetObjectClass(o);
+
+    f = e->GetFieldID(target_cls, "mGeneralBytes", "[B");
+
+    LOGD("General Bytes Length = %d", sGeneralBytes.length);
+    LOGD("General Bytes =");
+    for(i=0;i<sGeneralBytes.length;i++)
+    {
       LOGD("0x%02x ", sGeneralBytes.buffer[i]);          
-   }
+    }
        
-   
-   generalBytes = e->NewByteArray(sGeneralBytes.length);   
+
+    generalBytes = e->NewByteArray(sGeneralBytes.length);
              
-   e->SetByteArrayRegion(generalBytes, 0, 
+    e->SetByteArrayRegion(generalBytes, 0,
                          sGeneralBytes.length, 
                          (jbyte *)sGeneralBytes.buffer);
              
-   e->SetObjectField(o, f, generalBytes);   
+    e->SetObjectField(o, f, generalBytes);
 
-   result = JNI_TRUE;
+    result = JNI_TRUE;
 
-clean_and_return:
-   CONCURRENCY_UNLOCK();
-   return result;
+    clean_and_return:
+    CONCURRENCY_UNLOCK();
+    return result;
 }
 
-static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e,
-   jobject o)
+static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject o)
 {
-   phLibNfc_Handle   handle = 0;
-   jboolean          result = JNI_FALSE;
-   
-   CONCURRENCY_LOCK();
-   
-   handle = nfc_jni_get_p2p_device_handle(e, o);
-   
-   /* Disconnect */
-   LOGD("Disconnecting from target (handle = 0x%x)", handle);
-   
-   /* Presence Check */
-   while(nfc_jni_p2p_presence_check == 0)
-   {
-      REENTRANCE_LOCK();
-      phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)e);
-      REENTRANCE_UNLOCK();
+    phLibNfc_Handle     handle = 0;
+    jboolean            result = JNI_FALSE;
+    NFCSTATUS           status;
+    CONCURRENCY_LOCK();
 
-      /* Wait for callback response */
-      sem_wait(&nfc_jni_peer_sem);
-   }
-   
-   nfc_jni_p2p_presence_check = 0;
-   LOGD("Target removed from the RF Field\n");
+    handle = nfc_jni_get_p2p_device_handle(e, o);
 
-   REENTRANCE_LOCK();
-   phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,
-      nfc_jni_disconnect_callback, (void *)e);
-   REENTRANCE_UNLOCK();
+    /* Disconnect */
+    LOGD("Disconnecting from target (handle = 0x%x)", handle);
 
-   /* Wait for callback response */
-   sem_wait(&nfc_jni_peer_sem);
+    /* Presence Check */
+    do
+    {
+        LOGD("phLibNfc_RemoteDev_CheckPresence()");
+        REENTRANCE_LOCK();
+        status = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)e);
+        REENTRANCE_UNLOCK();
+        if(status != NFCSTATUS_PENDING)
+        {
+             LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+             /* Disconnect Target */
+             break;
+        }
+        LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        /* Wait for callback response */
+        sem_wait(&nfc_jni_peer_sem);
+    } while(nfc_jni_cb_status == NFCSTATUS_SUCCESS);
 
-   if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
-   {
-      goto clean_and_return;
-   }
+    LOGD("Target removed from the RF Field\n");
 
-   result = JNI_TRUE;
+    LOGD("phLibNfc_RemoteDev_Disconnect()");
+    REENTRANCE_LOCK();
+    status = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,nfc_jni_disconnect_callback, (void *)e);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+        goto clean_and_return;
+    }
+    LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+    /* Wait for callback response */
+    sem_wait(&nfc_jni_peer_sem);
+
+    /* Disconnect Status */
+    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+    {
+        LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto clean_and_return;
+    }
+    LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    result = JNI_TRUE;
 
 clean_and_return:
-   CONCURRENCY_UNLOCK();
-   return result;
+    CONCURRENCY_UNLOCK();
+    return result;
 }
 
 static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
@@ -274,7 +283,6 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
 
    /* Wait for callback response */
    sem_wait(&nfc_jni_peer_sem);
-
    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
    {
       goto clean_and_return;
