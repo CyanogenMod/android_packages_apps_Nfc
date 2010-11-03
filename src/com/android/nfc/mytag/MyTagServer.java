@@ -87,6 +87,12 @@ public class MyTagServer {
                 mService.sendMockNdefTag(msg);
             } catch (FormatException e) {
                 Log.e(TAG, "badly formatted NDEF message, ignoring", e);
+            } finally {
+                try {
+                    mSock.close();
+                } catch (IOException e) {
+                    // ignore
+                }
             }
         }
     };
