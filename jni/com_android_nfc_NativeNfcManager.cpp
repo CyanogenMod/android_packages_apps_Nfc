@@ -79,7 +79,7 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	,{0x00,0x9E,0xD1,0xA1} //
 
 	// Change RF Level Detector ANARFLDWU
-	,{0x00,0x99,0x23,0x02} // Default Value is 0x01
+	,{0x00,0x99,0x23,0x00} // Default Value is 0x01
 
 	// Polling Loop Optimisation Detection  - 0x86 to enable - 0x00 to disable
 	,{0x00,0x9E,0x74,0x00} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
