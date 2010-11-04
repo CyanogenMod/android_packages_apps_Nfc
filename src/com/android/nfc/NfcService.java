@@ -110,7 +110,7 @@ public class NfcService extends Application {
     private static final boolean DISCOVERY_15693_DEFAULT = true;
 
     private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
-    private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
+    private static final boolean DISCOVERY_NFCIP_DEFAULT = false;
 
     /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
