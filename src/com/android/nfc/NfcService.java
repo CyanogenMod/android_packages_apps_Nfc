@@ -193,9 +193,9 @@ public class NfcService extends Application {
         mPrefsEditor = mPrefs.edit();
 
         mIsNfcEnabled = false;  // real preference read later
-        mScreenOn = true;  // assume screen is on during boot
 
         PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
+        mScreenOn = pm.isScreenOn();
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
