@@ -2063,7 +2063,8 @@ public class NfcService extends Application {
                                msgNdef[0] = new NdefMessage(buff);
                                NdefTag tag = new NdefTag(nativeTag.getUid(),
                                        TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                       null, null, nativeTag.getHandle(),
+                                       nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
+                                       nativeTag.getHandle(),
                                        TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
                                        new NdefMessage[][] {msgNdef});
                                Intent intent = buildNdefTagIntent(tag);
@@ -2088,7 +2089,8 @@ public class NfcService extends Application {
                            // Create an intent with an empty ndef message array
                            NdefTag tag = new NdefTag(nativeTag.getUid(),
                                    TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                   null, null, nativeTag.getHandle(),
+                                   nativeTag.getPollBytes(), nativeTag.getActivationBytes(),
+                                   nativeTag.getHandle(),
                                    TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
                                    new NdefMessage[][] { {} });
                            Intent intent = buildNdefTagIntent(tag);
@@ -2105,7 +2107,8 @@ public class NfcService extends Application {
                        Intent intent = new Intent();
                        Tag tag = new Tag(nativeTag.getUid(), false,
                                TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                               null, null, nativeTag.getHandle());
+                               nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
+                               nativeTag.getHandle());
                        intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
                        intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
                        intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
