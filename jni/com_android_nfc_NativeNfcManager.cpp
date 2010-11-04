@@ -51,6 +51,7 @@ static jmethodID cached_NfcManager_notifyTargetDeselected;
 namespace android {
 
 phLibNfc_Handle     hIncommingLlcpSocket;
+phLibNfc_Handle     storedHandle = 0;
 sem_t               *nfc_jni_llcp_listen_sem;
 
 struct nfc_jni_native_data *exported_nat = NULL;
@@ -198,6 +199,9 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat)
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index=0, SmartMX_detected = 0;
    
    LOGD("Start Initialization\n");
+
+   /* Reset stored handle */
+   storedHandle = 0;
 
    /* Configure hardware link */
    gDrvCfg.nClientId = phDal4Nfc_msgget(0, 0600);
@@ -992,6 +996,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       f = e->GetFieldID(tag_cls, "mHandle", "I");
       e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
       LOGD("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
+      storedHandle = psRemoteDevList[target_index].hTargetDev;
       if (nat->tag != NULL) {
           e->DeleteGlobalRef(nat->tag);
       }
@@ -1320,6 +1325,56 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
 } 
 
 
+static void nfc_jni_disconnect_callback(void *pContext,
+   phLibNfc_Handle hRemoteDev, NFCSTATUS status)
+{
+   LOG_CALLBACK("nfc_jni_disconnect_callback", status);
+
+   nfc_jni_cb_status = status;
+
+   sem_post(nfc_jni_manager_sem);
+}
+
+static void com_android_nfc_NfcManager_doDisconnectTag()
+{
+   NFCSTATUS status;
+   jboolean result = JNI_FALSE;
+
+   /* Disconnect */
+   LOGI("Disconnecting from tag (%x)", storedHandle);
+
+    LOGD("phLibNfc_RemoteDev_Disconnect(%x)", storedHandle);
+    REENTRANCE_LOCK();
+    status = phLibNfc_RemoteDev_Disconnect(storedHandle, NFC_DISCOVERY_CONTINUE,
+                                           nfc_jni_disconnect_callback, &storedHandle);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
+        /* Reset stored handle */
+        storedHandle = 0;
+        return;
+    }
+    LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
+
+    /* Wait for callback response */
+    sem_wait(nfc_jni_manager_sem);
+
+    /* Disconnect Status */
+    if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
+    {
+        LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
+        /* Reset stored handle */
+        storedHandle = 0;
+        return;
+    }
+    LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
+
+    /* Reset stored handle */
+    storedHandle = 0;
+}
+
+
 static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 {
     struct nfc_jni_native_data *nat;
@@ -1330,6 +1385,12 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
     nat = nfc_jni_get_nat(e, o);
    
     nfc_jni_stop_discovery_locked(nat);
+
+    if(storedHandle != 0)
+    {
+        LOGD("Disconnect connected TAG");
+        com_android_nfc_NfcManager_doDisconnectTag();
+    }
 
     CONCURRENCY_UNLOCK();
 }
