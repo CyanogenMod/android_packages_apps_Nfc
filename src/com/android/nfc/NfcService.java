@@ -43,6 +43,7 @@ import android.nfc.Tag;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
@@ -168,6 +169,7 @@ public class NfcService extends Application {
     private NativeNfcManager mManager;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
+    private PowerManager.WakeLock mWakeLock;
 
     private static NfcService sService;
 
@@ -192,6 +194,9 @@ public class NfcService extends Application {
 
         mIsNfcEnabled = false;  // real preference read later
         mScreenOn = true;  // assume screen is on during boot
+
+        PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
+        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
@@ -2232,10 +2237,12 @@ public class NfcService extends Application {
                     maybeEnableDiscovery();
                 }
             } else {
+                mWakeLock.acquire();
                 synchronized (NfcService.this) {
                     mScreenOn = false;
                     maybeDisableDiscovery();
                 }
+                mWakeLock.release();
             }
             return null;
         }
