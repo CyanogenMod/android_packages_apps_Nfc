@@ -44,9 +44,6 @@ static void nfc_jni_connect_callback(void *pContext,
                                             phLibNfc_Handle hRemoteDev,
                                             phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo, NFCSTATUS status)
 {   
-   
-
-   
    LOG_CALLBACK("nfc_jni_connect_callback", status);
    
    if(status == NFCSTATUS_SUCCESS)
@@ -129,7 +126,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
 
     handle = nfc_jni_get_p2p_device_handle(e, o);
 
-    LOGD("phLibNfc_RemoteDev_Connect(P2P)");
+    TRACE("phLibNfc_RemoteDev_Connect(P2P)");
     REENTRANCE_LOCK();
     status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback, (void*)e);
     REENTRANCE_UNLOCK();
@@ -139,7 +136,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
       nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
       goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    TRACE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
     sem_wait(nfc_jni_peer_sem);
@@ -155,11 +152,11 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
 
     f = e->GetFieldID(target_cls, "mGeneralBytes", "[B");
 
-    LOGD("General Bytes Length = %d", sGeneralBytes.length);
-    LOGD("General Bytes =");
+    TRACE("General Bytes Length = %d", sGeneralBytes.length);
+    TRACE("General Bytes =");
     for(i=0;i<sGeneralBytes.length;i++)
     {
-      LOGD("0x%02x ", sGeneralBytes.buffer[i]);          
+      TRACE("0x%02x ", sGeneralBytes.buffer[i]);          
     }
        
 
@@ -188,14 +185,14 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     handle = nfc_jni_get_p2p_device_handle(e, o);
 
     /* Disconnect */
-    LOGD("Disconnecting from target (handle = 0x%x)", handle);
+    TRACE("Disconnecting from target (handle = 0x%x)", handle);
 
     /* NativeNfcTag waits for tag to leave the field here with presence check.
      * We do not in P2P path because presence check is not safe while transceive may be
      * in progress.
      */
 
-    LOGD("phLibNfc_RemoteDev_Disconnect()");
+    TRACE("phLibNfc_RemoteDev_Disconnect()");
     REENTRANCE_LOCK();
     status = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,nfc_jni_disconnect_callback, (void *)e);
     REENTRANCE_UNLOCK();
@@ -205,7 +202,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
         nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
         goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    TRACE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
     sem_wait(nfc_jni_peer_sem);
@@ -216,7 +213,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
         LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
         goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    TRACE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
     result = JNI_TRUE;
 
 clean_and_return:
@@ -238,12 +235,12 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
    CONCURRENCY_LOCK();
 
    /* Transceive*/
-   LOGD("Transceive data to target (handle = 0x%x)", handle);
+   TRACE("Transceive data to target (handle = 0x%x)", handle);
 
    buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
    buflen = (uint32_t)e->GetArrayLength(data);
    
-   LOGD("Buffer Length = %d\n", buflen);
+   TRACE("Buffer Length = %d\n", buflen);
 
    transceive_info.sSendData.buffer = buf; //+ offset;
    transceive_info.sSendData.length = buflen; //- offset;
@@ -255,7 +252,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
       goto clean_and_return;
    }
 
-   LOGD("phLibNfc_RemoteDev_Transceive(P2P)");
+   TRACE("phLibNfc_RemoteDev_Transceive(P2P)");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Transceive(handle, &transceive_info, nfc_jni_transceive_callback, (void *)e);
    REENTRANCE_UNLOCK();
@@ -264,7 +261,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
       LOGE("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_peer_sem);
@@ -281,7 +278,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
          (jbyte *)nfc_jni_transceive_buffer->buffer);
 
 clean_and_return:
-   LOGD("P2P Transceive status = 0x%08x",nfc_jni_cb_status);
+   TRACE("P2P Transceive status = 0x%08x",nfc_jni_cb_status);
    if(transceive_info.sRecvData.buffer != NULL)
       free(transceive_info.sRecvData.buffer);
 
@@ -308,7 +305,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
    handle = nfc_jni_get_p2p_device_handle(e, o);
    
    /* Receive */
-   LOGD("phLibNfc_RemoteDev_Receive()");
+   TRACE("phLibNfc_RemoteDev_Receive()");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Receive(handle, nfc_jni_receive_callback,(void *)&data);
    REENTRANCE_UNLOCK();
@@ -317,7 +314,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
       LOGE("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;   
    }
-   LOGD("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    if(sem_wait(nfc_jni_peer_sem) == -1)
@@ -350,12 +347,12 @@ static jboolean com_android_nfc_NativeP2pDevice_doSend(
    CONCURRENCY_LOCK();
 
    /* Send */
-   LOGD("Send data to the Initiator (handle = 0x%x)", handle);
+   TRACE("Send data to the Initiator (handle = 0x%x)", handle);
 
    data.length = (uint32_t)e->GetArrayLength(buf);
    data.buffer = (uint8_t *)e->GetByteArrayElements(buf, NULL);
 
-   LOGD("phLibNfc_RemoteDev_Send()");
+   TRACE("phLibNfc_RemoteDev_Send()");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Send(handle, &data, nfc_jni_send_callback,(void *)e);
    REENTRANCE_UNLOCK();
@@ -364,7 +361,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doSend(
       LOGE("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;   
    }
-   LOGD("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_peer_sem);

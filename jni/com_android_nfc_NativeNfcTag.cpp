@@ -131,9 +131,9 @@ static void nfc_jni_async_presence_check_callback(void* pContext,NFCSTATUS  stat
    if(status != NFCSTATUS_SUCCESS)
    {
       /* Disconnect & Restart Polling loop */
-      LOGI("Tag removed from the RF Field\n");
+      TRACE("Tag removed from the RF Field\n");
 
-      LOGD("phLibNfc_RemoteDev_Disconnect(async)");
+      TRACE("phLibNfc_RemoteDev_Disconnect(async)");
       REENTRANCE_LOCK();
       ret = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE, nfc_jni_async_disconnect_callback,(void*)handle);
       REENTRANCE_UNLOCK();
@@ -144,11 +144,11 @@ static void nfc_jni_async_presence_check_callback(void* pContext,NFCSTATUS  stat
          nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(env));
          return;
       }
-      LOGD("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      TRACE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    }
    else
    {
-      LOGD("phLibNfc_RemoteDev_CheckPresence(async)");
+      TRACE("phLibNfc_RemoteDev_CheckPresence(async)");
       /* Presence Check */
       REENTRANCE_LOCK();
       ret = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_async_presence_check_callback, (void*)env);
@@ -158,7 +158,7 @@ static void nfc_jni_async_presence_check_callback(void* pContext,NFCSTATUS  stat
          LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
          return;
       }
-      LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    }
 }
 
@@ -201,7 +201,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    nfc_jni_ndef_rw.length = nfc_jni_ndef_buf_len;
    nfc_jni_ndef_rw.buffer = nfc_jni_ndef_buf;
 
-   LOGD("phLibNfc_Ndef_Read()");
+   TRACE("phLibNfc_Ndef_Read()");
    REENTRANCE_LOCK();
    status = phLibNfc_Ndef_Read(handle, &nfc_jni_ndef_rw,
                                phLibNfc_Ndef_EBegin, 
@@ -213,7 +213,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
       LOGE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
     
    /* Wait for callback response */
    sem_wait(nfc_jni_tag_sem);
@@ -248,9 +248,9 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    nfc_jni_ndef_rw.length = (uint32_t)e->GetArrayLength(buf);
    nfc_jni_ndef_rw.buffer = (uint8_t *)e->GetByteArrayElements(buf, NULL);
 
-   LOGD("phLibNfc_Ndef_Write()");
-   LOGD("Ndef Handle :0x%x\n",handle);
-   LOGD("Ndef buffer length : %d", nfc_jni_ndef_rw.length);
+   TRACE("phLibNfc_Ndef_Write()");
+   TRACE("Ndef Handle :0x%x\n",handle);
+   TRACE("Ndef buffer length : %d", nfc_jni_ndef_rw.length);
    REENTRANCE_LOCK();
    status = phLibNfc_Ndef_Write(handle, &nfc_jni_ndef_rw,nfc_jni_tag_rw_callback, (void *)e);
    REENTRANCE_UNLOCK();
@@ -259,7 +259,7 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
       LOGE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_tag_sem);
@@ -293,7 +293,7 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
-   LOGD("phLibNfc_RemoteDev_Connect(RW)");
+   TRACE("phLibNfc_RemoteDev_Connect(RW)");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback,(void *)e);
    REENTRANCE_UNLOCK();
@@ -302,7 +302,7 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
       LOGE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_tag_sem);
@@ -336,12 +336,12 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    storedHandle = 0;
 
    /* Disconnect */
-   LOGI("Disconnecting from tag (%x)", handle);
+   TRACE("Disconnecting from tag (%x)", handle);
    
    /* Presence Check */
    do
    {
-      LOGD("phLibNfc_RemoteDev_CheckPresence(%x)", handle);
+      TRACE("phLibNfc_RemoteDev_CheckPresence(%x)", handle);
       REENTRANCE_LOCK();
       status = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)e);
       REENTRANCE_UNLOCK();
@@ -351,15 +351,15 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
          /* Disconnect Tag */
          break;
       }
-      LOGD("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
+      TRACE("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
       /* Wait for callback response */
       sem_wait(nfc_jni_tag_sem);
 
     } while(nfc_jni_cb_status == NFCSTATUS_SUCCESS);
 
-    LOGI("Tag removed from the RF Field\n");
+    TRACE("Tag removed from the RF Field\n");
 
-    LOGD("phLibNfc_RemoteDev_Disconnect(%x)", handle);
+    TRACE("phLibNfc_RemoteDev_Disconnect(%x)", handle);
     REENTRANCE_LOCK();
     status = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,
                                           nfc_jni_disconnect_callback, (void *)e);
@@ -368,7 +368,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
     {
         result = JNI_TRUE;
-        LOGD("phLibNfc_RemoteDev_Disconnect() - Target already disconnected");
+        TRACE("phLibNfc_RemoteDev_Disconnect() - Target already disconnected");
         goto clean_and_return;
     }
     if(status != NFCSTATUS_PENDING)
@@ -377,7 +377,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
         nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
         goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
+    TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
     sem_wait(nfc_jni_tag_sem);
@@ -385,10 +385,10 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     /* Disconnect Status */
     if(nfc_jni_cb_status != NFCSTATUS_SUCCESS)
     {
-        LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
+        TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
         goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
+    TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, nfc_jni_cb_status, nfc_jni_get_status_name(nfc_jni_cb_status));
     result = JNI_TRUE;
 
 clean_and_return:
@@ -412,7 +412,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
 
     CONCURRENCY_LOCK();
 
-    LOGD("Tag %s\n", str);
+    TRACE("Tag %s\n", str);
 
     buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
     buflen = (uint32_t)e->GetArrayLength(data);
@@ -453,7 +453,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
       goto clean_and_return;
     }
 
-    LOGD("phLibNfc_RemoteDev_Transceive()");
+    TRACE("phLibNfc_RemoteDev_Transceive()");
     REENTRANCE_LOCK();
     status = phLibNfc_RemoteDev_Transceive(handle, &transceive_info,
          nfc_jni_transceive_callback, (void *)e);
@@ -463,7 +463,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
       LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
     }
-    LOGD("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    TRACE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
     /* Wait for callback response */
     sem_wait(nfc_jni_tag_sem);
@@ -507,7 +507,7 @@ static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
-   LOGD("phLibNfc_Ndef_CheckNdef()");
+   TRACE("phLibNfc_Ndef_CheckNdef()");
    REENTRANCE_LOCK();
    status = phLibNfc_Ndef_CheckNdef(handle, nfc_jni_checkndef_callback,(void *)e);
    REENTRANCE_UNLOCK();
@@ -516,7 +516,7 @@ static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
       LOGE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    /* Wait for callback response */
    sem_wait(nfc_jni_tag_sem);
 
@@ -542,7 +542,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
-   LOGD("phLibNfc_RemoteDev_CheckPresence()");
+   TRACE("phLibNfc_RemoteDev_CheckPresence()");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_CheckPresence(handle, nfc_jni_presencecheck_callback, (void *)e);
    REENTRANCE_UNLOCK();
@@ -552,7 +552,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
       LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_tag_sem);

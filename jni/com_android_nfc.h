@@ -30,8 +30,10 @@ extern "C" {
 #include <phNfcIoctlCode.h>
 #include <phLibNfc.h>
 #include <phDal4Nfc_messageQueueLib.h>
+#include <cutils/log.h>
 }
 #include <cutils/properties.h> // for property_get
+
 
 /* Discovery modes -- keep in sync with NFCManager.DISCOVERY_MODE_* */
 #define DISCOVERY_MODE_TAG_READER         0
@@ -77,7 +79,15 @@ extern "C" {
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN
-#define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, nfc_jni_get_status_name(status));
+
+#if 0
+  #define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, nfc_jni_get_status_name(status));
+  #define TRACE(...) LOG(LOG_DEBUG, "NdefMessage", __VA_ARGS__)
+#else
+  #define LOG_CALLBACK(...)
+  #define TRACE(...)
+#endif
+
 
 struct nfc_jni_native_data
 {

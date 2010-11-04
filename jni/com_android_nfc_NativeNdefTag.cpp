@@ -52,7 +52,7 @@ static jbyteArray com_android_nfc_NativeNdefTag_doRead(JNIEnv *e,
    nfc_jni_ndef_rw.length = nfc_jni_ndef_buf_len;
    nfc_jni_ndef_rw.buffer = nfc_jni_ndef_buf;
 
-   LOGD("phLibNfc_Ndef_Read()");
+   TRACE("phLibNfc_Ndef_Read()");
    REENTRANCE_LOCK();
    status = phLibNfc_Ndef_Read( handle,
                                 &nfc_jni_ndef_rw,
@@ -65,7 +65,7 @@ static jbyteArray com_android_nfc_NativeNdefTag_doRead(JNIEnv *e,
       LOGE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_ndef_tag_sem);
@@ -97,7 +97,7 @@ static jboolean com_android_nfc_NativeNdefTag_doWrite(JNIEnv *e,
    nfc_jni_ndef_rw.length = (uint32_t)e->GetArrayLength(buf);
    nfc_jni_ndef_rw.buffer = (uint8_t *)e->GetByteArrayElements(buf, NULL);
 
-   LOGD("phLibNfc_Ndef_Write()");
+   TRACE("phLibNfc_Ndef_Write()");
    REENTRANCE_LOCK();
    status  = phLibNfc_Ndef_Write(handle, &nfc_jni_ndef_rw,nfc_jni_tag_rw_callback, (void *)e);
    REENTRANCE_UNLOCK();
@@ -106,7 +106,7 @@ static jboolean com_android_nfc_NativeNdefTag_doWrite(JNIEnv *e,
       LOGE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    sem_wait(nfc_jni_ndef_tag_sem);

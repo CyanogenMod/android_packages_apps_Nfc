@@ -50,7 +50,7 @@ static void nfc_jni_connect_callback(void* pContext, uint8_t nErrCode, NFCSTATUS
 
    if(status == NFCSTATUS_SUCCESS)
    {
-      LOGD("Socket connected\n");
+      TRACE("Socket connected\n");
    }
    else
    {
@@ -125,7 +125,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
    
-   LOGD("phLibNfc_Llcp_Connect(%d)",nSap);
+   TRACE("phLibNfc_Llcp_Connect(%d)",nSap);
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Connect(hLlcpSocket,
                                nSap,
@@ -137,7 +137,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
       LOGE("phLibNfc_Llcp_Connect(%d) returned 0x%04x[%s]", nSap, ret, nfc_jni_get_status_name(ret));
       return FALSE;
    }
-   LOGD("phLibNfc_Llcp_Connect(%d) returned 0x%04x[%s]", nSap, ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_Connect(%d) returned 0x%04x[%s]", nSap, ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
    if(sem_wait(nfc_jni_llcp_sem) == -1)
@@ -145,7 +145,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
    
    if(nfc_jni_cb_status == NFCSTATUS_SUCCESS)
    {
-      LOGD("LLCP Connect request OK");
+      TRACE("LLCP Connect request OK");
       return TRUE; 
    }
    else
@@ -169,7 +169,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject 
    serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
    serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
    
-   LOGD("phLibNfc_Llcp_ConnectByUri()");
+   TRACE("phLibNfc_Llcp_ConnectByUri()");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_ConnectByUri(hLlcpSocket,
                                     &serviceName,
@@ -181,7 +181,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject 
       LOGE("phLibNfc_Llcp_ConnectByUri() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE;
    }   
-   LOGD("phLibNfc_Llcp_ConnectByUri() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_ConnectByUri() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
    if(sem_wait(nfc_jni_llcp_sem) == -1)
@@ -205,7 +205,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doClose(JNIEnv *e, jobject o)
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
    
-   LOGD("phLibNfc_Llcp_Close()");
+   TRACE("phLibNfc_Llcp_Close()");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Close(hLlcpSocket);
    REENTRANCE_UNLOCK();
@@ -214,7 +214,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doClose(JNIEnv *e, jobject o)
       LOGE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE; 
    }
-   LOGD("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    return TRUE;
 }
 
@@ -231,7 +231,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jb
    sSendBuffer.buffer = (uint8_t*)e->GetByteArrayElements(data, NULL);
    sSendBuffer.length = (uint32_t)e->GetArrayLength(data);
    
-   LOGD("phLibNfc_Llcp_Send()");
+   TRACE("phLibNfc_Llcp_Send()");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Send(hLlcpSocket,
                             &sSendBuffer,
@@ -243,7 +243,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jb
       LOGE("phLibNfc_Llcp_Send() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE;
    } 
-   LOGD("phLibNfc_Llcp_Send() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_Send() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Wait for callback response */
    if(sem_wait(nfc_jni_llcp_sem) == -1)
@@ -273,7 +273,7 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
    sReceiveBuffer.buffer = (uint8_t*)e->GetByteArrayElements(buffer, NULL);
    sReceiveBuffer.length = (uint32_t)e->GetArrayLength(buffer);
    
-   LOGD("phLibNfc_Llcp_Recv()");
+   TRACE("phLibNfc_Llcp_Recv()");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Recv(hLlcpSocket,
                             &sReceiveBuffer,
@@ -286,7 +286,7 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
        LOGE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
        return 0;
    }
-   LOGD("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Wait for callback response (happen if status is either SUCCESS or PENDING) */
    if(sem_wait(nfc_jni_llcp_sem) == -1)
@@ -313,14 +313,14 @@ static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, job
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);   
    
-   LOGD("phLibNfc_Llcp_SocketGetRemoteOptions(MIU)");
+   TRACE("phLibNfc_Llcp_SocketGetRemoteOptions(MIU)");
    REENTRANCE_LOCK();
    ret  = phLibNfc_Llcp_SocketGetRemoteOptions(hLlcpSocket,
                                                &remoteSocketOption);
    REENTRANCE_UNLOCK();
    if(ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("phLibNfc_Llcp_SocketGetRemoteOptions(MIU) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      TRACE("phLibNfc_Llcp_SocketGetRemoteOptions(MIU) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return remoteSocketOption.miu;
    }
    else
@@ -339,14 +339,14 @@ static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobj
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);   
 
-   LOGD("phLibNfc_Llcp_SocketGetRemoteOptions(RW)");
+   TRACE("phLibNfc_Llcp_SocketGetRemoteOptions(RW)");
    REENTRANCE_LOCK();
    ret  = phLibNfc_Llcp_SocketGetRemoteOptions(hLlcpSocket,
                                                &remoteSocketOption);
    REENTRANCE_UNLOCK();
    if(ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("phLibNfc_Llcp_SocketGetRemoteOptions(RW) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      TRACE("phLibNfc_Llcp_SocketGetRemoteOptions(RW) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return remoteSocketOption.rw;
    }
    else
