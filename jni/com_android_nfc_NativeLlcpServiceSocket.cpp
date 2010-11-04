@@ -73,7 +73,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    sWorkingBuffer.length = (miu*rw)+ miu + linearBufferLength;
    
    /* Accept the incomming socket */
-   LOGD("phLibNfc_Llcp_Accept()");
+   TRACE("phLibNfc_Llcp_Accept()");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Accept( hIncommingLlcpSocket,
                                &sOptions,
@@ -87,7 +87,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
       LOGE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return NULL;
    }                                
-   LOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+   TRACE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
                                
    /* Wait for tag Notification */
    if(sem_wait(nfc_jni_llcp_sem) == -1)
@@ -115,19 +115,17 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
       /* Set socket handle */
       f = e->GetFieldID(clsNativeLlcpSocket, "mHandle", "I");
       e->SetIntField(clientSocket, f,(jint)hIncommingLlcpSocket);
-      LOGD("socket Handle = %02x\n",hIncommingLlcpSocket);  
    
       /* Set socket MIU */
       f = e->GetFieldID(clsNativeLlcpSocket, "mLocalMiu", "I");
       e->SetIntField(clientSocket, f,(jint)miu);
-      LOGD("socket MIU = %d\n",miu);  
    
       /* Set socket RW */
       f = e->GetFieldID(clsNativeLlcpSocket, "mLocalRw", "I");
       e->SetIntField(clientSocket, f,(jint)rw);
-      LOGD("socket RW = %d\n",rw);   
-                               
-                           
+
+      TRACE("socket handle 0x%02x: MIU = %d, RW = %d\n",hIncommingLlcpSocket, miu, rw);
+
       return clientSocket;   
    
    }
@@ -141,7 +139,7 @@ static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
-   LOGD("Close Service socket");
+   TRACE("Close Service socket");
    
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
@@ -151,7 +149,7 @@ static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
    REENTRANCE_UNLOCK();
    if(ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("Close Service socket OK");
+      TRACE("Close Service socket OK");
       return TRUE;
    }
    else

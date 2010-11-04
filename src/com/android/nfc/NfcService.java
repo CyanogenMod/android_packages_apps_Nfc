@@ -53,7 +53,7 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 
 public class NfcService extends Application {
-    private static final String MY_TAG_FILE_NAME = "mytag";
+    static final boolean DBG = false;
 
     static {
         System.loadLibrary("nfc_jni");
@@ -246,12 +246,12 @@ public class NfcService extends Application {
             boolean isSuccess = false;
             mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
             boolean previouslyEnabled = isEnabled();
-            Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
+            if (DBG) Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
             if (previouslyEnabled) {
                 /* tear down the my tag server */
                 isSuccess = mManager.deinitialize();
-                Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
+                if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
                     mIsNfcEnabled = false;
                 }
@@ -422,7 +422,7 @@ public class NfcService extends Application {
                 /* update socket handle generation */
                 mGeneratedSocketHandle += 1;
 
-                Log.d(TAG, "Llcp Service Socket Handle =" + sockeHandle);
+                if (DBG) Log.d(TAG, "Llcp Service Socket Handle =" + sockeHandle);
                 return sockeHandle;
             } else {
                 /* No socket available */
@@ -445,7 +445,7 @@ public class NfcService extends Application {
                 int sockeHandle = mGeneratedSocketHandle;
 
                 if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    Log.d(TAG, "creating llcp socket while activated");
+                    if (DBG) Log.d(TAG, "creating llcp socket while activated");
                     NativeLlcpSocket socket;
 
                     socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
@@ -479,7 +479,7 @@ public class NfcService extends Application {
                         }
                     }
                 } else {
-                    Log.d(TAG, "registering llcp socket while not activated");
+                    if (DBG) Log.d(TAG, "registering llcp socket while not activated");
 
                     /* Check SAP is not already used */
                     if (!CheckSocketSap(sap)) {
@@ -1855,7 +1855,7 @@ public class NfcService extends Application {
             if (registeredSocket.mHandle == nativeHandle) {
                 /* remove the registered socket from the list */
                 it.remove();
-                Log.d(TAG, "socket removed");
+                if (DBG) Log.d(TAG, "socket removed");
             }
         }
     }
@@ -1941,7 +1941,7 @@ public class NfcService extends Application {
         /* check if sockets are registered */
         ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
 
-        Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
+        if (DBG) Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
 
         /* Mark the link state */
         mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_ACTIVATED;
@@ -1951,8 +1951,8 @@ public class NfcService extends Application {
 
             switch (registeredSocket.mType) {
             case LLCP_SERVICE_SOCKET_TYPE:
-                Log.d(TAG, "Registered Llcp Service Socket");
-                Log.d(TAG, "SAP: " + registeredSocket.mSap + ", SN: " + registeredSocket.mServiceName);
+                if (DBG) Log.d(TAG, "Registered Llcp Service Socket");
+                if (DBG) Log.d(TAG, "SAP: " + registeredSocket.mSap + ", SN: " + registeredSocket.mServiceName);
                 NativeLlcpServiceSocket serviceSocket;
 
                 serviceSocket = mManager.doCreateLlcpServiceSocket(
@@ -1961,7 +1961,7 @@ public class NfcService extends Application {
                         registeredSocket.mlinearBufferLength);
 
                 if (serviceSocket != null) {
-                    Log.d(TAG, "service socket created");
+                    if (DBG) Log.d(TAG, "service socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, serviceSocket);
@@ -1979,13 +1979,13 @@ public class NfcService extends Application {
                 break;
 
             case LLCP_SOCKET_TYPE:
-                Log.d(TAG, "Registered Llcp Socket");
+                if (DBG) Log.d(TAG, "Registered Llcp Socket");
                 NativeLlcpSocket clientSocket;
                 clientSocket = mManager.doCreateLlcpSocket(registeredSocket.mSap,
                         registeredSocket.mMiu, registeredSocket.mRw,
                         registeredSocket.mlinearBufferLength);
                 if (clientSocket != null) {
-                    Log.d(TAG, "socket created");
+                    if (DBG) Log.d(TAG, "socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, clientSocket);
@@ -2001,12 +2001,12 @@ public class NfcService extends Application {
                 break;
 
             case LLCP_CONNECTIONLESS_SOCKET_TYPE:
-                Log.d(TAG, "Registered Llcp Connectionless Socket");
+                if (DBG) Log.d(TAG, "Registered Llcp Connectionless Socket");
                 NativeLlcpConnectionlessSocket connectionlessSocket;
                 connectionlessSocket = mManager.doCreateLlcpConnectionlessSocket(
                         registeredSocket.mSap);
                 if (connectionlessSocket != null) {
-                    Log.d(TAG, "connectionless socket created");
+                    if (DBG) Log.d(TAG, "connectionless socket created");
                     /* Add the socket into the socket map */
                     synchronized(NfcService.this) {
                         mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
@@ -2030,7 +2030,7 @@ public class NfcService extends Application {
         LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
                 NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
 
-        Log.d(TAG, "Broadcasting LLCP activation");
+        if (DBG) Log.d(TAG, "Broadcasting LLCP activation");
         mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
     }
 
@@ -2046,7 +2046,7 @@ public class NfcService extends Application {
         public void handleMessage(Message msg) {
            switch (msg.what) {
            case MSG_NDEF_TAG:
-               Log.d(TAG, "Tag detected, notifying applications");
+               if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
                if (nativeTag.connect()) {
                    if (nativeTag.checkNdef()) {
@@ -2063,8 +2063,8 @@ public class NfcService extends Application {
                                        TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
                                        new NdefMessage[][] {msgNdef});
                                Intent intent = buildNdefTagIntent(tag);
-                               Log.d(TAG, "NDEF tag found, starting corresponding activity");
-                               Log.d(TAG, tag.toString());
+                               if (DBG) Log.d(TAG, "NDEF tag found, starting corresponding activity");
+                               if (DBG) Log.d(TAG, tag.toString());
                                try {
                                    mContext.startActivity(intent);
                                    registerTagObject(nativeTag);
@@ -2089,7 +2089,7 @@ public class NfcService extends Application {
                                    TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
                                    new NdefMessage[][] { {} });
                            Intent intent = buildNdefTagIntent(tag);
-                           Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
+                           if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
                            try {
                                mContext.startActivity(intent);
                                registerTagObject(nativeTag);
@@ -2108,8 +2108,8 @@ public class NfcService extends Application {
                        intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
                        intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                       Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
-                       Log.d(TAG, tag.toString());
+                       if (DBG) Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
+                       if (DBG) Log.d(TAG, tag.toString());
                        try {
                            mContext.startActivity(intent);
                            registerTagObject(nativeTag);
@@ -2124,13 +2124,13 @@ public class NfcService extends Application {
                }
                break;
            case MSG_CARD_EMULATION:
-               Log.d(TAG, "Card Emulation message");
+               if (DBG) Log.d(TAG, "Card Emulation message");
                byte[] aid = (byte[]) msg.obj;
                /* Send broadcast ordered */
                Intent TransactionIntent = new Intent();
                TransactionIntent.setAction(NfcAdapter.ACTION_TRANSACTION_DETECTED);
                TransactionIntent.putExtra(NfcAdapter.EXTRA_AID, aid);
-               Log.d(TAG, "Broadcasting Card Emulation event");
+               if (DBG) Log.d(TAG, "Broadcasting Card Emulation event");
                mContext.sendOrderedBroadcast(TransactionIntent, NFC_PERM);
                break;
 
@@ -2140,13 +2140,13 @@ public class NfcService extends Application {
                Log.d(TAG, "LLCP Activation message");
 
                if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
-                   Log.d(TAG, "NativeP2pDevice.MODE_P2P_TARGET");
+                   if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_TARGET");
                    if (device.doConnect()) {
                        /* Check Llcp compliancy */
                        if (mManager.doCheckLlcp()) {
                            /* Activate Llcp Link */
                            if (mManager.doActivateLlcp()) {
-                               Log.d(TAG, "Initiator Activate LLCP OK");
+                               if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
                                activateLlcpLink();
                            } else {
                                /* should not happen */
@@ -2155,25 +2155,25 @@ public class NfcService extends Application {
                            }
 
                        } else {
-                           Log.d(TAG, "Remote Target does not support LLCP. Disconnect.");
+                           if (DBG) Log.d(TAG, "Remote Target does not support LLCP. Disconnect.");
                            device.doDisconnect();
                        }
                    } else {
-                       Log.d(TAG, "Cannot connect remote Target. Restart polling loop.");
+                       if (DBG) Log.d(TAG, "Cannot connect remote Target. Restart polling loop.");
                        /* resume should be done in doConnect */
                    }
 
                } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {
-                   Log.d(TAG, "NativeP2pDevice.MODE_P2P_INITIATOR");
+                   if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_INITIATOR");
                    /* Check Llcp compliancy */
                    if (mManager.doCheckLlcp()) {
                        /* Activate Llcp Link */
                        if (mManager.doActivateLlcp()) {
-                           Log.d(TAG, "Target Activate LLCP OK");
+                           if (DBG) Log.d(TAG, "Target Activate LLCP OK");
                            activateLlcpLink();
                       }
                    } else {
-                       Log.d(TAG, "checkLlcp failed");
+                       Log.w(TAG, "checkLlcp failed");
                    }
                }
                break;
@@ -2183,11 +2183,11 @@ public class NfcService extends Application {
 
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
                if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
-                   Log.d(TAG, "disconnecting from target");
+                   if (DBG) Log.d(TAG, "disconnecting from target");
                    /* Restart polling loop */
                    device.doDisconnect();
                } else {
-                   Log.d(TAG, "not disconnecting from initiator");
+                   if (DBG) Log.d(TAG, "not disconnecting from initiator");
                }
 
                /* Mark the link state */
@@ -2198,16 +2198,16 @@ public class NfcService extends Application {
                LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
                LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
                        NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-               Log.d(TAG, "Broadcasting LLCP deactivation");
+               if (DBG) Log.d(TAG, "Broadcasting LLCP deactivation");
                mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
                break;
 
            case MSG_TARGET_DESELECTED:
                /* Broadcast Intent Target Deselected */
-               Log.d(TAG, "Target Deselected");
+               if (DBG) Log.d(TAG, "Target Deselected");
                Intent TargetDeselectedIntent = new Intent();
                TargetDeselectedIntent.setAction(mManager.INTERNAL_TARGET_DESELECTED_ACTION);
-               Log.d(TAG, "Broadcasting Intent");
+               if (DBG) Log.d(TAG, "Broadcasting Intent");
                mContext.sendOrderedBroadcast(TargetDeselectedIntent, NFC_PERM);
                break;
 
@@ -2253,7 +2253,7 @@ public class NfcService extends Application {
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(
                     NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
-                Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
+                if (DBG) Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
 
                 /* Restart polling loop for notification */
                 maybeEnableDiscovery();

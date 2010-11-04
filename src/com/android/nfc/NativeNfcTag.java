@@ -22,6 +22,8 @@ import android.util.Log;
  * Native interface to the NFC tag functions
  */
 public class NativeNfcTag {
+    static final boolean DBG = false;
+
     private int mHandle;
 
     private String mType;
@@ -51,7 +53,7 @@ public class NativeNfcTag {
 
         @Override
         public void run() {
-            Log.d(TAG, "Starting background presence check");
+            if (DBG) Log.d(TAG, "Starting background presence check");
             while (isPresent && isRunning) {
                 try {
                     Thread.sleep(1000);
@@ -65,7 +67,7 @@ public class NativeNfcTag {
                 Log.d(TAG, "Tag lost, restarting polling loop");
                 doDisconnect();
             }
-            Log.d(TAG, "Stopping background presence check");
+            if (DBG) Log.d(TAG, "Stopping background presence check");
         }
     }
 
