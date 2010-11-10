@@ -63,19 +63,17 @@ extern "C" {
 #define ERROR_BUFFER_TOO_SMALL            -12
 #define ERROR_INSUFFICIENT_RESOURCES      -9
 
-/* Name strings for target types */
-#define TARGET_TYPE_ISO14443_3A     "Iso14443-3A"
-#define TARGET_TYPE_ISO14443_3B     "Iso14443-3B"
-#define TARGET_TYPE_ISO14443_4      "Iso14443-4"
-#define TARGET_TYPE_ISO15693        "Iso15693"
-#define TARGET_TYPE_MIFARE_UL       "MifareUL"
-#define TARGET_TYPE_MIFARE_1K       "Mifare1K"
-#define TARGET_TYPE_MIFARE_4K       "Mifare4K"
-#define TARGET_TYPE_MIFARE_DESFIRE  "MifareDESFIRE"
-#define TARGET_TYPE_MIFARE_UNKNOWN  "Unknown Mifare"
-#define TARGET_TYPE_FELICA          "Felica"
-#define TARGET_TYPE_JEWEL           "Jewel"
-#define TARGET_TYPE_UNKNOWN         "Unknown Type"
+/* Name strings for target types. These *must* match the values in TagTechnology.java */
+#define TARGET_TYPE_UNKNOWN               -1
+#define TARGET_TYPE_ISO14443_3A           1
+#define TARGET_TYPE_ISO14443_3B           2
+#define TARGET_TYPE_ISO14443_4            3
+#define TARGET_TYPE_ISO15693              21
+#define TARGET_TYPE_MIFARE_CLASSIC        200
+#define TARGET_TYPE_MIFARE_UL             202
+#define TARGET_TYPE_MIFARE_DESFIRE        203
+#define TARGET_TYPE_FELICA                11
+#define TARGET_TYPE_JEWEL                 101
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN

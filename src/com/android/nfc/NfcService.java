@@ -40,10 +40,10 @@ import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
-import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
@@ -160,7 +160,7 @@ public class NfcService extends Application {
     static final int MSG_TARGET_DESELECTED = 4;
     static final int MSG_SHOW_MY_TAG_ICON = 5;
     static final int MSG_HIDE_MY_TAG_ICON = 6;
-    static final int MSG_MOCK_NDEF_TAG = 7;
+    static final int MSG_MOCK_NDEF = 7;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -1376,11 +1376,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public String getType(int nativeHandle) throws RemoteException {
+        public int[] getTechList(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeNfcTag tag = null;
-            String type;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1388,10 +1385,9 @@ public class NfcService extends Application {
             }
 
             /* find the tag in the hmap */
-            tag = (NativeNfcTag) findObject(nativeHandle);
+            NativeNfcTag tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                type = tag.getType();
-                return type;
+                return tag.getTechList();
             }
             return null;
         }
@@ -2161,11 +2157,7 @@ public class NfcService extends Application {
     }
 
     public void sendMockNdefTag(NdefMessage msg) {
-        NdefTag tag = NdefTag.createMockNdefTag(new byte[] { 0x00 },
-                new String[] { Tag.TARGET_OTHER },
-                null, null, new String[] { NdefTag.TARGET_OTHER },
-                new NdefMessage[][] { new NdefMessage[] { msg } });
-        sendMessage(MSG_MOCK_NDEF_TAG, tag);
+        sendMessage(MSG_MOCK_NDEF, msg);
     }
 
     void sendMessage(int what, Object obj) {
@@ -2175,13 +2167,16 @@ public class NfcService extends Application {
         mHandler.sendMessage(msg);
     }
 
-    private final Handler mHandler = new Handler() {
+    final class NfcServiceHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
            switch (msg.what) {
-           case MSG_MOCK_NDEF_TAG: {
-               NdefTag tag = (NdefTag) msg.obj;
-               Intent intent = buildNdefTagIntent(tag);
+           case MSG_MOCK_NDEF: {
+               NdefMessage ndefMsg = (NdefMessage) msg.obj;
+               Tag tag = Tag.createMockTag(new byte[] { 0x00 },
+                       new int[] { },
+                       new Bundle[] { });
+               Intent intent = buildTagIntent(tag, new NdefMessage[] { ndefMsg });
                Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                Log.d(TAG, tag.toString());
                try {
@@ -2203,13 +2198,11 @@ public class NfcService extends Application {
                            NdefMessage[] msgNdef = new NdefMessage[1];
                            try {
                                msgNdef[0] = new NdefMessage(buff);
-                               NdefTag tag = new NdefTag(nativeTag.getUid(),
-                                       TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                       nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
-                                       nativeTag.getHandle(),
-                                       TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
-                                       new NdefMessage[][] {msgNdef});
-                               Intent intent = buildNdefTagIntent(tag);
+                               Tag tag = new Tag(nativeTag.getUid(),
+                                       nativeTag.getTechList(),
+                                       nativeTag.getTechExtras(),
+                                       nativeTag.getHandle());
+                               Intent intent = buildTagIntent(tag, msgNdef);
                                if (DBG) Log.d(TAG, "NDEF tag found, starting corresponding activity");
                                if (DBG) Log.d(TAG, tag.toString());
                                try {
@@ -2229,13 +2222,11 @@ public class NfcService extends Application {
                        }
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
-                           NdefTag tag = new NdefTag(nativeTag.getUid(),
-                                   TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                   nativeTag.getPollBytes(), nativeTag.getActivationBytes(),
-                                   nativeTag.getHandle(),
-                                   TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
-                                   new NdefMessage[][] { {} });
-                           Intent intent = buildNdefTagIntent(tag);
+                           Tag tag = new Tag(nativeTag.getUid(),
+                                   nativeTag.getTechList(),
+                                   nativeTag.getTechExtras(),
+                                   nativeTag.getHandle());
+                           Intent intent = buildTagIntent(tag, new NdefMessage[] { });
                            if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
                            try {
                                mContext.startActivity(intent);
@@ -2246,15 +2237,11 @@ public class NfcService extends Application {
                            }
                        }
                    } else {
-                       Intent intent = new Intent();
-                       Tag tag = new Tag(nativeTag.getUid(), false,
-                               TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                               nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
+                       Tag tag = new Tag(nativeTag.getUid(),
+                               nativeTag.getTechList(),
+                               nativeTag.getTechExtras(),
                                nativeTag.getHandle());
-                       intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-                       intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-                       intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
-                       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                       Intent intent = buildTagIntent(tag, null);
                        if (DBG) Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
                        if (DBG) Log.d(TAG, tag.toString());
                        try {
@@ -2378,17 +2365,18 @@ public class NfcService extends Application {
            }
         }
 
-        private Intent buildNdefTagIntent(NdefTag tag) {
-            Intent intent = new Intent();
-               intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-               intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-               intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
-               intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, tag.getNdefMessages());
-               intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        private Intent buildTagIntent(Tag tag, NdefMessage[] msgs) {
+            Intent intent = new Intent(NfcAdapter.ACTION_TAG_DISCOVERED);
+            intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
+            intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
+            intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, msgs);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             return intent;
         }
-    };
+    }
 
+    private NfcServiceHandler mHandler = new NfcServiceHandler();
+    
     private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
         @Override
         protected Void doInBackground(Boolean... enable) {

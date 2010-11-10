@@ -16,6 +16,10 @@
 
 package com.android.nfc;
 
+import android.nfc.technology.NfcA;
+import android.nfc.technology.NfcB;
+import android.nfc.technology.TagTechnology;
+import android.os.Bundle;
 import android.util.Log;
 
 /**
@@ -26,18 +30,16 @@ public class NativeNfcTag {
 
     private int mHandle;
 
-    private String mType;
-
+    private int[] mTechList;
+    private Bundle[] mTechExtras;
     private byte[] mPollBytes;
-
     private byte[] mActivationBytes;
-
     private byte[] mUid;
 
     private final String TAG = "NativeNfcTag";
 
     private PresenceCheckWatchdog mWatchdog;
-    private class PresenceCheckWatchdog extends Thread {
+    class PresenceCheckWatchdog extends Thread {
 
         private boolean isPresent = true;
         private boolean isRunning = true;
@@ -81,7 +83,7 @@ public class NativeNfcTag {
         return isSuccess;
     }
 
-    private native boolean doDisconnect();
+    native boolean doDisconnect();
     public synchronized boolean disconnect() {
         if (mWatchdog != null) {
             mWatchdog.end();
@@ -121,7 +123,7 @@ public class NativeNfcTag {
         return doWrite(buf);
     }
 
-    private native boolean doPresenceCheck();
+    native boolean doPresenceCheck();
     public synchronized boolean presenceCheck() {
         if (mWatchdog != null) {
             mWatchdog.reset();
@@ -136,20 +138,45 @@ public class NativeNfcTag {
         return mHandle;
     }
 
-    public String getType() {
-        return mType;
-    }
-
     public byte[] getUid() {
         return mUid;
     }
 
-    public byte[] getPollBytes() {
-        return mPollBytes;
+    public int[] getTechList() {
+        return mTechList;
     }
 
-    public byte[] getActivationBytes() {
-        return mActivationBytes;
-    }
+    public Bundle[] getTechExtras() {
+        synchronized (this) {
+            if (mTechExtras != null) return mTechExtras;
+            mTechExtras = new Bundle[mTechList.length];
+            for (int i = 0; i < mTechList.length; i++) {
+                Bundle extras = new Bundle();
+                switch (mTechList[i]) {
+                    case TagTechnology.ISO_14443_3A: {
+                        byte[] actBytes = mActivationBytes;
+                        if ((actBytes != null) && (actBytes.length > 0)) {
+                            extras.putShort(NfcA.EXTRA_SAK, (short) (actBytes[0] & (short) 0xFF));
+                        } else {
+                            throw new IllegalStateException("missing activation bytes");
+                        }
+                        extras.putByteArray(NfcA.EXTRA_ATQA, mPollBytes);
+                        break;
+                    }
 
+                    case TagTechnology.ISO_14443_3B: {
+                        extras.putByteArray(NfcB.EXTRA_ATQB, mPollBytes);
+                        break;
+                    }
+
+                    default: {
+                        // Leave the entry in the array null
+                        continue;
+                    }
+                }
+                mTechExtras[i] = extras;
+            }
+            return mTechExtras;
+        }
+    }
 }

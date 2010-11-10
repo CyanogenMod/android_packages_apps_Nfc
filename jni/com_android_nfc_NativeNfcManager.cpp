@@ -417,7 +417,7 @@ void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat)
 /*
  *  Utility to get target type name from its specs
  */
-static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
+static int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak)
 {
    switch (type)
    {
@@ -452,27 +452,25 @@ static const char* get_target_type_name(phNfc_eRemDevType_t type, uint8_t sak)
         {
           switch(sak)
           {
-            case 0:
-              {
-                return TARGET_TYPE_MIFARE_UL;
-              }break;
-            case 8:
-              {
-                return TARGET_TYPE_MIFARE_1K;
-              }break;
-            case 24:
-              {
-                return TARGET_TYPE_MIFARE_4K;
-              }break;
-              
-            case 32:
-              {
-                return TARGET_TYPE_MIFARE_DESFIRE;
-              }break;
-              
+            case 0x00:
+              // could be UL or UL-C
+              return TARGET_TYPE_MIFARE_UL;
+            case 0x08:
+            case 0x09:
+            case 0x10:
+            case 0x11:
+            case 0x18:
+            case 0x28:
+            case 0x38:
+            case 0x88:
+            case 0x98:
+            case 0xB8:
+              return TARGET_TYPE_MIFARE_CLASSIC;
+            case 0x20:
+              return TARGET_TYPE_MIFARE_DESFIRE;
             default:
               {
-                return TARGET_TYPE_MIFARE_UNKNOWN;
+                return TARGET_TYPE_UNKNOWN;
               }break;
           }
         }break;
@@ -983,12 +981,21 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         }
         e->SetObjectField(tag, f, tagUid);
 
-        /* Set tag type */
-        typeName = get_target_type_name( psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
-                          psRemoteDevList[target_index].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-        LOGD("Discovered tag: type=0x%08x[%s]", psRemoteDevList[target_index].psRemoteDevInfo->RemDevType, typeName);
-        f = e->GetFieldID(tag_cls, "mType", "Ljava/lang/String;");
-        e->SetObjectField(tag, f, e->NewStringUTF(typeName));
+        /* Generate technology list */
+        jintArray techList;
+        int tech = get_technology_type(psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
+            psRemoteDevList[target_index].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
+        if (tech != TARGET_TYPE_UNKNOWN) {
+            LOGD("Tag tech: %d", tech);
+            techList = e->NewIntArray(1);
+            e->SetIntArrayRegion(techList, 0, 1, &tech);
+        } else {
+            techList = e->NewIntArray(0);
+        }
+
+        /* Push the technology list into the java object */
+        f = e->GetFieldID(tag_cls, "mTechList", "[I");
+        e->SetObjectField(tag, f, techList);
 
         /* Set tag polling bytes */
         TRACE("Set Tag PollBytes");
