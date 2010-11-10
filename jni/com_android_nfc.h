@@ -167,7 +167,6 @@ phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o);
 
 int register_com_android_nfc_NativeNfcManager(JNIEnv *e);
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e);
-int register_com_android_nfc_NativeNdefTag(JNIEnv *e);
 int register_com_android_nfc_NativeP2pDevice(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e);

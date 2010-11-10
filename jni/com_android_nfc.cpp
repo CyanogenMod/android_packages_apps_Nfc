@@ -35,8 +35,6 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeNfcTag(e) == -1)
       return JNI_ERR;
-   if (android::register_com_android_nfc_NativeNdefTag(e) == -1)
-      return JNI_ERR;
    if (android::register_com_android_nfc_NativeP2pDevice(e) == -1)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeLlcpSocket(e) == -1)

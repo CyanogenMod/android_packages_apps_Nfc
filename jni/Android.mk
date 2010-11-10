@@ -8,7 +8,6 @@ LOCAL_SRC_FILES:= \
     com_android_nfc_NativeLlcpConnectionlessSocket.cpp \
     com_android_nfc_NativeLlcpServiceSocket.cpp \
     com_android_nfc_NativeLlcpSocket.cpp \
-    com_android_nfc_NativeNdefTag.cpp \
     com_android_nfc_NativeNfcManager.cpp \
     com_android_nfc_NativeNfcTag.cpp \
     com_android_nfc_NativeP2pDevice.cpp \
