@@ -31,6 +31,9 @@ extern "C" {
 #include <phLibNfc.h>
 #include <phDal4Nfc_messageQueueLib.h>
 #include <cutils/log.h>
+#include <com_android_nfc_list.h>
+#include <semaphore.h>
+
 }
 #include <cutils/properties.h> // for property_get
 
@@ -134,7 +137,23 @@ typedef struct nfc_jni_native_monitor
    /* Mutex protecting native library against concurrency */
    pthread_mutex_t concurrency_mutex;
 
+   /* List used to track pending semaphores waiting for callback */
+   struct listHead sem_list;
+
 } nfc_jni_native_monitor_t;
+
+typedef struct nfc_jni_callback_data
+{
+   /* Semaphore used to wait for callback */
+   sem_t sem;
+
+   /* Used to store the status sent by the callback */
+   NFCSTATUS status;
+
+   /* Used to provide a local context to the callback */
+   void* pContext;
+
+} nfc_jni_callback_data_t;
 
 /* TODO: treat errors and add traces */
 #define REENTRANCE_LOCK()        pthread_mutex_lock(&nfc_jni_get_monitor()->reentrance_mutex)
@@ -143,6 +162,11 @@ typedef struct nfc_jni_native_monitor
 #define CONCURRENCY_UNLOCK()     pthread_mutex_unlock(&nfc_jni_get_monitor()->concurrency_mutex)
 
 namespace android {
+
+
+bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext);
+void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData);
+void nfc_cb_data_releaseAll();
 
 const char* nfc_jni_get_status_name(NFCSTATUS status);
 int nfc_jni_cache_object(JNIEnv *e, const char *clsname,

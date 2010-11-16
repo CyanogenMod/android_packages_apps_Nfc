@@ -16,6 +16,7 @@
 
 #include "errno.h"
 #include "com_android_nfc.h"
+#include "com_android_nfc_list.h"
 #include "phLibNfcStatus.h"
 
 /*
@@ -56,6 +57,57 @@ extern struct nfc_jni_native_data *exported_nat;
 /*
  * JNI Utils
  */
+bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext)
+{
+   /* Create semaphore */
+   if(sem_init(&pCallbackData->sem, 0, 0) == -1)
+   {
+      LOGE("Semaphore creation failed (errno=0x%08x)", errno);
+      return false;
+   }
+
+   /* Set default status value */
+   pCallbackData->status = NFCSTATUS_FAILED;
+
+   /* Copy the context */
+   pCallbackData->pContext = pContext;
+
+   /* Add to active semaphore list */
+   if (!listAdd(&nfc_jni_get_monitor()->sem_list, pCallbackData))
+   {
+      LOGE("Failed to add the semaphore to the list");
+   }
+
+   return true;
+}
+
+void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData)
+{
+   /* Destroy semaphore */
+   if (sem_destroy(&pCallbackData->sem))
+   {
+      LOGE("Failed to destroy semaphore (errno=0x%08x)", errno);
+   }
+
+   /* Remove from active semaphore list */
+   if (!listRemove(&nfc_jni_get_monitor()->sem_list, pCallbackData))
+   {
+      LOGE("Failed to remove semaphore from the list");
+   }
+
+}
+
+void nfc_cb_data_releaseAll()
+{
+   nfc_jni_callback_data* pCallbackData;
+
+   while (listGetAndRemoveNext(&nfc_jni_get_monitor()->sem_list, (void**)&pCallbackData))
+   {
+      pCallbackData->status = NFCSTATUS_FAILED;
+      sem_post(&pCallbackData->sem);
+   }
+}
+
 int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    jobject *cached_obj)
 {
@@ -138,6 +190,12 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
       if(pthread_mutex_init(&nfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
       {
          LOGE("NFC Manager Concurrency Mutex creation retruned 0x%08x", errno);
+         return NULL;
+      }
+
+      if(!listInit(&nfc_jni_native_monitor->sem_list))
+      {
+         LOGE("NFC Manager Semaphore List creation retruned 0x%08x", errno);
          return NULL;
       }
    }
