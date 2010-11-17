@@ -152,6 +152,8 @@ struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e);
 nfc_jni_native_monitor_t* nfc_jni_init_monitor(void);
 nfc_jni_native_monitor_t* nfc_jni_get_monitor(void);
 
+int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak);
+
 /* P2P */
 phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
 jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
@@ -169,6 +171,7 @@ int register_com_android_nfc_NativeP2pDevice(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e);
+int register_com_android_nfc_NativeNfcSecureElement(JNIEnv *e);
 
 } // namespace android
 

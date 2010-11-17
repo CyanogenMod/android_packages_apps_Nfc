@@ -42,6 +42,7 @@ import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.INfcSecureElement;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -59,6 +60,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class NfcService extends Application {
     static final boolean DBG = false;
@@ -172,6 +175,14 @@ public class NfcService extends Application {
     private int mSelectedSeId = 0;
     private boolean mNfcSecureElementState;
 
+    // Secure element
+    private Timer mTimerOpenSmx;
+    private boolean isClosed = false;
+    private boolean isOpened = false;
+    private boolean mOpenSmxPending = false;
+    private NativeNfcSecureElement mSecureElement;
+    private int mSecureElementHandle;
+
     // fields below are used in multiple threads and protected by synchronized(this)
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
@@ -206,6 +217,8 @@ public class NfcService extends Application {
 
         mMyTagServer = new MyTagServer();
         mMyTagClient = new MyTagClient(this);
+
+        mSecureElement = new NativeNfcSecureElement();
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -595,6 +608,11 @@ public class NfcService extends Application {
         public IP2pTarget getP2pTargetInterface() throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mP2pTargetService;
+        }
+
+        public INfcSecureElement getNfcSecureElementInterface() {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mSecureElementService;
         }
 
         @Override
@@ -1743,6 +1761,195 @@ public class NfcService extends Application {
             return null;
         }
     };
+
+    private INfcSecureElement mSecureElementService = new INfcSecureElement.Stub() {
+
+        public int openSecureElementConnection() throws RemoteException {
+            Log.d(TAG, "openSecureElementConnection");
+            int handle;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return 0;
+            }
+
+            // Check in an open is already pending
+            if (mOpenSmxPending) {
+                return 0;
+            }
+
+            handle = mSecureElement.doOpenSecureElementConnection();
+
+            if (handle == 0) {
+                mOpenSmxPending = false;
+            } else {
+                mSecureElementHandle = handle;
+
+                /* Start timer */
+                mTimerOpenSmx = new Timer();
+                mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+                /* Update state */
+                isOpened = true;
+                isClosed = false;
+                mOpenSmxPending = true;
+            }
+
+            return handle;
+        }
+
+        public int closeSecureElementConnection(int nativeHandle)
+                throws RemoteException {
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return -1;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return -1;
+            }
+
+            if (mSecureElement.doDisconnect(nativeHandle)) {
+
+                /* Stop timer */
+                mTimerOpenSmx.cancel();
+
+                /* Restart polling loop for notification */
+                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+
+                /* Update state */
+                isOpened = false;
+                isClosed = true;
+                mOpenSmxPending = false;
+
+                return ErrorCodes.SUCCESS;
+            } else {
+
+                /* Stop timer */
+                mTimerOpenSmx.cancel();
+
+                /* Restart polling loop for notification */
+                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+
+                /* Update state */
+                isOpened = false;
+                isClosed = true;
+                mOpenSmxPending = false;
+
+                return ErrorCodes.ERROR_DISCONNECT;
+            }
+        }
+
+        public int[] getSecureElementTechList(int nativeHandle)
+                throws RemoteException {
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            int[] techList = mSecureElement.doGetTechList(nativeHandle);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return techList;
+        }
+
+        public byte[] getSecureElementUid(int nativeHandle)
+                throws RemoteException {
+            byte[] uid;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            uid = mSecureElement.doGetUid(nativeHandle);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return uid;
+        }
+
+        public byte[] exchangeAPDU(int nativeHandle, byte[] data)
+                throws RemoteException {
+            byte[] response;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            response = mSecureElement.doTransceive(nativeHandle, data);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return response;
+
+        }
+    };
+
+    class TimerOpenSecureElement extends TimerTask {
+
+        @Override
+        public void run() {
+            if (mSecureElementHandle != 0) {
+                Log.d(TAG, "Open SMX timer expired");
+                try {
+                    mSecureElementService
+                            .closeSecureElementConnection(mSecureElementHandle);
+                } catch (RemoteException e) {
+                }
+            }
+
+        }
+
+    }
 
     private boolean _enable(boolean oldEnabledState) {
         boolean isSuccess = mManager.initialize();

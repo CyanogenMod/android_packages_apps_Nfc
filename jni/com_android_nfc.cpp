@@ -43,6 +43,8 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeLlcpServiceSocket(e) == -1)
       return JNI_ERR;
+   if (android::register_com_android_nfc_NativeNfcSecureElement(e) == -1)
+      return JNI_ERR;
 
    return JNI_VERSION_1_6;
 }
@@ -275,6 +277,83 @@ const char* nfc_jni_get_status_name(NFCSTATUS status)
    }
 
    return "UNKNOWN";
+}
+
+/*
+ *  Utility to get target type name from its specs
+ */
+int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak)
+{
+   switch (type)
+   {
+      case phNfc_eISO14443_A_PICC:
+      case phNfc_eISO14443_4A_PICC:
+      case phNfc_eISO14443_4B_PICC:
+        {
+          return TARGET_TYPE_ISO14443_4;
+        }break;
+        
+      case phNfc_eISO14443_3A_PICC:
+        {
+          return TARGET_TYPE_ISO14443_3A;
+        }break;
+
+      case phNfc_eISO14443_B_PICC:
+        {
+          /* Actually this can be -3B or -4B
+           * FRI doesn't allow us to tell the diff yet
+           * and the API doesn't know type 4B
+           * so return 3B for now.
+           */
+          return TARGET_TYPE_ISO14443_3B;
+        }break;
+        
+      case phNfc_eISO15693_PICC:
+        {
+          return TARGET_TYPE_ISO15693;
+        }break;
+
+      case phNfc_eMifare_PICC:
+        {
+          switch(sak)
+          {
+            case 0x00:
+              // could be UL or UL-C
+              return TARGET_TYPE_MIFARE_UL;
+            case 0x08:
+            case 0x09:
+            case 0x10:
+            case 0x11:
+            case 0x18:
+            case 0x28:
+            case 0x38:
+            case 0x88:
+            case 0x98:
+            case 0xB8:
+              return TARGET_TYPE_MIFARE_CLASSIC;
+            case 0x20:
+              return TARGET_TYPE_MIFARE_DESFIRE;
+            default:
+              {
+                return TARGET_TYPE_UNKNOWN;
+              }break;
+          }
+        }break;
+      case phNfc_eFelica_PICC:
+        {
+          return TARGET_TYPE_FELICA;
+        }break; 
+      case phNfc_eJewel_PICC:
+        {
+          return TARGET_TYPE_JEWEL;
+        }break; 
+      default:
+        {
+          return TARGET_TYPE_UNKNOWN;
+        }
+   }
+
+   return TARGET_TYPE_UNKNOWN;
 }
 
 } // namespace android
