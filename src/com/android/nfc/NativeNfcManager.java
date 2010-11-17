@@ -80,8 +80,6 @@ public class NativeNfcManager {
 
     public native void doSetProperties(int param, int value);
 
-    public native void doCancel();
-
     public native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 
     public native NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,

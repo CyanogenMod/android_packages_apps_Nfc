@@ -1614,18 +1614,6 @@ clean_and_return:
    CONCURRENCY_UNLOCK();
 }
 
-
-static void com_android_nfc_NfcManager_doCancel(JNIEnv *e, jobject o)
-{
-   struct nfc_jni_native_data *nat;
-
-   /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o);
-  
-   nat->status = NFCSTATUS_FAILED;
-   sem_post(nfc_jni_open_sem);
-}
-
 /* Llcp methods */
 
 static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
@@ -2115,9 +2103,6 @@ static JNINativeMethod gMethods[] =
       
    {"doDeselectSecureElement", "(I)V",
       (void *)com_android_nfc_NfcManager_doDeselectSecureElement},
-      
-   {"doCancel", "()V",
-      (void *)com_android_nfc_NfcManager_doCancel},
       
    {"doCheckLlcp", "()Z",
       (void *)com_android_nfc_NfcManager_doCheckLlcp},
