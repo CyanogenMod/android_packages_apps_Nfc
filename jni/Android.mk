@@ -12,6 +12,7 @@ LOCAL_SRC_FILES:= \
     com_android_nfc_NativeNfcTag.cpp \
     com_android_nfc_NativeP2pDevice.cpp \
     com_android_nfc_NativeNfcSecureElement.cpp \
+    com_android_nfc_list.cpp \
     com_android_nfc.cpp
 
 LOCAL_C_INCLUDES += \
