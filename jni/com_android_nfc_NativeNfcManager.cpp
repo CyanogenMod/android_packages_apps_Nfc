@@ -1180,7 +1180,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 #endif
    
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
-   nat->discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
+   nat->discovery_cfg.NfcIP_Mode = phNfc_ePassive212;//phNfc_eP2P_ALL;
    nat->discovery_cfg.Duration = 300000; /* in ms */
    nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
 
@@ -1191,7 +1191,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    nat->registry_info.ISO14443_4B = TRUE;
    nat->registry_info.Jewel = TRUE;
    nat->registry_info.Felica = TRUE;
-   nat->registry_info.NFC = FALSE;
+   nat->registry_info.NFC = TRUE;   
    nat->registry_info.ISO15693 = TRUE;
    TRACE("******  NFC Config Mode Reader ******");
       
