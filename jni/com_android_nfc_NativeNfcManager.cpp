@@ -972,6 +972,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
             TRACE("Simple Protocol TAG detected\n");
             target_index = 0;
         }
+
         /* Set tag UID */
         f = e->GetFieldID(tag_cls, "mUid", "[B");
         data = get_target_uid(psRemoteDevList[target_index].psRemoteDevInfo);
@@ -989,7 +990,15 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         f = e->GetFieldID(tag_cls, "mType", "Ljava/lang/String;");
         e->SetObjectField(tag, f, e->NewStringUTF(typeName));
 
+        /* Set tag polling bytes */
+        TRACE("Set Tag PollBytes");
+        set_target_pollBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
+
+        /* Set tag activation bytes */
+        TRACE("Set Tag ActivationBytes\n");
+        set_target_activationBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
       }
+
       /* Set tag handle */
       f = e->GetFieldID(tag_cls, "mHandle", "I");
       e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
@@ -1000,14 +1009,6 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       }
       nat->tag = e->NewGlobalRef(tag);
 
-      /* Set tag polling bytes */
-      TRACE("Set Tag PollBytes");
-      set_target_pollBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
-
-      /* Set tag activation bytes */
-      TRACE("Set Tag ActivationBytes\n");
-      set_target_activationBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
-   
       /* Notify the service */   
       TRACE("Notify Nfc Service");
       if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
