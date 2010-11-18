@@ -2263,13 +2263,13 @@ public class NfcService extends Application {
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(new Boolean(true));
+                new EnableDisableDiscoveryTask().execute(Boolean.TRUE);
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
                 // Perform discovery disable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(new Boolean(false));
+                new EnableDisableDiscoveryTask().execute(Boolean.FALSE);
             }
         }
     };
