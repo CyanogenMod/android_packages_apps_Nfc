@@ -750,7 +750,7 @@ static void nfc_jni_p2pcfg_callback(void *pContext, NFCSTATUS status)
 static void nfc_jni_llcp_transport_listen_socket_callback(void              *pContext,
                                                           phLibNfc_Handle   IncomingSocket)
 {
-   LOG_CALLBACK("nfc_jni_llcp_transport_listen_socket_callback", IncomingSocket);
+   TRACE("nfc_jni_llcp_transport_listen_socket_callback socket handle = %p", IncomingSocket);
 
    if(IncomingSocket != 0)
    {
