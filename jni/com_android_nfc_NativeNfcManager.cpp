@@ -671,9 +671,11 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    phFriNfc_Llcp_sLinkParameters_t  sLinkParams;
    JNIEnv *e;
    NFCSTATUS status;
-   struct nfc_jni_native_data *nat;
 
-   nat = (struct nfc_jni_native_data *)pContext;
+   struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
+
+   struct nfc_jni_native_data *nat = (nfc_jni_native_data *)pContextData->pContext;
+
    
    TRACE("Callback: nfc_jni_llcp_linkStatus_callback()");
 
@@ -702,6 +704,8 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    else if(eLinkStatus == phFriNfc_LlcpMac_eLinkDeactivated)
    {
       LOGI("LLCP Link deactivated");
+      free(pContextData);
+
       /* Notify manager that the LLCP is lost or deactivated */
       e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkDeactivated, nat->tag);
       if(e->ExceptionCheck())
@@ -1707,15 +1711,19 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
    NFCSTATUS ret;
    jboolean result = JNI_FALSE;
    struct nfc_jni_native_data *nat;
-   struct nfc_jni_callback_data cb_data;
+   struct nfc_jni_callback_data  *cb_data;
+
 
    CONCURRENCY_LOCK();
+
+   /* Memory allocation for cb_data */
+   cb_data = (struct nfc_jni_callback_data*) malloc (sizeof(nfc_jni_callback_data));
 
    /* Retrieve native structure address */
    nat = nfc_jni_get_nat(e, o);
 
    /* Create the local semaphore */
-   if (!nfc_cb_data_init(&cb_data, (void*)nat))
+   if (!nfc_cb_data_init(cb_data, (void*)nat))
    {
       goto clean_and_return;
    }
@@ -1726,31 +1734,32 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
    ret = phLibNfc_Llcp_CheckLlcp(hLlcpHandle,
                                  nfc_jni_checkLlcp_callback,
                                  nfc_jni_llcp_linkStatus_callback,
-                                 (void*)&cb_data);
+                                 (void*)cb_data);
    REENTRANCE_UNLOCK();
    /* In case of a NFCIP return NFCSTATUS_SUCCESS and in case of an another protocol
     * NFCSTATUS_PENDING. In this case NFCSTATUS_SUCCESS will also cause the callback. */
    if(ret != NFCSTATUS_PENDING && ret != NFCSTATUS_SUCCESS)
    {
       LOGE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      free(cb_data);
       goto clean_and_return;
    }
    TRACE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
+   if(sem_wait(&cb_data->sem))
    {
       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
-   if(cb_data.status == NFCSTATUS_SUCCESS)
+   if(cb_data->status == NFCSTATUS_SUCCESS)
    {
       result = JNI_TRUE;
    }
 
 clean_and_return:
-   nfc_cb_data_deinit(&cb_data);
+   nfc_cb_data_deinit(cb_data);
    CONCURRENCY_UNLOCK();
    return result;
 }
