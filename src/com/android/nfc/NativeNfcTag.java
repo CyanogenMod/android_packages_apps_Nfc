@@ -153,7 +153,7 @@ public class NativeNfcTag {
             for (int i = 0; i < mTechList.length; i++) {
                 Bundle extras = new Bundle();
                 switch (mTechList[i]) {
-                    case TagTechnology.ISO_14443_3A: {
+                    case TagTechnology.NFC_A: {
                         byte[] actBytes = mActivationBytes;
                         if ((actBytes != null) && (actBytes.length > 0)) {
                             extras.putShort(NfcA.EXTRA_SAK, (short) (actBytes[0] & (short) 0xFF));
@@ -164,7 +164,7 @@ public class NativeNfcTag {
                         break;
                     }
 
-                    case TagTechnology.ISO_14443_3B: {
+                    case TagTechnology.NFC_B: {
                         extras.putByteArray(NfcB.EXTRA_ATQB, mPollBytes);
                         break;
                     }

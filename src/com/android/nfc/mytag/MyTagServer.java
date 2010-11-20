@@ -49,6 +49,7 @@ public class MyTagServer {
         private LlcpSocket mSock;
 
         ConnectionThread(LlcpSocket sock) {
+            super("MyTagServer");
             mSock = sock;
         }
 
@@ -75,7 +76,7 @@ public class MyTagServer {
                     } catch (IOException e) {
                         // Connection broken
                         connectionBroken = true;
-                        if (DBG) Log.d(TAG, "connection broken");
+                        if (DBG) Log.d(TAG, "connection broken by IOException", e);
                     }
                 }
 

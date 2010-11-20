@@ -45,21 +45,19 @@ public class MyTagClient extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (DBG) Log.d(TAG, "LLCP connection up and running");
-        NfcAdapter adapter = NfcAdapter.getDefaultAdapter();
-        NdefMessage msg = adapter.getLocalNdefMessage();
-        
-        if (msg == null) {
-            if (DBG) Log.d(TAG, "No MyTag set, exiting");
-            // Nothing to send to the server
+        int linkState = intent.getIntExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
+                NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
+        if (linkState != NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
+            // The link was torn down, ignore
             return;
         }
 
-        int linkState = intent.getIntExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                    NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-
-        if (linkState != NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-            if (DBG) Log.d(TAG, "LLCP connection not activated, exiting");
+        if (DBG) Log.d(TAG, "LLCP connection up and running");
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter();
+        NdefMessage msg = adapter.getLocalNdefMessage();
+        if (msg == null) {
+            if (DBG) Log.d(TAG, "No MyTag set, exiting");
+            // Nothing to send to the server
             return;
         }
 
