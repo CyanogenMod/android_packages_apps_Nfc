@@ -222,7 +222,16 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     if(status != NFCSTATUS_PENDING)
     {
         LOGE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+        if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
+        {
+            LOGE("phLibNfc_RemoteDev_Disconnect() failed: Target not connected");
+        }
+        else
+        {
+            LOGE("phLibNfc_RemoteDev_Disconnect() failed");
+            nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+        }
+
         goto clean_and_return;
     }
     TRACE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));

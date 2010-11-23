@@ -290,7 +290,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    /* ====== CAPABILITIES ======= */
 
    REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_GetstackCapabilities(&caps, NULL);
+   status = phLibNfc_Mgt_GetstackCapabilities(&caps, (void*)nat);
    REENTRANCE_UNLOCK();
    if (status != NFCSTATUS_SUCCESS)
    {
@@ -299,12 +299,13 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    else
    {
       LOGD(
-            "NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x",
+            "NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d",
             caps.psDevCapabilities.hal_version,
             caps.psDevCapabilities.fw_version,
             caps.psDevCapabilities.hw_version,
             caps.psDevCapabilities.model_id,
-            caps.psDevCapabilities.hci_version);
+            caps.psDevCapabilities.hci_version,
+            caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1]);
    }
 
    /* ====== SECURE ELEMENTS ======= */
