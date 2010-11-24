@@ -2401,6 +2401,7 @@ public class NfcService extends Application {
                    if (nativeTag.checkNdef()) {
                        boolean generateEmptyIntent = false;
                        byte[] buff = nativeTag.read();
+                       nativeTag.connect(); // reset the tag
                        if (buff != null) {
                            NdefMessage[] msgNdef = new NdefMessage[1];
                            try {
@@ -2448,6 +2449,7 @@ public class NfcService extends Application {
                                nativeTag.getTechList(),
                                nativeTag.getTechExtras(),
                                nativeTag.getHandle());
+                       nativeTag.connect(); // reset the tag
                        Intent intent = buildTagIntent(tag, null);
                        if (DBG) Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
                        if (DBG) Log.d(TAG, tag.toString());
