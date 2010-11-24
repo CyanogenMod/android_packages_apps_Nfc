@@ -37,6 +37,7 @@ import java.io.IOException;
  */
 public class MyTagClient extends BroadcastReceiver {
     private static final String TAG = "MyTagClient";
+    private static final int MIU = 128;
     private static final boolean DBG = true;
 
     public MyTagClient(Context context) {
@@ -69,17 +70,29 @@ public class MyTagClient extends BroadcastReceiver {
         public Void doInBackground(NdefMessage... msgs) {
             NfcService service = NfcService.getInstance();
             NdefMessage msg = msgs[0];
+            byte[] buffer = msg.toByteArray();
+            byte[] tmpBuffer = new byte[MIU];
+            int offset = 0;
             try {
                 if (DBG) Log.d(TAG, "about to create socket");
                 // Connect to the my tag server on the remote side
-                LlcpSocket sock = service.createLlcpSocket(0, 128, 1, 1024);
+                LlcpSocket sock = service.createLlcpSocket(0, MIU, 1, 1024);
                 if (DBG) Log.d(TAG, "about to connect");
 //                sock.connect(MyTagServer.SERVICE_NAME);
                 sock.connect(0x20);
 
-                // Push the local NDEF message to the server
-                if (DBG) Log.d(TAG, "about to send");
-                sock.send(msg.toByteArray());
+                if (DBG) Log.d(TAG, "about to send a " + buffer.length + "-bytes message");
+                while (offset < buffer.length) {
+                    int length = buffer.length - offset;
+                    if (length > tmpBuffer.length) {
+                        length = tmpBuffer.length;
+                    }
+                    System.arraycopy(buffer, offset, tmpBuffer, 0, length);
+                    if (DBG) Log.d(TAG, "about to send a " + length + "-bytes packet");
+                    sock.send(tmpBuffer);
+                    offset += length;
+                }
+
                 if (DBG) Log.d(TAG, "about to close");
                 sock.close();
 
