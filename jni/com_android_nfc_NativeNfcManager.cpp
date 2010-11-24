@@ -922,15 +922,8 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
         /* Generate technology list */
         jintArray techList;
-        int tech = get_technology_type(psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
+        techList = nfc_jni_get_technology_tree(e, psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
             psRemoteDevList[target_index].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-        if (tech != TARGET_TYPE_UNKNOWN) {
-            LOGD("Tag tech: %d", tech);
-            techList = e->NewIntArray(1);
-            e->SetIntArrayRegion(techList, 0, 1, &tech);
-        } else {
-            techList = e->NewIntArray(0);
-        }
 
         /* Push the technology list into the java object */
         f = e->GetFieldID(tag_cls, "mTechList", "[I");

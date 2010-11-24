@@ -254,19 +254,19 @@ phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
    return e->GetIntField(o, f);
 }
 
-jstring nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
+jintArray nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
 {
   jclass c;
   jfieldID f;
-  jstring type;
+  jintArray techtypes;
    
   c = e->GetObjectClass(o);
-  f = e->GetFieldID(c, "mType","Ljava/lang/String;");
+  f = e->GetFieldID(c, "mTechList","[I");
 
-  /* Read the instance field */
-  type = (jstring)e->GetObjectField(o, f);
-  
-  return type;  
+  /* Read the techtypes  */
+  techtypes = (jintArray) e->GetObjectField(o, f);
+
+  return techtypes;
 }
 
 
@@ -340,35 +340,57 @@ const char* nfc_jni_get_status_name(NFCSTATUS status)
 /*
  *  Utility to get target type name from its specs
  */
-int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak)
+jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8_t sak)
 {
+   jintArray techList = NULL;
+   jint* techItems;
    switch (type)
    {
       case phNfc_eISO14443_A_PICC:
       case phNfc_eISO14443_4A_PICC:
+        {
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+          break;
+        }
       case phNfc_eISO14443_4B_PICC:
         {
-          return TARGET_TYPE_ISO14443_4;
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3B;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break;
         
       case phNfc_eISO14443_3A_PICC:
         {
-          return TARGET_TYPE_ISO14443_3A;
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break;
 
       case phNfc_eISO14443_B_PICC:
         {
-          /* Actually this can be -3B or -4B
-           * FRI doesn't allow us to tell the diff yet
-           * and the API doesn't know type 4B
-           * so return 3B for now.
-           */
-          return TARGET_TYPE_ISO14443_3B;
+          // TODO a bug in libnfc will cause 14443-3B only cards
+          // to be returned as this type as well, but these cards
+          // are very rare. Hence assume it's -4B
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3B;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break;
         
       case phNfc_eISO15693_PICC:
         {
-          return TARGET_TYPE_ISO15693;
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO15693;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break;
 
       case phNfc_eMifare_PICC:
@@ -377,7 +399,12 @@ int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak)
           {
             case 0x00:
               // could be UL or UL-C
-              return TARGET_TYPE_MIFARE_UL;
+              techList = e->NewIntArray(2);
+              techItems = e->GetIntArrayElements(techList, NULL);
+              techItems[0] = TARGET_TYPE_MIFARE_UL;
+              techItems[1] = TARGET_TYPE_ISO14443_3A;
+              e->ReleaseIntArrayElements(techList, techItems,0);
+              break;
             case 0x08:
             case 0x09:
             case 0x10:
@@ -388,30 +415,49 @@ int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak)
             case 0x88:
             case 0x98:
             case 0xB8:
-              return TARGET_TYPE_MIFARE_CLASSIC;
+              techList = e->NewIntArray(2);
+              techItems = e->GetIntArrayElements(techList, NULL);
+              techItems[0] = TARGET_TYPE_MIFARE_CLASSIC;
+              techItems[1] = TARGET_TYPE_ISO14443_3A;
+              e->ReleaseIntArrayElements(techList, techItems,0);
+              break;
             case 0x20:
-              return TARGET_TYPE_MIFARE_DESFIRE;
+              // This could be DESfire, but libnfc returns that as ISO14443_4
+              // so we shouldn't hit this case
             default:
               {
-                return TARGET_TYPE_UNKNOWN;
+                techList = e->NewIntArray(1);
+                techItems = e->GetIntArrayElements(techList, NULL);
+                techItems[0] = TARGET_TYPE_UNKNOWN;
+                e->ReleaseIntArrayElements(techList, techItems,0);
               }break;
           }
         }break;
       case phNfc_eFelica_PICC:
         {
-          return TARGET_TYPE_FELICA;
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_FELICA;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break; 
       case phNfc_eJewel_PICC:
         {
-          return TARGET_TYPE_JEWEL;
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_JEWEL;
+          techItems[1] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }break; 
       default:
         {
-          return TARGET_TYPE_UNKNOWN;
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_UNKNOWN;
+          e->ReleaseIntArrayElements(techList, techItems,0);
         }
    }
 
-   return TARGET_TYPE_UNKNOWN;
+   return techList;
 }
 
 } // namespace android

@@ -106,7 +106,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
                                                                      uint8_t uNofRemoteDev, 
                                                                      NFCSTATUS status)
 {
-   JNIEnv *e;
+   JNIEnv *e = (JNIEnv *)pContext;
    NFCSTATUS ret;
    int i;
    
@@ -127,13 +127,22 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          secureElementHandle = psRemoteDevList[1].hTargetDev;
          
          /* Set type name */
-         SecureElementTech = get_technology_type(psRemoteDevList[1].psRemoteDevInfo->RemDevType,
+         jintArray techTree = nfc_jni_get_technology_tree(e, psRemoteDevList[1].psRemoteDevInfo->RemDevType,
                                         psRemoteDevList[1].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);                         
+         // TODO: Should use the "connected" technology, for now use the first
+         if (e->GetArrayLength(techTree) > 0) {
+             jint* technologies = e->GetIntArrayElements(techTree, 0);
+             SecureElementTech = technologies[0];
+             LOGD("Store Secure Element Info\n");
+             SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
+
+             LOGD("Discovered secure element: tech=%d", SecureElementTech);
+         }
+         else {
+             LOGE("Discovered secure element, but could not resolve tech");
+             status = NFCSTATUS_FAILED;
+         }
     
-         LOGD("Store Secure Element Info\n");         
-         SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
-         
-         LOGD("Discovered secure element: tech=%d", SecureElementTech);
       }
       else
       {
@@ -141,13 +150,21 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          secureElementHandle = psRemoteDevList->hTargetDev;
          
          /* Set type name */      
-         SecureElementTech = get_technology_type(psRemoteDevList->psRemoteDevInfo->RemDevType,
+         jintArray techTree = nfc_jni_get_technology_tree(e, psRemoteDevList->psRemoteDevInfo->RemDevType,
                                          psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);                                                     
-         
-         LOGD("Store Secure Element Info\n");         
-         SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
-            
-         LOGD("Discovered secure element: tech=%d", SecureElementTech);
+         // TODO: Should use the "connected" technology, for now use the first
+         if ((techTree != NULL) && e->GetArrayLength(techTree) > 0) {
+             jint* technologies = e->GetIntArrayElements(techTree, 0);
+             SecureElementTech = technologies[0];
+             LOGD("Store Secure Element Info\n");
+             SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
+
+             LOGD("Discovered secure element: tech=%d", SecureElementTech);
+         }
+         else {
+             LOGE("Discovered secure element, but could not resolve tech");
+             status = NFCSTATUS_FAILED;
+         }
       }     
    }
          

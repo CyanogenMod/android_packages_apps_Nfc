@@ -456,11 +456,12 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     phLibNfc_sTransceiveInfo_t transceive_info;
     jbyteArray result = NULL;
     int res;
-    jstring type = nfc_jni_get_nfc_tag_type(e, o);
-    const char* str = e->GetStringUTFChars(type, 0);
+    jintArray techtypes = nfc_jni_get_nfc_tag_type(e, o);
     phLibNfc_Handle handle = nfc_jni_get_nfc_tag_handle(e, o);
     NFCSTATUS status;
     struct nfc_jni_callback_data cb_data;
+    int selectedTech = 0;
+    jint* technologies = NULL;
 
     CONCURRENCY_LOCK();
 
@@ -470,36 +471,55 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
        goto clean_and_return;
     }
 
-    TRACE("Tag %s\n", str);
+
+
+    if ((techtypes == NULL) || (e->GetArrayLength(techtypes) == 0)) {
+      goto clean_and_return;
+    }
+    // TODO: code to determine the selected technology
+    // For now, take the first
+    technologies = e->GetIntArrayElements(techtypes, 0);
+    selectedTech = technologies[0];
+
+    TRACE("Transceive thinks selected tag technology = %d\n", selectedTech);
 
     buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
     buflen = (uint32_t)e->GetArrayLength(data);
 
-    /* Prepare transceive info structure */
-    if((res = strcmp(str, "Mifare1K") == 0) || (res = strcmp(str, "Mifare4K") == 0) || (res = strcmp(str, "MifareUL") == 0))
-    {
-      offset = 2;
-      transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
-      transceive_info.addr = (uint8_t)buf[1];
+    switch (selectedTech) {
+        case TARGET_TYPE_JEWEL:
+          transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
+          transceive_info.addr = 0;
+          break;
+        case TARGET_TYPE_FELICA:
+          transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
+          transceive_info.addr = 0;
+          break;
+        case TARGET_TYPE_MIFARE_CLASSIC:
+        case TARGET_TYPE_MIFARE_UL:
+        case TARGET_TYPE_MIFARE_DESFIRE:
+          offset = 2;
+          transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+          transceive_info.addr = (uint8_t)buf[1];
+          break;
+        case TARGET_TYPE_ISO14443_3A:
+            // TODO: just try MF command set??
+          break;
+        case TARGET_TYPE_ISO14443_3B:
+            // TODO: ???
+          break;
+        case TARGET_TYPE_ISO14443_4:
+          transceive_info.cmd.Iso144434Cmd = phNfc_eIso14443_4_Raw;
+          transceive_info.addr = 0;
+          break;
+        case TARGET_TYPE_ISO15693:
+          transceive_info.cmd.Iso15693Cmd = phNfc_eIso15693_Cmd;
+          transceive_info.addr = 0;
+          break;
+        case TARGET_TYPE_UNKNOWN:
+        default:
+          break;
     }
-    else if((res = strcmp(str, "Felica") == 0))
-    {
-      transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
-      transceive_info.addr = 0;
-    }
-    else if((res = strcmp(str, "Iso14443") == 0))
-    {
-      transceive_info.cmd.Iso144434Cmd = phNfc_eIso14443_4_Raw;
-      transceive_info.addr = 0;
-    }
-    else if((res = strcmp(str, "Jewel") == 0))
-    {
-      transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
-      transceive_info.addr = 0;
-    }
-
-    /* Free memory */
-    e->ReleaseStringUTFChars(type, str);
 
     transceive_info.sSendData.buffer = buf + offset;
     transceive_info.sSendData.length = buflen - offset;
@@ -548,6 +568,9 @@ clean_and_return:
     if(transceive_info.sRecvData.buffer != NULL)
     {
       free(transceive_info.sRecvData.buffer);
+    }
+    if (technologies != NULL) {
+      e->ReleaseIntArrayElements(techtypes, technologies, JNI_ABORT);
     }
 
     e->ReleaseByteArrayElements(data,
