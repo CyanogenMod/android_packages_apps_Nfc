@@ -83,7 +83,7 @@ extern "C" {
 
 #if 0
   #define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, nfc_jni_get_status_name(status));
-  #define TRACE(...) LOG(LOG_DEBUG, "NdefMessage", __VA_ARGS__)
+  #define TRACE(...) LOG(LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #else
   #define LOG_CALLBACK(...)
   #define TRACE(...)
