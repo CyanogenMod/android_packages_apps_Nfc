@@ -34,7 +34,7 @@ import java.io.IOException;
  * are typically set on the client side by using {@link NfcAdapter#setLocalNdefMessage}.
  */
 public class MyTagServer {
-    private static final String TAG = "~~~~~~~~~~~~~~~";
+    private static final String TAG = "MyTagServer";
     private static final boolean DBG = true;
     private static final int SERVICE_SAP = 0x20;
 
