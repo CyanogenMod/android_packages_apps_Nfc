@@ -71,7 +71,6 @@ public class MyTagClient extends BroadcastReceiver {
             NfcService service = NfcService.getInstance();
             NdefMessage msg = msgs[0];
             byte[] buffer = msg.toByteArray();
-            byte[] tmpBuffer = new byte[MIU];
             int offset = 0;
             try {
                 if (DBG) Log.d(TAG, "about to create socket");
@@ -84,9 +83,10 @@ public class MyTagClient extends BroadcastReceiver {
                 if (DBG) Log.d(TAG, "about to send a " + buffer.length + "-bytes message");
                 while (offset < buffer.length) {
                     int length = buffer.length - offset;
-                    if (length > tmpBuffer.length) {
-                        length = tmpBuffer.length;
+                    if (length > MIU) {
+                        length = MIU;
                     }
+                    byte[] tmpBuffer = new byte[length];
                     System.arraycopy(buffer, offset, tmpBuffer, 0, length);
                     if (DBG) Log.d(TAG, "about to send a " + length + "-bytes packet");
                     sock.send(tmpBuffer);
