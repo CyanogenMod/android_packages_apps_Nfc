@@ -1127,7 +1127,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 #endif
    
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
-   nat->discovery_cfg.NfcIP_Mode = phNfc_ePassive212;//phNfc_eP2P_ALL;
+   nat->discovery_cfg.NfcIP_Mode = phNfc_eP2P_ALL;
    nat->discovery_cfg.Duration = 300000; /* in ms */
    nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
 
@@ -1303,14 +1303,21 @@ static void com_android_nfc_NfcManager_doDisconnectTag()
    }
 
    /* Disconnect */
-   TRACE("Disconnecting from tag (%x)", storedHandle);
+   TRACE("Disconnecting from Tag or Target (%x)", storedHandle);
 
-    TRACE("phLibNfc_RemoteDev_Disconnect(%x)", storedHandle);
+    TRACE("phLibNfc_RemoteDev_Disconnect(%08x)", storedHandle);
     REENTRANCE_LOCK();
     status = phLibNfc_RemoteDev_Disconnect(storedHandle, NFC_DISCOVERY_CONTINUE,
                                            nfc_jni_disconnect_callback, (void*)&cb_data);
     REENTRANCE_UNLOCK();
-    if(status != NFCSTATUS_PENDING)
+
+    if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
+    {
+        LOGE("phLibNfc_RemoteDev_Disconnect() : Target not connected");
+        storedHandle = 0;
+        goto clean_and_return;
+    }
+    else
     {
         LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
         /* Reset stored handle */
@@ -1355,13 +1362,16 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
    
     nfc_jni_stop_discovery_locked(nat);
 
+    TRACE("Handle value = 0x%08x",storedHandle);
+
     if(storedHandle != 0)
     {
-        TRACE("Disconnect connected TAG");
+        TRACE("Disconnect connected Tag or Target");
         com_android_nfc_NfcManager_doDisconnectTag();
     }
 
     CONCURRENCY_UNLOCK();
+
 }
     
 static void com_android_nfc_NfcManager_enableDiscovery(
