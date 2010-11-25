@@ -18,6 +18,7 @@ package com.android.nfc;
 
 import android.nfc.technology.NfcA;
 import android.nfc.technology.NfcB;
+import android.nfc.technology.NfcF;
 import android.nfc.technology.TagTechnology;
 import android.os.Bundle;
 import android.util.Log;
@@ -166,6 +167,20 @@ public class NativeNfcTag {
 
                     case TagTechnology.NFC_B: {
                         extras.putByteArray(NfcB.EXTRA_ATQB, mPollBytes);
+                        break;
+                    }
+                    case TagTechnology.NFC_F: {
+                        byte[] pmm = new byte[8];
+                        byte[] sc = new byte[2];
+                        if (mPollBytes.length >= 8) {
+                            // At least pmm is present
+                            System.arraycopy(mPollBytes, 0, pmm, 0, 8);
+                            extras.putByteArray(NfcF.EXTRA_PMM, pmm);
+                        }
+                        if (mPollBytes.length == 10) {
+                            System.arraycopy(mPollBytes, 8, sc, 0, 2);
+                            extras.putByteArray(NfcF.EXTRA_SC, sc);
+                        }
                         break;
                     }
 
