@@ -482,121 +482,6 @@ static phNfc_sData_t get_target_uid(phLibNfc_sRemoteDevInformation_t *psRemoteDe
 
     return uid;
 }
-/*
- *  Utility to recover poll bytes from target infos
- */
-static void set_target_pollBytes(JNIEnv *e, struct nfc_jni_native_data *nat, jobject tag, phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
-{
-    jclass tag_cls = e->GetObjectClass(nat->cached_NfcTag);
-    jfieldID f;
-    jbyteArray tagBytes;
-
-    f = e->GetFieldID(tag_cls, "mPollBytes", "[B");
-    TRACE("psRemoteDevInfo->RemDevType %x", psRemoteDevInfo->RemDevType);
-    switch(psRemoteDevInfo->RemDevType)
-    {
-        /* ISO14443-3A: ATQA/SENS_RES */
-        case phNfc_eISO14443_A_PICC:
-        case phNfc_eISO14443_3A_PICC:
-        case phNfc_eISO14443_4A_PICC:
-        case phNfc_eMifare_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
-            break;
-        /* ISO14443-3B: Application data (4 bytes) and Protocol Info (3 bytes) from ATQB/SENSB_RES */
-        case phNfc_eISO14443_B_PICC:
-        case phNfc_eISO14443_4B_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData) 
-                                       + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData),
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData);
-            e->SetByteArrayRegion(tagBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData),
-                                  sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo),
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo);
-            break;
-        /* JIS_X_6319_4: PAD0 (2 byte), PAD1 (2 byte), MRTI(2 byte), PAD2 (1 byte), RC (2 byte) */
-        case phNfc_eFelica_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm)
-                                       + sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm),
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm);
-            e->SetByteArrayRegion(tagBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm),
-                                  sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode),
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode);
-            break;
-        /* ISO15693: response flags (1 byte), DSFID (1 byte) */
-        case phNfc_eISO15693_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags)
-                                       + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags);
-            e->SetByteArrayRegion(tagBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
-                                  sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid);
-            break;
-        default:
-            tagBytes = e->NewByteArray(0);
-            break;
-    }
-
-    e->SetObjectField(tag, f, tagBytes);
-}
-
-/*
- *  Utility to recover activation bytes from target infos
- */
-static void set_target_activationBytes(JNIEnv *e, struct nfc_jni_native_data *nat, jobject tag, phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
-{
-    jclass tag_cls = e->GetObjectClass(nat->cached_NfcTag);
-    jfieldID f;
-    jbyteArray tagBytes;
-
-    f = e->GetFieldID(tag_cls, "mActivationBytes", "[B");
-    switch(psRemoteDevInfo->RemDevType)
-    {
-        /* ISO14443-3A: SAK/SEL_RES */
-        case phNfc_eISO14443_3A_PICC:
-        case phNfc_eMifare_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-            break;
-        /* ISO14443-3A & ISO14443-4: SAK/SEL_RES, historical bytes from ATS */
-        case phNfc_eISO14443_A_PICC:
-        case phNfc_eISO14443_4A_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak)
-                                       + psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength);
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
-            e->SetByteArrayRegion(tagBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak),
-                                  psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength,
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppData);
-            break;
-        /* ISO14443-3B & ISO14443-4: ATTRIB response */
-        case phNfc_eISO14443_B_PICC:
-        case phNfc_eISO14443_4B_PICC:
-            tagBytes = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength);
-            e->SetByteArrayRegion(tagBytes, 0, psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength,
-                                  (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerResp);
-            break;
-        /* ISO15693: response flags (1 byte), DSFID (1 byte) */
-        case phNfc_eISO15693_PICC:
-            tagBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags)
-                                       + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid));
-            e->SetByteArrayRegion(tagBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags);
-            e->SetByteArrayRegion(tagBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
-                                  sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid),
-                                  (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid);
-            break;
-        default:
-            tagBytes = e->NewByteArray(0);
-            break;
-    }
-
-    e->SetObjectField(tag, f, tagBytes);
-}
 
 /*
  * NFC stack message processing
@@ -928,14 +813,6 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         /* Push the technology list into the java object */
         f = e->GetFieldID(tag_cls, "mTechList", "[I");
         e->SetObjectField(tag, f, techList);
-
-        /* Set tag polling bytes */
-        TRACE("Set Tag PollBytes");
-        set_target_pollBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
-
-        /* Set tag activation bytes */
-        TRACE("Set Tag ActivationBytes\n");
-        set_target_activationBytes(e, nat, tag, psRemoteDevList[target_index].psRemoteDevInfo);
       }
 
       /* Set tag handle */

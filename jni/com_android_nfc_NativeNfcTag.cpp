@@ -54,6 +54,15 @@ static void nfc_jni_connect_callback(void *pContext,
 
    /* Report the callback status and wake up the caller */
    pCallbackData->status = status;
+   if (pCallbackData->pContext != NULL) {
+       // Store the remote dev info ptr in the callback context
+       // Note that this ptr will remain valid, it is tied to a statically
+       // allocated buffer in libnfc.
+       phLibNfc_sRemoteDevInformation_t** ppRemoteDevInfo =
+           (phLibNfc_sRemoteDevInformation_t**)pCallbackData->pContext;
+       *ppRemoteDevInfo = psRemoteDevInfo;
+   }
+
    sem_post(&pCallbackData->sem);
 }
 
@@ -304,6 +313,135 @@ clean_and_return:
    return result;
 }
 
+/*
+ *  Utility to recover poll bytes from target infos
+ */
+static void set_target_pollBytes(JNIEnv *e, jobject tag,
+        phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
+{
+    jclass tag_cls = e->GetObjectClass(tag);
+    jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
+    jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
+    jint *techId = e->GetIntArrayElements(techList, 0);
+    int techListLength = e->GetArrayLength(techList);
+
+    jfieldID f = e->GetFieldID(tag_cls, "mTechPollBytes", "[[B");
+    jbyteArray pollBytes = e->NewByteArray(0);
+    jobjectArray techPollBytes = e->NewObjectArray(techListLength,
+            e->GetObjectClass(pollBytes), 0);
+
+    for (int tech = 0; tech < techListLength; tech++) {
+        switch(techId[tech])
+        {
+            /* ISO14443-3A: ATQA/SENS_RES */
+            case TARGET_TYPE_ISO14443_3A:
+                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
+                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
+                break;
+            /* ISO14443-3B: Application data (4 bytes) and Protocol Info (3 bytes) from ATQB/SENSB_RES */
+            case TARGET_TYPE_ISO14443_3B:
+                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData)
+                                           + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo));
+                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData),
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData);
+                e->SetByteArrayRegion(pollBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.AppData),
+                                      sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo),
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.AtqB.AtqResInfo.ProtInfo);
+                break;
+            /* JIS_X_6319_4: PAD0 (2 byte), PAD1 (2 byte), MRTI(2 byte), PAD2 (1 byte), RC (2 byte) */
+            case TARGET_TYPE_FELICA:
+                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm)
+                                           + sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode));
+                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm),
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm);
+                e->SetByteArrayRegion(pollBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.PMm),
+                                      sizeof(psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode),
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Felica_Info.SystemCode);
+                break;
+            /* ISO15693: response flags (1 byte), DSFID (1 byte) */
+            case TARGET_TYPE_ISO15693:
+                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags)
+                                           + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid));
+                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
+                                      (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags);
+                e->SetByteArrayRegion(pollBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
+                                      sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid),
+                                      (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid);
+                break;
+            default:
+                pollBytes = e->NewByteArray(0);
+                break;
+        }
+        e->SetObjectArrayElement(techPollBytes, tech, pollBytes);
+    }
+
+    e->SetObjectField(tag, f, techPollBytes);
+
+}
+
+/*
+ *  Utility to recover activation bytes from target infos
+ */
+static void set_target_activationBytes(JNIEnv *e, jobject tag,
+        phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
+{
+    jclass tag_cls = e->GetObjectClass(tag);
+    jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
+    jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
+    int techListLength = e->GetArrayLength(techList);
+    jint *techId = e->GetIntArrayElements(techList, 0);
+
+    jfieldID f = e->GetFieldID(tag_cls, "mTechActBytes", "[[B");
+    jbyteArray actBytes = e->NewByteArray(0);
+    jobjectArray techActBytes = e->NewObjectArray(techListLength,
+            e->GetObjectClass(actBytes), 0);
+
+    for (int tech = 0; tech < techListLength; tech++) {
+        switch(techId[tech]) {
+
+            /* ISO14443-3A: SAK/SEL_RES */
+            case TARGET_TYPE_ISO14443_3A:
+                actBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak));
+                e->SetByteArrayRegion(actBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak),
+                                      (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
+                break;
+            /* ISO14443-3A & ISO14443-4: SAK/SEL_RES, historical bytes from ATS */
+            /* ISO14443-3B & ISO14443-4: HiLayerResp */
+            case TARGET_TYPE_ISO14443_4:
+                // Determine whether -A or -B
+                if (psRemoteDevInfo->RemDevType == phNfc_eISO14443_B_PICC ||
+                    psRemoteDevInfo->RemDevType == phNfc_eISO14443_4B_PICC) {
+                    actBytes = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength);
+                    e->SetByteArrayRegion(actBytes, 0, psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength,
+                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerResp);
+                }
+                else {
+                    actBytes = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength);
+                    e->SetByteArrayRegion(actBytes, 0,
+                                          psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength,
+                                          (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppData);
+                }
+                break;
+            /* ISO15693: response flags (1 byte), DSFID (1 byte) */
+            case TARGET_TYPE_ISO15693:
+                actBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags)
+                                           + sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid));
+                e->SetByteArrayRegion(actBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
+                                      (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags);
+                e->SetByteArrayRegion(actBytes, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Flags),
+                                      sizeof(psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid),
+                                      (jbyte *)&psRemoteDevInfo->RemoteDevInfo.Iso15693_Info.Dsfid);
+                break;
+            default:
+                actBytes = e->NewByteArray(0);
+                break;
+        }
+        e->SetObjectArrayElement(techActBytes, tech, actBytes);
+    }
+    e->SetObjectField(tag, f, techActBytes);
+}
+
 static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    jobject o)
 {
@@ -313,13 +451,14 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    NFCSTATUS status;
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
 
    CONCURRENCY_LOCK();
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
    /* Create the local semaphore */
-   if (!nfc_cb_data_init(&cb_data, NULL))
+   if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
    {
       goto clean_and_return;
    }
@@ -347,6 +486,10 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    {
       goto clean_and_return;
    }
+
+   // Success, set poll & act bytes
+   set_target_pollBytes(e, o, pRemDevInfo);
+   set_target_activationBytes(e, o, pRemDevInfo);
 
    result = JNI_TRUE;
 
