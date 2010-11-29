@@ -121,32 +121,35 @@ public class MyTagServer {
 
         @Override
         public void run() {
-            trace("about create LLCP service socket");
-            mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
-                    128, 1, 1024);
-            if (mServerSocket == null) {
-                trace("failed to create LLCP service socket");
-                return;
-            }
-            trace("created LLCP service socket");
-            try {
-                while (mRunning) {
-                    trace("about to accept");
-                    LlcpSocket communicationSocket = mServerSocket.accept();
-                    trace("accept returned " + communicationSocket);
-                    if (communicationSocket != null) {
-                        new ConnectionThread(communicationSocket).start();
-                    }
+            while (mRunning) {
+                trace("about create LLCP service socket");
+                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
+                        128, 1, 1024);
+                if (mServerSocket == null) {
+                    trace("failed to create LLCP service socket");
+                    return;
                 }
-                trace("stop running");
-            } catch (LlcpException e) {
-                error("llcp error", e);
-            } catch (IOException e) {
-                error("IO error", e);
-            } finally {
-                if (mServerSocket != null) {
-                    trace("about to close");
-                    mServerSocket.close();
+                trace("created LLCP service socket");
+                try {
+                    while (mRunning) {
+                        trace("about to accept");
+                        LlcpSocket communicationSocket = mServerSocket.accept();
+                        trace("accept returned " + communicationSocket);
+                        if (communicationSocket != null) {
+                            new ConnectionThread(communicationSocket).start();
+                        }
+                    }
+                    trace("stop running");
+                } catch (LlcpException e) {
+                    error("llcp error", e);
+                } catch (IOException e) {
+                    error("IO error", e);
+                } finally {
+                    if (mServerSocket != null) {
+                        trace("about to close");
+                        mServerSocket.close();
+                        mServerSocket = null;
+                    }
                 }
             }
         }
@@ -155,6 +158,7 @@ public class MyTagServer {
             mRunning = false;
             if (mServerSocket != null) {
                 mServerSocket.close();
+                mServerSocket = null;
             }
         }
     };
