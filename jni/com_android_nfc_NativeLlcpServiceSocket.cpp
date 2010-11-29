@@ -59,7 +59,13 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    {
       return NULL;
    }
-   
+
+   /* Check for error */
+   if (hIncommingLlcpSocket == NULL)
+   {
+      return NULL;
+   }
+
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {

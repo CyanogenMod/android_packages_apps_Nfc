@@ -638,10 +638,10 @@ static void nfc_jni_llcp_transport_listen_socket_callback(void              *pCo
 {
    TRACE("nfc_jni_llcp_transport_listen_socket_callback socket handle = %p", IncomingSocket);
 
+   hIncommingLlcpSocket = IncomingSocket;
    if(IncomingSocket != 0)
    {
       TRACE("Listen CB \n");
-      hIncommingLlcpSocket = IncomingSocket;
       sem_post(nfc_jni_llcp_listen_sem);
    }
    else
