@@ -48,6 +48,13 @@ public class MyTagServer {
     private class ConnectionThread extends Thread {
         private LlcpSocket mSock;
 
+        private void trace(String msg) {
+            if (DBG) Log.d(TAG, "Server (" + Thread.currentThread().getId() + "): " + msg);
+        }
+        private void error(String msg, Throwable e) {
+            if (DBG) Log.e(TAG, "Server (" + Thread.currentThread().getId() + "): " + msg, e);
+        }
+
         ConnectionThread(LlcpSocket sock) {
             super("MyTagServer");
             mSock = sock;
@@ -55,7 +62,7 @@ public class MyTagServer {
 
         @Override
         public void run() {
-            if (DBG) Log.d(TAG, "starting connection thread");
+            trace("starting connection thread");
             try {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream(1024);
                 byte[] partial = new byte[1024];
@@ -66,7 +73,7 @@ public class MyTagServer {
                 while(!connectionBroken) {
                     try {
                         size = mSock.receive(partial);
-                        if (DBG) Log.d(TAG, "read " + size + " bytes");
+                        trace("read " + size + " bytes");
                         if (size < 0) {
                             connectionBroken = true;
                             break;
@@ -76,25 +83,27 @@ public class MyTagServer {
                     } catch (IOException e) {
                         // Connection broken
                         connectionBroken = true;
-                        if (DBG) Log.d(TAG, "connection broken by IOException", e);
+                        error("connection broken by IOException", e);
                     }
                 }
 
                 // Build NDEF message from the stream
                 NdefMessage msg = new NdefMessage(buffer.toByteArray());
-                if (DBG) Log.d(TAG, "got message " + msg.toString());
+                trace("got message " + msg.toString());
 
                 // Send the intent for the fake tag
                 mService.sendMockNdefTag(msg);
             } catch (FormatException e) {
-                Log.e(TAG, "badly formatted NDEF message, ignoring", e);
+                error("badly formatted NDEF message, ignoring", e);
             } finally {
                 try {
+                    trace("about to close");
                     mSock.close();
                 } catch (IOException e) {
                     // ignore
                 }
             }
+            trace("finished connection thread");
         }
     };
 
@@ -103,31 +112,42 @@ public class MyTagServer {
         boolean mRunning = true;
         LlcpServiceSocket mServerSocket;
 
+        private void trace(String msg) {
+            if (DBG) Log.d(TAG, "Comm (" + Thread.currentThread().getId() + "): " + msg);
+        }
+        private void error(String msg, Throwable e) {
+            if (DBG) Log.e(TAG, "Comm (" + Thread.currentThread().getId() + "): " + msg, e);
+        }
+
         @Override
         public void run() {
-            if (DBG) Log.d(TAG, "about create LLCP service socket");
+            trace("about create LLCP service socket");
             mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
                     128, 1, 1024);
             if (mServerSocket == null) {
-                Log.d(TAG, "failed to create LLCP service socket");
+                trace("failed to create LLCP service socket");
                 return;
             }
-            if (DBG) Log.d(TAG, "created LLCP service socket");
+            trace("created LLCP service socket");
             try {
                 while (mRunning) {
-                    if (DBG) Log.d(TAG, "about to accept");
+                    trace("about to accept");
                     LlcpSocket communicationSocket = mServerSocket.accept();
-                    if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
+                    trace("accept returned " + communicationSocket);
                     if (communicationSocket != null) {
                         new ConnectionThread(communicationSocket).start();
                     }
                 }
+                trace("stop running");
             } catch (LlcpException e) {
-                Log.e(TAG, "llcp error", e);
+                error("llcp error", e);
             } catch (IOException e) {
-                Log.e(TAG, "IO error", e);
+                error("IO error", e);
             } finally {
-                if (mServerSocket != null) mServerSocket.close();
+                if (mServerSocket != null) {
+                    trace("about to close");
+                    mServerSocket.close();
+                }
             }
         }
 

@@ -66,6 +66,13 @@ public class MyTagClient extends BroadcastReceiver {
     }
 
     final class SendAsync extends AsyncTask<NdefMessage, Void, Void> {
+        private void trace(String msg) {
+            if (DBG) Log.d(TAG, Thread.currentThread().getId() + ": " + msg);
+        }
+        private void error(String msg, Throwable e) {
+            if (DBG) Log.e(TAG, Thread.currentThread().getId() + ": " + msg, e);
+        }
+
         @Override
         public Void doInBackground(NdefMessage... msgs) {
             NfcService service = NfcService.getInstance();
@@ -74,14 +81,14 @@ public class MyTagClient extends BroadcastReceiver {
             int offset = 0;
             LlcpSocket sock = null;
             try {
-                if (DBG) Log.d(TAG, "about to create socket");
+                trace("about to create socket");
                 // Connect to the my tag server on the remote side
                 sock = service.createLlcpSocket(0, MIU, 1, 1024);
-                if (DBG) Log.d(TAG, "about to connect");
+                trace("about to connect");
 //                sock.connect(MyTagServer.SERVICE_NAME);
                 sock.connect(0x20);
 
-                if (DBG) Log.d(TAG, "about to send a " + buffer.length + "-bytes message");
+                trace("about to send a " + buffer.length + "-bytes message");
                 while (offset < buffer.length) {
                     int length = buffer.length - offset;
                     if (length > MIU) {
@@ -89,19 +96,19 @@ public class MyTagClient extends BroadcastReceiver {
                     }
                     byte[] tmpBuffer = new byte[length];
                     System.arraycopy(buffer, offset, tmpBuffer, 0, length);
-                    if (DBG) Log.d(TAG, "about to send a " + length + "-bytes packet");
+                    trace("about to send a " + length + "-bytes packet");
                     sock.send(tmpBuffer);
                     offset += length;
                 }
             } catch (IOException e) {
-                Log.e(TAG, "couldn't send tag", e);
+                error("couldn't send tag", e);
             } catch (LlcpException e) {
                 // Most likely the other side doesn't support the my tag protocol
-                Log.e(TAG, "couldn't send tag", e);
+                error("couldn't send tag", e);
             } finally {
                 if (sock != null) {
                     try {
-                        if (DBG) Log.d(TAG, "about to close");
+                        trace("about to close");
                         sock.close();
                     } catch (IOException e) {
                         // Ignore
