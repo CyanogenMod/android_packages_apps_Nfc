@@ -72,10 +72,11 @@ public class MyTagClient extends BroadcastReceiver {
             NdefMessage msg = msgs[0];
             byte[] buffer = msg.toByteArray();
             int offset = 0;
+            LlcpSocket sock = null;
             try {
                 if (DBG) Log.d(TAG, "about to create socket");
                 // Connect to the my tag server on the remote side
-                LlcpSocket sock = service.createLlcpSocket(0, MIU, 1, 1024);
+                sock = service.createLlcpSocket(0, MIU, 1, 1024);
                 if (DBG) Log.d(TAG, "about to connect");
 //                sock.connect(MyTagServer.SERVICE_NAME);
                 sock.connect(0x20);
@@ -92,15 +93,20 @@ public class MyTagClient extends BroadcastReceiver {
                     sock.send(tmpBuffer);
                     offset += length;
                 }
-
-                if (DBG) Log.d(TAG, "about to close");
-                sock.close();
-
             } catch (IOException e) {
                 Log.e(TAG, "couldn't send tag", e);
             } catch (LlcpException e) {
                 // Most likely the other side doesn't support the my tag protocol
                 Log.e(TAG, "couldn't send tag", e);
+            } finally {
+                if (sock != null) {
+                    try {
+                        if (DBG) Log.d(TAG, "about to close");
+                        sock.close();
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                }
             }
             return null;
         }
