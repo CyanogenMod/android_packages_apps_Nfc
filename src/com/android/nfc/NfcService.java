@@ -1118,14 +1118,9 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpSocket) findSocket(nativeHandle);
             if (socket != null) {
-                receiveLength = socket.doReceive(receiveBuffer);
-                if (receiveLength != 0) {
-                    return receiveLength;
-                } else {
-                    return ErrorCodes.ERROR_IO;
-                }
+                return socket.doReceive(receiveBuffer);
             } else {
-                return ErrorCodes.ERROR_IO;
+                return 0;
             }
         }
 
