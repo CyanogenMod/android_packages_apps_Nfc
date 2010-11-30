@@ -15,10 +15,12 @@
  */
 
 #include <com_android_nfc_list.h>
+#include <com_android_nfc.h>
 #include <pthread.h>
 #include <errno.h>
 #include <cutils/log.h>
 
+#undef LOG_TAG
 #define LOG_TAG "NFC_LIST"
 
 bool listInit(listHead* pList)
@@ -60,8 +62,10 @@ bool listAdd(listHead* pList, void* pData)
    if (pNode == NULL)
    {
       result = false;
+      LOGE("Failed to malloc");
       goto clean_and_return;
    }
+   TRACE("Allocated node: %8p (%8p)", pNode, pData);
    pNode->pData = pData;
    pNode->pNext = NULL;
 
@@ -104,6 +108,7 @@ bool listRemove(listHead* pList, void* pData)
    if (pList->pFirst == NULL)
    {
       /* Empty list */
+      LOGE("Failed to deallocate (list empty)");
       result = false;
       goto clean_and_return;
    }
@@ -133,6 +138,7 @@ bool listRemove(listHead* pList, void* pData)
       {
          /* Node not found */
           result = false;
+          LOGE("Failed to deallocate (not found %8p)", pData);
           goto clean_and_return;
       }
 
@@ -144,6 +150,7 @@ bool listRemove(listHead* pList, void* pData)
    }
 
    /* Deallocate the node */
+   TRACE("Deallocating node: %8p (%8p)", pRemovedNode, pRemovedNode->pData);
    free(pRemovedNode);
 
    result = true;
@@ -163,6 +170,7 @@ bool listGetAndRemoveNext(listHead* pList, void** ppData)
    if (pList->pFirst)
    {
       /* Empty list */
+      LOGE("Failed to deallocate (list empty)");
       result = false;
       goto clean_and_return;
    }
@@ -178,6 +186,7 @@ bool listGetAndRemoveNext(listHead* pList, void** ppData)
 
    /* Remove and deallocate the node */
    pList->pFirst = pNode->pNext;
+   TRACE("Deallocating node: %8p (%8p)", pNode, pNode->pData);
    free(pNode);
 
    result = true;
@@ -192,10 +201,10 @@ void listDump(listHead* pList)
 {
    struct listNode* pNode = pList->pFirst;
 
-   LOGD("Node dump:");
+   TRACE("Node dump:");
    while (pNode != NULL)
    {
-      LOGD("- %p", pNode->pData);
+      TRACE("- %8p (%8p)", pNode, pNode->pData);
       pNode = pNode->pNext;
    }
 }
