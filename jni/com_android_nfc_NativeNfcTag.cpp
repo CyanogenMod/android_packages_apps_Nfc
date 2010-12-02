@@ -710,17 +710,18 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     buflen = outlen = (uint32_t)e->GetArrayLength(data);
 
     switch (selectedTech) {
+/* TODO figure out how to pipe Jewel commands through from Java
         case TARGET_TYPE_JEWEL:
           transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
           transceive_info.addr = 0;
           break;
+*/
         case TARGET_TYPE_FELICA:
           transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
           transceive_info.addr = 0;
           break;
         case TARGET_TYPE_MIFARE_CLASSIC:
         case TARGET_TYPE_MIFARE_UL:
-        case TARGET_TYPE_MIFARE_DESFIRE:
           if (raw) {
               transceive_info.cmd.MfCmd = phHal_eMifareRaw;
               transceive_info.addr = 0;
