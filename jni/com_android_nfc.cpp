@@ -16,6 +16,7 @@
 
 #include "errno.h"
 #include "com_android_nfc.h"
+#include "com_android_nfc_list.h"
 #include "phLibNfcStatus.h"
 
 /*
@@ -35,8 +36,6 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeNfcTag(e) == -1)
       return JNI_ERR;
-   if (android::register_com_android_nfc_NativeNdefTag(e) == -1)
-      return JNI_ERR;
    if (android::register_com_android_nfc_NativeP2pDevice(e) == -1)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeLlcpSocket(e) == -1)
@@ -44,6 +43,8 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
    if (android::register_com_android_nfc_NativeLlcpConnectionlessSocket(e) == -1)
       return JNI_ERR;
    if (android::register_com_android_nfc_NativeLlcpServiceSocket(e) == -1)
+      return JNI_ERR;
+   if (android::register_com_android_nfc_NativeNfcSecureElement(e) == -1)
       return JNI_ERR;
 
    return JNI_VERSION_1_6;
@@ -56,6 +57,57 @@ extern struct nfc_jni_native_data *exported_nat;
 /*
  * JNI Utils
  */
+bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext)
+{
+   /* Create semaphore */
+   if(sem_init(&pCallbackData->sem, 0, 0) == -1)
+   {
+      LOGE("Semaphore creation failed (errno=0x%08x)", errno);
+      return false;
+   }
+
+   /* Set default status value */
+   pCallbackData->status = NFCSTATUS_FAILED;
+
+   /* Copy the context */
+   pCallbackData->pContext = pContext;
+
+   /* Add to active semaphore list */
+   if (!listAdd(&nfc_jni_get_monitor()->sem_list, pCallbackData))
+   {
+      LOGE("Failed to add the semaphore to the list");
+   }
+
+   return true;
+}
+
+void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData)
+{
+   /* Destroy semaphore */
+   if (sem_destroy(&pCallbackData->sem))
+   {
+      LOGE("Failed to destroy semaphore (errno=0x%08x)", errno);
+   }
+
+   /* Remove from active semaphore list */
+   if (!listRemove(&nfc_jni_get_monitor()->sem_list, pCallbackData))
+   {
+      LOGE("Failed to remove semaphore from the list");
+   }
+
+}
+
+void nfc_cb_data_releaseAll()
+{
+   nfc_jni_callback_data* pCallbackData;
+
+   while (listGetAndRemoveNext(&nfc_jni_get_monitor()->sem_list, (void**)&pCallbackData))
+   {
+      pCallbackData->status = NFCSTATUS_FAILED;
+      sem_post(&pCallbackData->sem);
+   }
+}
+
 int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    jobject *cached_obj)
 {
@@ -140,6 +192,12 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
          LOGE("NFC Manager Concurrency Mutex creation retruned 0x%08x", errno);
          return NULL;
       }
+
+      if(!listInit(&nfc_jni_native_monitor->sem_list))
+      {
+         LOGE("NFC Manager Semaphore List creation retruned 0x%08x", errno);
+         return NULL;
+      }
    }
 
    return nfc_jni_native_monitor;
@@ -196,19 +254,19 @@ phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
    return e->GetIntField(o, f);
 }
 
-jstring nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
+jintArray nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o)
 {
   jclass c;
   jfieldID f;
-  jstring type;
+  jintArray techtypes;
    
   c = e->GetObjectClass(o);
-  f = e->GetFieldID(c, "mType","Ljava/lang/String;");
+  f = e->GetFieldID(c, "mTechList","[I");
 
-  /* Read the instance field */
-  type = (jstring)e->GetObjectField(o, f);
-  
-  return type;  
+  /* Read the techtypes  */
+  techtypes = (jintArray) e->GetObjectField(o, f);
+
+  return techtypes;
 }
 
 
@@ -277,6 +335,129 @@ const char* nfc_jni_get_status_name(NFCSTATUS status)
    }
 
    return "UNKNOWN";
+}
+
+/*
+ *  Utility to get target type name from its specs
+ */
+jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8_t sak)
+{
+   jintArray techList = NULL;
+   jint* techItems;
+   switch (type)
+   {
+      case phNfc_eISO14443_A_PICC:
+      case phNfc_eISO14443_4A_PICC:
+        {
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+          break;
+        }
+      case phNfc_eISO14443_4B_PICC:
+        {
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3B;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break;
+        
+      case phNfc_eISO14443_3A_PICC:
+        {
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break;
+
+      case phNfc_eISO14443_B_PICC:
+        {
+          // TODO a bug in libnfc will cause 14443-3B only cards
+          // to be returned as this type as well, but these cards
+          // are very rare. Hence assume it's -4B
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO14443_4;
+          techItems[1] = TARGET_TYPE_ISO14443_3B;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break;
+        
+      case phNfc_eISO15693_PICC:
+        {
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_ISO15693;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break;
+
+      case phNfc_eMifare_PICC:
+        {
+          switch(sak)
+          {
+            case 0x00:
+              // could be UL or UL-C
+              techList = e->NewIntArray(2);
+              techItems = e->GetIntArrayElements(techList, NULL);
+              techItems[0] = TARGET_TYPE_MIFARE_UL;
+              techItems[1] = TARGET_TYPE_ISO14443_3A;
+              e->ReleaseIntArrayElements(techList, techItems,0);
+              break;
+            case 0x08:
+            case 0x09:
+            case 0x10:
+            case 0x11:
+            case 0x18:
+            case 0x28:
+            case 0x38:
+            case 0x88:
+            case 0x98:
+            case 0xB8:
+              techList = e->NewIntArray(2);
+              techItems = e->GetIntArrayElements(techList, NULL);
+              techItems[0] = TARGET_TYPE_MIFARE_CLASSIC;
+              techItems[1] = TARGET_TYPE_ISO14443_3A;
+              e->ReleaseIntArrayElements(techList, techItems,0);
+              break;
+            case 0x20:
+              // This could be DESfire, but libnfc returns that as ISO14443_4
+              // so we shouldn't hit this case
+            default:
+              {
+                techList = e->NewIntArray(1);
+                techItems = e->GetIntArrayElements(techList, NULL);
+                techItems[0] = TARGET_TYPE_UNKNOWN;
+                e->ReleaseIntArrayElements(techList, techItems,0);
+              }break;
+          }
+        }break;
+      case phNfc_eFelica_PICC:
+        {
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_FELICA;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break; 
+      case phNfc_eJewel_PICC:
+        {
+          techList = e->NewIntArray(2);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_JEWEL;
+          techItems[1] = TARGET_TYPE_ISO14443_3A;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }break; 
+      default:
+        {
+          techList = e->NewIntArray(1);
+          techItems = e->GetIntArrayElements(techList, NULL);
+          techItems[0] = TARGET_TYPE_UNKNOWN;
+          e->ReleaseIntArrayElements(techList, techItems,0);
+        }
+   }
+
+   return techList;
 }
 
 } // namespace android

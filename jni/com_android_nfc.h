@@ -31,6 +31,9 @@ extern "C" {
 #include <phLibNfc.h>
 #include <phDal4Nfc_messageQueueLib.h>
 #include <cutils/log.h>
+#include <com_android_nfc_list.h>
+#include <semaphore.h>
+
 }
 #include <cutils/properties.h> // for property_get
 
@@ -63,26 +66,24 @@ extern "C" {
 #define ERROR_BUFFER_TOO_SMALL            -12
 #define ERROR_INSUFFICIENT_RESOURCES      -9
 
-/* Name strings for target types */
-#define TARGET_TYPE_ISO14443_3A     "Iso14443-3A"
-#define TARGET_TYPE_ISO14443_3B     "Iso14443-3B"
-#define TARGET_TYPE_ISO14443_4      "Iso14443-4"
-#define TARGET_TYPE_ISO15693        "Iso15693"
-#define TARGET_TYPE_MIFARE_UL       "MifareUL"
-#define TARGET_TYPE_MIFARE_1K       "Mifare1K"
-#define TARGET_TYPE_MIFARE_4K       "Mifare4K"
-#define TARGET_TYPE_MIFARE_DESFIRE  "MifareDESFIRE"
-#define TARGET_TYPE_MIFARE_UNKNOWN  "Unknown Mifare"
-#define TARGET_TYPE_FELICA          "Felica"
-#define TARGET_TYPE_JEWEL           "Jewel"
-#define TARGET_TYPE_UNKNOWN         "Unknown Type"
+/* Name strings for target types. These *must* match the values in TagTechnology.java */
+#define TARGET_TYPE_UNKNOWN               -1
+#define TARGET_TYPE_ISO14443_3A           1
+#define TARGET_TYPE_ISO14443_3B           2
+#define TARGET_TYPE_ISO14443_4            3
+#define TARGET_TYPE_ISO15693              21
+#define TARGET_TYPE_MIFARE_CLASSIC        200
+#define TARGET_TYPE_MIFARE_UL             202
+#define TARGET_TYPE_MIFARE_DESFIRE        203
+#define TARGET_TYPE_FELICA                11
+#define TARGET_TYPE_JEWEL                 101
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN
 
 #if 0
   #define LOG_CALLBACK(funcName, status)  LOG_PRI(GET_LEVEL(status), LOG_TAG, "Callback: %s() - status=0x%04x[%s]", funcName, status, nfc_jni_get_status_name(status));
-  #define TRACE(...) LOG(LOG_DEBUG, "NdefMessage", __VA_ARGS__)
+  #define TRACE(...) LOG(LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #else
   #define LOG_CALLBACK(...)
   #define TRACE(...)
@@ -136,7 +137,23 @@ typedef struct nfc_jni_native_monitor
    /* Mutex protecting native library against concurrency */
    pthread_mutex_t concurrency_mutex;
 
+   /* List used to track pending semaphores waiting for callback */
+   struct listHead sem_list;
+
 } nfc_jni_native_monitor_t;
+
+typedef struct nfc_jni_callback_data
+{
+   /* Semaphore used to wait for callback */
+   sem_t sem;
+
+   /* Used to store the status sent by the callback */
+   NFCSTATUS status;
+
+   /* Used to provide a local context to the callback */
+   void* pContext;
+
+} nfc_jni_callback_data_t;
 
 /* TODO: treat errors and add traces */
 #define REENTRANCE_LOCK()        pthread_mutex_lock(&nfc_jni_get_monitor()->reentrance_mutex)
@@ -146,6 +163,11 @@ typedef struct nfc_jni_native_monitor
 
 namespace android {
 
+
+bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext);
+void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData);
+void nfc_cb_data_releaseAll();
+
 const char* nfc_jni_get_status_name(NFCSTATUS status);
 int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    jobject *cached_obj);
@@ -154,24 +176,27 @@ struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e);
 nfc_jni_native_monitor_t* nfc_jni_init_monitor(void);
 nfc_jni_native_monitor_t* nfc_jni_get_monitor(void);
 
+int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak);
+jintArray nfc_jni_get_technology_tree(JNIEnv *e, phNfc_eRemDevType_t type, uint8_t sak);
+
 /* P2P */
 phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
 jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
 
 /* TAG */
 phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o);
-jstring nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
+jintArray nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
 
 /* LLCP */
 phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o);
 
 int register_com_android_nfc_NativeNfcManager(JNIEnv *e);
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e);
-int register_com_android_nfc_NativeNdefTag(JNIEnv *e);
 int register_com_android_nfc_NativeP2pDevice(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e);
 int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e);
+int register_com_android_nfc_NativeNfcSecureElement(JNIEnv *e);
 
 } // namespace android
 

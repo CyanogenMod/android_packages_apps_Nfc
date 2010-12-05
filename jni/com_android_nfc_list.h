@@ -14,15 +14,36 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+#ifndef __COM_ANDROID_NFC_LIST_H__
+#define __COM_ANDROID_NFC_LIST_H__
 
-/**
- * Native interface to the NDEF tag functions
- */
-public class NativeNdefTag {
-    private int mHandle;
+#include <pthread.h>
 
-    public native byte[] doRead();
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    public native boolean doWrite(byte[] buf);
+struct listNode
+{
+   void* pData;
+   struct listNode* pNext;
+};
+
+struct listHead
+{
+    listNode* pFirst;
+    pthread_mutex_t mutex;
+};
+
+bool listInit(listHead* pList);
+bool listDestroy(listHead* pList);
+bool listAdd(listHead* pList, void* pData);
+bool listRemove(listHead* pList, void* pData);
+bool listGetAndRemoveNext(listHead* pList, void** ppData);
+void listDump(listHead* pList);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* __COM_ANDROID_NFC_LIST_H__ */
