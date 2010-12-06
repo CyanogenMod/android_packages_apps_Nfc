@@ -23,7 +23,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       22
+#define EEDATA_SETTINGS_NUMBER       24
 
 static phLibNfc_sConfig_t   gDrvCfg;
 void   *gHWRef;
@@ -86,6 +86,8 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	,{0x00,0x9C,0x32,0x00} // 
 	,{0x00,0x9C,0x0C,0x00} //
 	,{0x00,0x9C,0x0D,0x00} //
+	,{0x00,0x9C,0x12,0x00} //
+	,{0x00,0x9C,0x13,0x00} //
 };
 
 /* Internal functions declaration */
@@ -154,7 +156,9 @@ static void kill_client(nfc_jni_native_data *nat)
    phDal4Nfc_Message_Wrapper_t  wrapper;
    phLibNfc_DeferredCall_t     *pMsg;
    
-   LOGD("Terminating client thead...");
+   usleep(50000);
+
+   LOGD("Terminating client thread...");
     
    pMsg = (phLibNfc_DeferredCall_t*)malloc(sizeof(phLibNfc_DeferredCall_t));
    pMsg->pCallback = client_kill_deferred_call;
@@ -1004,7 +1008,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 #endif
    
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
-   nat->discovery_cfg.NfcIP_Mode = phNfc_eP2P_ALL;
+   nat->discovery_cfg.NfcIP_Mode = phNfc_ePassive424;
    nat->discovery_cfg.Duration = 300000; /* in ms */
    nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
 
