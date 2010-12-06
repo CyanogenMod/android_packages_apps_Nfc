@@ -18,8 +18,11 @@ package com.android.nfc;
 
 import com.android.internal.nfc.LlcpServiceSocket;
 import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.mytag.MyTagClient;
+import com.android.nfc.mytag.MyTagServer;
 
 import android.app.Application;
+import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -37,10 +40,11 @@ import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
-import android.nfc.NdefTag;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.INfcSecureElement;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
@@ -48,12 +52,21 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class NfcService extends Application {
     static final boolean DBG = false;
+
+    private static final String MY_TAG_FILE_NAME = "mytag";
 
     static {
         System.loadLibrary("nfc_jni");
@@ -110,7 +123,7 @@ public class NfcService extends Application {
     private static final boolean DISCOVERY_15693_DEFAULT = true;
 
     private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
-    private static final boolean DISCOVERY_NFCIP_DEFAULT = false;
+    private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
 
     /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
@@ -148,6 +161,9 @@ public class NfcService extends Application {
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
     static final int MSG_LLCP_LINK_DEACTIVATED = 3;
     static final int MSG_TARGET_DESELECTED = 4;
+    static final int MSG_SHOW_MY_TAG_ICON = 5;
+    static final int MSG_HIDE_MY_TAG_ICON = 6;
+    static final int MSG_MOCK_NDEF = 7;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -158,6 +174,14 @@ public class NfcService extends Application {
     private volatile boolean mIsNfcEnabled = false;
     private int mSelectedSeId = 0;
     private boolean mNfcSecureElementState;
+
+    // Secure element
+    private Timer mTimerOpenSmx;
+    private boolean isClosed = false;
+    private boolean isOpened = false;
+    private boolean mOpenSmxPending = false;
+    private NativeNfcSecureElement mSecureElement;
+    private int mSecureElementHandle;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -170,6 +194,8 @@ public class NfcService extends Application {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
+    private MyTagServer mMyTagServer;
+    private MyTagClient mMyTagClient;
 
     private static NfcService sService;
 
@@ -188,6 +214,11 @@ public class NfcService extends Application {
         mContext = this;
         mManager = new NativeNfcManager(mContext, this);
         mManager.initializeNativeStructure();
+
+        mMyTagServer = new MyTagServer();
+        mMyTagClient = new MyTagClient(this);
+
+        mSecureElement = new NativeNfcSecureElement();
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -250,6 +281,7 @@ public class NfcService extends Application {
 
             if (previouslyEnabled) {
                 /* tear down the my tag server */
+                mMyTagServer.stop();
                 isSuccess = mManager.deinitialize();
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
@@ -578,6 +610,11 @@ public class NfcService extends Application {
             return mP2pTargetService;
         }
 
+        public INfcSecureElement getNfcSecureElementInterface() {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mSecureElementService;
+        }
+
         @Override
         public String getProperties(String param) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
@@ -794,6 +831,60 @@ public class NfcService extends Application {
             }
 
             return ErrorCodes.SUCCESS;
+        }
+
+        @Override
+        public NdefMessage localGet() throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            synchronized (this) {
+                return mLocalMessage;
+            }
+        }
+
+        @Override
+        public void localSet(NdefMessage message) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
+            synchronized (this) {
+                mLocalMessage = message;
+                Context context = NfcService.this.getApplicationContext();
+
+                // Send a message to the UI thread to show or hide the icon so the requests are
+                // serialized and the icon can't get out of sync with reality.
+                if (message != null) {
+                    FileOutputStream out = null;
+
+                    try {
+                        out = context.openFileOutput(MY_TAG_FILE_NAME, Context.MODE_PRIVATE);
+                        byte[] bytes = message.toByteArray();
+                        if (bytes.length == 0) {
+                            Log.w(TAG, "Setting a empty mytag");
+                        }
+
+                        out.write(bytes);
+                    } catch (IOException e) {
+                        Log.e(TAG, "Could not write mytag file", e);
+                    } finally {
+                        try {
+                            if (out != null) {
+                                out.flush();
+                                out.close();
+                            }
+                        } catch (IOException e) {
+                            // Ignore
+                        }
+                    }
+
+                    // Only show the icon if NFC is enabled.
+                    if (mIsNfcEnabled) {
+                        sendMessage(MSG_SHOW_MY_TAG_ICON, null);
+                    }
+                } else {
+                    context.deleteFile(MY_TAG_FILE_NAME);
+                    sendMessage(MSG_HIDE_MY_TAG_ICON, null);
+                }
+            }
         }
     };
 
@@ -1027,14 +1118,9 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpSocket) findSocket(nativeHandle);
             if (socket != null) {
-                receiveLength = socket.doReceive(receiveBuffer);
-                if (receiveLength != 0) {
-                    return receiveLength;
-                } else {
-                    return ErrorCodes.ERROR_IO;
-                }
+                return socket.doReceive(receiveBuffer);
             } else {
-                return ErrorCodes.ERROR_IO;
+                return 0;
             }
         }
 
@@ -1303,11 +1389,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public String getType(int nativeHandle) throws RemoteException {
+        public int[] getTechList(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            NativeNfcTag tag = null;
-            String type;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1315,10 +1398,9 @@ public class NfcService extends Application {
             }
 
             /* find the tag in the hmap */
-            tag = (NativeNfcTag) findObject(nativeHandle);
+            NativeNfcTag tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                type = tag.getType();
-                return type;
+                return tag.getTechList();
             }
             return null;
         }
@@ -1675,6 +1757,195 @@ public class NfcService extends Application {
         }
     };
 
+    private INfcSecureElement mSecureElementService = new INfcSecureElement.Stub() {
+
+        public int openSecureElementConnection() throws RemoteException {
+            Log.d(TAG, "openSecureElementConnection");
+            int handle;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return 0;
+            }
+
+            // Check in an open is already pending
+            if (mOpenSmxPending) {
+                return 0;
+            }
+
+            handle = mSecureElement.doOpenSecureElementConnection();
+
+            if (handle == 0) {
+                mOpenSmxPending = false;
+            } else {
+                mSecureElementHandle = handle;
+
+                /* Start timer */
+                mTimerOpenSmx = new Timer();
+                mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+                /* Update state */
+                isOpened = true;
+                isClosed = false;
+                mOpenSmxPending = true;
+            }
+
+            return handle;
+        }
+
+        public int closeSecureElementConnection(int nativeHandle)
+                throws RemoteException {
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return -1;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return -1;
+            }
+
+            if (mSecureElement.doDisconnect(nativeHandle)) {
+
+                /* Stop timer */
+                mTimerOpenSmx.cancel();
+
+                /* Restart polling loop for notification */
+                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+
+                /* Update state */
+                isOpened = false;
+                isClosed = true;
+                mOpenSmxPending = false;
+
+                return ErrorCodes.SUCCESS;
+            } else {
+
+                /* Stop timer */
+                mTimerOpenSmx.cancel();
+
+                /* Restart polling loop for notification */
+                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+
+                /* Update state */
+                isOpened = false;
+                isClosed = true;
+                mOpenSmxPending = false;
+
+                return ErrorCodes.ERROR_DISCONNECT;
+            }
+        }
+
+        public int[] getSecureElementTechList(int nativeHandle)
+                throws RemoteException {
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            int[] techList = mSecureElement.doGetTechList(nativeHandle);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return techList;
+        }
+
+        public byte[] getSecureElementUid(int nativeHandle)
+                throws RemoteException {
+            byte[] uid;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            uid = mSecureElement.doGetUid(nativeHandle);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return uid;
+        }
+
+        public byte[] exchangeAPDU(int nativeHandle, byte[] data)
+                throws RemoteException {
+            byte[] response;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            // Check if the SE connection is closed
+            if (isClosed) {
+                return null;
+            }
+
+            // Check if the SE connection is opened
+            if (!isOpened) {
+                return null;
+            }
+
+            response = mSecureElement.doTransceive(nativeHandle, data);
+
+            /* Stop and Restart timer */
+            mTimerOpenSmx.cancel();
+            mTimerOpenSmx = new Timer();
+            mTimerOpenSmx.schedule(new TimerOpenSecureElement(), 30000);
+
+            return response;
+
+        }
+    };
+
+    class TimerOpenSecureElement extends TimerTask {
+
+        @Override
+        public void run() {
+            if (mSecureElementHandle != 0) {
+                Log.d(TAG, "Open SMX timer expired");
+                try {
+                    mSecureElementService
+                            .closeSecureElementConnection(mSecureElementHandle);
+                } catch (RemoteException e) {
+                }
+            }
+
+        }
+
+    }
+
     private boolean _enable(boolean oldEnabledState) {
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
@@ -1703,6 +1974,10 @@ public class NfcService extends Application {
 
             /* Start polling loop */
             maybeEnableDiscovery();
+
+            /* bring up the my tag server */
+            mMyTagServer.start();
+
         } else {
             mIsNfcEnabled = false;
         }
@@ -1755,6 +2030,55 @@ public class NfcService extends Application {
                 intent.setFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
                 intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
                 mContext.sendBroadcast(intent);
+            }
+
+            if (mIsNfcEnabled) {
+
+                Context context = getApplicationContext();
+
+                // Set this to null by default. If there isn't a tag on disk
+                // or if there was an error reading the tag then this will cause
+                // the status bar icon to be removed.
+                NdefMessage myTag = null;
+
+                FileInputStream input = null;
+
+                try {
+                    input = context.openFileInput(MY_TAG_FILE_NAME);
+                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+                    byte[] buffer = new byte[4096];
+                    int read = 0;
+                    while ((read = input.read(buffer)) > 0) {
+                        bytes.write(buffer, 0, read);
+                    }
+
+                    myTag = new NdefMessage(bytes.toByteArray());
+                } catch (FileNotFoundException e) {
+                    // Ignore.
+                } catch (IOException e) {
+                    Log.e(TAG, "Could not read mytag file: ", e);
+                    context.deleteFile(MY_TAG_FILE_NAME);
+                } catch (FormatException e) {
+                    Log.e(TAG, "Invalid NdefMessage for mytag", e);
+                    context.deleteFile(MY_TAG_FILE_NAME);
+                } finally {
+                    try {
+                        if (input != null) {
+                            input.close();
+                        }
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                }
+
+                try {
+                    mNfcAdapter.localSet(myTag);
+                } catch (RemoteException e) {
+                    // Ignore
+                }
+            } else {
+                sendMessage(MSG_HIDE_MY_TAG_ICON, null);
             }
         }
     }
@@ -2034,6 +2358,10 @@ public class NfcService extends Application {
         mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
     }
 
+    public void sendMockNdefTag(NdefMessage msg) {
+        sendMessage(MSG_MOCK_NDEF, msg);
+    }
+
     void sendMessage(int what, Object obj) {
         Message msg = mHandler.obtainMessage();
         msg.what = what;
@@ -2041,10 +2369,26 @@ public class NfcService extends Application {
         mHandler.sendMessage(msg);
     }
 
-    private final Handler mHandler = new Handler() {
+    final class NfcServiceHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
            switch (msg.what) {
+           case MSG_MOCK_NDEF: {
+               NdefMessage ndefMsg = (NdefMessage) msg.obj;
+               Tag tag = Tag.createMockTag(new byte[] { 0x00 },
+                       new int[] { },
+                       new Bundle[] { });
+               Intent intent = buildTagIntent(tag, new NdefMessage[] { ndefMsg });
+               Log.d(TAG, "mock NDEF tag, starting corresponding activity");
+               Log.d(TAG, tag.toString());
+               try {
+                   mContext.startActivity(intent);
+               } catch (ActivityNotFoundException e) {
+                   Log.w(TAG, "No activity found for mock tag");
+               }
+               break;
+           }
+
            case MSG_NDEF_TAG:
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
@@ -2056,13 +2400,11 @@ public class NfcService extends Application {
                            NdefMessage[] msgNdef = new NdefMessage[1];
                            try {
                                msgNdef[0] = new NdefMessage(buff);
-                               NdefTag tag = new NdefTag(nativeTag.getUid(),
-                                       TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                       nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
-                                       nativeTag.getHandle(),
-                                       TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
-                                       new NdefMessage[][] {msgNdef});
-                               Intent intent = buildNdefTagIntent(tag);
+                               Tag tag = new Tag(nativeTag.getUid(),
+                                       nativeTag.getTechList(),
+                                       nativeTag.getTechExtras(),
+                                       nativeTag.getHandle());
+                               Intent intent = buildTagIntent(tag, msgNdef);
                                if (DBG) Log.d(TAG, "NDEF tag found, starting corresponding activity");
                                if (DBG) Log.d(TAG, tag.toString());
                                try {
@@ -2082,13 +2424,11 @@ public class NfcService extends Application {
                        }
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
-                           NdefTag tag = new NdefTag(nativeTag.getUid(),
-                                   TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                                   nativeTag.getPollBytes(), nativeTag.getActivationBytes(),
-                                   nativeTag.getHandle(),
-                                   TagTarget.internalTypeToNdefTargets(nativeTag.getType()),
-                                   new NdefMessage[][] { {} });
-                           Intent intent = buildNdefTagIntent(tag);
+                           Tag tag = new Tag(nativeTag.getUid(),
+                                   nativeTag.getTechList(),
+                                   nativeTag.getTechExtras(),
+                                   nativeTag.getHandle());
+                           Intent intent = buildTagIntent(tag, new NdefMessage[] { });
                            if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
                            try {
                                mContext.startActivity(intent);
@@ -2099,15 +2439,11 @@ public class NfcService extends Application {
                            }
                        }
                    } else {
-                       Intent intent = new Intent();
-                       Tag tag = new Tag(nativeTag.getUid(), false,
-                               TagTarget.internalTypeToRawTargets(nativeTag.getType()),
-                               nativeTag.getPollBytes(), nativeTag.getActivationBytes(), 
+                       Tag tag = new Tag(nativeTag.getUid(),
+                               nativeTag.getTechList(),
+                               nativeTag.getTechExtras(),
                                nativeTag.getHandle());
-                       intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-                       intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-                       intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
-                       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                       Intent intent = buildTagIntent(tag, null);
                        if (DBG) Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
                        if (DBG) Log.d(TAG, tag.toString());
                        try {
@@ -2160,7 +2496,7 @@ public class NfcService extends Application {
                        }
                    } else {
                        if (DBG) Log.d(TAG, "Cannot connect remote Target. Restart polling loop.");
-                       /* resume should be done in doConnect */
+                       device.doDisconnect();
                    }
 
                } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {
@@ -2211,23 +2547,38 @@ public class NfcService extends Application {
                mContext.sendOrderedBroadcast(TargetDeselectedIntent, NFC_PERM);
                break;
 
+           case MSG_SHOW_MY_TAG_ICON: {
+               StatusBarManager sb = (StatusBarManager) getSystemService(
+                       Context.STATUS_BAR_SERVICE);
+               sb.setIcon("nfc", R.drawable.stat_sys_nfc, 0);
+               break;
+           }
+
+           case MSG_HIDE_MY_TAG_ICON: {
+               StatusBarManager sb = (StatusBarManager) getSystemService(
+                       Context.STATUS_BAR_SERVICE);
+               sb.removeIcon("nfc");
+               break;
+           }
+
            default:
                Log.e(TAG, "Unknown message received");
                break;
            }
         }
 
-        private Intent buildNdefTagIntent(NdefTag tag) {
-            Intent intent = new Intent();
-               intent.setAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-               intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-               intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
-               intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, tag.getNdefMessages());
-               intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        private Intent buildTagIntent(Tag tag, NdefMessage[] msgs) {
+            Intent intent = new Intent(NfcAdapter.ACTION_TAG_DISCOVERED);
+            intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
+            intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
+            intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, msgs);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             return intent;
         }
-    };
+    }
 
+    private NfcServiceHandler mHandler = new NfcServiceHandler();
+    
     private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
         @Override
         protected Void doInBackground(Boolean... enable) {

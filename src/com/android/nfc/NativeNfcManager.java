@@ -19,14 +19,6 @@ package com.android.nfc;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
-import android.content.Intent;
-import android.nfc.NdefTag;
-import android.nfc.NfcAdapter;
-import android.nfc.NdefMessage;
-import android.nfc.Tag;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
 
 /**
  * Native interface to the NFC Manager functions
@@ -87,8 +79,6 @@ public class NativeNfcManager {
     public native int doGetLastError();
 
     public native void doSetProperties(int param, int value);
-
-    public native void doCancel();
 
     public native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 

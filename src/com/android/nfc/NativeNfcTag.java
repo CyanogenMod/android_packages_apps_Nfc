@@ -16,6 +16,12 @@
 
 package com.android.nfc;
 
+import android.nfc.technology.NfcA;
+import android.nfc.technology.NfcB;
+import android.nfc.technology.NfcF;
+import android.nfc.technology.IsoDep;
+import android.nfc.technology.TagTechnology;
+import android.os.Bundle;
 import android.util.Log;
 
 /**
@@ -26,18 +32,16 @@ public class NativeNfcTag {
 
     private int mHandle;
 
-    private String mType;
-
-    private byte[] mPollBytes;
-
-    private byte[] mActivationBytes;
-
+    private int[] mTechList;
+    private Bundle[] mTechExtras;
+    private byte[][] mTechPollBytes;
+    private byte[][] mTechActBytes;
     private byte[] mUid;
 
     private final String TAG = "NativeNfcTag";
 
     private PresenceCheckWatchdog mWatchdog;
-    private class PresenceCheckWatchdog extends Thread {
+    class PresenceCheckWatchdog extends Thread {
 
         private boolean isPresent = true;
         private boolean isRunning = true;
@@ -81,7 +85,7 @@ public class NativeNfcTag {
         return isSuccess;
     }
 
-    private native boolean doDisconnect();
+    native boolean doDisconnect();
     public synchronized boolean disconnect() {
         if (mWatchdog != null) {
             mWatchdog.end();
@@ -121,7 +125,7 @@ public class NativeNfcTag {
         return doWrite(buf);
     }
 
-    private native boolean doPresenceCheck();
+    native boolean doPresenceCheck();
     public synchronized boolean presenceCheck() {
         if (mWatchdog != null) {
             mWatchdog.reset();
@@ -136,20 +140,79 @@ public class NativeNfcTag {
         return mHandle;
     }
 
-    public String getType() {
-        return mType;
-    }
-
     public byte[] getUid() {
         return mUid;
     }
 
-    public byte[] getPollBytes() {
-        return mPollBytes;
+    public int[] getTechList() {
+        return mTechList;
     }
 
-    public byte[] getActivationBytes() {
-        return mActivationBytes;
+    public boolean isNfcA() {
+      boolean nfca = false;
+      for (int i = 0; i < mTechList.length; i++) {
+          if (mTechList[i] == TagTechnology.NFC_A) {
+              nfca = true;
+              break;
+          }
+      }
+      return nfca;
     }
+    public Bundle[] getTechExtras() {
+        synchronized (this) {
+            if (mTechExtras != null) return mTechExtras;
+            mTechExtras = new Bundle[mTechList.length];
+            for (int i = 0; i < mTechList.length; i++) {
+                Bundle extras = new Bundle();
+                switch (mTechList[i]) {
+                    case TagTechnology.NFC_A: {
+                        byte[] actBytes = mTechActBytes[i];
+                        if ((actBytes != null) && (actBytes.length > 0)) {
+                            extras.putShort(NfcA.EXTRA_SAK, (short) (actBytes[0] & (short) 0xFF));
+                        } else {
+                            // Unfortunately Jewel doesn't have act bytes,
+                            // ignore this case.
+                        }
+                        extras.putByteArray(NfcA.EXTRA_ATQA, mTechPollBytes[i]);
+                        break;
+                    }
 
+                    case TagTechnology.NFC_B: {
+                        extras.putByteArray(NfcB.EXTRA_ATQB, mTechPollBytes[i]);
+                        break;
+                    }
+                    case TagTechnology.NFC_F: {
+                        byte[] pmm = new byte[8];
+                        byte[] sc = new byte[2];
+                        if (mTechPollBytes[i].length >= 8) {
+                            // At least pmm is present
+                            System.arraycopy(mTechPollBytes[i], 0, pmm, 0, 8);
+                            extras.putByteArray(NfcF.EXTRA_PMM, pmm);
+                        }
+                        if (mTechPollBytes[i].length == 10) {
+                            System.arraycopy(mTechPollBytes[i], 8, sc, 0, 2);
+                            extras.putByteArray(NfcF.EXTRA_SC, sc);
+                        }
+                        break;
+                    }
+                    case TagTechnology.ISO_DEP: {
+                        if (isNfcA()) {
+                            extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
+                        }
+                        else {
+                            extras.putByteArray(IsoDep.EXTRA_ATTRIB, mTechActBytes[i]);
+                        }
+                        break;
+                    }
+
+                    default: {
+                        // Leave the entry in the array null
+                        continue;
+                    }
+                }
+                mTechExtras[i] = extras;
+            }
+            return mTechExtras;
+        }
+    }
 }
