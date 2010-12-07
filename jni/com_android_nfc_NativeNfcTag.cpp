@@ -304,10 +304,8 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    result = JNI_TRUE;
 
 clean_and_return:
-   if (result != JNI_TRUE)
-   {
-      e->ReleaseByteArrayElements(buf, (jbyte *)nfc_jni_ndef_rw.buffer, JNI_ABORT);
-   }
+   e->ReleaseByteArrayElements(buf, (jbyte *)nfc_jni_ndef_rw.buffer, JNI_ABORT);
+
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
    return result;
