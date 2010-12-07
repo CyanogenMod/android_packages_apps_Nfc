@@ -417,7 +417,7 @@ jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8
             case 0x88:
             case 0x98:
             case 0xB8:
-              techList = e->NewIntArray(2);
+              techList = e->NewIntArray(3);
               techItems = e->GetIntArrayElements(techList, NULL);
               techItems[0] = TARGET_TYPE_MIFARE_CLASSIC;
               techItems[1] = TARGET_TYPE_ISO14443_3A;
