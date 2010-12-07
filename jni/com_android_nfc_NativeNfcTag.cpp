@@ -71,6 +71,7 @@ static void nfc_jni_checkndef_callback(void *pContext,
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_checkndef_callback", status);
+   int *pMaxNdefSize = (int*) (pCallbackData->pContext);
 
    if(status == NFCSTATUS_OK)
    {
@@ -80,6 +81,10 @@ static void nfc_jni_checkndef_callback(void *pContext,
       }
       nfc_jni_ndef_buf_len = info.MaxNdefMsgLength;
       nfc_jni_ndef_buf = (uint8_t*)malloc(nfc_jni_ndef_buf_len);
+      if (pMaxNdefSize != NULL) *pMaxNdefSize = info.MaxNdefMsgLength;
+   }
+   else {
+      if (pMaxNdefSize != NULL) *pMaxNdefSize = 0;
    }
 
    /* Report the callback status and wake up the caller */
@@ -734,11 +739,15 @@ clean_and_return:
     return result;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
+/* return values:
+ *  -1: no ndef
+ *  >= 0: supported ndef length
+ */
+static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
-   jboolean result = JNI_FALSE;
+   jint result = -1;
    struct nfc_jni_callback_data cb_data;
 
    CONCURRENCY_LOCK();
@@ -748,6 +757,7 @@ static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
    {
       goto clean_and_return;
    }
+   cb_data.pContext = &result;
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
@@ -773,8 +783,6 @@ static jboolean com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
    {
       goto clean_and_return;
    }
-
-   result = JNI_TRUE;
 
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
@@ -891,7 +899,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
    {"doTransceive", "([B)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
-   {"doCheckNdef", "()Z",
+   {"doCheckNdef", "()I",
       (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
    {"doRead", "()[B",
       (void *)com_android_nfc_NativeNfcTag_doRead},

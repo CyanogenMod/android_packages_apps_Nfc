@@ -1455,7 +1455,7 @@ public class NfcService extends Application {
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                isSuccess = tag.checkNdef();
+                isSuccess = (tag.checkNdef() >= 0) ? true : false;
             }
             return isSuccess;
         }
@@ -2418,14 +2418,16 @@ public class NfcService extends Application {
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
                if (nativeTag.connect()) {
-                   if (nativeTag.checkNdef()) {
+                   int supportedNdefLength = nativeTag.checkNdef();
+                   if (supportedNdefLength >= 0) {
                        boolean generateEmptyIntent = false;
                        byte[] buff = nativeTag.read();
                        if (buff != null) {
                            NdefMessage[] msgNdef = new NdefMessage[1];
                            try {
                                msgNdef[0] = new NdefMessage(buff);
-                               nativeTag.addNdefTechnology(msgNdef[0]);
+                               nativeTag.addNdefTechnology(msgNdef[0],
+                                   supportedNdefLength);
                                Tag tag = new Tag(nativeTag.getUid(),
                                        nativeTag.getTechList(),
                                        nativeTag.getTechExtras(),
@@ -2450,7 +2452,7 @@ public class NfcService extends Application {
                        }
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
-                           nativeTag.addNdefTechnology(null);
+                           nativeTag.addNdefTechnology(null, supportedNdefLength);
                            Tag tag = new Tag(nativeTag.getUid(),
                                    nativeTag.getTechList(),
                                    nativeTag.getTechExtras(),
