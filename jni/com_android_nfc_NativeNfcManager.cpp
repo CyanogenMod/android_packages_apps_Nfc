@@ -337,7 +337,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       /* Set SE mode - Off */
       REENTRANCE_LOCK();
       status = phLibNfc_SE_SetMode(SE_List[i].hSecureElement,
-            phLibNfc_SE_ActModeOff, nfc_jni_se_set_mode_callback,
+            phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,
             (void *)&cb_data);
       REENTRANCE_UNLOCK();
       if (status != NFCSTATUS_PENDING)
