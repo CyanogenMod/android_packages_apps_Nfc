@@ -21,6 +21,8 @@ import android.nfc.technology.NfcB;
 import android.nfc.technology.NfcF;
 import android.nfc.technology.IsoDep;
 import android.nfc.technology.TagTechnology;
+import android.nfc.technology.Ndef;
+import android.nfc.NdefMessage;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -148,16 +150,35 @@ public class NativeNfcTag {
         return mTechList;
     }
 
-    public boolean isNfcA() {
-      boolean nfca = false;
+    public void addNdefTechnology(NdefMessage msg) {
+        synchronized (this) {
+            int[] mNewTechList = new int[mTechList.length + 1];
+            System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
+            mNewTechList[mTechList.length] = TagTechnology.NDEF;
+            mTechList = mNewTechList;
+            // Set the extra's to contain the initially read message
+            Bundle[] oldTechExtras = getTechExtras(); // Make sure it's built once
+            Bundle[] mNewTechExtras = new Bundle[oldTechExtras.length + 1];
+            System.arraycopy(oldTechExtras, 0, mNewTechExtras, 0, oldTechExtras.length);
+            Bundle extras = new Bundle();
+            extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
+            mNewTechExtras[oldTechExtras.length] = extras;
+            mTechExtras = mNewTechExtras;
+
+        }
+    }
+
+    private boolean hasTech(int tech) {
+      boolean hasTech = false;
       for (int i = 0; i < mTechList.length; i++) {
-          if (mTechList[i] == TagTechnology.NFC_A) {
-              nfca = true;
+          if (mTechList[i] == tech) {
+              hasTech = true;
               break;
           }
       }
-      return nfca;
+      return hasTech;
     }
+
     public Bundle[] getTechExtras() {
         synchronized (this) {
             if (mTechExtras != null) return mTechExtras;
@@ -196,7 +217,7 @@ public class NativeNfcTag {
                         break;
                     }
                     case TagTechnology.ISO_DEP: {
-                        if (isNfcA()) {
+                        if (hasTech(TagTechnology.NFC_A)) {
                             extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
                         }
                         else {
