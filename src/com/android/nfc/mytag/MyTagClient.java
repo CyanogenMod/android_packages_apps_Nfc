@@ -79,6 +79,7 @@ public class MyTagClient extends BroadcastReceiver {
             NdefMessage msg = msgs[0];
             byte[] buffer = msg.toByteArray();
             int offset = 0;
+            int remoteMiu;
             LlcpSocket sock = null;
             try {
                 trace("about to create socket");
@@ -88,11 +89,12 @@ public class MyTagClient extends BroadcastReceiver {
 //                sock.connect(MyTagServer.SERVICE_NAME);
                 sock.connect(0x20);
 
+                remoteMiu = sock.getRemoteSocketMiu();
                 trace("about to send a " + buffer.length + "-bytes message");
                 while (offset < buffer.length) {
                     int length = buffer.length - offset;
-                    if (length > MIU) {
-                        length = MIU;
+                    if (length > remoteMiu) {
+                        length = remoteMiu;
                     }
                     byte[] tmpBuffer = new byte[length];
                     System.arraycopy(buffer, offset, tmpBuffer, 0, length);
