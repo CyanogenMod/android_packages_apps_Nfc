@@ -77,6 +77,7 @@ extern "C" {
 #define TARGET_TYPE_MIFARE_DESFIRE        203
 #define TARGET_TYPE_FELICA                11
 #define TARGET_TYPE_JEWEL                 101
+#define TARGET_TYPE_NDEF_FORMATABLE       110
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN
