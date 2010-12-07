@@ -349,10 +349,11 @@ jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8
       case phNfc_eISO14443_A_PICC:
       case phNfc_eISO14443_4A_PICC:
         {
-          techList = e->NewIntArray(2);
+          techList = e->NewIntArray(3);
           techItems = e->GetIntArrayElements(techList, NULL);
           techItems[0] = TARGET_TYPE_ISO14443_4;
           techItems[1] = TARGET_TYPE_ISO14443_3A;
+          techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
           e->ReleaseIntArrayElements(techList, techItems,0);
           break;
         }
@@ -399,10 +400,11 @@ jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8
           {
             case 0x00:
               // could be UL or UL-C
-              techList = e->NewIntArray(2);
+              techList = e->NewIntArray(3);
               techItems = e->GetIntArrayElements(techList, NULL);
               techItems[0] = TARGET_TYPE_MIFARE_UL;
               techItems[1] = TARGET_TYPE_ISO14443_3A;
+              techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
               e->ReleaseIntArrayElements(techList, techItems,0);
               break;
             case 0x08:
@@ -419,6 +421,7 @@ jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8
               techItems = e->GetIntArrayElements(techList, NULL);
               techItems[0] = TARGET_TYPE_MIFARE_CLASSIC;
               techItems[1] = TARGET_TYPE_ISO14443_3A;
+              techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
               e->ReleaseIntArrayElements(techList, techItems,0);
               break;
             case 0x20:
