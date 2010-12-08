@@ -337,130 +337,154 @@ const char* nfc_jni_get_status_name(NFCSTATUS status)
    return "UNKNOWN";
 }
 
-/*
- *  Utility to get target type name from its specs
- */
-jintArray nfc_jni_get_technology_tree(JNIEnv* e, phNfc_eRemDevType_t type, uint8_t sak)
-{
-   jintArray techList = NULL;
-   jint* techItems;
-   switch (type)
-   {
-      case phNfc_eISO14443_A_PICC:
-      case phNfc_eISO14443_4A_PICC:
-        {
-          techList = e->NewIntArray(3);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_ISO14443_4;
-          techItems[1] = TARGET_TYPE_ISO14443_3A;
-          techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-          break;
+int addTechIfNeeded(int *techList, int* handleList, int listSize, int maxListSize,
+        int techToAdd, int handleToAdd) {
+    bool found = false;
+    for (int i = 0; i < listSize; i++) {
+        if (techList[i] == techToAdd) {
+            found = true;
+            break;
         }
-      case phNfc_eISO14443_4B_PICC:
-        {
-          techList = e->NewIntArray(2);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_ISO14443_4;
-          techItems[1] = TARGET_TYPE_ISO14443_3B;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break;
-        
-      case phNfc_eISO14443_3A_PICC:
-        {
-          techList = e->NewIntArray(1);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_ISO14443_3A;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break;
+    }
+    if (!found && listSize < maxListSize) {
+        techList[listSize] = techToAdd;
+        handleList[listSize] = handleToAdd;
+        return listSize + 1;
+    }
+    else {
+        return listSize;
+    }
+}
 
-      case phNfc_eISO14443_B_PICC:
-        {
-          // TODO a bug in libnfc will cause 14443-3B only cards
-          // to be returned as this type as well, but these cards
-          // are very rare. Hence assume it's -4B
-          techList = e->NewIntArray(2);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_ISO14443_4;
-          techItems[1] = TARGET_TYPE_ISO14443_3B;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break;
-        
-      case phNfc_eISO15693_PICC:
-        {
-          techList = e->NewIntArray(1);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_ISO15693;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break;
 
-      case phNfc_eMifare_PICC:
-        {
-          switch(sak)
-          {
-            case 0x00:
-              // could be UL or UL-C
-              techList = e->NewIntArray(3);
-              techItems = e->GetIntArrayElements(techList, NULL);
-              techItems[0] = TARGET_TYPE_MIFARE_UL;
-              techItems[1] = TARGET_TYPE_ISO14443_3A;
-              techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
-              e->ReleaseIntArrayElements(techList, techItems,0);
+#define MAX_NUM_TECHNOLOGIES 32
+
+/*
+ *  Utility to get a technology tree and a corresponding handle list from a detected tag.
+ */
+void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
+        uint8_t count, jintArray* techList, jintArray* handleList)
+{
+   int technologies[MAX_NUM_TECHNOLOGIES];
+   int handles[MAX_NUM_TECHNOLOGIES];
+   int index = 0;
+   for (int target = 0; target < count; target++) {
+       int type = devList[target].psRemoteDevInfo->RemDevType;
+       int handle = devList[target].hTargetDev;
+       switch (type)
+       {
+          case phNfc_eISO14443_A_PICC:
+          case phNfc_eISO14443_4A_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_4, handle);
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3A, handle);
+
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_NDEF_FORMATABLE, handle);
               break;
-            case 0x08:
-            case 0x09:
-            case 0x10:
-            case 0x11:
-            case 0x18:
-            case 0x28:
-            case 0x38:
-            case 0x88:
-            case 0x98:
-            case 0xB8:
-              techList = e->NewIntArray(3);
-              techItems = e->GetIntArrayElements(techList, NULL);
-              techItems[0] = TARGET_TYPE_MIFARE_CLASSIC;
-              techItems[1] = TARGET_TYPE_ISO14443_3A;
-              techItems[2] = TARGET_TYPE_NDEF_FORMATABLE;
-              e->ReleaseIntArrayElements(techList, techItems,0);
-              break;
-            case 0x20:
-              // This could be DESfire, but libnfc returns that as ISO14443_4
-              // so we shouldn't hit this case
-            default:
+            }
+          case phNfc_eISO14443_4B_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_4, handle);
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3B, handle);
+            }break;
+          case phNfc_eISO14443_3A_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3A, handle);
+            }break;
+          case phNfc_eISO14443_B_PICC:
+            {
+              // TODO a bug in libnfc will cause 14443-3B only cards
+              // to be returned as this type as well, but these cards
+              // are very rare. Hence assume it's -4B
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_4, handle);
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3B, handle);
+            }break;
+          case phNfc_eISO15693_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO15693, handle);
+            }break;
+          case phNfc_eMifare_PICC:
+            {
+              int sak = devList[target].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak;
+              switch(sak)
               {
-                techList = e->NewIntArray(1);
-                techItems = e->GetIntArrayElements(techList, NULL);
-                techItems[0] = TARGET_TYPE_UNKNOWN;
-                e->ReleaseIntArrayElements(techList, techItems,0);
-              }break;
-          }
-        }break;
-      case phNfc_eFelica_PICC:
-        {
-          techList = e->NewIntArray(1);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_FELICA;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break; 
-      case phNfc_eJewel_PICC:
-        {
-          techList = e->NewIntArray(2);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_JEWEL;
-          techItems[1] = TARGET_TYPE_ISO14443_3A;
-          e->ReleaseIntArrayElements(techList, techItems,0);
-        }break; 
-      default:
-        {
-          techList = e->NewIntArray(1);
-          techItems = e->GetIntArrayElements(techList, NULL);
-          techItems[0] = TARGET_TYPE_UNKNOWN;
-          e->ReleaseIntArrayElements(techList, techItems,0);
+                case 0x00:
+                  // could be UL or UL-C
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_MIFARE_UL, handle);
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3A, handle);
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_NDEF_FORMATABLE, handle);
+                  break;
+                case 0x08:
+                case 0x09:
+                case 0x10:
+                case 0x11:
+                case 0x18:
+                case 0x28:
+                case 0x38:
+                case 0x88:
+                case 0x98:
+                case 0xB8:
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_MIFARE_CLASSIC, handle);
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_ISO14443_3A, handle);
+                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_NDEF_FORMATABLE, handle);
+                  break;
+                case 0x20:
+                  // This could be DESfire, but libnfc returns that as ISO14443_4
+                  // so we shouldn't hit this case
+                default:
+                  {
+                    index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                      TARGET_TYPE_UNKNOWN, handle);
+                  }break;
+              }
+            }break;
+          case phNfc_eFelica_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                TARGET_TYPE_FELICA, handle);
+            }break;
+          case phNfc_eJewel_PICC:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                TARGET_TYPE_JEWEL, handle);
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                TARGET_TYPE_ISO14443_3A, handle);
+            }break;
+          default:
+            {
+              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+                TARGET_TYPE_UNKNOWN, handle);
+            }
         }
    }
+   // Build the Java arrays
+   *techList = e->NewIntArray(index);
+   *handleList = e->NewIntArray(index);
 
-   return techList;
+   jint* techItems = e->GetIntArrayElements(*techList, NULL);
+   jint* handleItems = e->GetIntArrayElements(*handleList, NULL);
+   for (int i = 0; i < index; i++) {
+       techItems[i] = technologies[i];
+       handleItems[i] = handles[i];
+   }
+   e->ReleaseIntArrayElements(*techList, techItems, 0);
+   e->ReleaseIntArrayElements(*handleList, handleItems, 0);
+
 }
 
 } // namespace android

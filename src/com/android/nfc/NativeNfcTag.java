@@ -35,6 +35,7 @@ public class NativeNfcTag {
     private int mHandle;
 
     private int[] mTechList;
+    private int[] mTechHandles;
     private Bundle[] mTechExtras;
     private byte[][] mTechPollBytes;
     private byte[][] mTechActBytes;
