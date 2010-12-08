@@ -103,8 +103,8 @@ public class NativeNfcTag {
         return doTransceive(data);
     }
 
-    private native boolean doCheckNdef();
-    public synchronized boolean checkNdef() {
+    private native int doCheckNdef();
+    public synchronized int checkNdef() {
         if (mWatchdog != null) {
             mWatchdog.reset();
         }
@@ -158,20 +158,38 @@ public class NativeNfcTag {
         return mTechList;
     }
 
-    public void addNdefTechnology(NdefMessage msg) {
+    // This method exists to "patch in" the ndef technologies,
+    // which is done inside Java instead of the native JNI code.
+    // To not create some nasty dependencies on the order on which things
+    // are called (most notably getTechExtras()), it needs some additional
+    // checking.
+    public void addNdefTechnology(NdefMessage msg, int maxLength) {
         synchronized (this) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
             mNewTechList[mTechList.length] = TagTechnology.NDEF;
             mTechList = mNewTechList;
-            // Set the extra's to contain the initially read message
-            Bundle[] oldTechExtras = getTechExtras(); // Make sure it's built once
-            Bundle[] mNewTechExtras = new Bundle[oldTechExtras.length + 1];
-            System.arraycopy(oldTechExtras, 0, mNewTechExtras, 0, oldTechExtras.length);
-            Bundle extras = new Bundle();
-            extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
-            mNewTechExtras[oldTechExtras.length] = extras;
-            mTechExtras = mNewTechExtras;
+
+            if (mTechExtras == null) {
+                // This will build the tech extra's for the first time,
+                // including a NULL ref for the NDEF tech we generated above.
+                Bundle[] builtTechExtras = getTechExtras();
+                Bundle extras = new Bundle();
+                extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
+                extras.putInt(Ndef.EXTRA_NDEF_MAXLENGTH, maxLength);
+                builtTechExtras[builtTechExtras.length - 1] = extras;
+            }
+            else {
+                // Tech extras were built before, patch the NDEF one in
+                Bundle[] oldTechExtras = getTechExtras();
+                Bundle[] newTechExtras = new Bundle[oldTechExtras.length + 1];
+                System.arraycopy(oldTechExtras, 0, newTechExtras, 0, oldTechExtras.length);
+                Bundle extras = new Bundle();
+                extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
+                extras.putInt(Ndef.EXTRA_NDEF_MAXLENGTH, maxLength);
+                newTechExtras[oldTechExtras.length] = extras;
+                mTechExtras = newTechExtras;
+            }
 
         }
     }
