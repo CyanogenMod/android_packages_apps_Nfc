@@ -2400,6 +2400,7 @@ public class NfcService extends Application {
                            NdefMessage[] msgNdef = new NdefMessage[1];
                            try {
                                msgNdef[0] = new NdefMessage(buff);
+                               nativeTag.addNdefTechnology(msgNdef[0]);
                                Tag tag = new Tag(nativeTag.getUid(),
                                        nativeTag.getTechList(),
                                        nativeTag.getTechExtras(),
@@ -2424,6 +2425,7 @@ public class NfcService extends Application {
                        }
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
+                           nativeTag.addNdefTechnology(null);
                            Tag tag = new Tag(nativeTag.getUid(),
                                    nativeTag.getTechList(),
                                    nativeTag.getTechExtras(),
