@@ -196,6 +196,16 @@ static void nfc_jni_presencecheck_callback(void *pContext, NFCSTATUS status)
    sem_post(&pCallbackData->sem);
 }
 
+static void nfc_jni_formatndef_callback(void *pContext, NFCSTATUS status)
+{
+   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
+   LOG_CALLBACK("nfc_jni_formatndef_callback", status);
+
+   /* Report the callback status and wake up the caller */
+   pCallbackData->status = status;
+   sem_post(&pCallbackData->sem);
+}
+
 /* Functions */
 static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    jobject o)
@@ -819,6 +829,56 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, jbyteArray key)
+{
+   phLibNfc_Handle handle = 0;
+   NFCSTATUS status;
+   phNfc_sData_t keyBuffer;
+   jboolean result = JNI_FALSE;
+   struct nfc_jni_callback_data cb_data;
+
+   CONCURRENCY_LOCK();
+
+   /* Create the local semaphore */
+   if (!nfc_cb_data_init(&cb_data, NULL))
+   {
+      goto clean_and_return;
+   }
+
+   handle = nfc_jni_get_nfc_tag_handle(e, o);
+
+   keyBuffer.buffer = (uint8_t *)e->GetByteArrayElements(key, NULL);
+   keyBuffer.length = e->GetArrayLength(key);
+   TRACE("phLibNfc_RemoteDev_FormatNdef()");
+   REENTRANCE_LOCK();
+   status = phLibNfc_RemoteDev_FormatNdef(handle, &keyBuffer, nfc_jni_formatndef_callback, (void *)&cb_data);
+   REENTRANCE_UNLOCK();
+
+   if(status != NFCSTATUS_PENDING)
+   {
+      LOGE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      goto clean_and_return;
+   }
+   TRACE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+   /* Wait for callback response */
+   if(sem_wait(&cb_data.sem))
+   {
+      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      goto clean_and_return;
+   }
+
+   if (cb_data.status == NFCSTATUS_SUCCESS)
+   {
+       result = JNI_TRUE;
+   }
+
+clean_and_return:
+   e->ReleaseByteArrayElements(key, (jbyte *)keyBuffer.buffer, JNI_ABORT);
+   nfc_cb_data_deinit(&cb_data);
+   CONCURRENCY_UNLOCK();
+   return result;
+}
 
 /*
  * JNI registration.
@@ -839,6 +899,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doWrite},
    {"doPresenceCheck", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
+   {"doNdefFormat", "([B)Z",
+      (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
 };
 
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e)

@@ -135,6 +135,14 @@ public class NativeNfcTag {
         return doPresenceCheck();
     }
 
+    native boolean doNdefFormat(byte[] key);
+    public synchronized boolean formatNdef(byte[] key) {
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
+        return doNdefFormat(key);
+    }
+
     private NativeNfcTag() {
     }
 
