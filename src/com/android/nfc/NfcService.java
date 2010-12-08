@@ -1553,6 +1553,31 @@ public class NfcService extends Application {
             return 0;
         }
 
+        @Override
+        public int formatNdef(int nativeHandle, byte[] key) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            NativeNfcTag tag;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            /* find the tag in the hmap */
+            tag = (NativeNfcTag) findObject(nativeHandle);
+            if (tag == null) {
+                return ErrorCodes.ERROR_IO;
+            }
+
+            if (tag.formatNdef(key)) {
+                return ErrorCodes.SUCCESS;
+            }
+            else {
+                return ErrorCodes.ERROR_IO;
+            }
+        }
+
 
     };
 
