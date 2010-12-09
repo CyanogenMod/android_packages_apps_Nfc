@@ -30,6 +30,7 @@ extern "C" {
 #include <phNfcIoctlCode.h>
 #include <phLibNfc.h>
 #include <phDal4Nfc_messageQueueLib.h>
+#include <phFriNfc_NdefMap.h>
 #include <cutils/log.h>
 #include <com_android_nfc_list.h>
 #include <semaphore.h>
@@ -65,6 +66,14 @@ extern "C" {
 /* Error codes */
 #define ERROR_BUFFER_TOO_SMALL            -12
 #define ERROR_INSUFFICIENT_RESOURCES      -9
+
+/* Pre-defined card read/write state values. These must match the values in
+ * Ndef.java
+ */
+
+#define NDEF_MODE_READ_ONLY              1
+#define NDEF_MODE_READ_WRITE             2
+#define NDEF_MODE_UNKNOWN                3
 
 /* Name strings for target types. These *must* match the values in TagTechnology.java */
 #define TARGET_TYPE_UNKNOWN               -1

@@ -71,8 +71,7 @@ static void nfc_jni_checkndef_callback(void *pContext,
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_checkndef_callback", status);
-   int *pMaxNdefSize = (int*) (pCallbackData->pContext);
-
+   phLibNfc_ChkNdef_Info_t* pNdefInfo = (phLibNfc_ChkNdef_Info_t*) (pCallbackData->pContext);
    if(status == NFCSTATUS_OK)
    {
       if(nfc_jni_ndef_buf)
@@ -81,10 +80,12 @@ static void nfc_jni_checkndef_callback(void *pContext,
       }
       nfc_jni_ndef_buf_len = info.MaxNdefMsgLength;
       nfc_jni_ndef_buf = (uint8_t*)malloc(nfc_jni_ndef_buf_len);
-      if (pMaxNdefSize != NULL) *pMaxNdefSize = info.MaxNdefMsgLength;
+      if (pNdefInfo != NULL) *pNdefInfo = info;
    }
    else {
-      if (pMaxNdefSize != NULL) *pMaxNdefSize = 0;
+      if (pNdefInfo != NULL) {
+        memset(pNdefInfo, 0, sizeof(*pNdefInfo));
+      }
    }
 
    /* Report the callback status and wake up the caller */
@@ -739,16 +740,15 @@ clean_and_return:
     return result;
 }
 
-/* return values:
- *  -1: no ndef
- *  >= 0: supported ndef length
- */
-static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
+static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintArray ndefinfo)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
-   jint result = -1;
+   bool result = JNI_FALSE;
+   phLibNfc_ChkNdef_Info_t sNdefInfo;
    struct nfc_jni_callback_data cb_data;
+   jint *ndef = e->GetIntArrayElements(ndefinfo, 0);
+   int apiCardState = NDEF_MODE_UNKNOWN;
 
    CONCURRENCY_LOCK();
 
@@ -757,7 +757,7 @@ static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
    {
       goto clean_and_return;
    }
-   cb_data.pContext = &result;
+   cb_data.pContext = &sNdefInfo;
 
    handle = nfc_jni_get_nfc_tag_handle(e, o);
 
@@ -784,7 +784,28 @@ static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o)
       goto clean_and_return;
    }
 
+   result = JNI_TRUE;
+
+   ndef[0] = sNdefInfo.MaxNdefMsgLength;
+   // Translate the card state to know values for the NFC API
+   switch (sNdefInfo.NdefCardState) {
+       case PH_NDEFMAP_CARD_STATE_INITIALIZED:
+           apiCardState = NDEF_MODE_READ_WRITE;
+           break;
+       case PH_NDEFMAP_CARD_STATE_READ_ONLY:
+           apiCardState = NDEF_MODE_READ_ONLY;
+           break;
+       case PH_NDEFMAP_CARD_STATE_READ_WRITE:
+           apiCardState = NDEF_MODE_READ_WRITE;
+           break;
+       case PH_NDEFMAP_CARD_STATE_INVALID:
+           apiCardState = NDEF_MODE_UNKNOWN;
+           break;
+   }
+   ndef[1] = apiCardState;
+
 clean_and_return:
+   e->ReleaseIntArrayElements(ndefinfo, ndef, 0);
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
    return result;
@@ -899,7 +920,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
    {"doTransceive", "([B)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
-   {"doCheckNdef", "()I",
+   {"doCheckNdef", "([I)Z",
       (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
    {"doRead", "()[B",
       (void *)com_android_nfc_NativeNfcTag_doRead},
