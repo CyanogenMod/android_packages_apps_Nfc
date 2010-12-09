@@ -180,6 +180,122 @@ static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCST
    sem_post(&pCallbackData->sem);
 }
 
+static void nfc_jni_deinit_download_callback(void *pContext, NFCSTATUS status)
+{
+   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
+   LOG_CALLBACK("nfc_jni_deinit_download_callback", status);
+
+   /* Report the callback status and wake up the caller */
+   pCallbackData->status = status;
+   sem_post(&pCallbackData->sem);
+}
+
+static int nfc_jni_download(struct nfc_jni_native_data *nat)
+{
+    uint8_t OutputBuffer[1];
+    uint8_t InputBuffer[1];
+    struct timespec ts;
+    NFCSTATUS status;
+    struct nfc_jni_callback_data cb_data;
+
+    /* Create the local semaphore */
+    if (!nfc_cb_data_init(&cb_data, NULL))
+    {
+       goto clean_and_return;
+    }
+
+    //deinit
+    TRACE("phLibNfc_Mgt_DeInitialize() (download)");
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_download_callback, (void *)&cb_data);
+    REENTRANCE_UNLOCK();
+    if (status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_Mgt_DeInitialize() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto reinit;
+    }
+
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 5;
+
+    /* Wait for callback response */
+    if(sem_timedwait(&cb_data.sem, &ts))
+    {
+        LOGW("Deinitialization timed out (download)");
+        goto reinit;
+    }
+
+    if(cb_data.status != NFCSTATUS_SUCCESS)
+    {
+        LOGW("Deinitialization FAILED (download)");
+        goto reinit;
+    }
+    TRACE("Deinitialization SUCCESS (download)");
+
+    TRACE("Go in Download Mode");
+    phLibNfc_Download_Mode();
+
+    // Download
+    gInputParam.buffer  = InputBuffer;
+    gInputParam.length  = 0x01;
+    gOutputParam.buffer = OutputBuffer;
+    gOutputParam.length = 0x01;
+
+    LOGD("Download new Firmware");
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_FW_DOWNLOAD, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto reinit;
+    }
+    TRACE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+    /* Wait for callback response */
+    if(sem_wait(&cb_data.sem))
+    {
+       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       status = NFCSTATUS_FAILED;
+       goto clean_and_return;
+    }
+
+reinit:
+    TRACE("phLibNfc_HW_Reset()");
+    phLibNfc_HW_Reset();
+
+    TRACE("phLibNfc_Mgt_Initialize()");
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_Initialize(gHWRef, nfc_jni_init_callback, (void *)&cb_data);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_Mgt_Initialize() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto clean_and_return;
+    }
+    TRACE("phLibNfc_Mgt_Initialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+    if(sem_wait(&cb_data.sem))
+    {
+       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       status = NFCSTATUS_FAILED;
+       goto clean_and_return;
+    }
+
+    /* Initialization Status */
+    if(cb_data.status != NFCSTATUS_SUCCESS)
+    {
+        status = cb_data.status;
+        goto clean_and_return;
+    }
+
+    /*Download is successful*/
+    status = NFCSTATUS_SUCCESS;
+
+clean_and_return:
+   return status;
+}
+
 /* Initialization function */
 static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    struct timespec ts;
@@ -191,6 +307,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    phLibNfc_SE_List_t SE_List[PHLIBNFC_MAXNO_OF_SE];
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index = 0, SmartMX_detected = 0;
    struct nfc_jni_callback_data cb_data;
+   uint8_t firmware_status;
 
    LOGD("Start Initialization\n");
 
@@ -258,6 +375,48 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       goto clean_and_return;
    }
 
+
+   /* ====== CAPABILITIES ======= */
+
+   REENTRANCE_LOCK();
+   status = phLibNfc_Mgt_GetstackCapabilities(&caps, (void*)nat);
+   REENTRANCE_UNLOCK();
+   if (status != NFCSTATUS_SUCCESS)
+   {
+      LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   }
+   else
+   {
+       LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, FW Update Info = %d",
+             caps.psDevCapabilities.hal_version,
+             caps.psDevCapabilities.fw_version,
+             caps.psDevCapabilities.hw_version,
+             caps.psDevCapabilities.model_id,
+             caps.psDevCapabilities.hci_version,
+             caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1],
+             caps.psDevCapabilities.firmware_update_info);
+   }
+
+   /* ====== FIRMWARE VERSION ======= */
+   if(caps.psDevCapabilities.firmware_update_info)
+   {
+       TRACE("Firmware version not UpToDate");
+       status = nfc_jni_download(nat);
+       if(status == NFCSTATUS_SUCCESS)
+       {
+           TRACE("Firmware update SUCCESS");
+       }
+       else
+       {
+           TRACE("Firmware update FAILED");
+           goto clean_and_return;
+       }
+   }
+   else
+   {
+       TRACE("Firmware version UpToDate");
+   }
+
    /* ====== EEPROM SETTINGS ======= */
 
    // Update EEPROM settings
@@ -290,27 +449,6 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       }
    }
    TRACE("******  ALL EEPROM SETTINGS UPDATED  ******");
-
-   /* ====== CAPABILITIES ======= */
-
-   REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_GetstackCapabilities(&caps, (void*)nat);
-   REENTRANCE_UNLOCK();
-   if (status != NFCSTATUS_SUCCESS)
-   {
-      LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
-   else
-   {
-      LOGD(
-            "NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d",
-            caps.psDevCapabilities.hal_version,
-            caps.psDevCapabilities.fw_version,
-            caps.psDevCapabilities.hw_version,
-            caps.psDevCapabilities.model_id,
-            caps.psDevCapabilities.hci_version,
-            caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1]);
-   }
 
    /* ====== SECURE ELEMENTS ======= */
 
