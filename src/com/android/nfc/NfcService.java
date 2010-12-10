@@ -1389,6 +1389,29 @@ public class NfcService extends Application {
         }
 
         @Override
+        public int reconnect(int nativeHandle) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            NativeNfcTag tag = null;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            /* find the tag in the hmap */
+            tag = (NativeNfcTag) findObject(nativeHandle);
+            if (tag != null) {
+                if (tag.reconnect()) {
+                    return ErrorCodes.SUCCESS;
+                } else {
+                    return ErrorCodes.ERROR_DISCONNECT;
+                }
+            }
+            return ErrorCodes.ERROR_DISCONNECT;
+        }
+
+        @Override
         public int[] getTechList(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
