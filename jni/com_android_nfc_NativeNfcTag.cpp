@@ -18,6 +18,7 @@
 #include <errno.h>
 
 #include "com_android_nfc.h"
+#include "phNfcHalTypes.h"
 
 static phLibNfc_Data_t nfc_jni_ndef_rw;
 static phLibNfc_Handle handle;
@@ -604,12 +605,69 @@ clean_and_return:
    return result;
 }
 
+static uint16_t
+crc_16_ccitt1( uint8_t* msg, size_t len, uint16_t init )
+{
+    uint16_t b, crc = init;
+
+    do {
+        b = *msg++ ^ (crc & 0xFF);
+        b ^= (b << 4) & 0xFF;
+        crc = (crc >> 8) ^ (b << 8) ^ (b << 3) ^ (b >> 4);
+    } while( --len );
+
+    return crc;
+}
+
+static void
+nfc_insert_crc_a( uint8_t* msg, size_t len )
+{
+    uint16_t crc;
+
+    crc = crc_16_ccitt1( msg, len, 0x6363 );
+    msg[len] = crc & 0xFF;
+    msg[len + 1] = (crc >> 8) & 0xFF;
+}
+
+static void
+nfc_get_crc_a( uint8_t* msg, size_t len, uint8_t* byte1, uint8_t* byte2)
+{
+    uint16_t crc;
+
+    crc = crc_16_ccitt1( msg, len, 0x6363 );
+    *byte1 = crc & 0xFF;
+    *byte2 = (crc >> 8) & 0xFF;
+}
+
+static bool
+crc_valid( uint8_t* msg, size_t len)
+{
+    uint8_t crcByte1, crcByte2;
+
+    nfc_get_crc_a(nfc_jni_transceive_buffer->buffer,
+          len - 2, &crcByte1, &crcByte2);
+
+    if (msg[len - 2] == crcByte1 &&
+          msg[len - 1] == crcByte2) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+}
 static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
-   jobject o, jbyteArray data)
+   jobject o, jbyteArray data, jboolean raw)
 {
     uint8_t offset = 0;
-    uint8_t *buf;
+    // buf is the pointer to the JNI array and never overwritten,
+    // outbuf is passed into the transceive - it may be pointed to new memory
+    // to be extended with CRC.
+    uint8_t *buf = NULL;
     uint32_t buflen;
+
+    uint8_t *outbuf = NULL;
+    uint32_t outlen;
     phLibNfc_sTransceiveInfo_t transceive_info;
     jbyteArray result = NULL;
     int res;
@@ -619,6 +677,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     struct nfc_jni_callback_data cb_data;
     int selectedTech = 0;
     jint* technologies = NULL;
+    bool checkResponseCrc = false;
 
     CONCURRENCY_LOCK();
 
@@ -627,8 +686,6 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     {
        goto clean_and_return;
     }
-
-
 
     if ((techtypes == NULL) || (e->GetArrayLength(techtypes) == 0)) {
       goto clean_and_return;
@@ -640,8 +697,8 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
 
     TRACE("Transceive thinks selected tag technology = %d\n", selectedTech);
 
-    buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
-    buflen = (uint32_t)e->GetArrayLength(data);
+    buf = outbuf = (uint8_t *)e->GetByteArrayElements(data, NULL);
+    buflen = outlen = (uint32_t)e->GetArrayLength(data);
 
     switch (selectedTech) {
         case TARGET_TYPE_JEWEL:
@@ -655,15 +712,38 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
         case TARGET_TYPE_MIFARE_CLASSIC:
         case TARGET_TYPE_MIFARE_UL:
         case TARGET_TYPE_MIFARE_DESFIRE:
-          offset = 2;
-          transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
-          transceive_info.addr = (uint8_t)buf[1];
+          if (raw) {
+              transceive_info.cmd.MfCmd = phHal_eMifareRaw;
+              transceive_info.addr = 0;
+              // Need to add in the crc here
+              outbuf = (uint8_t*)malloc(buflen + 2);
+              outlen += 2;
+              memcpy(outbuf, buf, buflen);
+              nfc_insert_crc_a(outbuf, buflen);
+
+              checkResponseCrc = true;
+          } else {
+              offset = 2;
+              transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+              transceive_info.addr = (uint8_t)buf[1];
+          }
           break;
         case TARGET_TYPE_ISO14443_3A:
-            // TODO: just try MF command set??
-          break;
-        case TARGET_TYPE_ISO14443_3B:
-            // TODO: ???
+          if (raw) {
+              transceive_info.cmd.MfCmd = phHal_eMifareRaw;
+              transceive_info.addr = 0;
+              // Need to add in the crc here
+              outbuf = (uint8_t*)malloc(buflen + 2);
+              outlen += 2;
+              memcpy(outbuf, buf, buflen);
+              nfc_insert_crc_a(outbuf, buflen);
+
+              checkResponseCrc = true;
+          } else {
+              offset = 2;
+              transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+              transceive_info.addr = (uint8_t)buf[1];
+          }
           break;
         case TARGET_TYPE_ISO14443_4:
           transceive_info.cmd.Iso144434Cmd = phNfc_eIso14443_4_Raw;
@@ -674,15 +754,17 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
           transceive_info.addr = 0;
           break;
         case TARGET_TYPE_UNKNOWN:
+        case TARGET_TYPE_ISO14443_3B:
+          // Not supported
+          goto clean_and_return;
         default:
           break;
     }
 
-    transceive_info.sSendData.buffer = buf + offset;
-    transceive_info.sSendData.length = buflen - offset;
+    transceive_info.sSendData.buffer = outbuf + offset;
+    transceive_info.sSendData.length = outlen - offset;
     transceive_info.sRecvData.buffer = (uint8_t*)malloc(1024);
     transceive_info.sRecvData.length = 1024;
-
     if(transceive_info.sRecvData.buffer == NULL)
     {
       goto clean_and_return;
@@ -712,15 +794,27 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
         goto clean_and_return;
     }
 
-    /* Copy results back to Java */
-    result = e->NewByteArray(nfc_jni_transceive_buffer->length);
-    if(result != NULL)
-    {
-      e->SetByteArrayRegion(result, 0,
-         nfc_jni_transceive_buffer->length,
-         (jbyte *)nfc_jni_transceive_buffer->buffer);
+    /* Copy results back to Java *
+     * In case of NfcA and raw, also check the CRC in the response
+     * and cut it off in the returned data.
+     */
+    if (checkResponseCrc) {
+        if (crc_valid(nfc_jni_transceive_buffer->buffer, nfc_jni_transceive_buffer->length)) {
+            result = e->NewByteArray(nfc_jni_transceive_buffer->length - 2);
+            if (result != NULL) {
+                e->SetByteArrayRegion(result, 0,
+                 nfc_jni_transceive_buffer->length - 2,
+                 (jbyte *)nfc_jni_transceive_buffer->buffer);
+            }
+        }
+    } else {
+        result = e->NewByteArray(nfc_jni_transceive_buffer->length);
+        if (result != NULL) {
+            e->SetByteArrayRegion(result, 0,
+             nfc_jni_transceive_buffer->length,
+             (jbyte *)nfc_jni_transceive_buffer->buffer);
+        }
     }
-
 clean_and_return:
     if(transceive_info.sRecvData.buffer != NULL)
     {
@@ -730,8 +824,13 @@ clean_and_return:
       e->ReleaseIntArrayElements(techtypes, technologies, JNI_ABORT);
     }
 
+    if ((outbuf != buf) && (outbuf != NULL)) {
+        // Buf was extended and re-alloced with crc bytes, free separately
+        free(outbuf);
+    }
+
     e->ReleaseByteArrayElements(data,
-      (jbyte *)transceive_info.sSendData.buffer, JNI_ABORT);
+      (jbyte *)buf, JNI_ABORT);
 
     nfc_cb_data_deinit(&cb_data);
 
@@ -855,6 +954,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
+
    return result;
 }
 
@@ -918,7 +1018,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doConnect},
    {"doDisconnect", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
-   {"doTransceive", "([B)[B",
+   {"doTransceive", "([BZ)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doCheckNdef", "([I)Z",
       (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
