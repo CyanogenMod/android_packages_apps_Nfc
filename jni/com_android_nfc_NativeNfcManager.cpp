@@ -293,6 +293,7 @@ reinit:
     status = NFCSTATUS_SUCCESS;
 
 clean_and_return:
+   nfc_cb_data_deinit(&cb_data);
    return status;
 }
 
