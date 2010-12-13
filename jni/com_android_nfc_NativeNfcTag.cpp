@@ -458,9 +458,8 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
-   jobject o)
+   jobject o, phLibNfc_Handle handle)
 {
-   phLibNfc_Handle handle = 0;
    jclass cls;
    jfieldID f;
    NFCSTATUS status;
@@ -469,8 +468,6 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
 
    CONCURRENCY_LOCK();
-
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
@@ -519,7 +516,21 @@ static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
 {
     // Reconnect is provided by libnfc by just calling connect again
     // on the same handle.
-    return com_android_nfc_NativeNfcTag_doConnect(e, o);
+    // Note that some tag types are stateless, hence we do not reconnect
+    // those. Currently those are the Jewel and Iso15693 technologies.
+    int selectedTech = nfc_jni_get_connected_technology(e, o);
+    if (selectedTech != -1) {
+        if (selectedTech != TARGET_TYPE_ISO15693) {
+            phLibNfc_Handle handle = nfc_jni_get_connected_handle(e,o);
+            return com_android_nfc_NativeNfcTag_doConnect(e, o, handle);
+        }
+        else {
+            return JNI_TRUE;
+        }
+    }
+    else {
+        return JNI_FALSE;
+    }
 }
 
 
@@ -665,6 +676,7 @@ crc_valid( uint8_t* msg, size_t len)
     }
 
 }
+
 static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
    jobject o, jbyteArray data, jboolean raw)
 {
@@ -680,7 +692,6 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     phLibNfc_sTransceiveInfo_t transceive_info;
     jbyteArray result = NULL;
     int res;
-    jintArray techtypes = nfc_jni_get_nfc_tag_type(e, o);
     phLibNfc_Handle handle = nfc_jni_get_nfc_tag_handle(e, o);
     NFCSTATUS status;
     struct nfc_jni_callback_data cb_data;
@@ -688,6 +699,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     jint* technologies = NULL;
     bool checkResponseCrc = false;
 
+    memset(&transceive_info, 0, sizeof(transceive_info));
     CONCURRENCY_LOCK();
 
     /* Create the local semaphore */
@@ -696,15 +708,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
        goto clean_and_return;
     }
 
-    if ((techtypes == NULL) || (e->GetArrayLength(techtypes) == 0)) {
-      goto clean_and_return;
-    }
-    // TODO: code to determine the selected technology
-    // For now, take the first
-    technologies = e->GetIntArrayElements(techtypes, 0);
-    selectedTech = technologies[0];
-
-    TRACE("Transceive thinks selected tag technology = %d\n", selectedTech);
+    selectedTech = nfc_jni_get_connected_technology(e, o);
 
     buf = outbuf = (uint8_t *)e->GetByteArrayElements(data, NULL);
     buflen = outlen = (uint32_t)e->GetArrayLength(data);
@@ -829,9 +833,6 @@ clean_and_return:
     if(transceive_info.sRecvData.buffer != NULL)
     {
       free(transceive_info.sRecvData.buffer);
-    }
-    if (technologies != NULL) {
-      e->ReleaseIntArrayElements(techtypes, technologies, JNI_ABORT);
     }
 
     if ((outbuf != buf) && (outbuf != NULL)) {
@@ -1024,7 +1025,7 @@ clean_and_return:
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doConnect", "()Z",
+   {"doConnect", "(I)Z",
       (void *)com_android_nfc_NativeNfcTag_doConnect},
    {"doDisconnect", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},

@@ -1610,7 +1610,7 @@ public class NfcService extends Application {
 
         @Override
         public int getLastError(int nativeHandle) throws RemoteException {
-            throw new UnsupportedOperationException();
+            return(mManager.doGetLastError());
         }
 
         @Override
@@ -2483,6 +2483,9 @@ public class NfcService extends Application {
            case MSG_NDEF_TAG:
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
+               // TODO: should check on next handle if ndef not available
+               // on the first. For now, just connect to the first handle
+               // in the list.
                if (nativeTag.connect()) {
                    int[] ndefinfo = new int[2];
                    if (nativeTag.checkNdef(ndefinfo)) {
@@ -2496,6 +2499,7 @@ public class NfcService extends Application {
                                msgNdef[0] = new NdefMessage(buff);
                                nativeTag.addNdefTechnology(msgNdef[0],
                                        supportedNdefLength, cardState);
+                               nativeTag.reconnect();
                                dispatchNativeTag(nativeTag, msgNdef);
                            } catch (FormatException e) {
                                // Create an intent anyway, without NDEF messages
@@ -2511,6 +2515,7 @@ public class NfcService extends Application {
                            nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
                            if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, " +
                                    "starting corresponding activity");
+                           nativeTag.reconnect();
                            dispatchNativeTag(nativeTag, new NdefMessage[] { });
                        }
                    } else {
