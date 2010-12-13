@@ -127,11 +127,12 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          secureElementHandle = psRemoteDevList[1].hTargetDev;
          
          /* Set type name */
-         jintArray techTree = nfc_jni_get_technology_tree(e, psRemoteDevList[1].psRemoteDevInfo->RemDevType,
-                                        psRemoteDevList[1].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);                         
+         jintArray techList;
+         jintArray handleList;
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList, &handleList);
          // TODO: Should use the "connected" technology, for now use the first
-         if (e->GetArrayLength(techTree) > 0) {
-             jint* technologies = e->GetIntArrayElements(techTree, 0);
+         if (e->GetArrayLength(techList) > 0) {
+             jint* technologies = e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
              LOGD("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
@@ -150,11 +151,13 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          secureElementHandle = psRemoteDevList->hTargetDev;
          
          /* Set type name */      
-         jintArray techTree = nfc_jni_get_technology_tree(e, psRemoteDevList->psRemoteDevInfo->RemDevType,
-                                         psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);                                                     
+         jintArray techList;
+         jintArray handleList;
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList, &handleList);
+
          // TODO: Should use the "connected" technology, for now use the first
-         if ((techTree != NULL) && e->GetArrayLength(techTree) > 0) {
-             jint* technologies = e->GetIntArrayElements(techTree, 0);
+         if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
+             jint* technologies = e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
              LOGD("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;

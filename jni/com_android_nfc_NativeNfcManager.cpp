@@ -949,12 +949,16 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
         /* Generate technology list */
         jintArray techList;
-        techList = nfc_jni_get_technology_tree(e, psRemoteDevList[target_index].psRemoteDevInfo->RemDevType,
-            psRemoteDevList[target_index].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak);
+        jintArray handleList;
+        nfc_jni_get_technology_tree(e, psRemoteDevList, uNofRemoteDev,
+                &techList, &handleList);
 
         /* Push the technology list into the java object */
         f = e->GetFieldID(tag_cls, "mTechList", "[I");
         e->SetObjectField(tag, f, techList);
+
+        f = e->GetFieldID(tag_cls, "mTechHandles", "[I");
+        e->SetObjectField(tag, f, handleList);
       }
 
       /* Set tag handle */
