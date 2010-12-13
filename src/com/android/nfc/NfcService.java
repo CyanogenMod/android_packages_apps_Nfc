@@ -1462,7 +1462,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public byte[] transceive(int nativeHandle, byte[] data) throws RemoteException {
+        public byte[] transceive(int nativeHandle, byte[] data, boolean raw)
+                throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
@@ -1476,7 +1477,7 @@ public class NfcService extends Application {
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                response = tag.transceive(data);
+                response = tag.transceive(data, raw);
                 return response;
             }
             return null;
@@ -1761,7 +1762,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public byte[] transceive(int nativeHandle, byte[] data) throws RemoteException {
+        public byte[] transceive(int nativeHandle, byte[] data)
+                throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeP2pDevice device;

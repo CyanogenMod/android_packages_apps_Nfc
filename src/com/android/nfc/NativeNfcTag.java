@@ -96,12 +96,12 @@ public class NativeNfcTag {
         return doDisconnect();
     }
 
-    private native byte[] doTransceive(byte[] data);
-    public synchronized byte[] transceive(byte[] data) {
+    private native byte[] doTransceive(byte[] data, boolean raw);
+    public synchronized byte[] transceive(byte[] data, boolean raw) {
         if (mWatchdog != null) {
             mWatchdog.reset();
         }
-        return doTransceive(data);
+        return doTransceive(data, raw);
     }
 
     private native boolean doCheckNdef(int[] ndefinfo);
