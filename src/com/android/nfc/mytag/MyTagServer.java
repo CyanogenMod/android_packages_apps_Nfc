@@ -38,6 +38,7 @@ public class MyTagServer {
     private static final boolean DBG = true;
 
     private static final int SERVICE_SAP = 0x20;
+    private static final int MIU = 256;
 
     static final String SERVICE_NAME = "com.android.mytag";
 
@@ -112,7 +113,7 @@ public class MyTagServer {
             while (mRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
                 mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
-                        128, 1, 1024);
+                        MIU, 1, 1024);
                 if (mServerSocket == null) {
                     if (DBG) Log.d(TAG, "failed to create LLCP service socket");
                     return;
