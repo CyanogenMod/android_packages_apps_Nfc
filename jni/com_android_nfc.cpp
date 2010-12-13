@@ -460,8 +460,9 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
             }break;
           case phNfc_eJewel_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                TARGET_TYPE_JEWEL, handle);
+// TODO expose Jewel in the Java APIs
+//              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
+//                TARGET_TYPE_JEWEL, handle);
               index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
                 TARGET_TYPE_ISO14443_3A, handle);
             }break;

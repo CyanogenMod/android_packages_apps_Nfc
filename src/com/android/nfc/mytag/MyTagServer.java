@@ -36,24 +36,19 @@ import java.io.IOException;
 public class MyTagServer {
     private static final String TAG = "MyTagServer";
     private static final boolean DBG = true;
+
     private static final int SERVICE_SAP = 0x20;
 
     static final String SERVICE_NAME = "com.android.mytag";
 
     NfcService mService = NfcService.getInstance();
+
     /** Protected by 'this', null when stopped, non-null when running */
     ServerThread mServerThread = null;
 
     /** Connection class, used to handle incoming connections */
     private class ConnectionThread extends Thread {
         private LlcpSocket mSock;
-
-        private void trace(String msg) {
-            if (DBG) Log.d(TAG, "Server (" + Thread.currentThread().getId() + "): " + msg);
-        }
-        private void error(String msg, Throwable e) {
-            if (DBG) Log.e(TAG, "Server (" + Thread.currentThread().getId() + "): " + msg, e);
-        }
 
         ConnectionThread(LlcpSocket sock) {
             super("MyTagServer");
@@ -62,7 +57,7 @@ public class MyTagServer {
 
         @Override
         public void run() {
-            trace("starting connection thread");
+            if (DBG) Log.d(TAG, "starting connection thread");
             try {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream(1024);
                 byte[] partial = new byte[1024];
@@ -73,7 +68,7 @@ public class MyTagServer {
                 while(!connectionBroken) {
                     try {
                         size = mSock.receive(partial);
-                        trace("read " + size + " bytes");
+                        if (DBG) Log.d(TAG, "read " + size + " bytes");
                         if (size < 0) {
                             connectionBroken = true;
                             break;
@@ -83,27 +78,27 @@ public class MyTagServer {
                     } catch (IOException e) {
                         // Connection broken
                         connectionBroken = true;
-                        error("connection broken by IOException", e);
+                        if (DBG) Log.d(TAG, "connection broken by IOException", e);
                     }
                 }
 
                 // Build NDEF message from the stream
                 NdefMessage msg = new NdefMessage(buffer.toByteArray());
-                trace("got message " + msg.toString());
+                if (DBG) Log.d(TAG, "got message " + msg.toString());
 
                 // Send the intent for the fake tag
                 mService.sendMockNdefTag(msg);
             } catch (FormatException e) {
-                error("badly formatted NDEF message, ignoring", e);
+                Log.e(TAG, "badly formatted NDEF message, ignoring", e);
             } finally {
                 try {
-                    trace("about to close");
+                    if (DBG) Log.d(TAG, "about to close");
                     mSock.close();
                 } catch (IOException e) {
                     // ignore
                 }
             }
-            trace("finished connection thread");
+            if (DBG) Log.d(TAG, "finished connection thread");
         }
     };
 
@@ -112,41 +107,34 @@ public class MyTagServer {
         boolean mRunning = true;
         LlcpServiceSocket mServerSocket;
 
-        private void trace(String msg) {
-            if (DBG) Log.d(TAG, "Comm (" + Thread.currentThread().getId() + "): " + msg);
-        }
-        private void error(String msg, Throwable e) {
-            if (DBG) Log.e(TAG, "Comm (" + Thread.currentThread().getId() + "): " + msg, e);
-        }
-
         @Override
         public void run() {
             while (mRunning) {
-                trace("about create LLCP service socket");
+                if (DBG) Log.d(TAG, "about create LLCP service socket");
                 mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
                         128, 1, 1024);
                 if (mServerSocket == null) {
-                    trace("failed to create LLCP service socket");
+                    if (DBG) Log.d(TAG, "failed to create LLCP service socket");
                     return;
                 }
-                trace("created LLCP service socket");
+                if (DBG) Log.d(TAG, "created LLCP service socket");
                 try {
                     while (mRunning) {
-                        trace("about to accept");
+                        if (DBG) Log.d(TAG, "about to accept");
                         LlcpSocket communicationSocket = mServerSocket.accept();
-                        trace("accept returned " + communicationSocket);
+                        if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
                         if (communicationSocket != null) {
                             new ConnectionThread(communicationSocket).start();
                         }
                     }
-                    trace("stop running");
+                    if (DBG) Log.d(TAG, "stop running");
                 } catch (LlcpException e) {
-                    error("llcp error", e);
+                    Log.e(TAG, "llcp error", e);
                 } catch (IOException e) {
-                    error("IO error", e);
+                    Log.e(TAG, "IO error", e);
                 } finally {
                     if (mServerSocket != null) {
-                        trace("about to close");
+                        if (DBG) Log.d(TAG, "about to close");
                         mServerSocket.close();
                         mServerSocket = null;
                     }

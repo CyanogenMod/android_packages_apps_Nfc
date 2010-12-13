@@ -80,13 +80,12 @@ extern "C" {
 #define TARGET_TYPE_ISO14443_3A           1
 #define TARGET_TYPE_ISO14443_3B           2
 #define TARGET_TYPE_ISO14443_4            3
-#define TARGET_TYPE_ISO15693              21
-#define TARGET_TYPE_MIFARE_CLASSIC        200
-#define TARGET_TYPE_MIFARE_UL             202
-#define TARGET_TYPE_MIFARE_DESFIRE        203
-#define TARGET_TYPE_FELICA                11
-#define TARGET_TYPE_JEWEL                 101
-#define TARGET_TYPE_NDEF_FORMATABLE       110
+#define TARGET_TYPE_FELICA                4
+#define TARGET_TYPE_ISO15693              5
+#define TARGET_TYPE_NDEF                  6
+#define TARGET_TYPE_NDEF_FORMATABLE       7
+#define TARGET_TYPE_MIFARE_CLASSIC        8
+#define TARGET_TYPE_MIFARE_UL             9
 
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN

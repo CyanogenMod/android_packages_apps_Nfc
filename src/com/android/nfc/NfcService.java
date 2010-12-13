@@ -29,20 +29,22 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
 import android.nfc.ILlcpConnectionlessSocket;
 import android.nfc.ILlcpServiceSocket;
 import android.nfc.ILlcpSocket;
 import android.nfc.INfcAdapter;
+import android.nfc.INfcSecureElement;
 import android.nfc.INfcTag;
 import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
-import android.nfc.INfcSecureElement;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -57,6 +59,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
@@ -71,6 +75,50 @@ public class NfcService extends Application {
     static {
         System.loadLibrary("nfc_jni");
     }
+
+    /**
+     * NFC Forum "URI Record Type Definition"
+     *
+     * This is a mapping of "URI Identifier Codes" to URI string prefixes,
+     * per section 3.2.2 of the NFC Forum URI Record Type Definition document.
+     */
+    private static final String[] URI_PREFIX_MAP = new String[] {
+            "", // 0x00
+            "http://www.", // 0x01
+            "https://www.", // 0x02
+            "http://", // 0x03
+            "https://", // 0x04
+            "tel:", // 0x05
+            "mailto:", // 0x06
+            "ftp://anonymous:anonymous@", // 0x07
+            "ftp://ftp.", // 0x08
+            "ftps://", // 0x09
+            "sftp://", // 0x0A
+            "smb://", // 0x0B
+            "nfs://", // 0x0C
+            "ftp://", // 0x0D
+            "dav://", // 0x0E
+            "news:", // 0x0F
+            "telnet://", // 0x10
+            "imap:", // 0x11
+            "rtsp://", // 0x12
+            "urn:", // 0x13
+            "pop:", // 0x14
+            "sip:", // 0x15
+            "sips:", // 0x16
+            "tftp:", // 0x17
+            "btspp://", // 0x18
+            "btl2cap://", // 0x19
+            "btgoep://", // 0x1A
+            "tcpobex://", // 0x1B
+            "irdaobex://", // 0x1C
+            "file://", // 0x1D
+            "urn:epc:id:", // 0x1E
+            "urn:epc:tag:", // 0x1F
+            "urn:epc:pat:", // 0x20
+            "urn:epc:raw:", // 0x21
+            "urn:epc:", // 0x22
+    };
 
     public static final String SERVICE_NAME = "nfc";
 
@@ -1507,7 +1555,7 @@ public class NfcService extends Application {
         }
 
         @Override
-        public NdefMessage read(int nativeHandle) throws RemoteException {
+        public NdefMessage ndefRead(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag;
@@ -1535,7 +1583,7 @@ public class NfcService extends Application {
         }
 
         @Override
-        public int write(int nativeHandle, NdefMessage msg) throws RemoteException {
+        public int ndefWrite(int nativeHandle, NdefMessage msg) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag;
@@ -1562,20 +1610,17 @@ public class NfcService extends Application {
 
         @Override
         public int getLastError(int nativeHandle) throws RemoteException {
-            // TODO Auto-generated method stub
-            return 0;
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public int getModeHint(int nativeHandle) throws RemoteException {
-            // TODO Auto-generated method stub
-            return 0;
+        public boolean ndefIsWritable(int nativeHandle) throws RemoteException {
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public int makeReadOnly(int nativeHandle) throws RemoteException {
-            // TODO Auto-generated method stub
-            return 0;
+        public int ndefMakeReadOnly(int nativeHandle) throws RemoteException {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -2429,14 +2474,9 @@ public class NfcService extends Application {
                Tag tag = Tag.createMockTag(new byte[] { 0x00 },
                        new int[] { },
                        new Bundle[] { });
-               Intent intent = buildTagIntent(tag, new NdefMessage[] { ndefMsg });
                Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                Log.d(TAG, tag.toString());
-               try {
-                   mContext.startActivity(intent);
-               } catch (ActivityNotFoundException e) {
-                   Log.w(TAG, "No activity found for mock tag");
-               }
+               dispatchTag(tag, new NdefMessage[] { ndefMsg });
                break;
            }
 
@@ -2456,20 +2496,7 @@ public class NfcService extends Application {
                                msgNdef[0] = new NdefMessage(buff);
                                nativeTag.addNdefTechnology(msgNdef[0],
                                        supportedNdefLength, cardState);
-                               Tag tag = new Tag(nativeTag.getUid(),
-                                       nativeTag.getTechList(),
-                                       nativeTag.getTechExtras(),
-                                       nativeTag.getHandle());
-                               Intent intent = buildTagIntent(tag, msgNdef);
-                               if (DBG) Log.d(TAG, "NDEF tag found, starting corresponding activity");
-                               if (DBG) Log.d(TAG, tag.toString());
-                               try {
-                                   mContext.startActivity(intent);
-                                   registerTagObject(nativeTag);
-                               } catch (ActivityNotFoundException e) {
-                                   Log.w(TAG, "No activity found, disconnecting");
-                                   nativeTag.disconnect();
-                               }
+                               dispatchNativeTag(nativeTag, msgNdef);
                            } catch (FormatException e) {
                                // Create an intent anyway, without NDEF messages
                                generateEmptyIntent = true;
@@ -2478,44 +2505,23 @@ public class NfcService extends Application {
                            // Create an intent anyway, without NDEF messages
                            generateEmptyIntent = true;
                        }
+
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
                            nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
-                           Tag tag = new Tag(nativeTag.getUid(),
-                                   nativeTag.getTechList(),
-                                   nativeTag.getTechExtras(),
-                                   nativeTag.getHandle());
-                           Intent intent = buildTagIntent(tag, new NdefMessage[] { });
-                           if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, starting corresponding activity");
-                           try {
-                               mContext.startActivity(intent);
-                               registerTagObject(nativeTag);
-                           } catch (ActivityNotFoundException e) {
-                               Log.w(TAG, "No activity found, disconnecting");
-                               nativeTag.disconnect();
-                           }
+                           if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, " +
+                                   "starting corresponding activity");
+                           dispatchNativeTag(nativeTag, new NdefMessage[] { });
                        }
                    } else {
-                       Tag tag = new Tag(nativeTag.getUid(),
-                               nativeTag.getTechList(),
-                               nativeTag.getTechExtras(),
-                               nativeTag.getHandle());
-                       Intent intent = buildTagIntent(tag, null);
-                       if (DBG) Log.d(TAG, "Non-NDEF tag found, starting corresponding activity");
-                       if (DBG) Log.d(TAG, tag.toString());
-                       try {
-                           mContext.startActivity(intent);
-                           registerTagObject(nativeTag);
-                       } catch (ActivityNotFoundException e) {
-                           Log.w(TAG, "No activity found, disconnecting");
-                           nativeTag.disconnect();
-                       }
+                       dispatchNativeTag(nativeTag, null);
                    }
                } else {
                    Log.w(TAG, "Failed to connect to tag");
                    nativeTag.disconnect();
                }
                break;
+
            case MSG_CARD_EMULATION:
                if (DBG) Log.d(TAG, "Card Emulation message");
                byte[] aid = (byte[]) msg.obj;
@@ -2624,13 +2630,154 @@ public class NfcService extends Application {
            }
         }
 
-        private Intent buildTagIntent(Tag tag, NdefMessage[] msgs) {
-            Intent intent = new Intent(NfcAdapter.ACTION_TAG_DISCOVERED);
+        private Intent buildTagIntent(Tag tag, NdefMessage[] msgs, String action) {
+            Intent intent = new Intent(action);
             intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
             intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
             intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, msgs);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             return intent;
+        }
+
+        private void dispatchNativeTag(NativeNfcTag nativeTag, NdefMessage[] msgs) {
+            Tag tag = new Tag(nativeTag.getUid(), nativeTag.getTechList(),
+                    nativeTag.getTechExtras(), nativeTag.getHandle());
+            if (dispatchTag(tag, msgs)) {
+                registerTagObject(nativeTag);
+            } else {
+                nativeTag.disconnect();
+            }
+        }
+
+        public byte[] concat(byte[]... arrays) {
+            int length = 0;
+            for (byte[] array : arrays) {
+                length += array.length;
+            }
+            byte[] result = new byte[length];
+            int pos = 0;
+            for (byte[] array : arrays) {
+                System.arraycopy(array, 0, result, pos, array.length);
+                pos += array.length;
+            }
+            return result;
+        }
+
+        private Uri parseWellKnownUriRecord(NdefRecord record) {
+            byte[] payload = record.getPayload();
+
+            /*
+             * payload[0] contains the URI Identifier Code, per the
+             * NFC Forum "URI Record Type Definition" section 3.2.2.
+             *
+             * payload[1]...payload[payload.length - 1] contains the rest of
+             * the URI.
+             */
+            String prefix = URI_PREFIX_MAP[(payload[0] & 0xff)];
+            byte[] fullUri = concat(prefix.getBytes(Charsets.UTF_8),
+                    Arrays.copyOfRange(payload, 1, payload.length));
+            return Uri.parse(new String(fullUri, Charsets.UTF_8));
+        }
+
+        private boolean setTypeOrDataFromNdef(Intent intent, NdefRecord record) {
+            short tnf = record.getTnf();
+            byte[] type = record.getType();
+            switch (tnf) {
+                case NdefRecord.TNF_MIME_MEDIA: {
+                    intent.setType(new String(type, Charsets.US_ASCII));
+                    return true;
+                }
+                case NdefRecord.TNF_ABSOLUTE_URI: {
+                    intent.setData(Uri.parse(new String(type, Charsets.UTF_8)));
+                    return true;
+                }
+                case NdefRecord.TNF_WELL_KNOWN: {
+                    if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                        intent.setType("text/plain");
+                        return true;
+                    } else if (Arrays.equals(type, NdefRecord.RTD_SMART_POSTER)) {
+                        // Parse the smart poster looking for the URI
+                        try {
+                            NdefMessage msg = new NdefMessage(record.getPayload());
+                            for (NdefRecord subRecord : msg.getRecords()) {
+                                if (subRecord.getTnf() == NdefRecord.TNF_WELL_KNOWN
+                                        && Arrays.equals(subRecord.getType(), NdefRecord.RTD_URI)) {
+                                    intent.setData(parseWellKnownUriRecord(subRecord));
+                                    return true;
+                                }
+                            }
+                        } catch (FormatException e) {
+                            return false;
+                        }
+                    } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
+                        intent.setData(parseWellKnownUriRecord(record));
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        private Uri buildTechListUri(Tag tag) {
+            int[] techList = tag.getTechnologyList();
+            Arrays.sort(techList);
+            Uri.Builder builder = new Uri.Builder();
+            builder.scheme("vnd.android.nfc").authority("tag");
+            for (int tech : techList) {
+                builder.appendPath(Integer.toString(tech));
+            }
+            builder.appendPath("");
+            return builder.build();
+        }
+
+        /** Returns false if no activities were found to dispatch to */
+        private boolean dispatchTag(Tag tag, NdefMessage[] msgs) {
+            if (DBG) {
+                Log.d(TAG, "Dispatching tag");
+                Log.d(TAG, tag.toString());
+            }
+
+            Intent intent;
+            if (msgs != null && msgs.length > 0) {
+                NdefMessage msg = msgs[0];
+                NdefRecord[] records = msg.getRecords();
+                if (records.length > 0) {
+                    // Found valid NDEF data, try to dispatch that first
+                    NdefRecord record = records[0];
+
+                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_NDEF_DISCOVERED);
+                    setTypeOrDataFromNdef(intent, record);
+
+                    try {
+                        mContext.startActivity(intent);
+                        // If an activity is found then skip further dispatching
+                        return true;
+                    } catch (ActivityNotFoundException e) {
+                        if (DBG) Log.d(TAG, "No activities for NDEF handling of " + intent);
+                    }
+                }
+            }
+
+            // Try the technology specific dispatch
+            intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+            intent.setData(buildTechListUri(tag));
+            try {
+                mContext.startActivity(intent);
+                return true;
+            } catch (ActivityNotFoundException e) {
+                if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
+            }
+
+            // Try the generic intent
+            intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TAG_DISCOVERED);
+            try {
+                mContext.startActivity(intent);
+                return true;
+            } catch (ActivityNotFoundException e) {
+                Log.e(TAG, "No tag fallback activity found for " + intent);
+                return false;
+            }
         }
     }
 
