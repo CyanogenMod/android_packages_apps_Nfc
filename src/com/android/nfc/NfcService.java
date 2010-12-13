@@ -1454,8 +1454,9 @@ public class NfcService extends Application {
 
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
+            int[] ndefInfo = new int[2];
             if (tag != null) {
-                isSuccess = (tag.checkNdef() >= 0) ? true : false;
+                isSuccess = tag.checkNdef(ndefInfo);
             }
             return isSuccess;
         }
@@ -2418,8 +2419,10 @@ public class NfcService extends Application {
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
                if (nativeTag.connect()) {
-                   int supportedNdefLength = nativeTag.checkNdef();
-                   if (supportedNdefLength >= 0) {
+                   int[] ndefinfo = new int[2];
+                   if (nativeTag.checkNdef(ndefinfo)) {
+                       int supportedNdefLength = ndefinfo[0];
+                       int cardState = ndefinfo[1];
                        boolean generateEmptyIntent = false;
                        byte[] buff = nativeTag.read();
                        if (buff != null) {
@@ -2427,7 +2430,7 @@ public class NfcService extends Application {
                            try {
                                msgNdef[0] = new NdefMessage(buff);
                                nativeTag.addNdefTechnology(msgNdef[0],
-                                   supportedNdefLength);
+                                       supportedNdefLength, cardState);
                                Tag tag = new Tag(nativeTag.getUid(),
                                        nativeTag.getTechList(),
                                        nativeTag.getTechExtras(),
@@ -2452,7 +2455,7 @@ public class NfcService extends Application {
                        }
                        if (generateEmptyIntent) {
                            // Create an intent with an empty ndef message array
-                           nativeTag.addNdefTechnology(null, supportedNdefLength);
+                           nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
                            Tag tag = new Tag(nativeTag.getUid(),
                                    nativeTag.getTechList(),
                                    nativeTag.getTechExtras(),
