@@ -54,7 +54,7 @@ public class MyTagClient extends BroadcastReceiver {
         }
 
         if (DBG) Log.d(TAG, "LLCP connection up and running");
-        NfcAdapter adapter = NfcAdapter.getDefaultAdapter();
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(context);
         NdefMessage msg = adapter.getLocalNdefMessage();
         if (msg == null) {
             if (DBG) Log.d(TAG, "No MyTag set, exiting");
