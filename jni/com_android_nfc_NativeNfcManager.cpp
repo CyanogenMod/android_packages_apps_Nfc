@@ -959,6 +959,9 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
         f = e->GetFieldID(tag_cls, "mTechHandles", "[I");
         e->SetObjectField(tag, f, handleList);
+
+        f = e->GetFieldID(tag_cls, "mConnectedTechnology", "I");
+        e->SetIntField(tag, f,(jint)-1);
       }
 
       /* Set tag handle */

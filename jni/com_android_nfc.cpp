@@ -232,6 +232,64 @@ jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o)
 }
 
 
+int nfc_jni_get_connected_tech_index(JNIEnv *e, jobject o)
+{
+
+   jclass c;
+   jfieldID f;
+
+   c = e->GetObjectClass(o);
+   f = e->GetFieldID(c, "mConnectedTechnology", "I");
+
+   return e->GetIntField(o, f);
+
+}
+
+jint nfc_jni_get_connected_technology(JNIEnv *e, jobject o)
+{
+   jclass c;
+   jfieldID f;
+   int connectedTech = -1;
+
+   int connectedTechIndex = nfc_jni_get_connected_tech_index(e,o);
+   jintArray techTypes = nfc_jni_get_nfc_tag_type(e, o);
+
+   if ((connectedTechIndex != -1) && (techTypes != NULL) &&
+           (connectedTechIndex < e->GetArrayLength(techTypes))) {
+       jint* technologies = e->GetIntArrayElements(techTypes, 0);
+       if (technologies != NULL) {
+           connectedTech = technologies[connectedTechIndex];
+           e->ReleaseIntArrayElements(techTypes, technologies, JNI_ABORT);
+       }
+   }
+
+   return connectedTech;
+
+}
+
+phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o)
+{
+   jclass c;
+   jfieldID f;
+   phLibNfc_Handle connectedHandle = -1;
+
+   int connectedTechIndex = nfc_jni_get_connected_tech_index(e,o);
+   c = e->GetObjectClass(o);
+   f = e->GetFieldID(c, "mTechHandles", "[I");
+   jintArray techHandles =  (jintArray) e->GetObjectField(o, f);
+
+   if ((connectedTechIndex != -1) && (techHandles != NULL) &&
+           (connectedTechIndex < e->GetArrayLength(techHandles))) {
+       jint* handles = e->GetIntArrayElements(techHandles, 0);
+       if (handles != NULL) {
+           connectedHandle = handles[connectedTechIndex];
+           e->ReleaseIntArrayElements(techHandles, handles, JNI_ABORT);
+       }
+   }
+   return connectedHandle;
+
+}
+
 phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o)
 {
    jclass c;

@@ -41,6 +41,8 @@ public class NativeNfcTag {
     private byte[][] mTechActBytes;
     private byte[] mUid;
 
+    private int mConnectedTechnology; // Index in mTechList
+
     private final String TAG = "NativeNfcTag";
 
     private PresenceCheckWatchdog mWatchdog;
@@ -78,12 +80,35 @@ public class NativeNfcTag {
         }
     }
 
-    private native boolean doConnect();
+    private native boolean doConnect(int handle);
+    public synchronized boolean connect(int technology) {
+        boolean isSuccess = false;
+        for (int i = 0; i < mTechList.length; i++) {
+            if (mTechList[i] == technology) {
+                // Get the handle and connect
+                isSuccess = doConnect(mTechHandles[i]);
+                if (isSuccess) {
+                    mConnectedTechnology = i;
+                    mWatchdog = new PresenceCheckWatchdog();
+                    mWatchdog.start();
+                }
+                break;
+            }
+        }
+        return isSuccess;
+    }
+
     public synchronized boolean connect() {
-        boolean isSuccess = doConnect();
-        if (isSuccess) {
-            mWatchdog = new PresenceCheckWatchdog();
-            mWatchdog.start();
+        // Just take the first handle in the list
+        boolean isSuccess = false;
+        if ((mTechHandles.length > 0) && (mTechList.length > 0)) {
+            int handle = mTechHandles[0];
+            isSuccess = doConnect(handle);
+            if (isSuccess) {
+                mConnectedTechnology = 0;
+                mWatchdog = new PresenceCheckWatchdog();
+                mWatchdog.start();
+            }
         }
         return isSuccess;
     }
@@ -93,6 +118,7 @@ public class NativeNfcTag {
         if (mWatchdog != null) {
             mWatchdog.end();
         }
+        mConnectedTechnology = -1;
         return doDisconnect();
     }
 
