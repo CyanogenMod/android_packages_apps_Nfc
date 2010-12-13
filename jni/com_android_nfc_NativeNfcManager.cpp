@@ -781,15 +781,7 @@ static void nfc_jni_llcp_transport_listen_socket_callback(void              *pCo
    TRACE("nfc_jni_llcp_transport_listen_socket_callback socket handle = %p", IncomingSocket);
 
    hIncommingLlcpSocket = IncomingSocket;
-   if(IncomingSocket != 0)
-   {
-      TRACE("Listen CB \n");
-      sem_post(nfc_jni_llcp_listen_sem);
-   }
-   else
-   {
-      LOGW("Listen KO");
-   }
+   sem_post(nfc_jni_llcp_listen_sem);
 }
 
 void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
