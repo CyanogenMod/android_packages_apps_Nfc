@@ -514,6 +514,15 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
+   jobject o)
+{
+    // Reconnect is provided by libnfc by just calling connect again
+    // on the same handle.
+    return com_android_nfc_NativeNfcTag_doConnect(e, o);
+}
+
+
 static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
 {
    phLibNfc_Handle handle = 0;
@@ -1018,6 +1027,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doConnect},
    {"doDisconnect", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
+   {"doReconnect", "()Z",
+      (void *)com_android_nfc_NativeNfcTag_doReconnect},
    {"doTransceive", "([BZ)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doCheckNdef", "([I)Z",
