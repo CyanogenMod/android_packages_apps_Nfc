@@ -32,8 +32,6 @@ import android.util.Log;
 public class NativeNfcTag {
     static final boolean DBG = false;
 
-    private int mHandle;
-
     private int[] mTechList;
     private int[] mTechHandles;
     private Bundle[] mTechExtras;
@@ -182,7 +180,13 @@ public class NativeNfcTag {
     }
 
     public int getHandle() {
-        return mHandle;
+        // This is just a handle for the clients; it can simply use the first
+        // technology handle we have.
+        if (mTechHandles.length > 0) {
+            return mTechHandles[0];
+        } else {
+            return 0;
+        }
     }
 
     public byte[] getUid() {
@@ -197,17 +201,29 @@ public class NativeNfcTag {
         return mTechHandles;
     }
 
+    public int getConnectedHandle() {
+        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechHandles.length) {
+            return mTechHandles[mConnectedTechnology];
+        } else {
+            return 0;
+        }
+    }
     // This method exists to "patch in" the ndef technologies,
     // which is done inside Java instead of the native JNI code.
     // To not create some nasty dependencies on the order on which things
     // are called (most notably getTechExtras()), it needs some additional
     // checking.
-    public void addNdefTechnology(NdefMessage msg, int maxLength, int cardState) {
+    public void addNdefTechnology(NdefMessage msg, int handle, int maxLength, int cardState) {
         synchronized (this) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
             mNewTechList[mTechList.length] = TagTechnology.NDEF;
             mTechList = mNewTechList;
+
+            int[] mNewHandleList = new int[mTechHandles.length + 1];
+            System.arraycopy(mTechHandles, 0, mNewHandleList, 0, mTechHandles.length);
+            mNewHandleList[mTechHandles.length] = handle;
+            mTechHandles = mNewHandleList;
 
             Bundle extras = new Bundle();
             extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
