@@ -517,11 +517,11 @@ static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
 {
     // Reconnect is provided by libnfc by just calling connect again
     // on the same handle.
-    // Note that some tag types are stateless, hence we do not reconnect
-    // those. Currently those are the Jewel and Iso15693 technologies.
-    int selectedTech = nfc_jni_get_connected_technology(e, o);
-    if (selectedTech != -1) {
-        if (selectedTech != TARGET_TYPE_ISO15693) {
+    int libNfcType = nfc_jni_get_connected_technology_libnfc_type(e, o);
+    if (libNfcType != -1) {
+        // Note that some tag types are stateless, hence we do not reconnect
+        // those. Currently those are the Jewel and Iso15693 technologies.
+        if ((libNfcType != phNfc_eJewel_PICC) && (libNfcType != phNfc_eISO15693_PICC)) {
             phLibNfc_Handle handle = nfc_jni_get_connected_handle(e,o);
             return com_android_nfc_NativeNfcTag_doConnect(e, o, handle);
         }
@@ -697,6 +697,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     NFCSTATUS status;
     struct nfc_jni_callback_data cb_data;
     int selectedTech = 0;
+    int selectedLibNfcType = 0;
     jint* technologies = NULL;
     bool checkResponseCrc = false;
 
@@ -710,17 +711,12 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     }
 
     selectedTech = nfc_jni_get_connected_technology(e, o);
+    selectedLibNfcType = nfc_jni_get_connected_technology_libnfc_type(e, o);
 
     buf = outbuf = (uint8_t *)e->GetByteArrayElements(data, NULL);
     buflen = outlen = (uint32_t)e->GetArrayLength(data);
 
     switch (selectedTech) {
-/* TODO figure out how to pipe Jewel commands through from Java
-        case TARGET_TYPE_JEWEL:
-          transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
-          transceive_info.addr = 0;
-          break;
-*/
         case TARGET_TYPE_FELICA:
           transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
           transceive_info.addr = 0;
@@ -744,7 +740,12 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
           }
           break;
         case TARGET_TYPE_ISO14443_3A:
-          if (raw) {
+          // Check which libnfc type
+          if (selectedLibNfcType == phNfc_eJewel_PICC) {
+              // For the Jewel pipe, CRC is automatically computed
+              transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
+              transceive_info.addr = 0;
+          } else {
               transceive_info.cmd.MfCmd = phHal_eMifareRaw;
               transceive_info.addr = 0;
               // Need to add in the crc here
@@ -754,10 +755,6 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
               nfc_insert_crc_a(outbuf, buflen);
 
               checkResponseCrc = true;
-          } else {
-              offset = 2;
-              transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
-              transceive_info.addr = (uint8_t)buf[1];
           }
           break;
         case TARGET_TYPE_ISO14443_4:

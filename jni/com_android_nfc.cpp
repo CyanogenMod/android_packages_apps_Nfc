@@ -267,6 +267,29 @@ jint nfc_jni_get_connected_technology(JNIEnv *e, jobject o)
 
 }
 
+jint nfc_jni_get_connected_technology_libnfc_type(JNIEnv *e, jobject o)
+{
+   jclass c;
+   jfieldID f;
+   jint connectedLibNfcType = -1;
+
+   int connectedTechIndex = nfc_jni_get_connected_tech_index(e,o);
+   c = e->GetObjectClass(o);
+   f = e->GetFieldID(c, "mTechLibNfcTypes", "[I");
+   jintArray libNfcTypes =  (jintArray) e->GetObjectField(o, f);
+
+   if ((connectedTechIndex != -1) && (libNfcTypes != NULL) &&
+           (connectedTechIndex < e->GetArrayLength(libNfcTypes))) {
+       jint* types = e->GetIntArrayElements(libNfcTypes, 0);
+       if (types != NULL) {
+           connectedLibNfcType = types[connectedTechIndex];
+           e->ReleaseIntArrayElements(libNfcTypes, types, JNI_ABORT);
+       }
+   }
+   return connectedLibNfcType;
+
+}
+
 phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o)
 {
    jclass c;
@@ -384,8 +407,8 @@ const char* nfc_jni_get_status_name(NFCSTATUS status)
    return "UNKNOWN";
 }
 
-int addTechIfNeeded(int *techList, int* handleList, int listSize, int maxListSize,
-        int techToAdd, int handleToAdd) {
+int addTechIfNeeded(int *techList, int* handleList, int* typeList, int listSize,
+        int maxListSize, int techToAdd, int handleToAdd, int typeToAdd) {
     bool found = false;
     for (int i = 0; i < listSize; i++) {
         if (techList[i] == techToAdd) {
@@ -396,6 +419,7 @@ int addTechIfNeeded(int *techList, int* handleList, int listSize, int maxListSiz
     if (!found && listSize < maxListSize) {
         techList[listSize] = techToAdd;
         handleList[listSize] = handleToAdd;
+        typeList[listSize] = typeToAdd;
         return listSize + 1;
     }
     else {
@@ -410,10 +434,13 @@ int addTechIfNeeded(int *techList, int* handleList, int listSize, int maxListSiz
  *  Utility to get a technology tree and a corresponding handle list from a detected tag.
  */
 void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
-        uint8_t count, jintArray* techList, jintArray* handleList)
+        uint8_t count, jintArray* techList, jintArray* handleList,
+        jintArray* libnfcTypeList)
 {
    int technologies[MAX_NUM_TECHNOLOGIES];
    int handles[MAX_NUM_TECHNOLOGIES];
+   int libnfctypes[MAX_NUM_TECHNOLOGIES];
+
    int index = 0;
    // TODO: This counts from up to down because on multi-protocols, the
    // ISO handle is usually the second, and we prefer the ISO. Should implement
@@ -427,41 +454,40 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
           case phNfc_eISO14443_A_PICC:
           case phNfc_eISO14443_4A_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_4, handle);
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3A, handle);
-
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_NDEF_FORMATABLE, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4, handle, type);
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
               break;
             }
           case phNfc_eISO14443_4B_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_4, handle);
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3B, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4, handle, type);
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3B, handle, type);
             }break;
           case phNfc_eISO14443_3A_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3A, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
             }break;
           case phNfc_eISO14443_B_PICC:
             {
               // TODO a bug in libnfc will cause 14443-3B only cards
               // to be returned as this type as well, but these cards
               // are very rare. Hence assume it's -4B
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_4, handle);
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3B, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4, handle, type);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3B, handle, type);
             }break;
           case phNfc_eISO15693_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO15693, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO15693, handle, type);
             }break;
           case phNfc_eMifare_PICC:
             {
@@ -474,55 +500,57 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
               {
                 case 0x00:
                   // could be UL or UL-C
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_MIFARE_UL, handle);
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3A, handle);
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_NDEF_FORMATABLE, handle);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_UL, handle, type);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
                   break;
                 default:
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_MIFARE_CLASSIC, handle);
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_ISO14443_3A, handle);
-                  index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_NDEF_FORMATABLE, handle);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_CLASSIC, handle, type);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
+                  index = addTechIfNeeded(technologies, handles, libnfctypes,
+                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
                   break;
               }
             }break;
           case phNfc_eFelica_PICC:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                TARGET_TYPE_FELICA, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_FELICA, handle, type);
             }break;
           case phNfc_eJewel_PICC:
             {
-// TODO expose Jewel in the Java APIs
-//              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-//                TARGET_TYPE_JEWEL, handle);
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                TARGET_TYPE_ISO14443_3A, handle);
+              // Jewel represented as NfcA
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
             }break;
           default:
             {
-              index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                TARGET_TYPE_UNKNOWN, handle);
+              index = addTechIfNeeded(technologies, handles, libnfctypes,
+                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_UNKNOWN, handle, type);
             }
         }
    }
    // Build the Java arrays
    *techList = e->NewIntArray(index);
    *handleList = e->NewIntArray(index);
+   *libnfcTypeList = e->NewIntArray(index);
 
    jint* techItems = e->GetIntArrayElements(*techList, NULL);
    jint* handleItems = e->GetIntArrayElements(*handleList, NULL);
+   jint* typeItems = e->GetIntArrayElements(*libnfcTypeList, NULL);
    for (int i = 0; i < index; i++) {
        techItems[i] = technologies[i];
        handleItems[i] = handles[i];
+       typeItems[i] = libnfctypes[i];
    }
    e->ReleaseIntArrayElements(*techList, techItems, 0);
    e->ReleaseIntArrayElements(*handleList, handleItems, 0);
+   e->ReleaseIntArrayElements(*libnfcTypeList, typeItems, 0);
 
 }
 

@@ -34,6 +34,7 @@ public class NativeNfcTag {
 
     private int[] mTechList;
     private int[] mTechHandles;
+    private int[] mTechLibNfcTypes;
     private Bundle[] mTechExtras;
     private byte[][] mTechPollBytes;
     private byte[][] mTechActBytes;
@@ -83,12 +84,16 @@ public class NativeNfcTag {
         boolean isSuccess = false;
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
-                // Get the handle and connect
-                isSuccess = doConnect(mTechHandles[i]);
-                if (isSuccess) {
-                    mConnectedTechnology = i;
-                    mWatchdog = new PresenceCheckWatchdog();
-                    mWatchdog.start();
+                // Get the handle and connect, if not already connected
+                if (mConnectedTechnology != i) {
+                    isSuccess = doConnect(mTechHandles[i]);
+                    if (isSuccess) {
+                        mConnectedTechnology = i;
+                        mWatchdog = new PresenceCheckWatchdog();
+                        mWatchdog.start();
+                    }
+                } else {
+                    isSuccess = true; // Already connect to this tech
                 }
                 break;
             }
@@ -208,12 +213,21 @@ public class NativeNfcTag {
             return 0;
         }
     }
+
+    public int getConnectedLibNfcType() {
+        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechLibNfcTypes.length) {
+            return mTechLibNfcTypes[mConnectedTechnology];
+        } else {
+            return 0;
+        }
+    }
     // This method exists to "patch in" the ndef technologies,
     // which is done inside Java instead of the native JNI code.
     // To not create some nasty dependencies on the order on which things
     // are called (most notably getTechExtras()), it needs some additional
     // checking.
-    public void addNdefTechnology(NdefMessage msg, int handle, int maxLength, int cardState) {
+    public void addNdefTechnology(NdefMessage msg, int handle, int libnfctype,
+            int maxLength, int cardState) {
         synchronized (this) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
@@ -224,6 +238,11 @@ public class NativeNfcTag {
             System.arraycopy(mTechHandles, 0, mNewHandleList, 0, mTechHandles.length);
             mNewHandleList[mTechHandles.length] = handle;
             mTechHandles = mNewHandleList;
+
+            int[] mNewTypeList = new int[mTechLibNfcTypes.length + 1];
+            System.arraycopy(mTechLibNfcTypes, 0, mNewTypeList, 0, mTechLibNfcTypes.length);
+            mNewTypeList[mTechLibNfcTypes.length] = handle;
+            mTechLibNfcTypes = mNewTypeList;
 
             Bundle extras = new Bundle();
             extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);

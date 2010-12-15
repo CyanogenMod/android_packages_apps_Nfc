@@ -129,7 +129,9 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          /* Set type name */
          jintArray techList;
          jintArray handleList;
-         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList, &handleList);
+         jintArray typeList;
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
+                 &handleList, &typeList);
          // TODO: Should use the "connected" technology, for now use the first
          if (e->GetArrayLength(techList) > 0) {
              jint* technologies = e->GetIntArrayElements(techList, 0);
@@ -153,7 +155,9 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          /* Set type name */      
          jintArray techList;
          jintArray handleList;
-         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList, &handleList);
+         jintArray typeList;
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
+                 &handleList, &typeList);
 
          // TODO: Should use the "connected" technology, for now use the first
          if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
