@@ -1627,7 +1627,27 @@ public class NfcService extends Application {
 
         @Override
         public int ndefMakeReadOnly(int nativeHandle) throws RemoteException {
-            throw new UnsupportedOperationException();
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            NativeNfcTag tag;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return ErrorCodes.ERROR_NOT_INITIALIZED;
+            }
+
+            /* find the tag in the hmap */
+            tag = (NativeNfcTag) findObject(nativeHandle);
+            if (tag == null) {
+                return ErrorCodes.ERROR_IO;
+            }
+
+            if (tag.makeReadonly()) {
+                return ErrorCodes.SUCCESS;
+            }
+            else {
+                return ErrorCodes.ERROR_IO;
+            }
         }
 
         @Override
