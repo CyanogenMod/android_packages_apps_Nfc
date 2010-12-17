@@ -1964,10 +1964,9 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    nat = nfc_jni_get_nat(e, o); 
    
    /* Create socket */
-   TRACE("phLibNfc_Llcp_Socket(hRemoteDevice=0x%08x, eType=phFriNfc_LlcpTransport_eConnectionLess, ...)", hLlcpHandle);
+   TRACE("phLibNfc_Llcp_Socket(eType=phFriNfc_LlcpTransport_eConnectionLess, ...)");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Socket(hLlcpHandle,
-                              phFriNfc_LlcpTransport_eConnectionLess,
+   ret = phLibNfc_Llcp_Socket(phFriNfc_LlcpTransport_eConnectionLess,
                               NULL,
                               NULL,
                               &hLlcpSocket,
@@ -2060,8 +2059,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    /* Create socket */
    TRACE("phLibNfc_Llcp_Socket(hRemoteDevice=0x%08x, eType=phFriNfc_LlcpTransport_eConnectionOriented, ...)", hLlcpHandle);
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Socket(hLlcpHandle,
-                              phFriNfc_LlcpTransport_eConnectionOriented,
+   ret = phLibNfc_Llcp_Socket(phFriNfc_LlcpTransport_eConnectionOriented,
                               &sOptions,
                               &sWorkingBuffer,
                               &hLlcpSocket,
@@ -2182,10 +2180,9 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
    sWorkingBuffer.buffer = (uint8_t*)malloc(sWorkingBuffer.length);
 
    /* Create socket */
-   TRACE("phLibNfc_Llcp_Socket(hRemoteDevice=0x%08x, eType=phFriNfc_LlcpTransport_eConnectionOriented, ...)", hLlcpHandle);
+   TRACE("phLibNfc_Llcp_Socket(eType=phFriNfc_LlcpTransport_eConnectionOriented, ...)");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Socket(hLlcpHandle,
-                              phFriNfc_LlcpTransport_eConnectionOriented,
+   ret = phLibNfc_Llcp_Socket(phFriNfc_LlcpTransport_eConnectionOriented,
                               &sOptions,
                               &sWorkingBuffer,
                               &hLlcpSocket,
