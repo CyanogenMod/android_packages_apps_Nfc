@@ -512,6 +512,60 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
+   jobject o, phLibNfc_Handle handle)
+{
+   jclass cls;
+   jfieldID f;
+   NFCSTATUS status;
+   jboolean result = JNI_FALSE;
+   struct nfc_jni_callback_data cb_data;
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
+   CONCURRENCY_LOCK();
+
+   /* Create the local semaphore */
+   if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
+   {
+      goto clean_and_return;
+   }
+
+   TRACE("phLibNfc_RemoteDev_ReConnect(RW)");
+   REENTRANCE_LOCK();
+   storedHandle = handle;
+   status = phLibNfc_RemoteDev_ReConnect(handle, nfc_jni_connect_callback,(void *)&cb_data);
+   REENTRANCE_UNLOCK();
+   if(status != NFCSTATUS_PENDING)
+   {
+      LOGE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      goto clean_and_return;
+   }
+   TRACE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+   /* Wait for callback response */
+   if(sem_wait(&cb_data.sem))
+   {
+      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      goto clean_and_return;
+   }
+
+   /* Connect Status */
+   if(cb_data.status != NFCSTATUS_SUCCESS)
+   {
+      goto clean_and_return;
+   }
+
+   // Success, set poll & act bytes
+   set_target_pollBytes(e, o, pRemDevInfo);
+   set_target_activationBytes(e, o, pRemDevInfo);
+
+   result = JNI_TRUE;
+
+clean_and_return:
+   nfc_cb_data_deinit(&cb_data);
+   CONCURRENCY_UNLOCK();
+   return result;
+}
+
 static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
    jobject o)
 {
@@ -1029,6 +1083,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
    {"doReconnect", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doReconnect},
+   {"doHandleReconnect", "(I)Z",
+      (void *)com_android_nfc_NativeNfcTag_doHandleReconnect},
    {"doTransceive", "([BZ)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doCheckNdef", "([I)Z",

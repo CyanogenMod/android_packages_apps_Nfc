@@ -86,9 +86,45 @@ public class NativeNfcTag {
             if (mTechList[i] == technology) {
                 // Get the handle and connect, if not already connected
                 if (mConnectedTechnology != i) {
-                    isSuccess = doConnect(mTechHandles[i]);
+                    // We're not yet connected, there are a few scenario's
+                    // here:
+                    // 1) We are not connected to anything yet - allow
+                    // 2) We are connected to a technology which has
+                    //    a different handle (multi-protocol tag); we support
+                    //    switching to that.
+                    // 3) We are connected to a technology which has the same
+                    //    handle; we do not support connecting at a different
+                    //    level (libnfc auto-activates to the max level on
+                    //    any handle).
+                    // 4) We are connecting to the ndef technology - always
+                    //    allowed.
+                    if (mConnectedTechnology == -1) {
+                        // Not connected yet
+                        isSuccess = doConnect(mTechHandles[i]);
+                    }
+                    else if ((mConnectedTechnology != -1) &&
+                            (mTechHandles[mConnectedTechnology] != mTechHandles[i])) {
+                        // Connect to a tech with a different handle
+                        isSuccess = reconnect(mTechHandles[i]);
+                    }
+                    else {
+                        // Already connected to a tech with the same handle
+                        // Only allow Ndef / NdefFormatable techs to return
+                        // success
+                        if ((technology == TagTechnology.NDEF) ||
+                                (technology == TagTechnology.NDEF_FORMATABLE)) {
+                            isSuccess = true;
+                        } else {
+                            // Don't allow to connect at a different level
+                            // on the same handle, not supported by libnfc!
+                            isSuccess = false;
+                        }
+                    }
                     if (isSuccess) {
                         mConnectedTechnology = i;
+                        if (mWatchdog != null) {
+                            mWatchdog.end();
+                        }
                         mWatchdog = new PresenceCheckWatchdog();
                         mWatchdog.start();
                     }
@@ -96,21 +132,6 @@ public class NativeNfcTag {
                     isSuccess = true; // Already connect to this tech
                 }
                 break;
-            }
-        }
-        return isSuccess;
-    }
-
-    public synchronized boolean connect() {
-        // Just take the first handle in the list
-        boolean isSuccess = false;
-        if ((mTechHandles.length > 0) && (mTechList.length > 0)) {
-            int handle = mTechHandles[0];
-            isSuccess = doConnect(handle);
-            if (isSuccess) {
-                mConnectedTechnology = 0;
-                mWatchdog = new PresenceCheckWatchdog();
-                mWatchdog.start();
             }
         }
         return isSuccess;
@@ -131,6 +152,14 @@ public class NativeNfcTag {
             mWatchdog.reset();
         }
         return doReconnect();
+    }
+
+    native boolean doHandleReconnect(int handle);
+    public synchronized boolean reconnect(int handle) {
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
+        return doHandleReconnect(handle);
     }
 
     private native byte[] doTransceive(byte[] data, boolean raw);
