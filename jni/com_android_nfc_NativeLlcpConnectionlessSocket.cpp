@@ -59,7 +59,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    NFCSTATUS ret;
    struct timespec ts;
    phLibNfc_Handle hLlcpSocket;
-   phNfc_sData_t sSendBuffer;
+   phNfc_sData_t sSendBuffer = {NULL, 0};
    struct nfc_jni_callback_data cb_data;
    jboolean result = JNI_FALSE;
    
@@ -105,6 +105,10 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    result = JNI_TRUE;
 
 clean_and_return:
+   if (sSendBuffer.buffer != NULL)
+   {
+      e->ReleaseByteArrayElements(data, (jbyte*)sSendBuffer.buffer, JNI_ABORT);
+   }
    nfc_cb_data_deinit(&cb_data);
    return result;
 }
@@ -119,7 +123,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    phNfc_sData_t sReceiveBuffer;
    jclass clsLlcpPacket;
    jfieldID f;
-   jbyteArray receivedData;
+   jbyteArray receivedData = NULL;
    struct nfc_jni_callback_data cb_data;
 
    /* Create the local semaphore */
@@ -190,6 +194,10 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    e->SetObjectField(llcpPacket, f, receivedData);
 
 clean_and_return:
+   if (receivedData != NULL)
+   {
+      e->ReleaseByteArrayElements(receivedData, (jbyte*)sReceiveBuffer.buffer, 0);
+   }
    nfc_cb_data_deinit(&cb_data);
    return llcpPacket;
 }

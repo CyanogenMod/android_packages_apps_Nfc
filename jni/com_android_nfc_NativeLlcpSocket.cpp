@@ -241,7 +241,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jb
    NFCSTATUS ret;
    struct timespec ts;  
    phLibNfc_Handle hLlcpSocket;
-   phNfc_sData_t sSendBuffer;
+   phNfc_sData_t sSendBuffer = {NULL, 0};
    struct nfc_jni_callback_data cb_data;
    jboolean result = JNI_FALSE;
    
@@ -286,6 +286,10 @@ static jboolean com_android_nfc_NativeLlcpSocket_doSend(JNIEnv *e, jobject o, jb
    result = JNI_TRUE;
 
 clean_and_return:
+   if (sSendBuffer.buffer != NULL)
+   {
+      e->ReleaseByteArrayElements(data, (jbyte*)sSendBuffer.buffer, JNI_ABORT);
+   }
    nfc_cb_data_deinit(&cb_data);
    return result;
 }
@@ -295,7 +299,7 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
    NFCSTATUS ret;
    struct timespec ts;  
    phLibNfc_Handle hLlcpSocket;
-   phNfc_sData_t sReceiveBuffer;
+   phNfc_sData_t sReceiveBuffer = {NULL, 0};
    struct nfc_jni_callback_data cb_data;
    jint result = 0;
    
@@ -339,6 +343,10 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
    }
 
 clean_and_return:
+   if (sReceiveBuffer.buffer != NULL)
+   {
+      e->ReleaseByteArrayElements(buffer, (jbyte*)sReceiveBuffer.buffer, 0);
+   }
    nfc_cb_data_deinit(&cb_data);
    return result;
 }
