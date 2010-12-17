@@ -2501,6 +2501,7 @@ public class NfcService extends Application {
                                     ndefMsgs[0] = new NdefMessage(buff);
                                     nativeTag.addNdefTechnology(ndefMsgs[0],
                                             nativeTag.getConnectedHandle(),
+                                            nativeTag.getConnectedLibNfcType(),
                                             supportedNdefLength, cardState);
                                     nativeTag.reconnect();
                                 } catch (FormatException e) {
@@ -2515,6 +2516,7 @@ public class NfcService extends Application {
                                ndefMsgs = new NdefMessage[] { };
                                nativeTag.addNdefTechnology(null,
                                        nativeTag.getConnectedHandle(),
+                                       nativeTag.getConnectedLibNfcType(),
                                        supportedNdefLength, cardState);
                                nativeTag.reconnect();
                            }

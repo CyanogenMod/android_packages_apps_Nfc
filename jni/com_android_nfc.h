@@ -187,7 +187,8 @@ nfc_jni_native_monitor_t* nfc_jni_get_monitor(void);
 
 int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak);
 void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
-                        uint8_t count, jintArray* techList, jintArray* handleList);
+                        uint8_t count, jintArray* techList, jintArray* handleList,
+                        jintArray* typeList);
 
 /* P2P */
 phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);
@@ -195,6 +196,7 @@ jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
 
 /* TAG */
 jint nfc_jni_get_connected_technology(JNIEnv *e, jobject o);
+jint nfc_jni_get_connected_technology_libnfc_type(JNIEnv *e, jobject o);
 phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o);
 jintArray nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
 
