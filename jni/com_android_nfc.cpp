@@ -465,6 +465,10 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
             }break;
           case phNfc_eMifare_PICC:
             {
+              // We don't want to be too clever here; libnfc has already determined
+              // it's a Mifare, so we only check for UL, for all other tags
+              // we assume it's a mifare classic. This should make us more
+              // future-proof.
               int sak = devList[target].psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.Sak;
               switch(sak)
               {
@@ -477,16 +481,7 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
                   index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
                       TARGET_TYPE_NDEF_FORMATABLE, handle);
                   break;
-                case 0x08:
-                case 0x09:
-                case 0x10:
-                case 0x11:
-                case 0x18:
-                case 0x28:
-                case 0x38:
-                case 0x88:
-                case 0x98:
-                case 0xB8:
+                default:
                   index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
                       TARGET_TYPE_MIFARE_CLASSIC, handle);
                   index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
@@ -494,14 +489,6 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
                   index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
                       TARGET_TYPE_NDEF_FORMATABLE, handle);
                   break;
-                case 0x20:
-                  // This could be DESfire, but libnfc returns that as ISO14443_4
-                  // so we shouldn't hit this case
-                default:
-                  {
-                    index = addTechIfNeeded(technologies, handles, index, MAX_NUM_TECHNOLOGIES,
-                      TARGET_TYPE_UNKNOWN, handle);
-                  }break;
               }
             }break;
           case phNfc_eFelica_PICC:
