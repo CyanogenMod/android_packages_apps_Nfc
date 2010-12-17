@@ -193,6 +193,10 @@ public class NativeNfcTag {
         return mTechList;
     }
 
+    public int[] getHandleList() {
+        return mTechHandles;
+    }
+
     // This method exists to "patch in" the ndef technologies,
     // which is done inside Java instead of the native JNI code.
     // To not create some nasty dependencies on the order on which things

@@ -2466,6 +2466,61 @@ public class NfcService extends Application {
     }
 
     final class NfcServiceHandler extends Handler {
+
+        public NdefMessage[] findAndReadNdef(NativeNfcTag nativeTag) {
+            // Try to find NDEF on any of the technologies.
+            int[] technologies = nativeTag.getTechList();
+            int[] handles = nativeTag.getHandleList();
+            int techIndex = 0;
+            int lastHandleScanned = 0;
+            boolean ndefFoundAndConnected = false;
+            NdefMessage[] ndefMsgs = null;
+
+            while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
+                if (handles[techIndex] != lastHandleScanned) {
+                    // We haven't seen this handle yet, connect and checkndef
+                    if (nativeTag.connect(technologies[techIndex])) {
+                        int[] ndefinfo = new int[2];
+                        if (nativeTag.checkNdef(ndefinfo)) {
+                            ndefFoundAndConnected = true;
+                            boolean generateEmptyNdef = false;
+
+                            int supportedNdefLength = ndefinfo[0];
+                            int cardState = ndefinfo[1];
+                            byte[] buff = nativeTag.read();
+                            if (buff != null) {
+                                ndefMsgs = new NdefMessage[1];
+                                try {
+                                    ndefMsgs[0] = new NdefMessage(buff);
+                                    nativeTag.addNdefTechnology(ndefMsgs[0],
+                                            supportedNdefLength, cardState);
+                                    nativeTag.reconnect();
+                                } catch (FormatException e) {
+                                   // Create an intent anyway, without NDEF messages
+                                   generateEmptyNdef = true;
+                                }
+                            } else {
+                                generateEmptyNdef = true;
+                            }
+
+                           if (generateEmptyNdef) {
+                               ndefMsgs = new NdefMessage[] { };
+                               nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
+                               nativeTag.reconnect();
+                           }
+                        } // else, no NDEF on this tech, continue loop
+                    } else {
+                        // Connect failed, tag maybe lost. Try next handle
+                        // anyway.
+                    }
+                }
+                lastHandleScanned = handles[techIndex];
+                techIndex++;
+            }
+
+            return ndefMsgs;
+        }
+
         @Override
         public void handleMessage(Message msg) {
            switch (msg.what) {
@@ -2483,47 +2538,18 @@ public class NfcService extends Application {
            case MSG_NDEF_TAG:
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                NativeNfcTag nativeTag = (NativeNfcTag) msg.obj;
-               // TODO: should check on next handle if ndef not available
-               // on the first. For now, just connect to the first handle
-               // in the list.
-               if (nativeTag.connect()) {
-                   int[] ndefinfo = new int[2];
-                   if (nativeTag.checkNdef(ndefinfo)) {
-                       int supportedNdefLength = ndefinfo[0];
-                       int cardState = ndefinfo[1];
-                       boolean generateEmptyIntent = false;
-                       byte[] buff = nativeTag.read();
-                       if (buff != null) {
-                           NdefMessage[] msgNdef = new NdefMessage[1];
-                           try {
-                               msgNdef[0] = new NdefMessage(buff);
-                               nativeTag.addNdefTechnology(msgNdef[0],
-                                       supportedNdefLength, cardState);
-                               nativeTag.reconnect();
-                               dispatchNativeTag(nativeTag, msgNdef);
-                           } catch (FormatException e) {
-                               // Create an intent anyway, without NDEF messages
-                               generateEmptyIntent = true;
-                           }
-                       } else {
-                           // Create an intent anyway, without NDEF messages
-                           generateEmptyIntent = true;
-                       }
+               NdefMessage[] ndefMsgs = findAndReadNdef(nativeTag);
 
-                       if (generateEmptyIntent) {
-                           // Create an intent with an empty ndef message array
-                           nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
-                           if (DBG) Log.d(TAG, "NDEF tag found, but length 0 or invalid format, " +
-                                   "starting corresponding activity");
-                           nativeTag.reconnect();
-                           dispatchNativeTag(nativeTag, new NdefMessage[] { });
-                       }
-                   } else {
-                       dispatchNativeTag(nativeTag, null);
-                   }
+               if (ndefMsgs != null) {
+                   dispatchNativeTag(nativeTag, ndefMsgs);
                } else {
-                   Log.w(TAG, "Failed to connect to tag");
-                   nativeTag.disconnect();
+                   // No ndef found or connect failed, just try to reconnect and dispatch
+                   if (nativeTag.reconnect()) {
+                       dispatchNativeTag(nativeTag, null);
+                   } else {
+                       Log.w(TAG, "Failed to connect to tag");
+                       nativeTag.disconnect();
+                   }
                }
                break;
 
