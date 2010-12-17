@@ -230,7 +230,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
       goto clean_and_return;
    }
 
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
+   handle = nfc_jni_get_connected_handle(e, o);
 
    nfc_jni_ndef_rw.length = nfc_jni_ndef_buf_len;
    nfc_jni_ndef_rw.buffer = nfc_jni_ndef_buf;
@@ -280,7 +280,7 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    jboolean    result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
 
-   phLibNfc_Handle handle = nfc_jni_get_nfc_tag_handle(e, o);
+   phLibNfc_Handle handle = nfc_jni_get_connected_handle(e, o);
 
    CONCURRENCY_LOCK();
 
@@ -477,6 +477,7 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
 
    TRACE("phLibNfc_RemoteDev_Connect(RW)");
    REENTRANCE_LOCK();
+   storedHandle = handle;
    status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback,(void *)&cb_data);
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
@@ -545,7 +546,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
 
    CONCURRENCY_LOCK();
 
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
+   handle = nfc_jni_get_connected_handle(e, o);
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -692,7 +693,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     phLibNfc_sTransceiveInfo_t transceive_info;
     jbyteArray result = NULL;
     int res;
-    phLibNfc_Handle handle = nfc_jni_get_nfc_tag_handle(e, o);
+    phLibNfc_Handle handle = nfc_jni_get_connected_handle(e, o);
     NFCSTATUS status;
     struct nfc_jni_callback_data cb_data;
     int selectedTech = 0;
@@ -812,7 +813,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
      * In case of NfcA and raw, also check the CRC in the response
      * and cut it off in the returned data.
      */
-    if (checkResponseCrc) {
+    if ((nfc_jni_transceive_buffer->length > 2) && checkResponseCrc) {
         if (crc_valid(nfc_jni_transceive_buffer->buffer, nfc_jni_transceive_buffer->length)) {
             result = e->NewByteArray(nfc_jni_transceive_buffer->length - 2);
             if (result != NULL) {
@@ -869,7 +870,7 @@ static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    }
    cb_data.pContext = &sNdefInfo;
 
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
+   handle = nfc_jni_get_connected_handle(e, o);
 
    TRACE("phLibNfc_Ndef_CheckNdef()");
    REENTRANCE_LOCK();
@@ -936,7 +937,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
       goto clean_and_return;
    }
 
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
+   handle = nfc_jni_get_connected_handle(e, o);
 
    TRACE("phLibNfc_RemoteDev_CheckPresence()");
    REENTRANCE_LOCK();
@@ -985,7 +986,7 @@ static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, 
       goto clean_and_return;
    }
 
-   handle = nfc_jni_get_nfc_tag_handle(e, o);
+   handle = nfc_jni_get_connected_handle(e, o);
 
    keyBuffer.buffer = (uint8_t *)e->GetByteArrayElements(key, NULL);
    keyBuffer.length = e->GetArrayLength(key);

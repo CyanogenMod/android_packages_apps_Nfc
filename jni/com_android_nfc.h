@@ -196,7 +196,6 @@ jshort nfc_jni_get_p2p_device_mode(JNIEnv *e, jobject o);
 /* TAG */
 jint nfc_jni_get_connected_technology(JNIEnv *e, jobject o);
 phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o);
-phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o);
 jintArray nfc_jni_get_nfc_tag_type(JNIEnv *e, jobject o);
 
 /* LLCP */

@@ -290,17 +290,6 @@ phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o)
 
 }
 
-phLibNfc_Handle nfc_jni_get_nfc_tag_handle(JNIEnv *e, jobject o)
-{
-   jclass c;
-   jfieldID f;
-
-   c = e->GetObjectClass(o);
-   f = e->GetFieldID(c, "mHandle", "I");
-
-   return e->GetIntField(o, f);
-}
-
 phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)
 {
    jclass c;
@@ -426,7 +415,11 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
    int technologies[MAX_NUM_TECHNOLOGIES];
    int handles[MAX_NUM_TECHNOLOGIES];
    int index = 0;
-   for (int target = 0; target < count; target++) {
+   // TODO: This counts from up to down because on multi-protocols, the
+   // ISO handle is usually the second, and we prefer the ISO. Should implement
+   // a method to find the "preferred handle order" and use that instead,
+   // since we shouldn't have dependencies on the tech list ordering.
+   for (int target = count - 1; target >= 0; target--) {
        int type = devList[target].psRemoteDevInfo->RemDevType;
        int handle = devList[target].hTargetDev;
        switch (type)

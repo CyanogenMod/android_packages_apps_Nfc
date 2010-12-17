@@ -1417,7 +1417,7 @@ public class NfcService extends Application {
         }
 
         @Override
-        public int connect(int nativeHandle) throws RemoteException {
+        public int connect(int nativeHandle, int technology) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeNfcTag tag = null;
@@ -1432,8 +1432,15 @@ public class NfcService extends Application {
             if (tag == null) {
                 return ErrorCodes.ERROR_DISCONNECT;
             }
-            // TODO: register the tag as being locked rather than really connect
-            return ErrorCodes.SUCCESS;
+
+            // Note that on most tags, all technologies are behind a single
+            // handle. This means that the connect at the lower levels
+            // will do nothing, as the tag is already connected to that handle.
+            if (tag.connect(technology)) {
+                return ErrorCodes.SUCCESS;
+            } else {
+                return ErrorCodes.ERROR_DISCONNECT;
+            }
         }
 
         @Override
@@ -2493,6 +2500,7 @@ public class NfcService extends Application {
                                 try {
                                     ndefMsgs[0] = new NdefMessage(buff);
                                     nativeTag.addNdefTechnology(ndefMsgs[0],
+                                            nativeTag.getConnectedHandle(),
                                             supportedNdefLength, cardState);
                                     nativeTag.reconnect();
                                 } catch (FormatException e) {
@@ -2505,7 +2513,9 @@ public class NfcService extends Application {
 
                            if (generateEmptyNdef) {
                                ndefMsgs = new NdefMessage[] { };
-                               nativeTag.addNdefTechnology(null, supportedNdefLength, cardState);
+                               nativeTag.addNdefTechnology(null,
+                                       nativeTag.getConnectedHandle(),
+                                       supportedNdefLength, cardState);
                                nativeTag.reconnect();
                            }
                         } // else, no NDEF on this tech, continue loop

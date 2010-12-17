@@ -902,6 +902,11 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
              
             e->SetObjectField(tag, f, generalBytes);
          }
+
+         /* Set tag handle */
+         f = e->GetFieldID(tag_cls, "mHandle", "I");
+         e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
+         TRACE("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
       }
       else
       {
@@ -916,17 +921,22 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         ctor = e->GetMethodID(tag_cls, "<init>", "()V");
         tag = e->NewObject(tag_cls, ctor);
 
+        bool multi_protocol = false;
+
         if(status == NFCSTATUS_MULTIPLE_PROTOCOLS)
         {
             TRACE("Multiple Protocol TAG detected\n");
-            /* Since on most multi proto cards Mifare (emu) is first, and ISO second,
-             * we prefer the second standard above Mifare. Proper fix is to parse it.
-             */
-            target_index = 1;
+            multi_protocol = true;
         }
-        else
-        {
-            TRACE("Simple Protocol TAG detected\n");
+        else if (status == NFCSTATUS_MULTIPLE_TAGS) {
+            // Only one tag will be used
+            // TODO: suppose there's both a multi-proto and another
+            // single-proto tag in the field: in that case, we'd want to make sure we
+            // return a "complete" tag, and not just one "target", which
+            // is then either half of the multi-proto tag or the complete
+            // single-proto.
+            target_index = 0;
+        } else {
             target_index = 0;
         }
 
@@ -943,7 +953,8 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         /* Generate technology list */
         jintArray techList;
         jintArray handleList;
-        nfc_jni_get_technology_tree(e, psRemoteDevList, uNofRemoteDev,
+        nfc_jni_get_technology_tree(e, psRemoteDevList,
+                multi_protocol ? uNofRemoteDev : 1,
                 &techList, &handleList);
 
         /* Push the technology list into the java object */
@@ -957,10 +968,6 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         e->SetIntField(tag, f,(jint)-1);
       }
 
-      /* Set tag handle */
-      f = e->GetFieldID(tag_cls, "mHandle", "I");
-      e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
-      TRACE("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
       storedHandle = psRemoteDevList[target_index].hTargetDev;
       if (nat->tag != NULL) {
           e->DeleteGlobalRef(nat->tag);
