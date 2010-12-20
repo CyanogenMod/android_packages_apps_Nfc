@@ -800,15 +800,25 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
               transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
               transceive_info.addr = 0;
           } else {
-              transceive_info.cmd.MfCmd = phHal_eMifareRaw;
-              transceive_info.addr = 0;
-              // Need to add in the crc here
-              outbuf = (uint8_t*)malloc(buflen + 2);
-              outlen += 2;
-              memcpy(outbuf, buf, buflen);
-              nfc_insert_crc_a(outbuf, buflen);
+              if (raw) {
+                  // Use Mifare Raw to implement a standard
+                  // ISO14443-3A transceive, with CRC added
+                  transceive_info.cmd.MfCmd = phHal_eMifareRaw;
+                  transceive_info.addr = 0;
+                  // Need to add in the crc here
+                  outbuf = (uint8_t*)malloc(buflen + 2);
+                  outlen += 2;
+                  memcpy(outbuf, buf, buflen);
+                  nfc_insert_crc_a(outbuf, buflen);
 
-              checkResponseCrc = true;
+                  checkResponseCrc = true;
+              } else {
+                  // Use the mifare pipe
+                  offset = 2;
+                  transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+                  transceive_info.addr = (uint8_t)buf[1];
+              }
+
           }
           break;
         case TARGET_TYPE_ISO14443_4:
