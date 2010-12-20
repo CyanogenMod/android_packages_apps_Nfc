@@ -210,6 +210,14 @@ public class NativeNfcTag {
         return doNdefFormat(key);
     }
 
+    native boolean doMakeReadonly();
+    public synchronized boolean makeReadonly() {
+        if (mWatchdog != null) {
+            mWatchdog.reset();
+        }
+        return doMakeReadonly();
+    }
+
     private NativeNfcTag() {
     }
 
