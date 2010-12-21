@@ -1923,10 +1923,10 @@ public class NfcService extends Application {
     }
 
     private boolean _enable(boolean oldEnabledState) {
+        applyProperties();
+
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
-            applyProperties();
-
             /* Check Secure Element setting */
             mNfcSecureElementState = mPrefs.getBoolean(PREF_SECURE_ELEMENT_ON,
                     SECURE_ELEMENT_ON_DEFAULT);

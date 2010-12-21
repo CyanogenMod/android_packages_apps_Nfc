@@ -104,6 +104,7 @@ static void nfc_jni_deinit_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_se_set_mode_callback(void *context,
    phLibNfc_Handle handle, NFCSTATUS status);
+static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat);
 
 static phLibNfc_eConfigLinkType parseLinkType(const char* link_name)
@@ -314,6 +315,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    int result = FALSE;
    phLibNfc_SE_List_t SE_List[PHLIBNFC_MAXNO_OF_SE];
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index = 0, SmartMX_detected = 0;
+   phLibNfc_Llcp_sLinkParameters_t LlcpConfigInfo;
    struct nfc_jni_callback_data cb_data;
    uint8_t firmware_status;
 
@@ -501,6 +503,36 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
          goto clean_and_return;
       }
+   }
+
+   /* ====== LLCP ======= */
+
+   /* LLCP Params */
+   TRACE("******  NFC Config Mode NFCIP1 - LLCP ******");
+   LlcpConfigInfo.miu    = nat->miu;
+   LlcpConfigInfo.lto    = nat->lto;
+   LlcpConfigInfo.wks    = nat->wks;
+   LlcpConfigInfo.option = nat->opt;
+
+   REENTRANCE_LOCK();
+   status = phLibNfc_Mgt_SetLlcp_ConfigParams(&LlcpConfigInfo,
+                                              nfc_jni_llcpcfg_callback,
+                                              (void *)&cb_data);
+   REENTRANCE_UNLOCK();
+   if(status != NFCSTATUS_PENDING)
+   {
+      LOGE("phLibNfc_Mgt_SetLlcp_ConfigParams returned 0x%04x[%s]", status,
+           nfc_jni_get_status_name(status));
+      goto clean_and_return;
+   }
+   TRACE("phLibNfc_Mgt_SetLlcp_ConfigParams returned 0x%04x[%s]", status,
+         nfc_jni_get_status_name(status));
+
+   /* Wait for callback response */
+   if(sem_wait(&cb_data.sem))
+   {
+      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      goto clean_and_return;
    }
 
    /* ====== END ======= */
@@ -778,16 +810,6 @@ static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_llcpcfg_callback", status);
-
-   /* Report the callback status and wake up the caller */
-   pCallbackData->status = status;
-   sem_post(&pCallbackData->sem);
-}
-
-static void nfc_jni_p2pcfg_callback(void *pContext, NFCSTATUS status)
-{
-   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
-   LOG_CALLBACK("nfc_jni_p2pcfg_callback", status);
 
    /* Report the callback status and wake up the caller */
    pCallbackData->status = status;
@@ -1204,7 +1226,6 @@ static void nfc_jni_start_card_emu_discovery_locked(struct nfc_jni_native_data *
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
-   phLibNfc_Llcp_sLinkParameters_t LlcpConfigInfo;
    struct nfc_jni_callback_data cb_data;
 
    /* Clear previous configuration */
@@ -1244,32 +1265,6 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    nat->registry_info.ISO15693 = TRUE;
    TRACE("******  NFC Config Mode Reader ******");
       
-   /* LLCP Params */
-   TRACE("******  NFC Config Mode NFCIP1 - LLCP ******"); 
-   LlcpConfigInfo.miu    = nat->miu;
-   LlcpConfigInfo.lto    = nat->lto;
-   LlcpConfigInfo.wks    = nat->wks;
-   LlcpConfigInfo.option = nat->opt;
-
-   REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_SetLlcp_ConfigParams(&LlcpConfigInfo,
-                                           nfc_jni_llcpcfg_callback,
-                                           (void *)&cb_data);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_PENDING)
-   {
-        LOGD("phLibNfc_Mgt_SetLlcp_ConfigParams returned 0x%02x",ret);
-        goto clean_and_return;
-   }
-   TRACE("phLibNfc_Mgt_SetLlcp_ConfigParams returned 0x%02x",ret);
-
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
-   {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
-   }
-
    /* Register for the reader mode */
    REENTRANCE_LOCK();
    ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
