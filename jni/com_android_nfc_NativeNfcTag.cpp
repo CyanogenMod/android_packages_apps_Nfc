@@ -135,49 +135,6 @@ static void nfc_jni_presence_check_callback(void* pContext,NFCSTATUS  status)
    sem_post(&pCallbackData->sem);
 }
 
-static void nfc_jni_async_presence_check_callback(void* pContext,NFCSTATUS  status)
-{
-   NFCSTATUS ret;
-   JNIEnv* env = (JNIEnv*)pContext;
-
-   LOG_CALLBACK("nfc_jni_async_presence_check_callback", status);
-
-   if(status != NFCSTATUS_SUCCESS)
-   {
-      /* Disconnect & Restart Polling loop */
-      TRACE("Tag removed from the RF Field\n");
-
-      TRACE("phLibNfc_RemoteDev_Disconnect(async)");
-      REENTRANCE_LOCK();
-      ret = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE, nfc_jni_async_disconnect_callback,(void*)handle);
-      REENTRANCE_UNLOCK();
-      if(ret != NFCSTATUS_PENDING)
-      {
-         LOGE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-         /* concurrency lock held while in callback */
-         nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(env));
-         return;
-      }
-      TRACE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   }
-   else
-   {
-      TRACE("phLibNfc_RemoteDev_CheckPresence(async)");
-      /* Presence Check */
-      REENTRANCE_LOCK();
-      ret = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_async_presence_check_callback, (void*)env);
-      REENTRANCE_UNLOCK();
-      if(ret != NFCSTATUS_PENDING)
-      {
-         LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-         return;
-      }
-      TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   }
-}
-
-
-
 static phNfc_sData_t *nfc_jni_transceive_buffer;
 
 static void nfc_jni_transceive_callback(void *pContext,
@@ -624,6 +581,14 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    /* Disconnect */
    TRACE("Disconnecting from tag (%x)", handle);
    
+   if (handle == -1) {
+       // Was never connected to any tag, exit
+       result = JNI_TRUE;
+       LOGE("doDisconnect() - Target already disconnected");
+       nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+       goto clean_and_return;
+   }
+
    /* Presence Check */
    do
    {

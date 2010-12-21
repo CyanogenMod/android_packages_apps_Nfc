@@ -71,7 +71,7 @@ public class NativeNfcTag {
                 }
             }
             // Restart the polling loop if the tag is not here any more
-            if (!isPresent) {
+            if (isRunning && !isPresent) {
                 Log.d(TAG, "Tag lost, restarting polling loop");
                 doDisconnect();
             }
@@ -142,8 +142,9 @@ public class NativeNfcTag {
         if (mWatchdog != null) {
             mWatchdog.end();
         }
+        boolean result = doDisconnect();
         mConnectedTechnology = -1;
-        return doDisconnect();
+        return result;
     }
 
     native boolean doReconnect();
