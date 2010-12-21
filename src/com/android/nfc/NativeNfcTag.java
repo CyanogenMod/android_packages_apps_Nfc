@@ -351,7 +351,18 @@ public class NativeNfcTag {
                     }
 
                     case TagTechnology.NFC_B: {
-                        extras.putByteArray(NfcB.EXTRA_ATQB, mTechPollBytes[i]);
+                        // What's returned from the PN544 is actually:
+                        // 4 bytes app data
+                        // 3 bytes prot info
+                        byte[] appData = new byte[4];
+                        byte[] protInfo = new byte[3];
+                        if (mTechPollBytes[i].length >= 7) {
+                            System.arraycopy(mTechPollBytes[i], 0, appData, 0, 4);
+                            System.arraycopy(mTechPollBytes[i], 4, protInfo, 0, 3);
+
+                            extras.putByteArray(NfcB.EXTRA_APPDATA, appData);
+                            extras.putByteArray(NfcB.EXTRA_PROTINFO, protInfo);
+                        }
                         break;
                     }
                     case TagTechnology.NFC_F: {
@@ -373,7 +384,7 @@ public class NativeNfcTag {
                             extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
                         }
                         else {
-                            extras.putByteArray(IsoDep.EXTRA_ATTRIB, mTechActBytes[i]);
+                            extras.putByteArray(IsoDep.EXTRA_HI_LAYER_RESP, mTechActBytes[i]);
                         }
                         break;
                     }
