@@ -68,12 +68,24 @@ extern "C" {
 #define ERROR_INSUFFICIENT_RESOURCES      -9
 
 /* Pre-defined card read/write state values. These must match the values in
- * Ndef.java
+ * Ndef.java in the framework.
+ */
+
+#define NDEF_UNKNOWN_TYPE                0
+#define NDEF_TYPE1_TAG                   1
+#define NDEF_TYPE2_TAG                   2
+#define NDEF_TYPE3_TAG                   3
+#define NDEF_TYPE4_TAG                   4
+#define NDEF_MIFARE_CLASSIC_TAG          105
+
+/* Pre-defined tag type values. These must match the values in
+ * Ndef.java in the framework.
  */
 
 #define NDEF_MODE_READ_ONLY              1
 #define NDEF_MODE_READ_WRITE             2
 #define NDEF_MODE_UNKNOWN                3
+
 
 /* Name strings for target types. These *must* match the values in TagTechnology.java */
 #define TARGET_TYPE_UNKNOWN               -1
