@@ -65,7 +65,7 @@ public class NativeNfcTag {
             if (DBG) Log.d(TAG, "Starting background presence check");
             while (isPresent && isRunning) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(250);
                     isPresent = doPresenceCheck();
                 } catch (InterruptedException e) {
                     // Activity detected, loop
