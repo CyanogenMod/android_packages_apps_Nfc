@@ -259,13 +259,26 @@ public class NativeNfcTag {
             return 0;
         }
     }
+
+    public int getConnectedTechnology() {
+        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechList.length) {
+            return mTechList[mConnectedTechnology];
+        } else {
+            return 0;
+        }
+    }
+    native int doGetNdefType(int libnfctype, int javatype);
+    private int getNdefType(int libnfctype, int javatype) {
+        return doGetNdefType(libnfctype, javatype);
+    }
+
     // This method exists to "patch in" the ndef technologies,
     // which is done inside Java instead of the native JNI code.
     // To not create some nasty dependencies on the order on which things
     // are called (most notably getTechExtras()), it needs some additional
     // checking.
-    public void addNdefTechnology(NdefMessage msg, int handle, int libnfctype,
-            int maxLength, int cardState) {
+    public void addNdefTechnology(NdefMessage msg, int handle, int libnfcType,
+            int javaType, int maxLength, int cardState) {
         synchronized (this) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
@@ -286,6 +299,7 @@ public class NativeNfcTag {
             extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
             extras.putInt(Ndef.EXTRA_NDEF_MAXLENGTH, maxLength);
             extras.putInt(Ndef.EXTRA_NDEF_CARDSTATE, cardState);
+            extras.putInt(Ndef.EXTRA_NDEF_TYPE, getNdefType(libnfcType, javaType));
 
             if (mTechExtras == null) {
                 // This will build the tech extra's for the first time,

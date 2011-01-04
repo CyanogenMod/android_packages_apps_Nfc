@@ -887,6 +887,42 @@ clean_and_return:
     return result;
 }
 
+static jint com_android_nfc_NativeNfcTag_doGetNdefType(JNIEnv *e, jobject o,
+        jint libnfcType, jint javaType)
+{
+    jint ndefType =  NDEF_UNKNOWN_TYPE;
+
+    switch (libnfcType) {
+          case phNfc_eJewel_PICC:
+              ndefType = NDEF_TYPE1_TAG;
+              break;
+          case phNfc_eISO14443_3A_PICC:
+              ndefType = NDEF_TYPE2_TAG;;
+              break;
+          case phNfc_eFelica_PICC:
+              ndefType = NDEF_TYPE3_TAG;
+              break;
+          case phNfc_eISO14443_A_PICC:
+          case phNfc_eISO14443_4A_PICC:
+          case phNfc_eISO14443_B_PICC:
+          case phNfc_eISO14443_4B_PICC:
+              ndefType = NDEF_TYPE4_TAG;
+              break;
+          case phNfc_eMifare_PICC:
+              if (javaType == TARGET_TYPE_MIFARE_UL) {
+                  ndefType = NDEF_TYPE2_TAG;
+              } else {
+                  ndefType = NDEF_MIFARE_CLASSIC_TAG;
+              }
+              break;
+          case phNfc_eISO15693_PICC:
+          default:
+              ndefType = NDEF_UNKNOWN_TYPE;
+              break;
+    }
+    return ndefType;
+}
+
 static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintArray ndefinfo)
 {
    phLibNfc_Handle handle = 0;
@@ -1118,6 +1154,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doHandleReconnect},
    {"doTransceive", "([BZ)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
+   {"doGetNdefType", "(II)I",
+      (void *)com_android_nfc_NativeNfcTag_doGetNdefType},
    {"doCheckNdef", "([I)Z",
       (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
    {"doRead", "()[B",
