@@ -19,6 +19,7 @@ package com.android.nfc;
 import android.nfc.technology.NfcA;
 import android.nfc.technology.NfcB;
 import android.nfc.technology.NfcF;
+import android.nfc.technology.NfcV;
 import android.nfc.technology.IsoDep;
 import android.nfc.technology.TagTechnology;
 import android.nfc.technology.Ndef;
@@ -373,6 +374,14 @@ public class NativeNfcTag {
                         }
                         else {
                             extras.putByteArray(IsoDep.EXTRA_ATTRIB, mTechActBytes[i]);
+                        }
+                        break;
+                    }
+                    case TagTechnology.NFC_V: {
+                        // First byte response flags, second byte DSFID
+                        if (mTechPollBytes[i] != null && mTechPollBytes[i].length >= 2) {
+                            extras.putByte(NfcV.EXTRA_RESP_FLAGS, mTechPollBytes[i][0]);
+                            extras.putByte(NfcV.EXTRA_DSFID, mTechPollBytes[i][1]);
                         }
                         break;
                     }
