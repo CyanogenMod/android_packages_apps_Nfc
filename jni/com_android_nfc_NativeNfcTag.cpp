@@ -972,16 +972,16 @@ static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    ndef[0] = sNdefInfo.MaxNdefMsgLength;
    // Translate the card state to know values for the NFC API
    switch (sNdefInfo.NdefCardState) {
-       case PH_NDEFMAP_CARD_STATE_INITIALIZED:
+       case PHLIBNFC_NDEF_CARD_INITIALISED:
            apiCardState = NDEF_MODE_READ_WRITE;
            break;
-       case PH_NDEFMAP_CARD_STATE_READ_ONLY:
+       case PHLIBNFC_NDEF_CARD_READ_ONLY:
            apiCardState = NDEF_MODE_READ_ONLY;
            break;
-       case PH_NDEFMAP_CARD_STATE_READ_WRITE:
+       case PHLIBNFC_NDEF_CARD_READ_WRITE:
            apiCardState = NDEF_MODE_READ_WRITE;
            break;
-       case PH_NDEFMAP_CARD_STATE_INVALID:
+       case PHLIBNFC_NDEF_CARD_INVALID:
            apiCardState = NDEF_MODE_UNKNOWN;
            break;
    }
