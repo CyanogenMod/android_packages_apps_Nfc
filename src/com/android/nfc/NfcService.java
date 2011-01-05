@@ -848,6 +848,19 @@ public class NfcService extends Application {
     };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
+
+        private NativeLlcpSocket findSocket(int nativeHandle) {
+            try {
+                return (NativeLlcpSocket) NfcService.this.findSocket(nativeHandle);
+            } catch (ClassCastException e) {
+                // The handle is not valid any more
+                return null;
+            } catch (NullPointerException e) {
+                // The handle is not valid any more
+                return null;
+            }
+        }
+
         @Override
         public int close(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
@@ -860,7 +873,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 socket.doClose();
                 /* Remove the socket closed from the hmap */
@@ -884,7 +897,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 isSuccess = socket.doConnect(sap);
                 if (isSuccess) {
@@ -911,7 +924,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 isSuccess = socket.doConnectBy(sn);
                 if (isSuccess) {
@@ -937,7 +950,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 return socket.getSap();
             } else {
@@ -957,7 +970,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 return socket.getMiu();
             } else {
@@ -977,7 +990,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 return socket.getRw();
             } else {
@@ -997,7 +1010,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 if (socket.doGetRemoteSocketMiu() != 0) {
                     return socket.doGetRemoteSocketMiu();
@@ -1021,7 +1034,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 if (socket.doGetRemoteSocketRw() != 0) {
                     return socket.doGetRemoteSocketRw();
@@ -1045,7 +1058,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 return socket.doReceive(receiveBuffer);
             } else {
@@ -1066,7 +1079,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 isSuccess = socket.doSend(data);
                 if (isSuccess) {
@@ -1082,6 +1095,18 @@ public class NfcService extends Application {
 
     private final ILlcpServiceSocket mLlcpServerSocketService = new ILlcpServiceSocket.Stub() {
 
+        private NativeLlcpServiceSocket findSocket(int nativeHandle) {
+            try {
+                return (NativeLlcpServiceSocket) NfcService.this.findSocket(nativeHandle);
+            } catch (ClassCastException e) {
+                // The handle is not valid any more
+                return null;
+            } catch (NullPointerException e) {
+                // The handle is not valid any more
+                return null;
+            }
+        }
+
         @Override
         public int accept(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
@@ -1095,7 +1120,7 @@ public class NfcService extends Application {
             }
 
                 /* find the socket in the hmap */
-                socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
+                socket = findSocket(nativeHandle);
                 if (socket != null) {
                     clientSocket = socket.doAccept(socket.getMiu(),
                             socket.getRw(), socket.getLinearBufferLength());
@@ -1126,7 +1151,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 socket.doClose();
                 synchronized (this) {
@@ -1138,6 +1163,18 @@ public class NfcService extends Application {
     };
 
     private final ILlcpConnectionlessSocket mLlcpConnectionlessSocketService = new ILlcpConnectionlessSocket.Stub() {
+
+        private NativeLlcpConnectionlessSocket findSocket(int nativeHandle) {
+            try {
+                return (NativeLlcpConnectionlessSocket) NfcService.this.findSocket(nativeHandle);
+            } catch (ClassCastException e) {
+                // The handle is not valid any more
+                return null;
+            } catch (NullPointerException e) {
+                // The handle is not valid any more
+                return null;
+            }
+        }
 
         @Override
         public void close(int nativeHandle) throws RemoteException {
@@ -1151,7 +1188,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpConnectionlessSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 socket.doClose();
                 /* Remove the socket closed from the hmap */
@@ -1171,7 +1208,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpConnectionlessSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 return socket.getSap();
             } else {
@@ -1192,7 +1229,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpConnectionlessSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 packet = socket.doReceiveFrom(socket.getLinkMiu());
                 if (packet != null) {
@@ -1217,7 +1254,7 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            socket = (NativeLlcpConnectionlessSocket) findSocket(nativeHandle);
+            socket = findSocket(nativeHandle);
             if (socket != null) {
                 isSuccess = socket.doSendTo(packet.getRemoteSap(), packet.getDataBuffer());
                 if (isSuccess) {
