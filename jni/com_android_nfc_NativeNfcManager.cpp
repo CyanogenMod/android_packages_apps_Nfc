@@ -1046,58 +1046,96 @@ static void nfc_jni_transaction_callback(void *context,
    phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
    phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status)
 {
-   JNIEnv *e;
-   jobject aid_array;
-   struct nfc_jni_native_data *nat;
-   phNfc_sData_t *aid;
-   struct nfc_jni_callback_data *pCallbackData;
+    JNIEnv *e;
+    jobject aid_array = NULL;
+    struct nfc_jni_native_data *nat;
+    phNfc_sData_t *aid;
+    struct nfc_jni_callback_data *pCallbackData;
+    int i=0;
 
-   LOG_CALLBACK("nfc_jni_transaction_callback", status);
+    LOG_CALLBACK("nfc_jni_transaction_callback", status);
 
-   nat = (struct nfc_jni_native_data *)context;
+    nat = (struct nfc_jni_native_data *)context;
 
-   nat->vm->GetEnv( (void **)&e, nat->env_version);
+    nat->vm->GetEnv( (void **)&e, nat->env_version);
 
-   aid = &(evt_info->UiccEvtInfo.aid);
+    if(status == NFCSTATUS_SUCCESS)
+    {
+        switch(evt_type)
+        {
+            case phLibNfc_eSE_EvtStartTransaction:
+            {
+                TRACE("> SE EVT_START_TRANSACTION");
+                if(evt_info->UiccEvtInfo.aid.length <= 16)
+                {
+                    aid = &(evt_info->UiccEvtInfo.aid);
 
-   aid_array = NULL;
+                    LOGD("> AID DETECTED");
 
-   if(aid != NULL)
-   {
-      aid_array = e->NewByteArray(aid->length);
-      if(aid_array == NULL)
-      {
-         goto error;
-      }
+                    LOGD("> AID:");
+                    for(i=0; i<(aid->length);i++)
+                    {
+                        LOGD("Ox%02x",aid->buffer[i]);
+                    }
 
-      e->SetByteArrayRegion((jbyteArray)aid_array, 0, aid->length, (jbyte *)aid->buffer);
-      if(e->ExceptionCheck())
-      {
-         goto error;
-      }
-   }
-   
-   TRACE("Notify Nfc Service");
-   /* Notify manager that a new event occurred on a SE */
-   e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTransactionListeners, aid_array);
-   if(e->ExceptionCheck())
-   {
-      goto error;
-   }
+                    if(aid != NULL)
+                    {
+                        aid_array = e->NewByteArray(aid->length);
+                        if(aid_array == NULL)
+                        {
+                            goto error;
+                        }
 
-   /* Function finished, now clean and return */
-   goto clean_and_return;
+                        e->SetByteArrayRegion((jbyteArray)aid_array, 0, aid->length, (jbyte *)aid->buffer);
+                        if(e->ExceptionCheck())
+                        {
+                            goto error;
+                        }
+                    }
+                    else
+                    {
+                        goto error;
+                    }
 
-error:
-   /* In case of error, just discard the notification */
-   LOGE("Failed to send SE transaction notification");
-   e->ExceptionClear();
+                    TRACE("Notify Nfc Service");
+                    /* Notify manager that a new event occurred on a SE */
+                    e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTransactionListeners, aid_array);
+                    if(e->ExceptionCheck())
+                    {
+                        goto error;
+                    }
+                }
+                else
+                {
+                    LOGD("> NO AID DETECTED");
+                }
+            }break;
 
-clean_and_return:
-   if(aid_array != NULL)
-   {
-      e->DeleteLocalRef(aid_array);
-   }
+            default:
+            {
+                TRACE("Unknown SE event");
+            }break;
+        }
+    }
+    else
+    {
+        LOGE("SE transaction notification error");
+        goto error;
+    }
+
+    /* Function finished, now clean and return */
+    goto clean_and_return;
+
+ error:
+    /* In case of error, just discard the notification */
+    LOGE("Failed to send SE transaction notification");
+    e->ExceptionClear();
+
+ clean_and_return:
+    if(aid_array != NULL)
+    {
+       e->DeleteLocalRef(aid_array);
+    }
 }
 
 static void nfc_jni_se_set_mode_callback(void *pContext,
