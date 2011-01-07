@@ -198,7 +198,22 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
          LOGE("NFC Manager Semaphore List creation retruned 0x%08x", errno);
          return NULL;
       }
-   }
+
+      LIST_INIT(&nfc_jni_native_monitor->incoming_socket_head);
+
+      if(pthread_mutex_init(&nfc_jni_native_monitor->incoming_socket_mutex, NULL) == -1)
+      {
+         LOGE("NFC Manager incoming socket mutex creation returned 0x%08x", errno);
+         return NULL;
+      }
+
+      if(pthread_cond_init(&nfc_jni_native_monitor->incoming_socket_cond, NULL) == -1)
+      {
+         LOGE("NFC Manager incoming socket condition creation returned 0x%08x", errno);
+         return NULL;
+      }
+
+}
 
    return nfc_jni_native_monitor;
 } 

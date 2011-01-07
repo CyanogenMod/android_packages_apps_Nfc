@@ -19,6 +19,7 @@
 #include <semaphore.h>
 #include <stdlib.h>
 #include <math.h>
+#include <sys/queue.h>
 
 #include "com_android_nfc.h"
 
@@ -46,9 +47,7 @@ static jmethodID cached_NfcManager_notifySeFieldDeactivated;
 
 namespace android {
 
-phLibNfc_Handle     hIncommingLlcpSocket;
 phLibNfc_Handle     storedHandle = 0;
-sem_t               *nfc_jni_llcp_listen_sem;
 
 struct nfc_jni_native_data *exported_nat = NULL;
 
@@ -755,7 +754,9 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
 
    struct nfc_jni_native_data *nat = (nfc_jni_native_data *)pContextData->pContext;
 
-   
+   nfc_jni_listen_data_t * pListenData = NULL;
+   nfc_jni_native_monitor * pMonitor = nfc_jni_get_monitor();
+
    TRACE("Callback: nfc_jni_llcp_linkStatus_callback()");
 
    nat->vm->GetEnv( (void **)&e, nat->env_version);
@@ -784,6 +785,14 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    {
       LOGI("LLCP Link deactivated");
       free(pContextData);
+
+      /* Reset incoming socket list */
+      while (!LIST_EMPTY(&pMonitor->incoming_socket_head))
+      {
+         pListenData = LIST_FIRST(&pMonitor->incoming_socket_head);
+         LIST_REMOVE(pListenData, entries);
+         free(pListenData);
+      }
 
       /* Notify manager that the LLCP is lost or deactivated */
       e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkDeactivated, nat->tag);
@@ -817,12 +826,32 @@ static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status)
 }
 
 static void nfc_jni_llcp_transport_listen_socket_callback(void              *pContext,
-                                                          phLibNfc_Handle   IncomingSocket)
+                                                          phLibNfc_Handle   hIncomingSocket)
 {
-   TRACE("nfc_jni_llcp_transport_listen_socket_callback socket handle = %p", IncomingSocket);
+   phLibNfc_Handle hServiceSocket = (phLibNfc_Handle)pContext;
+   nfc_jni_listen_data_t * pListenData = NULL;
+   nfc_jni_native_monitor * pMonitor = nfc_jni_get_monitor();
 
-   hIncommingLlcpSocket = IncomingSocket;
-   sem_post(nfc_jni_llcp_listen_sem);
+   TRACE("nfc_jni_llcp_transport_listen_socket_callback socket handle = %p", (void*)hIncomingSocket);
+
+   pthread_mutex_lock(&pMonitor->incoming_socket_mutex);
+
+   /* Store the connection request */
+   pListenData = (nfc_jni_listen_data_t*)malloc(sizeof(nfc_jni_listen_data_t));
+   if (pListenData == NULL)
+   {
+      LOGE("Failed to create structure to handle incoming LLCP connection request");
+      goto clean_and_return;
+   }
+   pListenData->pServerSocket = hServiceSocket;
+   pListenData->pIncomingSocket = hIncomingSocket;
+   LIST_INSERT_HEAD(&pMonitor->incoming_socket_head, pListenData, entries);
+
+   /* Signal pending accept operations that the list is updated */
+   pthread_cond_broadcast(&pMonitor->incoming_socket_cond);
+
+clean_and_return:
+   pthread_mutex_unlock(&pMonitor->incoming_socket_mutex);
 }
 
 void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
@@ -2099,7 +2128,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    ret = phLibNfc_Llcp_Listen( hLlcpSocket,
                                &serviceName,
                                nfc_jni_llcp_transport_listen_socket_callback,
-                               (void*)nat);
+                               (void*)hLlcpSocket);
    REENTRANCE_UNLOCK();
                                
    if(ret != NFCSTATUS_SUCCESS)
@@ -2405,18 +2434,10 @@ int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
 {
     nfc_jni_native_monitor_t *nfc_jni_native_monitor;
 
-    nfc_jni_llcp_listen_sem = (sem_t *)malloc(sizeof(sem_t));
-
    nfc_jni_native_monitor = nfc_jni_init_monitor();
    if(nfc_jni_native_monitor == NULL)
    {
       LOGE("NFC Manager cannot recover native monitor %x\n", errno);
-      return -1;
-   }
-
-   if(sem_init(nfc_jni_llcp_listen_sem, 0, 0) == -1)
-   {
-      LOGE("NFC Listen Semaphore creation %x\n", errno);
       return -1;
    }
 
