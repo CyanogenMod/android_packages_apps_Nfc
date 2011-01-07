@@ -174,6 +174,9 @@ typedef struct nfc_jni_callback_data
    /* Used to provide a local context to the callback */
    void* pContext;
 
+   /* Used to create java attributes in callback */
+   JNIEnv* e;
+
 } nfc_jni_callback_data_t;
 
 /* TODO: treat errors and add traces */
