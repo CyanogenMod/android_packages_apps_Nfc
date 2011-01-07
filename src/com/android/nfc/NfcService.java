@@ -212,6 +212,8 @@ public class NfcService extends Application {
     static final int MSG_SHOW_MY_TAG_ICON = 5;
     static final int MSG_HIDE_MY_TAG_ICON = 6;
     static final int MSG_MOCK_NDEF = 7;
+    static final int MSG_SE_FIELD_ACTIVATED = 8;
+    static final int MSG_SE_FIELD_DEACTIVATED = 9;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -2686,6 +2688,24 @@ public class NfcService extends Application {
                StatusBarManager sb = (StatusBarManager) getSystemService(
                        Context.STATUS_BAR_SERVICE);
                sb.removeIcon("nfc");
+               break;
+           }
+
+           case MSG_SE_FIELD_ACTIVATED:{
+               if (DBG) Log.d(TAG, "SE FIELD ACTIVATED");
+               Intent eventFieldOnIntent = new Intent();
+               eventFieldOnIntent.setAction(NfcAdapter.ACTION_RF_FIELD_ON_DETECTED);
+               if (DBG) Log.d(TAG, "Broadcasting Intent");
+               mContext.sendBroadcast(eventFieldOnIntent, NFC_PERM);
+               break;
+           }
+
+           case MSG_SE_FIELD_DEACTIVATED:{
+               if (DBG) Log.d(TAG, "SE FIELD DEACTIVATED");
+               Intent eventFieldOffIntent = new Intent();
+               eventFieldOffIntent.setAction(NfcAdapter.ACTION_RF_FIELD_OFF_DETECTED);
+               if (DBG) Log.d(TAG, "Broadcasting Intent");
+               mContext.sendBroadcast(eventFieldOffIntent, NFC_PERM);
                break;
            }
 
