@@ -21,10 +21,14 @@ import com.android.internal.nfc.LlcpSocket;
 import com.android.nfc.mytag.MyTagClient;
 import com.android.nfc.mytag.MyTagServer;
 
+import android.app.Activity;
 import android.app.Application;
+import android.app.PendingIntent;
+import android.app.PendingIntent.CanceledException;
 import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -215,6 +219,10 @@ public class NfcService extends Application {
     static final int MSG_SE_FIELD_ACTIVATED = 8;
     static final int MSG_SE_FIELD_DEACTIVATED = 9;
 
+    // Locked on mNfcAdapter
+    IntentFilter[] mDispatchOverrideFilters;
+    PendingIntent mDispatchOverrideIntent;
+
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
     private final LinkedList<RegisteredSocket> mRegisteredSocketList = new LinkedList<RegisteredSocket>();
@@ -239,7 +247,7 @@ public class NfcService extends Application {
     private boolean mScreenOn;
 
     // fields below are final after onCreate()
-    private Context mContext;
+    Context mContext;
     private NativeNfcManager mManager;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
@@ -336,12 +344,45 @@ public class NfcService extends Application {
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
                     mIsNfcEnabled = false;
+                    synchronized (this) {
+                        // Clear out any old dispatch overrides
+                        mDispatchOverrideFilters = null;
+                        mDispatchOverrideIntent = null;
+                    }
                 }
             }
 
             updateNfcOnSetting(previouslyEnabled);
 
             return isSuccess;
+        }
+
+        @Override
+        public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
+                IntentFilter[] filters) {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            synchronized (this) {
+                if (activity == null || filters == null || filters.length == 0 || intent == null) {
+                    throw new IllegalArgumentException();
+                }
+                if (mDispatchOverrideFilters != null) {
+                    Log.e(TAG, "Replacing active dispatch overrides");
+                }
+                mDispatchOverrideFilters = filters;
+                mDispatchOverrideIntent = intent;
+            }
+        }
+
+        @Override
+        public void disableForegroundDispatch(ComponentName activity) {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            synchronized (this) {
+                if (mDispatchOverrideFilters == null && mDispatchOverrideIntent == null) {
+                    Log.e(TAG, "No active foreground dispatching");
+                }
+                mDispatchOverrideFilters = null;
+                mDispatchOverrideIntent = null;
+            }
         }
 
         @Override
@@ -2823,6 +2864,44 @@ public class NfcService extends Application {
                 Log.d(TAG, tag.toString());
             }
 
+            IntentFilter[] overrideFilters;
+            PendingIntent overrideIntent;
+            synchronized (mNfcAdapter) {
+                overrideFilters = mDispatchOverrideFilters;
+                overrideIntent = mDispatchOverrideIntent;
+            }
+
+            // First look for dispatch overrides
+            if (overrideFilters != null && overrideIntent != null) {
+                if (DBG) Log.d(TAG, "Attempting to dispatch tag with override");
+                try { 
+                    if (dispatchTagInternal(tag, msgs, overrideIntent, overrideFilters)) {
+                        if (DBG) Log.d(TAG, "Dispatched to override");
+                        return true;
+                    }
+                    Log.w(TAG, "Dispatch override registered, but no filters matched");
+                } catch (CanceledException e) {
+                    Log.w(TAG, "Dispatch overrides pending intent was canceled");
+                    synchronized (mNfcAdapter) {
+                        mDispatchOverrideFilters = null;
+                        mDispatchOverrideIntent = null;
+                    }
+                }
+            }
+
+            // Try a standard dispatch
+            try {
+                return dispatchTagInternal(tag, msgs, null, null);
+            } catch (CanceledException e) {
+                Log.e(TAG, "CanceledException unexpected here", e);
+                return false;
+            }
+        }
+
+        // Dispatch to either an override pending intent or a standard startActivity()
+        private boolean dispatchTagInternal(Tag tag, NdefMessage[] msgs,
+                PendingIntent overrideIntent, IntentFilter[] overrideFilters)
+                throws CanceledException{
             Intent intent;
             if (msgs != null && msgs.length > 0) {
                 NdefMessage msg = msgs[0];
@@ -2834,11 +2913,10 @@ public class NfcService extends Application {
                     intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_NDEF_DISCOVERED);
                     setTypeOrDataFromNdef(intent, record);
 
-                    try {
-                        mContext.startActivity(intent);
+                    if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
                         // If an activity is found then skip further dispatching
                         return true;
-                    } catch (ActivityNotFoundException e) {
+                    } else {
                         if (DBG) Log.d(TAG, "No activities for NDEF handling of " + intent);
                     }
                 }
@@ -2847,21 +2925,40 @@ public class NfcService extends Application {
             // Try the technology specific dispatch
             intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
             intent.setData(buildTechListUri(tag));
-            try {
-                mContext.startActivity(intent);
+            if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
                 return true;
-            } catch (ActivityNotFoundException e) {
+            } else {
                 if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
             }
 
             // Try the generic intent
             intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TAG_DISCOVERED);
-            try {
-                mContext.startActivity(intent);
+            if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
                 return true;
-            } catch (ActivityNotFoundException e) {
+            } else {
                 Log.e(TAG, "No tag fallback activity found for " + intent);
                 return false;
+            }
+        }
+
+        private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
+                IntentFilter[] overrideFilters) throws CanceledException {
+            if (overrideIntent != null) {
+                for (IntentFilter filter : overrideFilters) {
+                    if (filter.match(mContext.getContentResolver(), intent, false, TAG) >= 0) {
+                        Log.i(TAG, "Dispatching to override intent " + overrideIntent);
+                        overrideIntent.send(mContext, Activity.RESULT_OK, intent);
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                try {
+                    mContext.startActivity(intent);
+                    return true;
+                } catch (ActivityNotFoundException e) {
+                    return false;
+                }
             }
         }
     }
