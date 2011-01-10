@@ -303,6 +303,19 @@ public class NativeNfcTag {
         return result;
     }
 
+    native boolean doIsNdefFormatable(int libnfctype, byte[] poll, byte[] act);
+    public synchronized boolean isNdefFormatable() {
+        // Call native code to determine at lower level if format
+        // is possible. It will need poll/activation time bytes for this.
+        int nfcaTechIndex = getTechIndex(TagTechnology.NFC_A);
+        if (nfcaTechIndex != -1) {
+            return doIsNdefFormatable(mTechLibNfcTypes[nfcaTechIndex],
+                    mTechPollBytes[nfcaTechIndex], mTechActBytes[nfcaTechIndex]);
+        } else {
+            return false; // Formatting not supported by libnfc
+        }
+    }
+
     private NativeNfcTag() {
     }
 
@@ -356,17 +369,10 @@ public class NativeNfcTag {
         return doGetNdefType(libnfctype, javatype);
     }
 
-    // This method exists to "patch in" the ndef technologies,
-    // which is done inside Java instead of the native JNI code.
-    // To not create some nasty dependencies on the order on which things
-    // are called (most notably getTechExtras()), it needs some additional
-    // checking.
-    public void addNdefTechnology(NdefMessage msg, int handle, int libnfcType,
-            int javaType, int maxLength, int cardState) {
-        synchronized (this) {
+    private void addTechnology(int tech, int handle, int libnfctype) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
-            mNewTechList[mTechList.length] = TagTechnology.NDEF;
+            mNewTechList[mTechList.length] = tech;
             mTechList = mNewTechList;
 
             int[] mNewHandleList = new int[mTechHandles.length + 1];
@@ -376,8 +382,25 @@ public class NativeNfcTag {
 
             int[] mNewTypeList = new int[mTechLibNfcTypes.length + 1];
             System.arraycopy(mTechLibNfcTypes, 0, mNewTypeList, 0, mTechLibNfcTypes.length);
-            mNewTypeList[mTechLibNfcTypes.length] = handle;
+            mNewTypeList[mTechLibNfcTypes.length] = libnfctype;
             mTechLibNfcTypes = mNewTypeList;
+    }
+
+    public void addNdefFormatableTechnology(int handle, int libnfcType) {
+        synchronized (this) {
+            addTechnology(TagTechnology.NDEF_FORMATABLE, handle, libnfcType);
+        }
+    }
+
+    // This method exists to "patch in" the ndef technologies,
+    // which is done inside Java instead of the native JNI code.
+    // To not create some nasty dependencies on the order on which things
+    // are called (most notably getTechExtras()), it needs some additional
+    // checking.
+    public void addNdefTechnology(NdefMessage msg, int handle, int libnfcType,
+            int javaType, int maxLength, int cardState) {
+        synchronized (this) {
+            addTechnology(TagTechnology.NDEF, handle, libnfcType);
 
             Bundle extras = new Bundle();
             extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
@@ -400,7 +423,19 @@ public class NativeNfcTag {
                 mTechExtras = newTechExtras;
             }
 
+
         }
+    }
+
+    private int getTechIndex(int tech) {
+      int techIndex = -1;
+      for (int i = 0; i < mTechList.length; i++) {
+          if (mTechList[i] == tech) {
+              techIndex = i;
+              break;
+          }
+      }
+      return techIndex;
     }
 
     private boolean hasTech(int tech) {
@@ -463,6 +498,7 @@ public class NativeNfcTag {
                         break;
                     }
                     case TagTechnology.ISO_DEP: {
+
                         if (hasTech(TagTechnology.NFC_A)) {
                             extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
                         }
