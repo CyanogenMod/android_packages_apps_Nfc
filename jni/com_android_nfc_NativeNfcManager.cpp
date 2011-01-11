@@ -24,7 +24,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       24
+#define EEDATA_SETTINGS_NUMBER       25
 
 static phLibNfc_sConfig_t   gDrvCfg;
 void   *gHWRef;
@@ -92,6 +92,9 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	,{0x00,0x9C,0x0D,0x00} //
 	,{0x00,0x9C,0x12,0x00} //
 	,{0x00,0x9C,0x13,0x00} //
+
+    //WTX for LLCP communication
+    ,{0x00,0x98,0xA2,0x0E} // Max value: 14 (default value: 09)
 };
 
 /* Internal functions declaration */
