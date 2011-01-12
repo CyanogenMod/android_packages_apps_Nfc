@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "com_android_nfc.h"
 
@@ -533,6 +534,14 @@ void emergency_recovery(struct nfc_jni_native_data *nat)
    abort();  // force a noisy crash
 }
 
+void nfc_jni_reset_timeout_values()
+{
+    REENTRANCE_LOCK();
+    phLibNfc_SetIsoXchgTimeout(NXP_ISO_XCHG_TIMEOUT);
+    phLibNfc_SetHciTimeout(NXP_NFC_HCI_TIMEOUT);
+    REENTRANCE_UNLOCK();
+}
+
 /*
  * Restart the polling loop when unable to perform disconnect
   */
@@ -548,6 +557,9 @@ void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat)
    {
       goto clean_and_return;
    }
+
+   /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
+   nfc_jni_reset_timeout_values();
 
    /* Restart Polling loop */
    TRACE("******  Start NFC Discovery ******");
@@ -1201,6 +1213,8 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    {
       goto clean_and_return;
    }
+   /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
+   nfc_jni_reset_timeout_values();
 
 #if 0
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
@@ -1482,6 +1496,61 @@ static void com_android_nfc_NfcManager_enableDiscovery(
    CONCURRENCY_UNLOCK();
 }
 
+static void com_android_nfc_NfcManager_doResetIsoDepTimeout( JNIEnv *e, jobject o) {
+    CONCURRENCY_LOCK();
+    nfc_jni_reset_timeout_values();
+    CONCURRENCY_UNLOCK();
+}
+
+// Calculates ceiling log2 of value
+static unsigned int log2(int value) {
+    unsigned int ret = 0;
+    bool isPowerOf2 = ((value & (value - 1)) == 0);
+    while ( (value >> ret) > 1 ) ret++;
+    if (!isPowerOf2) ret++;
+    return ret;
+}
+
+static void com_android_nfc_NfcManager_doSetIsoDepTimeout( JNIEnv *e, jobject o,
+        jint timeout) {
+   CONCURRENCY_LOCK();
+   // The Iso Xchg timeout in PN544 is a non-linear function over X
+   // spanning 0 - 4.9s: timeout in seconds = (256 * 16 / 13560000) * 2 ^ X
+   // Also note that if we desire a timeout > 4.9s, the Iso Xchg timeout
+   // must be disabled completely, to prevent the PN544 from aborting
+   // the transaction. We reuse the HCI sw watchdog to catch the timeout
+   // in that case.
+   //
+   // We keep the constant part of the formula in a static; note the factor
+   // 1000 off, which is due to the fact that the formula calculates seconds,
+   // but this method gets milliseconds as an argument.
+   static double factor = (256 * 16) / 13560.0;
+
+   if (timeout == 0) {
+       // Disable timeout altogether, not allowed
+       LOGE("It's not allowed to set the NFC ISO DEP timeout to 0!");
+   }
+   else if (timeout <= 4900) {
+       // timeout = (256 * 16 / 13560000) * 2 ^ X
+       // First find the first X for which timeout > requested timeout
+       int value = log2(ceil(((double) timeout) / factor));
+       // Then re-compute the actual timeout based on X
+       double actual_timeout = factor * (1 << value);
+       // Set the sw watchdog a bit longer (The PN544 timeout is very accurate,
+       // but it will take some time to get back through the sw layers.
+       // 500 ms should be enough).
+       phLibNfc_SetHciTimeout(ceil(actual_timeout + 500));
+       value |= 0x10; // bit 4 to enable timeout
+       phLibNfc_SetIsoXchgTimeout(value);
+   }
+   else {
+       // Disable ISO XCHG timeout, use HCI sw watchdog instead
+       phLibNfc_SetIsoXchgTimeout(0x00);
+       phLibNfc_SetHciTimeout(timeout);
+   }
+
+   CONCURRENCY_UNLOCK();
+}
 
 static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject o)
 {
@@ -2329,6 +2398,11 @@ static JNINativeMethod gMethods[] =
    {"disableDiscovery", "()V",
       (void *)com_android_nfc_NfcManager_disableDiscovery},
 
+   {"doSetIsoDepTimeout", "(I)V",
+      (void *)com_android_nfc_NfcManager_doSetIsoDepTimeout},
+
+   {"doResetIsoDepTimeout", "()V",
+      (void *)com_android_nfc_NfcManager_doResetIsoDepTimeout},
 };   
   
       
