@@ -40,6 +40,9 @@ static jmethodID cached_NfcManager_notifyLlcpLinkActivation;
 static jmethodID cached_NfcManager_notifyLlcpLinkDeactivated;
 static jmethodID cached_NfcManager_notifyTargetDeselected;
 
+static jmethodID cached_NfcManager_notifySeFieldActivated;
+static jmethodID cached_NfcManager_notifySeFieldDeactivated;
+
 namespace android {
 
 phLibNfc_Handle     hIncommingLlcpSocket;
@@ -1111,6 +1114,20 @@ static void nfc_jni_transaction_callback(void *context,
                 }
             }break;
 
+            case phLibNfc_eSE_EvtFieldOn:
+            {
+                TRACE("> SE EVT_FIELD_ON");
+                TRACE("Notify Nfc Service");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifySeFieldActivated);
+            }break;
+
+            case phLibNfc_eSE_EvtFieldOff:
+            {
+                TRACE("> SE EVT_FIELD_OFF");
+                TRACE("Notify Nfc Service");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifySeFieldDeactivated);
+            }break;
+
             default:
             {
                 TRACE("Unknown SE event");
@@ -1506,9 +1523,14 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       "notifyLlcpLinkDeactivated","(Lcom/android/nfc/NativeP2pDevice;)V"); 
       
    cached_NfcManager_notifyTargetDeselected = e->GetMethodID(cls,
-      "notifyTargetDeselected","()V"); 
-      
-      
+      "notifyTargetDeselected","()V");
+
+   cached_NfcManager_notifySeFieldActivated = e->GetMethodID(cls,
+      "notifySeFieldActivated", "()V");
+
+   cached_NfcManager_notifySeFieldDeactivated = e->GetMethodID(cls,
+       "notifySeFieldDeactivated", "()V");
+
    if(nfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
       LOGD("Native Structure initialization failed");

@@ -128,4 +128,11 @@ public class NativeNfcManager {
         mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
     }
 
+    private void notifySeFieldActivated() {
+        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
+    }
+
+    private void notifySeFieldDeactivated() {
+        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
+    }
 }
