@@ -325,9 +325,19 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
         {
             /* ISO14443-3A: ATQA/SENS_RES */
             case TARGET_TYPE_ISO14443_3A:
-                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
-                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
-                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
+                if (psRemoteDevInfo->RemDevType == phNfc_eJewel_PICC) {
+                    // Jewel ATQA is not read and stored by the PN544, but it is fixed
+                    // at {0x00, 0x0C} in the spec. So eJewel can safely be
+                    // translated to {0x00, 0x0C}.
+                    const static jbyte JewelAtqA[2] = {0x00, 0x0C};
+                    pollBytes = e->NewByteArray(2);
+                    e->SetByteArrayRegion(pollBytes, 0, 2, (jbyte*) JewelAtqA);
+                }
+                else {
+                    pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
+                    e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
+                                          (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
+                }
                 break;
             /* ISO14443-3B: Application data (4 bytes) and Protocol Info (3 bytes) from ATQB/SENSB_RES */
             case TARGET_TYPE_ISO14443_3B:
