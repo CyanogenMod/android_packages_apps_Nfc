@@ -2545,11 +2545,19 @@ public class NfcService extends Application {
             int lastHandleScanned = 0;
             boolean ndefFoundAndConnected = false;
             NdefMessage[] ndefMsgs = null;
+            boolean foundFormattable = false;
 
             while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
                 if (handles[techIndex] != lastHandleScanned) {
                     // We haven't seen this handle yet, connect and checkndef
                     if (nativeTag.connect(technologies[techIndex])) {
+                        // Check if this type is NDEF formatable
+                        if (!foundFormattable && (nativeTag.isNdefFormatable())) {
+                            foundFormattable = true;
+                            nativeTag.addNdefFormatableTechnology(
+                                    nativeTag.getConnectedHandle(),
+                                    nativeTag.getConnectedTechnology());
+                        } // else not formatable
                         int[] ndefinfo = new int[2];
                         if (nativeTag.checkNdef(ndefinfo)) {
                             ndefFoundAndConnected = true;
