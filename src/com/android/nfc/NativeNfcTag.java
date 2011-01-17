@@ -219,12 +219,12 @@ public class NativeNfcTag {
         return result;
     }
 
-    private native byte[] doTransceive(byte[] data, boolean raw);
-    public synchronized byte[] transceive(byte[] data, boolean raw) {
+    private native byte[] doTransceive(byte[] data, boolean raw, int[] returnCode);
+    public synchronized byte[] transceive(byte[] data, boolean raw, int[] returnCode) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        byte[] result = doTransceive(data, raw);
+        byte[] result = doTransceive(data, raw, returnCode);
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }

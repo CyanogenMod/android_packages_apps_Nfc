@@ -736,7 +736,7 @@ crc_valid( uint8_t* msg, size_t len)
 }
 
 static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
-   jobject o, jbyteArray data, jboolean raw)
+   jobject o, jbyteArray data, jboolean raw, jintArray statusTargetLost)
 {
     uint8_t offset = 0;
     // buf is the pointer to the JNI array and never overwritten,
@@ -757,6 +757,16 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     int selectedLibNfcType = 0;
     jint* technologies = NULL;
     bool checkResponseCrc = false;
+
+    jint *targetLost;
+    if (statusTargetLost != NULL) {
+        targetLost = e->GetIntArrayElements(statusTargetLost, 0);
+        if (targetLost != NULL) {
+            *targetLost = 0;
+        }
+    } else {
+        targetLost = NULL;
+    }
 
     memset(&transceive_info, 0, sizeof(transceive_info));
     CONCURRENCY_LOCK();
@@ -857,6 +867,9 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     if(status != NFCSTATUS_PENDING)
     {
       LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      if ((targetLost != NULL) && (status == NFCSTATUS_TARGET_LOST)) {
+          *targetLost = 1;
+      }
       goto clean_and_return;
     }
     TRACE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -870,6 +883,9 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
 
     if(cb_data.status != NFCSTATUS_SUCCESS)
     {
+        if ((targetLost != NULL) && (cb_data.status == NFCSTATUS_TARGET_LOST)) {
+            *targetLost = 1;
+        }
         goto clean_and_return;
     }
 
@@ -907,6 +923,10 @@ clean_and_return:
 
     e->ReleaseByteArrayElements(data,
       (jbyte *)buf, JNI_ABORT);
+
+    if (targetLost != NULL) {
+        e->ReleaseIntArrayElements(statusTargetLost, targetLost, 0);
+    }
 
     nfc_cb_data_deinit(&cb_data);
 
@@ -1092,7 +1112,7 @@ static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
 
                     e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
                     jbyteArray resp = com_android_nfc_NativeNfcTag_doTransceive(e, o,
-                                versionCmd, JNI_TRUE);
+                                versionCmd, JNI_TRUE, NULL);
                     if (resp != NULL) {
                         // Having a response is a good enough indication this
                         // is actually a DESfire.
@@ -1225,7 +1245,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doReconnect},
    {"doHandleReconnect", "(I)Z",
       (void *)com_android_nfc_NativeNfcTag_doHandleReconnect},
-   {"doTransceive", "([BZ)[B",
+   {"doTransceive", "([BZ[I)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doGetNdefType", "(II)I",
       (void *)com_android_nfc_NativeNfcTag_doGetNdefType},

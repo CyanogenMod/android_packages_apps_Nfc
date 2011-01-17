@@ -49,6 +49,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.TransceiveResult;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -1406,7 +1407,7 @@ public class NfcService extends Application {
         }
 
         @Override
-        public byte[] transceive(int nativeHandle, byte[] data, boolean raw)
+        public TransceiveResult transceive(int nativeHandle, byte[] data, boolean raw)
                 throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
@@ -1421,8 +1422,13 @@ public class NfcService extends Application {
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                response = tag.transceive(data, raw);
-                return response;
+                int[] targetLost = new int[1];
+                response = tag.transceive(data, raw, targetLost);
+                TransceiveResult transResult = new TransceiveResult(
+                        (response != null) ? true : false,
+                        (targetLost[0] == 1) ? true : false,
+                        response);
+                return transResult;
             }
             return null;
         }
