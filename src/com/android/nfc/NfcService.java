@@ -1610,10 +1610,17 @@ public class NfcService extends Application {
         }
 
         @Override
-        public void resetIsoDepTimeout() throws RemoteException {
+        public void setFelicaTimeout(int timeout) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
-            mManager.resetIsoDepTimeout();
+            mManager.setFelicaTimeout(timeout);
+        }
+
+        @Override
+        public void resetTimeouts() throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            mManager.resetTimeouts();
         }
     };
 
@@ -1900,7 +1907,7 @@ public class NfcService extends Application {
                     throw new SecurityException("Wrong PID");
                 }
 
-                mManager.doResetIsoDepTimeout();
+                mManager.resetTimeouts();
                 mSecureElement.doDisconnect(mOpenEe.handle);
                 mOpenEe = null;
 

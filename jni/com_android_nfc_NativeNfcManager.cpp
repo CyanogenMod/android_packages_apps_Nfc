@@ -596,6 +596,7 @@ void nfc_jni_reset_timeout_values()
     REENTRANCE_LOCK();
     phLibNfc_SetIsoXchgTimeout(NXP_ISO_XCHG_TIMEOUT);
     phLibNfc_SetHciTimeout(NXP_NFC_HCI_TIMEOUT);
+    phLibNfc_SetFelicaTimeout(NXP_FELICA_XCHG_TIMEOUT);
     REENTRANCE_UNLOCK();
 }
 
@@ -1492,12 +1493,32 @@ static void com_android_nfc_NfcManager_enableDiscovery(
    CONCURRENCY_UNLOCK();
 }
 
-static void com_android_nfc_NfcManager_doResetIsoDepTimeout( JNIEnv *e, jobject o) {
+static void com_android_nfc_NfcManager_doResetTimeouts( JNIEnv *e, jobject o) {
     CONCURRENCY_LOCK();
     nfc_jni_reset_timeout_values();
     CONCURRENCY_UNLOCK();
 }
 
+
+static void com_android_nfc_NfcManager_doSetFelicaTimeout( JNIEnv *e, jobject o,
+        jint timeout) {
+   CONCURRENCY_LOCK();
+   // The Felica timeout is configurable in the PN544 upto a maximum of 255 ms.
+   // It can be set to 0 to disable the timeout altogether, in which case we
+   // use the sw watchdog as a fallback.
+   if (timeout == 0) {
+       // Disable timeout altogether, not allowed
+       LOGE("It's not allowed to set the NFC Felica timeout to 0!");
+   } else if (timeout <= 255) {
+       phLibNfc_SetFelicaTimeout(timeout);
+   } else {
+       // Disable hw timeout, use sw watchdog for timeout
+       phLibNfc_SetFelicaTimeout(0);
+       phLibNfc_SetHciTimeout(timeout);
+   }
+
+   CONCURRENCY_UNLOCK();
+}
 // Calculates ceiling log2 of value
 static unsigned int log2(int value) {
     unsigned int ret = 0;
@@ -2394,8 +2415,11 @@ static JNINativeMethod gMethods[] =
    {"doSetIsoDepTimeout", "(I)V",
       (void *)com_android_nfc_NfcManager_doSetIsoDepTimeout},
 
-   {"doResetIsoDepTimeout", "()V",
-      (void *)com_android_nfc_NfcManager_doResetIsoDepTimeout},
+   {"doResetTimeouts", "()V",
+      (void *)com_android_nfc_NfcManager_doResetTimeouts},
+
+   {"doSetFelicaTimeout", "(I)V",
+      (void *)com_android_nfc_NfcManager_doSetFelicaTimeout},
 };   
   
       
