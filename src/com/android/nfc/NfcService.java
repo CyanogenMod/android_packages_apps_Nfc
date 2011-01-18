@@ -18,14 +18,14 @@ package com.android.nfc;
 
 import com.android.internal.nfc.LlcpServiceSocket;
 import com.android.internal.nfc.LlcpSocket;
-import com.android.nfc.mytag.MyTagClient;
-import com.android.nfc.mytag.MyTagServer;
+import com.android.nfc.ndefpush.NdefPushClient;
+import com.android.nfc.ndefpush.NdefPushServer;
 
 import android.app.Activity;
 import android.app.Application;
 import android.app.PendingIntent;
-import android.app.PendingIntent.CanceledException;
 import android.app.StatusBarManager;
+import android.app.PendingIntent.CanceledException;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -252,8 +252,8 @@ public class NfcService extends Application {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
-    private MyTagServer mMyTagServer;
-    private MyTagClient mMyTagClient;
+    NdefPushClient mNdefPushClient;
+    NdefPushServer mNdefPushServer;
 
     private static NfcService sService;
 
@@ -273,8 +273,8 @@ public class NfcService extends Application {
         mManager = new NativeNfcManager(mContext, this);
         mManager.initializeNativeStructure();
 
-        mMyTagServer = new MyTagServer();
-        mMyTagClient = new MyTagClient(this);
+        mNdefPushClient = new NdefPushClient(this);
+        mNdefPushServer = new NdefPushServer();
 
         mSecureElement = new NativeNfcSecureElement();
 
@@ -339,7 +339,7 @@ public class NfcService extends Application {
 
             if (previouslyEnabled) {
                 /* tear down the my tag server */
-                mMyTagServer.stop();
+                mNdefPushServer.stop();
                 isSuccess = mManager.deinitialize();
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
@@ -361,10 +361,10 @@ public class NfcService extends Application {
         public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
                 IntentFilter[] filters) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            if (activity == null || filters == null || filters.length == 0 || intent == null) {
+                throw new IllegalArgumentException();
+            }
             synchronized (this) {
-                if (activity == null || filters == null || filters.length == 0 || intent == null) {
-                    throw new IllegalArgumentException();
-                }
                 if (mDispatchOverrideFilters != null) {
                     Log.e(TAG, "Replacing active dispatch overrides");
                 }
@@ -382,6 +382,25 @@ public class NfcService extends Application {
                 }
                 mDispatchOverrideFilters = null;
                 mDispatchOverrideIntent = null;
+            }
+        }
+
+        @Override
+        public void enableForegroundNdefPush(ComponentName activity, NdefMessage msg) {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            if (activity == null || msg == null) {
+                throw new IllegalArgumentException();
+            }
+            if (mNdefPushClient.setForegroundMessage(msg)) {
+                Log.e(TAG, "Replacing active NDEF push message");
+            }
+        }
+
+        @Override
+        public void disableForegroundNdefPush(ComponentName activity) {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            if (!mNdefPushClient.setForegroundMessage(null)) {
+                Log.e(TAG, "No active foreground NDEF push message");
             }
         }
 
@@ -2142,7 +2161,7 @@ public class NfcService extends Application {
             maybeEnableDiscovery();
 
             /* bring up the my tag server */
-            mMyTagServer.start();
+            mNdefPushServer.start();
 
         } else {
             mIsNfcEnabled = false;
