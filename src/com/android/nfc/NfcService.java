@@ -1737,7 +1737,19 @@ public class NfcService extends Application {
             }
         }
 
+        @Override
+        public void setIsoDepTimeout(int timeout) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
+            mManager.setIsoDepTimeout(timeout);
+        }
+
+        @Override
+        public void resetIsoDepTimeout() throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            mManager.resetIsoDepTimeout();
+        }
     };
 
     private final IP2pInitiator mP2pInitiatorService = new IP2pInitiator.Stub() {
