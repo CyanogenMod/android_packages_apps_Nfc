@@ -850,15 +850,11 @@ public class NfcService extends Application {
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
 
         private NativeLlcpSocket findSocket(int nativeHandle) {
-            try {
-                return (NativeLlcpSocket) NfcService.this.findSocket(nativeHandle);
-            } catch (ClassCastException e) {
-                // The handle is not valid any more
-                return null;
-            } catch (NullPointerException e) {
-                // The handle is not valid any more
+            Object socket = NfcService.this.findSocket(nativeHandle);
+            if (!(socket instanceof NativeLlcpSocket)) {
                 return null;
             }
+            return (NativeLlcpSocket) socket;
         }
 
         @Override
@@ -1096,15 +1092,11 @@ public class NfcService extends Application {
     private final ILlcpServiceSocket mLlcpServerSocketService = new ILlcpServiceSocket.Stub() {
 
         private NativeLlcpServiceSocket findSocket(int nativeHandle) {
-            try {
-                return (NativeLlcpServiceSocket) NfcService.this.findSocket(nativeHandle);
-            } catch (ClassCastException e) {
-                // The handle is not valid any more
-                return null;
-            } catch (NullPointerException e) {
-                // The handle is not valid any more
+            Object socket = NfcService.this.findSocket(nativeHandle);
+            if (!(socket instanceof NativeLlcpServiceSocket)) {
                 return null;
             }
+            return (NativeLlcpServiceSocket) socket;
         }
 
         @Override
@@ -1165,15 +1157,11 @@ public class NfcService extends Application {
     private final ILlcpConnectionlessSocket mLlcpConnectionlessSocketService = new ILlcpConnectionlessSocket.Stub() {
 
         private NativeLlcpConnectionlessSocket findSocket(int nativeHandle) {
-            try {
-                return (NativeLlcpConnectionlessSocket) NfcService.this.findSocket(nativeHandle);
-            } catch (ClassCastException e) {
-                // The handle is not valid any more
-                return null;
-            } catch (NullPointerException e) {
-                // The handle is not valid any more
+            Object socket = NfcService.this.findSocket(nativeHandle);
+            if (!(socket instanceof NativeLlcpConnectionlessSocket)) {
                 return null;
             }
+            return (NativeLlcpConnectionlessSocket) socket;
         }
 
         @Override
@@ -2128,11 +2116,10 @@ public class NfcService extends Application {
     }
 
     private synchronized Object findSocket(int key) {
-        Object socket = null;
-
-        socket = mSocketMap.get(key);
-
-        return socket;
+        if (mSocketMap == null) {
+            return null;
+        }
+        return mSocketMap.get(key);
     }
 
     private void RemoveSocket(int key) {
