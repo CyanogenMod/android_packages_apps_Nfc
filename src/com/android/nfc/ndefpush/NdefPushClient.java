@@ -112,7 +112,7 @@ public class NdefPushClient extends BroadcastReceiver {
                 if (DBG) Log.d(TAG, "about to send a " + buffer.length + " byte message");
                 while (offset < buffer.length) {
                     int length = Math.min(buffer.length - offset, remoteMiu);
-                    byte[] tmpBuffer = Arrays.copyOfRange(buffer, offset, length);
+                    byte[] tmpBuffer = Arrays.copyOfRange(buffer, offset, offset+length);
                     if (DBG) Log.d(TAG, "about to send a " + length + " byte packet");
                     sock.send(tmpBuffer);
                     offset += length;
