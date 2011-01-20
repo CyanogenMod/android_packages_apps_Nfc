@@ -327,16 +327,21 @@ public class NativeNfcTag {
         return result;
     }
 
-    native boolean doIsNdefFormatable(int libnfctype, byte[] poll, byte[] act);
+    native boolean doIsNdefFormatable(int libnfctype, byte[] uid, byte[] poll, byte[] act);
     public synchronized boolean isNdefFormatable() {
         // Call native code to determine at lower level if format
         // is possible. It will need poll/activation time bytes for this.
         int nfcaTechIndex = getTechIndex(TagTechnology.NFC_A);
+        int nfcvTechIndex = getTechIndex(TagTechnology.NFC_V);
         if (nfcaTechIndex != -1) {
-            return doIsNdefFormatable(mTechLibNfcTypes[nfcaTechIndex],
+            return doIsNdefFormatable(mTechLibNfcTypes[nfcaTechIndex], mUid,
                     mTechPollBytes[nfcaTechIndex], mTechActBytes[nfcaTechIndex]);
+        } else if (nfcvTechIndex != -1) {
+            return doIsNdefFormatable(mTechLibNfcTypes[nfcvTechIndex], mUid,
+                    mTechPollBytes[nfcvTechIndex], mTechActBytes[nfcvTechIndex]);
         } else {
-            return false; // Formatting not supported by libnfc
+            // Formatting not supported by libNFC
+            return false;
         }
     }
 

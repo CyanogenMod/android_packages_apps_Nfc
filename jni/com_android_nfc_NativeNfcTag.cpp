@@ -1057,7 +1057,8 @@ clean_and_return:
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
-        jobject o, jint libNfcType, jbyteArray pollBytes, jbyteArray actBytes)
+        jobject o, jint libNfcType, jbyteArray uidBytes,
+        jbyteArray pollBytes, jbyteArray actBytes)
 {
     // Determine whether libnfc can format this type
     jboolean result = JNI_FALSE;
@@ -1092,6 +1093,19 @@ static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
         case phNfc_eMifare_PICC:
             // We can always format Mifare Classic / UL
             result = JNI_TRUE;
+            break;
+        case phNfc_eISO15693_PICC:
+            result = JNI_FALSE;
+            if (e->GetArrayLength(uidBytes) >= 8) {
+                jbyte* uid = e->GetByteArrayElements(uidBytes, NULL);
+                // Byte 5: tag code, supported [1..3]
+                // Byte 6: manufacturer ID, 0x04 == NXP
+                if ((uid[5] >= 1) && (uid[5] <= 3) &&
+                        (uid[6] == 0x04)) {
+                    result = JNI_TRUE;
+                }
+                e->ReleaseByteArrayElements(uidBytes, (jbyte *)uid, JNI_ABORT);
+            }
             break;
         default:
             result = JNI_FALSE;
@@ -1223,7 +1237,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doWrite},
    {"doPresenceCheck", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
-   {"doIsNdefFormatable", "(I[B[B)Z",
+   {"doIsNdefFormatable", "(I[B[B[B)Z",
       (void *)com_android_nfc_NativeNfcTag_doIsNdefFormatable},
    {"doNdefFormat", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
