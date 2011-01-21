@@ -183,19 +183,19 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->reentrance_mutex, &recursive_attr) == -1)
       {
-         LOGE("NFC Manager Reentrance Mutex creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Reentrance Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
       {
-         LOGE("NFC Manager Concurrency Mutex creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Concurrency Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(!listInit(&nfc_jni_native_monitor->sem_list))
       {
-         LOGE("NFC Manager Semaphore List creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Semaphore List creation failed");
          return NULL;
       }
 
