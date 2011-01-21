@@ -93,6 +93,16 @@ public class NativeNfcManager {
     public native boolean doActivateLlcp();
 
 
+    public native void doResetIsoDepTimeout();
+    public void resetIsoDepTimeout() {
+        doResetIsoDepTimeout();
+    }
+
+    public native void doSetIsoDepTimeout(int timeout);
+    public void setIsoDepTimeout(int timeout) {
+        doSetIsoDepTimeout(timeout);
+    }
+
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
