@@ -2430,7 +2430,7 @@ public class NfcService extends Application {
 
         private void dispatchNativeTag(NativeNfcTag nativeTag, NdefMessage[] msgs) {
             Tag tag = new Tag(nativeTag.getUid(), nativeTag.getTechList(),
-                    nativeTag.getTechExtras(), nativeTag.getHandle());
+                    nativeTag.getTechExtras(), nativeTag.getHandle(), mNfcTagService);
             if (dispatchTag(tag, msgs)) {
                 registerTagObject(nativeTag);
             } else {
