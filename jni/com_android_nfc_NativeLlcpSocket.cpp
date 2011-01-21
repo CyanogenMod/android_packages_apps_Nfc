@@ -334,25 +334,31 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
                             nfc_jni_receive_callback,
                             (void*)&cb_data);
    REENTRANCE_UNLOCK();
-   if((ret != NFCSTATUS_SUCCESS) && (ret != NFCSTATUS_PENDING))
+   if(ret == NFCSTATUS_PENDING)
    {
-       /* Return status should be either SUCCESS or PENDING */
-       LOGE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-       goto clean_and_return;
-   }
-   TRACE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      /* Wait for callback response */
+      if(sem_wait(&cb_data.sem))
+      {
+         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+         goto clean_and_return;
+      }
 
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
-   {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
+      if(cb_data.status == NFCSTATUS_SUCCESS)
+      {
+         result = sReceiveBuffer.length;
+      }
    }
-
-   if(cb_data.status == NFCSTATUS_SUCCESS)
+   else if (ret == NFCSTATUS_SUCCESS)
    {
       result = sReceiveBuffer.length;
    }
+   else
+   {
+      /* Return status should be either SUCCESS or PENDING */
+      LOGE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      goto clean_and_return;
+   }
+   TRACE("phLibNfc_Llcp_Recv() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
 clean_and_return:
    if (sReceiveBuffer.buffer != NULL)
