@@ -37,7 +37,7 @@ public class NdefPushServer {
     private static final boolean DBG = true;
 
     private static final int SERVICE_SAP = 0x10;
-    private static final int MIU = 256;
+    private static final int MIU = 248;
 
     static final String SERVICE_NAME = "com.android.npp";
 
