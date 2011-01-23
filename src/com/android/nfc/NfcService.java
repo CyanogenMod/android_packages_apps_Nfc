@@ -336,11 +336,12 @@ public class NfcService extends Application {
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
                     mIsNfcEnabled = false;
+                    // Clear out any old dispatch overrides and NDEF push message
                     synchronized (this) {
-                        // Clear out any old dispatch overrides
                         mDispatchOverrideFilters = null;
                         mDispatchOverrideIntent = null;
                     }
+                    mNdefPushClient.setForegroundMessage(null);
                 }
             }
 
@@ -352,16 +353,33 @@ public class NfcService extends Application {
         @Override
         public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
                 IntentFilter[] filters) {
+            // Permission check
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            if (activity == null || filters == null || filters.length == 0 || intent == null) {
+
+            // Argument validation
+            if (activity == null || intent == null) {
                 throw new IllegalArgumentException();
             }
+
+            // Validate the IntentFilters
+            if (filters != null) {
+                if (filters.length == 0) {
+                    filters = null;
+                } else {
+                    for (IntentFilter filter : filters) {
+                        if (filter == null) {
+                            throw new IllegalArgumentException("null IntentFilter");
+                        }
+                    }
+                }
+            }
+
             synchronized (this) {
-                if (mDispatchOverrideFilters != null) {
+                if (mDispatchOverrideIntent != null) {
                     Log.e(TAG, "Replacing active dispatch overrides");
                 }
-                mDispatchOverrideFilters = filters;
                 mDispatchOverrideIntent = intent;
+                mDispatchOverrideFilters = filters;
             }
         }
 
@@ -369,11 +387,11 @@ public class NfcService extends Application {
         public void disableForegroundDispatch(ComponentName activity) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             synchronized (this) {
-                if (mDispatchOverrideFilters == null && mDispatchOverrideIntent == null) {
+                if (mDispatchOverrideIntent == null) {
                     Log.e(TAG, "No active foreground dispatching");
                 }
-                mDispatchOverrideFilters = null;
                 mDispatchOverrideIntent = null;
+                mDispatchOverrideFilters = null;
             }
         }
 
@@ -2529,13 +2547,14 @@ public class NfcService extends Application {
 
             IntentFilter[] overrideFilters;
             PendingIntent overrideIntent;
+            boolean foregroundNdefPush = mNdefPushClient.getForegroundMessage() != null;
             synchronized (mNfcAdapter) {
                 overrideFilters = mDispatchOverrideFilters;
                 overrideIntent = mDispatchOverrideIntent;
             }
 
             // First look for dispatch overrides
-            if (overrideFilters != null && overrideIntent != null) {
+            if (overrideIntent != null) {
                 if (DBG) Log.d(TAG, "Attempting to dispatch tag with override");
                 try { 
                     if (dispatchTagInternal(tag, msgs, overrideIntent, overrideFilters)) {
@@ -2552,13 +2571,21 @@ public class NfcService extends Application {
                 }
             }
 
-            // Try a standard dispatch
-            try {
-                return dispatchTagInternal(tag, msgs, null, null);
-            } catch (CanceledException e) {
-                Log.e(TAG, "CanceledException unexpected here", e);
-                return false;
+            // If there is not foreground NDEF push setup try a normal dispatch.
+            //
+            // This is avoided when disabled in the NDEF push case to avoid the situation where each
+            // user has a different app in the foreground, causing each to launch itself on the
+            // remote device and the apps swapping which is in the foreground on each phone.
+            if (!foregroundNdefPush) {
+                try {
+                    return dispatchTagInternal(tag, msgs, null, null);
+                } catch (CanceledException e) {
+                    Log.e(TAG, "CanceledException unexpected here", e);
+                    return false;
+                }
             }
+
+            return false;
         }
 
         // Dispatch to either an override pending intent or a standard startActivity()
@@ -2607,14 +2634,26 @@ public class NfcService extends Application {
         private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
                 IntentFilter[] overrideFilters) throws CanceledException {
             if (overrideIntent != null) {
-                for (IntentFilter filter : overrideFilters) {
-                    if (filter.match(mContext.getContentResolver(), intent, false, TAG) >= 0) {
-                        Log.i(TAG, "Dispatching to override intent " + overrideIntent);
-                        overrideIntent.send(mContext, Activity.RESULT_OK, intent);
-                        return true;
+                boolean found = false;
+                if (overrideFilters == null) {
+                    // No filters means to always dispatch regardless of match
+                    found = true;
+                } else {
+                    for (IntentFilter filter : overrideFilters) {
+                        if (filter.match(mContext.getContentResolver(), intent, false, TAG) >= 0) {
+                            found = true;
+                            break;
+                        }
                     }
                 }
-                return false;
+
+                if (found) {
+                    Log.i(TAG, "Dispatching to override intent " + overrideIntent);
+                    overrideIntent.send(mContext, Activity.RESULT_OK, intent);
+                    return true;
+                } else {
+                    return false;
+                }
             } else {
                 try {
                     // If the current app called stopAppSwitches() then our startActivity()
