@@ -22,6 +22,8 @@ import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 
 import android.app.Activity;
+import android.app.ActivityManagerNative;
+import android.app.IActivityManager;
 import android.app.Application;
 import android.app.PendingIntent;
 import android.app.StatusBarManager;
@@ -239,6 +241,7 @@ public class NfcService extends Application {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
+    private IActivityManager mIActivityManager;
     NdefPushClient mNdefPushClient;
     NdefPushServer mNdefPushServer;
 
@@ -273,6 +276,8 @@ public class NfcService extends Application {
         PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
         mScreenOn = pm.isScreenOn();
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
+
+        mIActivityManager = ActivityManagerNative.getDefault();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
@@ -2611,6 +2616,13 @@ public class NfcService extends Application {
                 }
                 return false;
             } else {
+                try {
+                    // If the current app called stopAppSwitches() then our startActivity()
+                    // can be delayed for several seconds. This happens with the default home
+                    // screen. As a system service we can override this behavior with
+                    // resumeAppSwitches()
+                    mIActivityManager.resumeAppSwitches();
+                } catch (RemoteException e) { }
                 try {
                     mContext.startActivity(intent);
                     return true;
