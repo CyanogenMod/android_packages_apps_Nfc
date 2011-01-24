@@ -2220,6 +2220,8 @@ public class NfcService extends Application {
             boolean ndefFoundAndConnected = false;
             NdefMessage[] ndefMsgs = null;
             boolean foundFormattable = false;
+            int formattableHandle = 0;
+            int formattableTechnology = 0;
 
             while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
                 if (handles[techIndex] != lastHandleScanned) {
@@ -2228,9 +2230,11 @@ public class NfcService extends Application {
                         // Check if this type is NDEF formatable
                         if (!foundFormattable && (nativeTag.isNdefFormatable())) {
                             foundFormattable = true;
-                            nativeTag.addNdefFormatableTechnology(
-                                    nativeTag.getConnectedHandle(),
-                                    nativeTag.getConnectedTechnology());
+                            formattableHandle = nativeTag.getConnectedHandle();
+                            formattableTechnology = nativeTag.getConnectedTechnology();
+                            // We'll only add formattable tech if no ndef is
+                            // found - this is because libNFC refuses to format
+                            // an already NDEF formatted tag.
                         } // else not formatable
                         int[] ndefinfo = new int[2];
                         if (nativeTag.checkNdef(ndefinfo)) {
@@ -2275,6 +2279,13 @@ public class NfcService extends Application {
                 }
                 lastHandleScanned = handles[techIndex];
                 techIndex++;
+            }
+            if (ndefMsgs == null && foundFormattable) {
+                // Tag is not NDEF yet, and found a formattable target,
+                // so add formattable tech to tech list.
+                nativeTag.addNdefFormatableTechnology(
+                        formattableHandle,
+                        formattableTechnology);
             }
 
             return ndefMsgs;
