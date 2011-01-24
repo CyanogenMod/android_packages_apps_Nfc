@@ -1406,77 +1406,6 @@ clean_and_return:
 }
 
 
-static void nfc_jni_disconnect_callback(void *pContext,
-   phLibNfc_Handle hRemoteDev, NFCSTATUS status)
-{
-   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
-   LOG_CALLBACK("nfc_jni_disconnect_callback", status);
-
-   /* Report the callback status and wake up the caller */
-   pCallbackData->status = status;
-   sem_post(&pCallbackData->sem);
-}
-
-static void com_android_nfc_NfcManager_doDisconnectTag()
-{
-   NFCSTATUS status;
-   jboolean result = JNI_FALSE;
-   struct nfc_jni_callback_data cb_data;
-
-   if (!nfc_cb_data_init(&cb_data, NULL))
-   {
-      goto clean_and_return;
-   }
-
-   /* Disconnect */
-   TRACE("Disconnecting from Tag or Target (%x)", storedHandle);
-
-    TRACE("phLibNfc_RemoteDev_Disconnect(%08x)", storedHandle);
-    REENTRANCE_LOCK();
-    status = phLibNfc_RemoteDev_Disconnect(storedHandle, NFC_DISCOVERY_CONTINUE,
-                                           nfc_jni_disconnect_callback, (void*)&cb_data);
-    REENTRANCE_UNLOCK();
-
-    if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
-    {
-        LOGE("phLibNfc_RemoteDev_Disconnect() : Target not connected");
-        storedHandle = 0;
-        goto clean_and_return;
-    }
-    else if(status != NFCSTATUS_PENDING)
-    {
-        LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
-        /* Reset stored handle */
-        storedHandle = 0;
-        goto clean_and_return;
-    }
-    TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
-
-    /* Wait for callback response */
-    if(sem_wait(&cb_data.sem))
-    {
-       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-       goto clean_and_return;
-    }
-
-    /* Disconnect Status */
-    if(cb_data.status != NFCSTATUS_SUCCESS)
-    {
-        TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, cb_data.status, nfc_jni_get_status_name(cb_data.status));
-        /* Reset stored handle */
-        storedHandle = 0;
-        goto clean_and_return;
-    }
-    TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, cb_data.status, nfc_jni_get_status_name(cb_data.status));
-
-    /* Reset stored handle */
-    storedHandle = 0;
-
-clean_and_return:
-    nfc_cb_data_deinit(&cb_data);
-}
-
-
 static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 {
     struct nfc_jni_native_data *nat;
@@ -1487,14 +1416,6 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
     nat = nfc_jni_get_nat(e, o);
    
     nfc_jni_stop_discovery_locked(nat);
-
-    TRACE("Handle value = 0x%08x",storedHandle);
-
-    if(storedHandle != 0)
-    {
-        TRACE("Disconnect connected Tag or Target");
-        com_android_nfc_NfcManager_doDisconnectTag();
-    }
 
     CONCURRENCY_UNLOCK();
 

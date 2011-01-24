@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.nio.charset.Charsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -2031,6 +2032,21 @@ public class NfcService extends Application {
         }
     }
 
+    /** Disconnect any target if present */
+    private synchronized void maybeDisconnectTarget() {
+        if (mIsNfcEnabled) {
+            Iterator<?> iterator = mObjectMap.values().iterator();
+            while(iterator.hasNext()) {
+                Object object = iterator.next();
+                if(object != null && object instanceof NativeNfcTag) {
+                    NativeNfcTag tag = (NativeNfcTag) object;
+                    tag.disconnect();
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
     private void applyProperties() {
         mManager.doSetProperties(PROPERTY_LLCP_LTO, mPrefs.getInt(PREF_LLCP_LTO, LLCP_LTO_DEFAULT));
         mManager.doSetProperties(PROPERTY_LLCP_MIU, mPrefs.getInt(PREF_LLCP_MIU, LLCP_MIU_DEFAULT));
@@ -2712,6 +2728,7 @@ public class NfcService extends Application {
                 synchronized (NfcService.this) {
                     mScreenOn = false;
                     maybeDisableDiscovery();
+                    maybeDisconnectTarget();
                 }
                 mWakeLock.release();
             }
