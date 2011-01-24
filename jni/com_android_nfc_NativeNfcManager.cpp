@@ -1443,7 +1443,7 @@ static void com_android_nfc_NfcManager_doDisconnectTag()
         storedHandle = 0;
         goto clean_and_return;
     }
-    else
+    else if(status != NFCSTATUS_PENDING)
     {
         LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", storedHandle, status, nfc_jni_get_status_name(status));
         /* Reset stored handle */
