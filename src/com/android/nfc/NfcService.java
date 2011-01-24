@@ -2489,41 +2489,54 @@ public class NfcService extends Application {
         private boolean setTypeOrDataFromNdef(Intent intent, NdefRecord record) {
             short tnf = record.getTnf();
             byte[] type = record.getType();
-            switch (tnf) {
-                case NdefRecord.TNF_MIME_MEDIA: {
-                    intent.setType(new String(type, Charsets.US_ASCII));
-                    return true;
-                }
-                case NdefRecord.TNF_ABSOLUTE_URI: {
-                    intent.setData(Uri.parse(new String(type, Charsets.UTF_8)));
-                    return true;
-                }
-                case NdefRecord.TNF_WELL_KNOWN: {
-                    if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
-                        intent.setType("text/plain");
-                        return true;
-                    } else if (Arrays.equals(type, NdefRecord.RTD_SMART_POSTER)) {
-                        // Parse the smart poster looking for the URI
-                        try {
-                            NdefMessage msg = new NdefMessage(record.getPayload());
-                            for (NdefRecord subRecord : msg.getRecords()) {
-                                if (subRecord.getTnf() == NdefRecord.TNF_WELL_KNOWN
-                                        && Arrays.equals(subRecord.getType(), NdefRecord.RTD_URI)) {
-                                    intent.setData(parseWellKnownUriRecord(subRecord));
-                                    return true;
-                                }
-                            }
-                        } catch (FormatException e) {
-                            return false;
-                        }
-                    } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
-                        intent.setData(parseWellKnownUriRecord(record));
+            try {
+                switch (tnf) {
+                    case NdefRecord.TNF_MIME_MEDIA: {
+                        intent.setType(new String(type, Charsets.US_ASCII));
                         return true;
                     }
-                    return false;
+                    case NdefRecord.TNF_ABSOLUTE_URI: {
+                        intent.setData(Uri.parse(new String(record.getPayload(), Charsets.UTF_8)));
+                        return true;
+                    }
+                    case NdefRecord.TNF_WELL_KNOWN: {
+                        byte[] payload = record.getPayload();
+                        if (payload == null || payload.length == 0) return false;
+                        if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                            intent.setType("text/plain");
+                            return true;
+                        } else if (Arrays.equals(type, NdefRecord.RTD_SMART_POSTER)) {
+                            // Parse the smart poster looking for the URI
+                            try {
+                                NdefMessage msg = new NdefMessage(record.getPayload());
+                                for (NdefRecord subRecord : msg.getRecords()) {
+                                    short subTnf = subRecord.getTnf();
+                                    if (subTnf == NdefRecord.TNF_WELL_KNOWN
+                                            && Arrays.equals(subRecord.getType(),
+                                                    NdefRecord.RTD_URI)) {
+                                        intent.setData(parseWellKnownUriRecord(subRecord));
+                                        return true;
+                                    } else if (subTnf == NdefRecord.TNF_ABSOLUTE_URI) {
+                                        intent.setData(Uri.parse(new String(subRecord.getPayload(),
+                                                Charsets.UTF_8)));
+                                        return true;
+                                    }
+                                }
+                            } catch (FormatException e) {
+                                return false;
+                            }
+                        } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
+                            intent.setData(parseWellKnownUriRecord(record));
+                            return true;
+                        }
+                        return false;
+                    }
                 }
+                return false;
+            } catch (Exception e) {
+                Log.e(TAG, "failed to parse record", e);
+                return false;
             }
-            return false;
         }
 
         private Uri buildTechListUri(Tag tag) {
@@ -2601,13 +2614,14 @@ public class NfcService extends Application {
                     NdefRecord record = records[0];
 
                     intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_NDEF_DISCOVERED);
-                    setTypeOrDataFromNdef(intent, record);
-
-                    if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
-                        // If an activity is found then skip further dispatching
-                        return true;
-                    } else {
-                        if (DBG) Log.d(TAG, "No activities for NDEF handling of " + intent);
+                    if (setTypeOrDataFromNdef(intent, record)) {
+                        // The record contains filterable data, try to start a matching activity
+                        if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
+                            // If an activity is found then skip further dispatching
+                            return true;
+                        } else {
+                            if (DBG) Log.d(TAG, "No activities for NDEF handling of " + intent);
+                        }
                     }
                 }
             }
