@@ -2054,11 +2054,24 @@ public class NfcService extends Application {
             Iterator<?> iterator = mObjectMap.values().iterator();
             while(iterator.hasNext()) {
                 Object object = iterator.next();
-                if(object != null && object instanceof NativeNfcTag) {
+                if(object instanceof NativeNfcTag) {
+                    // Disconnect from tags
                     NativeNfcTag tag = (NativeNfcTag) object;
                     tag.disconnect();
-                    iterator.remove();
                 }
+                else if(object instanceof NativeP2pDevice) {
+                    // Disconnect from P2P devices
+                    NativeP2pDevice device = (NativeP2pDevice) object;
+                    if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
+                        // Remote peer is target, request disconnection
+                        device.doDisconnect();
+                    }
+                    else {
+                        // Remote peer is initiator, we cannot disconnect
+                        // Just wait for field removal
+                    }
+                }
+                iterator.remove();
             }
         }
     }
@@ -2385,6 +2398,8 @@ public class NfcService extends Application {
                            /* Activate Llcp Link */
                            if (mManager.doActivateLlcp()) {
                                if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
+                               // Register P2P device
+                               mObjectMap.put(device.getHandle(), device);
                                activateLlcpLink();
                            } else {
                                /* should not happen */
@@ -2408,6 +2423,8 @@ public class NfcService extends Application {
                        /* Activate Llcp Link */
                        if (mManager.doActivateLlcp()) {
                            if (DBG) Log.d(TAG, "Target Activate LLCP OK");
+                           // Register P2P device
+                           mObjectMap.put(device.getHandle(), device);
                            activateLlcpLink();
                       }
                    } else {
@@ -2420,12 +2437,18 @@ public class NfcService extends Application {
                device = (NativeP2pDevice) msg.obj;
 
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
-               if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
-                   if (DBG) Log.d(TAG, "disconnecting from target");
-                   /* Restart polling loop */
-                   device.doDisconnect();
-               } else {
-                   if (DBG) Log.d(TAG, "not disconnecting from initiator");
+               synchronized (NfcService.this) {
+                   /* Check if the device has been already unregistered */
+                   if (mObjectMap.remove(device.getHandle()) != null) {
+                       /* Disconnect if we are initiator */
+                       if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {
+                           if (DBG) Log.d(TAG, "disconnecting from target");
+                           /* Restart polling loop */
+                           device.doDisconnect();
+                       } else {
+                           if (DBG) Log.d(TAG, "not disconnecting from initiator");
+                       }
+                   }
                }
 
                /* Broadcast Intent Link LLCP activated */
