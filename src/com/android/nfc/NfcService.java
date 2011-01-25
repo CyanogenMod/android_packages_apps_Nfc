@@ -2377,8 +2377,8 @@ public class NfcService extends Application {
                            device.doDisconnect();
                        }
                    } else {
-                       if (DBG) Log.d(TAG, "Cannot connect remote Target. Restart polling loop.");
-                       device.doDisconnect();
+                       if (DBG) Log.d(TAG, "Cannot connect remote Target. Polling loop restarted...");
+                       /* The polling loop should have been restarted in failing doConnect */
                    }
 
                } else if (device.getMode() == NativeP2pDevice.MODE_P2P_INITIATOR) {

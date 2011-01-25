@@ -145,7 +145,6 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
     if(status != NFCSTATUS_PENDING)
     {
       LOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-      nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
       goto clean_and_return;
     }
     TRACE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -185,6 +184,11 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
     result = JNI_TRUE;
 
 clean_and_return:
+    if (result != JNI_TRUE)
+    {
+       /* Restart the polling loop if the connection failed */
+       nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+    }
     nfc_cb_data_deinit(&cb_data);
     CONCURRENCY_UNLOCK();
     return result;
