@@ -302,12 +302,19 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     jclass tag_cls = e->GetObjectClass(tag);
+    jfieldID f = e->GetFieldID(tag_cls, "mTechPollBytes", "[[B");
+
+    jobjectArray existingPollBytes = (jobjectArray) e->GetObjectField(tag, f);
+
+    if (existingPollBytes != NULL) {
+        return;
+    }
+
     jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
     jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
     jint *techId = e->GetIntArrayElements(techList, 0);
     int techListLength = e->GetArrayLength(techList);
 
-    jfieldID f = e->GetFieldID(tag_cls, "mTechPollBytes", "[[B");
     jbyteArray pollBytes = e->NewByteArray(0);
     jobjectArray techPollBytes = e->NewObjectArray(techListLength,
             e->GetObjectClass(pollBytes), 0);
@@ -360,6 +367,8 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
 
     e->SetObjectField(tag, f, techPollBytes);
 
+    e->ReleaseIntArrayElements(techList, techId, 0);
+
 }
 
 /*
@@ -369,12 +378,19 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     jclass tag_cls = e->GetObjectClass(tag);
+
+    jfieldID f = e->GetFieldID(tag_cls, "mTechActBytes", "[[B");
+    jobjectArray existingActBytes = (jobjectArray) e->GetObjectField(tag, f);
+
+    if (existingActBytes != NULL) {
+        return;
+    }
+
     jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
     jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
     int techListLength = e->GetArrayLength(techList);
     jint *techId = e->GetIntArrayElements(techList, 0);
 
-    jfieldID f = e->GetFieldID(tag_cls, "mTechActBytes", "[[B");
     jbyteArray actBytes = e->NewByteArray(0);
     jobjectArray techActBytes = e->NewObjectArray(techListLength,
             e->GetObjectClass(actBytes), 0);
@@ -398,7 +414,8 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
                     e->SetByteArrayRegion(actBytes, 0, psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength,
                                       (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerResp);
                 }
-                else {
+                else if (psRemoteDevInfo->RemDevType == phNfc_eISO14443_A_PICC ||
+                         psRemoteDevInfo->RemDevType == phNfc_eISO14443_4A_PICC) {
                     actBytes = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength);
                     e->SetByteArrayRegion(actBytes, 0,
                                           psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength,
@@ -422,6 +439,8 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
         e->SetObjectArrayElement(techActBytes, tech, actBytes);
     }
     e->SetObjectField(tag, f, techActBytes);
+
+    e->ReleaseIntArrayElements(techList, techId, 0);
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
@@ -520,10 +539,6 @@ static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    {
       goto clean_and_return;
    }
-
-   // Success, set poll & act bytes
-   set_target_pollBytes(e, o, pRemDevInfo);
-   set_target_activationBytes(e, o, pRemDevInfo);
 
    result = JNI_TRUE;
 
