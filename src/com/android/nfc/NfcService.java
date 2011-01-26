@@ -2260,14 +2260,18 @@ public class NfcService extends Application {
                     // We haven't seen this handle yet, connect and checkndef
                     if (nativeTag.connect(technologies[techIndex])) {
                         // Check if this type is NDEF formatable
-                        if (!foundFormattable && (nativeTag.isNdefFormatable())) {
-                            foundFormattable = true;
-                            formattableHandle = nativeTag.getConnectedHandle();
-                            formattableTechnology = nativeTag.getConnectedTechnology();
-                            // We'll only add formattable tech if no ndef is
-                            // found - this is because libNFC refuses to format
-                            // an already NDEF formatted tag.
-                        } // else not formatable
+                        if (!foundFormattable) {
+                            if (nativeTag.isNdefFormatable()) {
+                                foundFormattable = true;
+                                formattableHandle = nativeTag.getConnectedHandle();
+                                formattableTechnology = nativeTag.getConnectedTechnology();
+                                // We'll only add formattable tech if no ndef is
+                                // found - this is because libNFC refuses to format
+                                // an already NDEF formatted tag.
+                            }
+                            nativeTag.reconnect();
+                        } // else, already found formattable technology
+
                         int[] ndefinfo = new int[2];
                         if (nativeTag.checkNdef(ndefinfo)) {
                             ndefFoundAndConnected = true;
