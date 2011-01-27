@@ -1057,6 +1057,51 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
+        jobject o, jint libNfcType, jbyteArray pollBytes, jbyteArray actBytes)
+{
+    // Determine whether libnfc can format this type
+    jboolean result = JNI_FALSE;
+
+    switch (libNfcType) {
+        case phNfc_eISO14443_A_PICC:
+        case phNfc_eISO14443_4A_PICC:
+            // ISO14443-4A -> only if it's a DESfire!
+            // DESfire has one sak byte and 2 ATQA bytes
+            if (pollBytes != NULL && (e->GetArrayLength(pollBytes) >= 2) &&
+                    actBytes != NULL && (e->GetArrayLength(actBytes) >= 1)) {
+                jbyte* poll = e->GetByteArrayElements(pollBytes, NULL);
+                jbyte* act = e->GetByteArrayElements(actBytes, NULL);
+                if (act[0] == 0x20 && poll[1] == 0x03) {
+                    uint8_t cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
+                    // Identifies as DESfire, use get version cmd to be sure
+                    jbyteArray versionCmd = e->NewByteArray(5);
+
+                    e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
+                    jbyteArray resp = com_android_nfc_NativeNfcTag_doTransceive(e, o,
+                                versionCmd, JNI_TRUE);
+                    if (resp != NULL) {
+                        // Having a response is a good enough indication this
+                        // is actually a DESfire.
+                        result = JNI_TRUE;
+                    }
+                }
+                e->ReleaseByteArrayElements(pollBytes, (jbyte *)poll, JNI_ABORT);
+                e->ReleaseByteArrayElements(actBytes, (jbyte *)act, JNI_ABORT);
+            }
+            break;
+        case phNfc_eMifare_PICC:
+            // We can always format Mifare Classic / UL
+            result = JNI_TRUE;
+            break;
+        default:
+            result = JNI_FALSE;
+            break;
+    }
+    return result;
+
+}
+
 static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, jbyteArray key)
 {
    phLibNfc_Handle handle = 0;
@@ -1179,6 +1224,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doWrite},
    {"doPresenceCheck", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
+   {"doIsNdefFormatable", "(I[B[B)Z",
+      (void *)com_android_nfc_NativeNfcTag_doIsNdefFormatable},
    {"doNdefFormat", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
    {"doMakeReadonly", "()Z",
