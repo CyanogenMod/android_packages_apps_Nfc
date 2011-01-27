@@ -32,6 +32,7 @@ namespace android {
 extern phLibNfc_Handle storedHandle;
 
 extern void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat);
+extern void nfc_jni_reset_timeout_values();
 
 /*
  * Callbacks
@@ -592,6 +593,8 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
 
    /* Reset the stored handle */
    storedHandle = 0;
+
+   nfc_jni_reset_timeout_values();
 
    /* Disconnect */
    TRACE("Disconnecting from tag (%x)", handle);
