@@ -2742,7 +2742,10 @@ public class NfcService extends Application {
                 for (ComponentInfo info : registered) {
                     // Don't allow wild card matching
                     if (filterMatch(tagTechs, info.techs)) {
-                        matches.add(info.resolveInfo);
+                        // Add the activity as a match if it's not already in the list
+                        if (!matches.contains(info.resolveInfo)) {
+                            matches.add(info.resolveInfo);
+                        }
                     }
                 }
     
