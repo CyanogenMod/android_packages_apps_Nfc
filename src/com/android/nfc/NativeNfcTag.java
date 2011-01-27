@@ -48,40 +48,75 @@ public class NativeNfcTag {
     private PresenceCheckWatchdog mWatchdog;
     class PresenceCheckWatchdog extends Thread {
 
-        private boolean isPresent = true;
-        private boolean isRunning = true;
+        private int watchdogTimeout = 125;
 
-        public void reset() {
-            this.interrupt();
+        private boolean isPresent = true;
+        private boolean isStopped = false;
+        private boolean isPaused = false;
+        private boolean doCheck = true;
+
+        public synchronized void pause() {
+            isPaused = true;
+            doCheck = false;
+            this.notifyAll();
         }
 
-        public void end() {
-            isRunning = false;
-            this.interrupt();
+        public synchronized void doResume() {
+            isPaused = false;
+            // We don't want to resume presence checking immediately,
+            // but go through at least one more wait period.
+            doCheck = false;
+            this.notifyAll();
+        }
+
+        public synchronized void end() {
+            isStopped = true;
+            doCheck = false;
+            this.notifyAll();
+        }
+
+        public synchronized void setTimeout(int timeout) {
+            watchdogTimeout = timeout;
+            doCheck = false; // Do it only after we have waited "timeout" ms again
+            this.notifyAll();
         }
 
         @Override
-        public void run() {
+        public synchronized void run() {
             if (DBG) Log.d(TAG, "Starting background presence check");
-            while (isPresent && isRunning) {
+            while (isPresent && !isStopped) {
                 try {
-                    Thread.sleep(250);
-                    isPresent = doPresenceCheck();
+                    if (!isPaused) {
+                        doCheck = true;
+                    }
+                    this.wait(watchdogTimeout);
+                    if (doCheck) {
+                        isPresent = doPresenceCheck();
+                    } else {
+                        // 1) We are paused, waiting for unpause
+                        // 2) We just unpaused, do pres check in next iteration
+                        //       (after watchdogTimeout ms sleep)
+                        // 3) We just set the timeout, wait for this timeout
+                        //       to expire once first.
+                        // 4) We just stopped, exit loop anyway
+                    }
                 } catch (InterruptedException e) {
                     // Activity detected, loop
                 }
             }
-            // Restart the polling loop if the tag is not here any more
-            if (isRunning && !isPresent) {
-                Log.d(TAG, "Tag lost, restarting polling loop");
-                doDisconnect();
-            }
+            // Restart the polling loop
+
+            Log.d(TAG, "Tag lost, restarting polling loop");
+            doDisconnect();
             if (DBG) Log.d(TAG, "Stopping background presence check");
         }
     }
 
     private native boolean doConnect(int handle);
     public synchronized boolean connect(int technology) {
+        if (mWatchdog != null) {
+            mWatchdog.pause();
+        }
         boolean isSuccess = false;
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
@@ -123,11 +158,6 @@ public class NativeNfcTag {
                     }
                     if (isSuccess) {
                         mConnectedTechnology = i;
-                        if (mWatchdog != null) {
-                            mWatchdog.end();
-                        }
-                        mWatchdog = new PresenceCheckWatchdog();
-                        mWatchdog.start();
                     }
                 } else {
                     isSuccess = true; // Already connect to this tech
@@ -135,15 +165,32 @@ public class NativeNfcTag {
                 break;
             }
         }
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
         return isSuccess;
+    }
+
+    public synchronized void startPresenceChecking() {
+        if (mWatchdog == null) {
+            mWatchdog = new PresenceCheckWatchdog();
+            mWatchdog.start();
+        }
     }
 
     native boolean doDisconnect();
     public synchronized boolean disconnect() {
+        boolean result = false;
+
         if (mWatchdog != null) {
+            // Watchdog has already disconnected or will do it
             mWatchdog.end();
+            mWatchdog = null;
+            result = true;
+        } else {
+            result = doDisconnect();
         }
-        boolean result = doDisconnect();
+
         mConnectedTechnology = -1;
         return result;
     }
@@ -151,73 +198,109 @@ public class NativeNfcTag {
     native boolean doReconnect();
     public synchronized boolean reconnect() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doReconnect();
+        boolean result = doReconnect();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doHandleReconnect(int handle);
     public synchronized boolean reconnect(int handle) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doHandleReconnect(handle);
+        boolean result = doHandleReconnect(handle);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native byte[] doTransceive(byte[] data, boolean raw);
     public synchronized byte[] transceive(byte[] data, boolean raw) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doTransceive(data, raw);
+        byte[] result = doTransceive(data, raw);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native boolean doCheckNdef(int[] ndefinfo);
     public synchronized boolean checkNdef(int[] ndefinfo) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doCheckNdef(ndefinfo);
+        boolean result = doCheckNdef(ndefinfo);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native byte[] doRead();
     public synchronized byte[] read() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doRead();
+        byte[] result = doRead();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native boolean doWrite(byte[] buf);
     public synchronized boolean write(byte[] buf) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doWrite(buf);
+        boolean result = doWrite(buf);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doPresenceCheck();
     public synchronized boolean presenceCheck() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doPresenceCheck();
+        boolean result = doPresenceCheck();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doNdefFormat(byte[] key);
     public synchronized boolean formatNdef(byte[] key) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doNdefFormat(key);
+        boolean result = doNdefFormat(key);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doMakeReadonly();
     public synchronized boolean makeReadonly() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doMakeReadonly();
+        boolean result = doMakeReadonly();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private NativeNfcTag() {

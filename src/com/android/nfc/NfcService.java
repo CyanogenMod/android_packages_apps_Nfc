@@ -2618,10 +2618,12 @@ public class NfcService extends Application {
                NdefMessage[] ndefMsgs = findAndReadNdef(nativeTag);
 
                if (ndefMsgs != null) {
+                   nativeTag.startPresenceChecking();
                    dispatchNativeTag(nativeTag, ndefMsgs);
                } else {
                    // No ndef found or connect failed, just try to reconnect and dispatch
                    if (nativeTag.reconnect()) {
+                       nativeTag.startPresenceChecking();
                        dispatchNativeTag(nativeTag, null);
                    } else {
                        Log.w(TAG, "Failed to connect to tag");
