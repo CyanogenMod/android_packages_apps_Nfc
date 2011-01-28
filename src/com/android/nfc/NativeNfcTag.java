@@ -151,9 +151,15 @@ public class NativeNfcTag {
                                 (technology == TagTechnology.NDEF_FORMATABLE)) {
                             isSuccess = true;
                         } else {
-                            // Don't allow to connect at a different level
-                            // on the same handle, not supported by libnfc!
-                            isSuccess = false;
+                            if ((technology != TagTechnology.ISO_DEP) &&
+                                (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
+                                // Don't allow to connect a -4 tag at a different level
+                                // than IsoDep, as this is not supported by
+                                // libNFC.
+                                isSuccess = false;
+                            } else {
+                                isSuccess = true;
+                            }
                         }
                     }
                     if (isSuccess) {
@@ -452,6 +458,18 @@ public class NativeNfcTag {
           }
       }
       return hasTech;
+    }
+
+    private boolean hasTechOnHandle(int tech, int handle) {
+      boolean hasTech = false;
+      for (int i = 0; i < mTechList.length; i++) {
+          if (mTechList[i] == tech && mTechHandles[i] == handle) {
+              hasTech = true;
+              break;
+          }
+      }
+      return hasTech;
+
     }
 
     public Bundle[] getTechExtras() {
