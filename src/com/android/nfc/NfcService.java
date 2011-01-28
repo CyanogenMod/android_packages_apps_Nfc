@@ -66,8 +66,6 @@ import java.io.IOException;
 import java.nio.charset.Charsets;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.ListIterator;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -180,15 +178,6 @@ public class NfcService extends Application {
     /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
 
-    /** Card Emulation Discovery mode for enableDiscovery() */
-    private static final int DISCOVERY_MODE_CARD_EMULATION = 2;
-
-    private static final int LLCP_SERVICE_SOCKET_TYPE = 0;
-    private static final int LLCP_SOCKET_TYPE = 1;
-    private static final int LLCP_CONNECTIONLESS_SOCKET_TYPE = 2;
-    private static final int LLCP_SOCKET_NB_MAX = 5;  // Maximum number of socket managed
-    private static final int LLCP_RW_MAX_VALUE = 15;  // Receive Window
-
     private static final int PROPERTY_LLCP_LTO = 0;
     private static final String PROPERTY_LLCP_LTO_VALUE = "llcp.lto";
     private static final int PROPERTY_LLCP_MIU = 1;
@@ -225,10 +214,7 @@ public class NfcService extends Application {
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
-    private final LinkedList<RegisteredSocket> mRegisteredSocketList = new LinkedList<RegisteredSocket>();
-    private int mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
     private int mGeneratedSocketHandle = 0;
-    private int mNbSocketCreated = 0;
     private volatile boolean mIsNfcEnabled = false;
     private int mSelectedSeId = 0;
     private boolean mNfcSecureElementState;
@@ -415,76 +401,33 @@ public class NfcService extends Application {
 
             /* Check SAP is not already used */
 
-            /* Check nb socket created */
-            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
-                /* Store the socket handle */
-                int sockeHandle = mGeneratedSocketHandle;
+            /* Store the socket handle */
+            int sockeHandle = mGeneratedSocketHandle;
+            NativeLlcpConnectionlessSocket socket;
 
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    NativeLlcpConnectionlessSocket socket;
+            socket = mManager.doCreateLlcpConnectionlessSocket(sap);
+            if (socket != null) {
+                synchronized(NfcService.this) {
+                    /* update socket handle generation */
+                    mGeneratedSocketHandle++;
 
-                    socket = mManager.doCreateLlcpConnectionlessSocket(sap);
-                    if (socket != null) {
-                        synchronized(NfcService.this) {
-                            /* Update the number of socket created */
-                            mNbSocketCreated++;
-
-                            /* Add the socket into the socket map */
-                            mSocketMap.put(sockeHandle, socket);
-                        }
-                        return sockeHandle;
-                    } else {
-                        /*
-                         * socket creation error - update the socket handle
-                         * generation
-                         */
-                        mGeneratedSocketHandle -= 1;
-
-                        /* Get Error Status */
-                        int errorStatus = mManager.doGetLastError();
-
-                        switch (errorStatus) {
-                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                            default:
-                                return ErrorCodes.ERROR_SOCKET_CREATION;
-                        }
-                    }
-                } else {
-                    /* Check SAP is not already used */
-                    if (!CheckSocketSap(sap)) {
-                        return ErrorCodes.ERROR_SAP_USED;
-                    }
-
-                    NativeLlcpConnectionlessSocket socket = new NativeLlcpConnectionlessSocket(sap);
-
-                    synchronized(NfcService.this) {
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
-
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
-                    }
-                    /* Create new registered socket */
-                    RegisteredSocket registeredSocket = new RegisteredSocket(
-                            LLCP_CONNECTIONLESS_SOCKET_TYPE, sockeHandle, sap);
-
-                    /* Put this socket into a list of registered socket */
-                    mRegisteredSocketList.add(registeredSocket);
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(mGeneratedSocketHandle, socket);
+                   return mGeneratedSocketHandle;
                 }
-
-                /* update socket handle generation */
-                mGeneratedSocketHandle++;
-
-                return sockeHandle;
-
             } else {
-                /* No socket available */
-                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-            }
+                /* Get Error Status */
+                int errorStatus = mManager.doGetLastError();
 
+                switch (errorStatus) {
+                    case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                        return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                    case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                        return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                    default:
+                        return ErrorCodes.ERROR_SOCKET_CREATION;
+                }
+            }
         }
 
         @Override
@@ -497,78 +440,30 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_NOT_INITIALIZED;
             }
 
-            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
-                int sockeHandle = mGeneratedSocketHandle;
+            NativeLlcpServiceSocket socket;
 
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    NativeLlcpServiceSocket socket;
+            socket = mManager.doCreateLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
+            if (socket != null) {
+                synchronized(NfcService.this) {
+                    /* update socket handle generation */
+                    mGeneratedSocketHandle++;
 
-                    socket = mManager.doCreateLlcpServiceSocket(sap, sn, miu, rw, linearBufferLength);
-                    if (socket != null) {
-                        synchronized(NfcService.this) {
-                            /* Update the number of socket created */
-                            mNbSocketCreated++;
-                            /* Add the socket into the socket map */
-                            mSocketMap.put(sockeHandle, socket);
-                        }
-                    } else {
-                        /* socket creation error - update the socket handle counter */
-                        mGeneratedSocketHandle -= 1;
-
-                        /* Get Error Status */
-                        int errorStatus = mManager.doGetLastError();
-
-                        switch (errorStatus) {
-                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                            default:
-                                return ErrorCodes.ERROR_SOCKET_CREATION;
-                        }
-                    }
-                } else {
-
-                    /* Check SAP is not already used */
-                    if (!CheckSocketSap(sap)) {
-                        return ErrorCodes.ERROR_SAP_USED;
-                    }
-
-                    /* Service Name */
-                    if (!CheckSocketServiceName(sn)) {
-                        return ErrorCodes.ERROR_SERVICE_NAME_USED;
-                    }
-
-                    /* Check socket options */
-                    if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
-                        return ErrorCodes.ERROR_SOCKET_OPTIONS;
-                    }
-
-                    NativeLlcpServiceSocket socket = new NativeLlcpServiceSocket(sap, sn, miu, rw,
-                            linearBufferLength);
-                    synchronized(NfcService.this) {
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
-
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
-                    }
-                    /* Create new registered socket */
-                    RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SERVICE_SOCKET_TYPE,
-                            sockeHandle, sap, sn, miu, rw, linearBufferLength);
-
-                    /* Put this socket into a list of registered socket */
-                    mRegisteredSocketList.add(registeredSocket);
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(mGeneratedSocketHandle, socket);
+                   return mGeneratedSocketHandle;
                 }
-
-                /* update socket handle generation */
-                mGeneratedSocketHandle += 1;
-
-                if (DBG) Log.d(TAG, "Llcp Service Socket Handle =" + sockeHandle);
-                return sockeHandle;
             } else {
-                /* No socket available */
-                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                /* Get Error Status */
+                int errorStatus = mManager.doGetLastError();
+
+                switch (errorStatus) {
+                    case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                        return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                    case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                        return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                    default:
+                        return ErrorCodes.ERROR_SOCKET_CREATION;
+                }
             }
         }
 
@@ -582,80 +477,34 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_NOT_INITIALIZED;
             }
 
-            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
+            if (DBG) Log.d(TAG, "creating llcp socket");
+            NativeLlcpSocket socket;
 
-                int sockeHandle = mGeneratedSocketHandle;
+            socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
 
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    if (DBG) Log.d(TAG, "creating llcp socket while activated");
-                    NativeLlcpSocket socket;
+            if (socket != null) {
+                synchronized(NfcService.this) {
+                    /* update socket handle generation */
+                    mGeneratedSocketHandle++;
 
-                    socket = mManager.doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
-
-                    if (socket != null) {
-                        synchronized(NfcService.this) {
-                            /* Update the number of socket created */
-                            mNbSocketCreated++;
-                            /* Add the socket into the socket map */
-                            mSocketMap.put(sockeHandle, socket);
-                        }
-                    } else {
-                        /*
-                         * socket creation error - update the socket handle
-                         * generation
-                         */
-                        mGeneratedSocketHandle -= 1;
-
-                        /* Get Error Status */
-                        int errorStatus = mManager.doGetLastError();
-
-                        Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(errorStatus));
-
-                        switch (errorStatus) {
-                            case ErrorCodes.ERROR_BUFFER_TO_SMALL:
-                                return ErrorCodes.ERROR_BUFFER_TO_SMALL;
-                            case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
-                                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-                            default:
-                                return ErrorCodes.ERROR_SOCKET_CREATION;
-                        }
-                    }
-                } else {
-                    if (DBG) Log.d(TAG, "registering llcp socket while not activated");
-
-                    /* Check SAP is not already used */
-                    if (!CheckSocketSap(sap)) {
-                        return ErrorCodes.ERROR_SAP_USED;
-                    }
-
-                    /* Check Socket options */
-                    if (!CheckSocketOptions(miu, rw, linearBufferLength)) {
-                        return ErrorCodes.ERROR_SOCKET_OPTIONS;
-                    }
-
-                    NativeLlcpSocket socket = new NativeLlcpSocket(sap, miu, rw);
-                    synchronized(NfcService.this) {
-                        /* Add the socket into the socket map */
-                        mSocketMap.put(sockeHandle, socket);
-
-                        /* Update the number of socket created */
-                        mNbSocketCreated++;
-                    }
-                    /* Create new registered socket */
-                    RegisteredSocket registeredSocket = new RegisteredSocket(LLCP_SOCKET_TYPE,
-                            sockeHandle, sap, miu, rw, linearBufferLength);
-
-                    /* Put this socket into a list of registered socket */
-                    mRegisteredSocketList.add(registeredSocket);
+                    /* Add the socket into the socket map */
+                    mSocketMap.put(mGeneratedSocketHandle, socket);
+                   return mGeneratedSocketHandle;
                 }
-
-                /* update socket handle generation */
-                mGeneratedSocketHandle++;
-
-                return sockeHandle;
             } else {
-                /* No socket available */
-                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                /* Get Error Status */
+                int errorStatus = mManager.doGetLastError();
+
+                Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(errorStatus));
+
+                switch (errorStatus) {
+                    case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                        return ErrorCodes.ERROR_BUFFER_TO_SMALL;
+                    case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                        return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
+                    default:
+                        return ErrorCodes.ERROR_SOCKET_CREATION;
+                }
             }
         }
 
@@ -999,21 +848,11 @@ public class NfcService extends Application {
     };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
-
-        private final int CONNECT_FLAG = 0x01;
-        private final int CLOSE_FLAG   = 0x02;
-        private final int RECV_FLAG    = 0x04;
-        private final int SEND_FLAG    = 0x08;
-
-        private int concurrencyFlags;
-        private Object sync;
-
         @Override
         public int close(int nativeHandle) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
-            boolean isSuccess = false;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1023,29 +862,10 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpSocket) findSocket(nativeHandle);
             if (socket != null) {
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    isSuccess = socket.doClose();
-                    if (isSuccess) {
-                        /* Remove the socket closed from the hmap */
-                        RemoveSocket(nativeHandle);
-                        /* Update mNbSocketCreated */
-                        mNbSocketCreated--;
-                        return ErrorCodes.SUCCESS;
-                    } else {
-                        return ErrorCodes.ERROR_IO;
-                    }
-                } else {
-                    /* Remove the socket closed from the hmap */
-                    RemoveSocket(nativeHandle);
-
-                    /* Remove registered socket from the list */
-                    RemoveRegisteredSocket(nativeHandle);
-
-                    /* Update mNbSocketCreated */
-                    mNbSocketCreated--;
-
-                    return ErrorCodes.SUCCESS;
-                }
+                socket.doClose();
+                /* Remove the socket closed from the hmap */
+                RemoveSocket(nativeHandle);
+                return ErrorCodes.SUCCESS;
             } else {
                 return ErrorCodes.ERROR_IO;
             }
@@ -1218,7 +1038,6 @@ public class NfcService extends Application {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpSocket socket = null;
-            int receiveLength = 0;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1275,7 +1094,6 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_NOT_INITIALIZED;
             }
 
-            if (mNbSocketCreated < LLCP_SOCKET_NB_MAX) {
                 /* find the socket in the hmap */
                 socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
                 if (socket != null) {
@@ -1284,20 +1102,16 @@ public class NfcService extends Application {
                     if (clientSocket != null) {
                         /* Add the socket into the socket map */
                         synchronized(this) {
-                            mSocketMap.put(clientSocket.getHandle(), clientSocket);
-                            mNbSocketCreated++;
+                            mGeneratedSocketHandle++;
+                            mSocketMap.put(mGeneratedSocketHandle, clientSocket);
+                            return mGeneratedSocketHandle;
                         }
-                        return clientSocket.getHandle();
                     } else {
                         return ErrorCodes.ERROR_IO;
                     }
                 } else {
                     return ErrorCodes.ERROR_IO;
                 }
-            } else {
-                return ErrorCodes.ERROR_INSUFFICIENT_RESOURCES;
-            }
-
         }
 
         @Override
@@ -1305,7 +1119,6 @@ public class NfcService extends Application {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpServiceSocket socket = null;
-            boolean isSuccess = false;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1313,30 +1126,12 @@ public class NfcService extends Application {
             }
 
             /* find the socket in the hmap */
-            boolean closed = false;
             socket = (NativeLlcpServiceSocket) findSocket(nativeHandle);
             if (socket != null) {
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    isSuccess = socket.doClose();
-                    if (isSuccess) {
-                        closed = true;
-                    }
-                } else {
-                    closed = true;
-                }
-            }
-
-            // If the socket is closed remove it from the socket lists
-            if (closed) {
+                socket.doClose();
                 synchronized (this) {
                     /* Remove the socket closed from the hmap */
                     RemoveSocket(nativeHandle);
-
-                    /* Update mNbSocketCreated */
-                    mNbSocketCreated--;
-
-                    /* Remove registered socket from the list */
-                    RemoveRegisteredSocket(nativeHandle);
                 }
             }
         }
@@ -1349,7 +1144,6 @@ public class NfcService extends Application {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             NativeLlcpConnectionlessSocket socket = null;
-            boolean isSuccess = false;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1359,24 +1153,9 @@ public class NfcService extends Application {
             /* find the socket in the hmap */
             socket = (NativeLlcpConnectionlessSocket) findSocket(nativeHandle);
             if (socket != null) {
-                if (mLlcpLinkState == NfcAdapter.LLCP_LINK_STATE_ACTIVATED) {
-                    isSuccess = socket.doClose();
-                    if (isSuccess) {
-                        /* Remove the socket closed from the hmap */
-                        RemoveSocket(nativeHandle);
-                        /* Update mNbSocketCreated */
-                        mNbSocketCreated--;
-                    }
-                } else {
-                    /* Remove the socket closed from the hmap */
-                    RemoveSocket(nativeHandle);
-
-                    /* Remove registered socket from the list */
-                    RemoveRegisteredSocket(nativeHandle);
-
-                    /* Update mNbSocketCreated */
-                    mNbSocketCreated--;
-                }
+                socket.doClose();
+                /* Remove the socket closed from the hmap */
+                RemoveSocket(nativeHandle);
             }
         }
 
@@ -2216,8 +1995,6 @@ public class NfcService extends Application {
      }
 
     private void updateNfcOnSetting(boolean oldEnabledState) {
-        int state;
-
         mPrefsEditor.putBoolean(PREF_NFC_ON, mIsNfcEnabled);
         mPrefsEditor.apply();
 
@@ -2288,11 +2065,8 @@ public class NfcService extends Application {
         // Clear tables
         mObjectMap.clear();
         mSocketMap.clear();
-        mRegisteredSocketList.clear();
 
         // Reset variables
-        mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
-        mNbSocketCreated = 0;
         mIsNfcEnabled = false;
         mSelectedSeId = 0;
     }
@@ -2328,105 +2102,6 @@ public class NfcService extends Application {
         mSocketMap.remove(key);
     }
 
-    private boolean CheckSocketSap(int sap) {
-        /* List of sockets registered */
-        ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
-
-        while (it.hasNext()) {
-            RegisteredSocket registeredSocket = it.next();
-
-            if (sap == registeredSocket.mSap) {
-                /* SAP already used */
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean CheckSocketOptions(int miu, int rw, int linearBufferlength) {
-
-        if (rw > LLCP_RW_MAX_VALUE || miu < LLCP_MIU_DEFAULT || linearBufferlength < miu) {
-            return false;
-        }
-        return true;
-    }
-
-    private boolean CheckSocketServiceName(String sn) {
-
-        /* List of sockets registered */
-        ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
-
-        while (it.hasNext()) {
-            RegisteredSocket registeredSocket = it.next();
-
-            if (sn.equals(registeredSocket.mServiceName)) {
-                /* Service Name already used */
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void RemoveRegisteredSocket(int nativeHandle) {
-        /* check if sockets are registered */
-        ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
-
-        while (it.hasNext()) {
-            RegisteredSocket registeredSocket = it.next();
-            if (registeredSocket.mHandle == nativeHandle) {
-                /* remove the registered socket from the list */
-                it.remove();
-                if (DBG) Log.d(TAG, "socket removed");
-            }
-        }
-    }
-
-    /*
-     * RegisteredSocket class to store the creation request of socket until the
-     * LLCP link in not activated
-     */
-    private class RegisteredSocket {
-        private final int mType;
-
-        private final int mHandle;
-
-        private final int mSap;
-
-        private int mMiu;
-
-        private int mRw;
-
-        private String mServiceName;
-
-        private int mlinearBufferLength;
-
-        RegisteredSocket(int type, int handle, int sap, String sn, int miu, int rw,
-                int linearBufferLength) {
-            mType = type;
-            mHandle = handle;
-            mSap = sap;
-            mServiceName = sn;
-            mRw = rw;
-            mMiu = miu;
-            mlinearBufferLength = linearBufferLength;
-        }
-
-        RegisteredSocket(int type, int handle, int sap, int miu, int rw, int linearBufferLength) {
-            mType = type;
-            mHandle = handle;
-            mSap = sap;
-            mRw = rw;
-            mMiu = miu;
-            mlinearBufferLength = linearBufferLength;
-        }
-
-        RegisteredSocket(int type, int handle, int sap) {
-            mType = type;
-            mHandle = handle;
-            mSap = sap;
-        }
-    }
-
     /** For use by code in this process */
     public LlcpSocket createLlcpSocket(int sap, int miu, int rw, int linearBufferLength) {
         try {
@@ -2459,91 +2134,6 @@ public class NfcService extends Application {
     }
 
     private void activateLlcpLink() {
-        /* check if sockets are registered */
-        ListIterator<RegisteredSocket> it = mRegisteredSocketList.listIterator();
-
-        if (DBG) Log.d(TAG, "Nb socket resgistered = " + mRegisteredSocketList.size());
-
-        /* Mark the link state */
-        mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_ACTIVATED;
-
-        while (it.hasNext()) {
-            RegisteredSocket registeredSocket = it.next();
-
-            switch (registeredSocket.mType) {
-            case LLCP_SERVICE_SOCKET_TYPE:
-                if (DBG) Log.d(TAG, "Registered Llcp Service Socket");
-                if (DBG) Log.d(TAG, "SAP: " + registeredSocket.mSap + ", SN: " + registeredSocket.mServiceName);
-                NativeLlcpServiceSocket serviceSocket;
-
-                serviceSocket = mManager.doCreateLlcpServiceSocket(
-                        registeredSocket.mSap, registeredSocket.mServiceName,
-                        registeredSocket.mMiu, registeredSocket.mRw,
-                        registeredSocket.mlinearBufferLength);
-
-                if (serviceSocket != null) {
-                    if (DBG) Log.d(TAG, "service socket created");
-                    /* Add the socket into the socket map */
-                    synchronized(NfcService.this) {
-                        mSocketMap.put(registeredSocket.mHandle, serviceSocket);
-                    }
-                } else {
-                    Log.d(TAG, "FAILED to create service socket");
-                    /* socket creation error - update the socket
-                     * handle counter */
-                    mGeneratedSocketHandle -= 1;
-                }
-
-                // NOTE: don't remove this socket from the registered sockets list.
-                // If it's removed it won't be created the next time an LLCP
-                // connection is activated and the server won't be found.
-                break;
-
-            case LLCP_SOCKET_TYPE:
-                if (DBG) Log.d(TAG, "Registered Llcp Socket");
-                NativeLlcpSocket clientSocket;
-                clientSocket = mManager.doCreateLlcpSocket(registeredSocket.mSap,
-                        registeredSocket.mMiu, registeredSocket.mRw,
-                        registeredSocket.mlinearBufferLength);
-                if (clientSocket != null) {
-                    if (DBG) Log.d(TAG, "socket created");
-                    /* Add the socket into the socket map */
-                    synchronized(NfcService.this) {
-                        mSocketMap.put(registeredSocket.mHandle, clientSocket);
-                    }
-                } else {
-                    Log.d(TAG, "FAILED to create service socket");
-                    /* socket creation error - update the socket
-                     * handle counter */
-                    mGeneratedSocketHandle -= 1;
-                }
-                // This socket has been created, remove it from the registered sockets list.
-                it.remove();
-                break;
-
-            case LLCP_CONNECTIONLESS_SOCKET_TYPE:
-                if (DBG) Log.d(TAG, "Registered Llcp Connectionless Socket");
-                NativeLlcpConnectionlessSocket connectionlessSocket;
-                connectionlessSocket = mManager.doCreateLlcpConnectionlessSocket(
-                        registeredSocket.mSap);
-                if (connectionlessSocket != null) {
-                    if (DBG) Log.d(TAG, "connectionless socket created");
-                    /* Add the socket into the socket map */
-                    synchronized(NfcService.this) {
-                        mSocketMap.put(registeredSocket.mHandle, connectionlessSocket);
-                    }
-                } else {
-                    Log.d(TAG, "FAILED to create service socket");
-                    /* socket creation error - update the socket
-                     * handle counter */
-                    mGeneratedSocketHandle -= 1;
-                }
-                // This socket has been created, remove it from the registered sockets list.
-                it.remove();
-                break;
-            }
-        }
-
         /* Broadcast Intent Link LLCP activated */
         Intent LlcpLinkIntent = new Intent();
         LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
@@ -2728,9 +2318,6 @@ public class NfcService extends Application {
 
            case MSG_LLCP_LINK_DEACTIVATED:
                device = (NativeP2pDevice) msg.obj;
-
-               /* Mark the link state */
-               mLlcpLinkState = NfcAdapter.LLCP_LINK_STATE_DEACTIVATED;
 
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
                if (device.getMode() == NativeP2pDevice.MODE_P2P_TARGET) {

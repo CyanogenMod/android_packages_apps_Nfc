@@ -58,12 +58,14 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
 {
    NFCSTATUS ret;
    struct timespec ts;
+   phLibNfc_Handle hRemoteDevice;
    phLibNfc_Handle hLlcpSocket;
    phNfc_sData_t sSendBuffer = {NULL, 0};
    struct nfc_jni_callback_data cb_data;
    jboolean result = JNI_FALSE;
    
-   /* Retrieve socket handle */
+   /* Retrieve handles */
+   hRemoteDevice = nfc_jni_get_p2p_device_handle(e,o);
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
 
    /* Create the local semaphore */
@@ -77,7 +79,8 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
 
    TRACE("phLibNfc_Llcp_SendTo()");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_SendTo(hLlcpSocket,
+   ret = phLibNfc_Llcp_SendTo(hRemoteDevice,
+                              hLlcpSocket,
                               nsap,
                               &sSendBuffer,
                               nfc_jni_send_callback,
@@ -119,6 +122,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    struct timespec ts;
    uint8_t ssap;
    jobject llcpPacket = NULL;
+   phLibNfc_Handle hRemoteDevice;
    phLibNfc_Handle hLlcpSocket;
    phNfc_sData_t sReceiveBuffer;
    jclass clsLlcpPacket;
@@ -147,7 +151,8 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
       goto clean_and_return;
    } 
 
-   /* Retrieve socket handle */
+   /* Retrieve handles */
+   hRemoteDevice = nfc_jni_get_p2p_device_handle(e,o);
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
    TRACE("phLibNfc_Llcp_RecvFrom(), Socket Handle = 0x%02x, Link LIU = %d", hLlcpSocket, linkMiu);
 
@@ -155,7 +160,8 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    sReceiveBuffer.length = linkMiu;
 
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_RecvFrom(hLlcpSocket,
+   ret = phLibNfc_Llcp_RecvFrom(hRemoteDevice,
+                                hLlcpSocket,
                                 &sReceiveBuffer,
                                 nfc_jni_receive_callback,
                                 &cb_data);
