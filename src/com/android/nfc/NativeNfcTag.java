@@ -185,6 +185,11 @@ public class NativeNfcTag {
         if (mWatchdog != null) {
             // Watchdog has already disconnected or will do it
             mWatchdog.end();
+            try {
+                mWatchdog.join();
+            } catch (InterruptedException e) {
+                // Should never happen.
+            }
             mWatchdog = null;
             result = true;
         } else {

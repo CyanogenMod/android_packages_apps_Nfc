@@ -126,16 +126,6 @@ static void nfc_jni_async_disconnect_callback(void *pContext,
    nfc_jni_ndef_buf_len = 0;
 }
 
-static void nfc_jni_presence_check_callback(void* pContext,NFCSTATUS  status)
-{
-   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
-   LOG_CALLBACK("nfc_jni_presence_check_callback", status);
-
-   /* Report the callback status and wake up the caller */
-   pCallbackData->status = status;
-   sem_post(&pCallbackData->sem);
-}
-
 static phNfc_sData_t *nfc_jni_transceive_buffer;
 
 static void nfc_jni_transceive_callback(void *pContext,
@@ -616,32 +606,6 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
        goto clean_and_return;
    }
-
-   /* Presence Check */
-   do
-   {
-      TRACE("phLibNfc_RemoteDev_CheckPresence(%x)", handle);
-      REENTRANCE_LOCK();
-      status = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)&cb_data);
-      REENTRANCE_UNLOCK();
-      if(status != NFCSTATUS_PENDING)
-      {
-         LOGE("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-         /* Disconnect Tag */
-         break;
-      }
-      TRACE("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-
-      /* Wait for callback response */
-      if(sem_wait(&cb_data.sem))
-      {
-         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-         goto clean_and_return;
-      }
-
-    } while(cb_data.status == NFCSTATUS_SUCCESS);
-
-    TRACE("Tag removed from the RF Field\n");
 
     TRACE("phLibNfc_RemoteDev_Disconnect(%x)", handle);
     REENTRANCE_LOCK();
