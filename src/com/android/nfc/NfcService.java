@@ -342,6 +342,14 @@ public class NfcService extends Application {
             if (previouslyEnabled) {
                 /* tear down the my tag server */
                 mNdefPushServer.stop();
+
+                // Stop watchdog if tag present
+                // A convenient way to stop the watchdog properly consists of
+                // disconnecting the tag. The polling loop shall be stopped before
+                // to avoid the tag being discovered again.
+                maybeDisableDiscovery();
+                maybeDisconnectTarget();
+
                 isSuccess = mManager.deinitialize();
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
