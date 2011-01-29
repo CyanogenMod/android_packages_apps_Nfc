@@ -45,6 +45,8 @@ public class NativeNfcTag {
 
     private final String TAG = "NativeNfcTag";
 
+    private boolean mIsPresent; // Whether the tag is known to be still present
+
     private PresenceCheckWatchdog mWatchdog;
     class PresenceCheckWatchdog extends Thread {
 
@@ -178,16 +180,26 @@ public class NativeNfcTag {
     }
 
     public synchronized void startPresenceChecking() {
+        // Once we start presence checking, we allow the upper layers
+        // to know the tag is in the field.
+        mIsPresent = true;
         if (mWatchdog == null) {
             mWatchdog = new PresenceCheckWatchdog();
             mWatchdog.start();
         }
     }
 
+    public synchronized boolean isPresent() {
+        // Returns whether the tag is still in the field to the best
+        // of our knowledge.
+        return mIsPresent;
+    }
+
     native boolean doDisconnect();
     public synchronized boolean disconnect() {
         boolean result = false;
 
+        mIsPresent = false;
         if (mWatchdog != null) {
             // Watchdog has already disconnected or will do it
             mWatchdog.end();

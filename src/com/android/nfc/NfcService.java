@@ -1432,7 +1432,7 @@ public class NfcService extends Application {
                 return false;
             }
 
-            return tag.presenceCheck();
+            return tag.isPresent();
         }
 
         @Override
