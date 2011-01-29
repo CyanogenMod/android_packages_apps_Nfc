@@ -56,6 +56,12 @@ public class NdefPushClient extends BroadcastReceiver {
         }
     }
 
+    public NdefMessage getForegroundMessage() {
+        synchronized (this) {
+            return mForegroundMsg;
+        }
+    }
+
     @Override
     public void onReceive(Context context, Intent intent) {
         int linkState = intent.getIntExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
