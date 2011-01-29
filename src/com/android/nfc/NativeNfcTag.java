@@ -16,13 +16,13 @@
 
 package com.android.nfc;
 
-import android.nfc.technology.NfcA;
-import android.nfc.technology.NfcB;
-import android.nfc.technology.NfcF;
-import android.nfc.technology.NfcV;
-import android.nfc.technology.IsoDep;
-import android.nfc.technology.TagTechnology;
-import android.nfc.technology.Ndef;
+import android.nfc.tech.IsoDep;
+import android.nfc.tech.Ndef;
+import android.nfc.tech.NfcA;
+import android.nfc.tech.NfcB;
+import android.nfc.tech.NfcF;
+import android.nfc.tech.NfcV;
+import android.nfc.tech.TagTechnology;
 import android.nfc.NdefMessage;
 import android.os.Bundle;
 import android.util.Log;
