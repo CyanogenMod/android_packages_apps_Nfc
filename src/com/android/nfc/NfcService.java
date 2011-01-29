@@ -18,16 +18,17 @@ package com.android.nfc;
 
 import com.android.internal.nfc.LlcpServiceSocket;
 import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 
 import android.app.Activity;
 import android.app.ActivityManagerNative;
-import android.app.IActivityManager;
 import android.app.Application;
+import android.app.IActivityManager;
 import android.app.PendingIntent;
-import android.app.StatusBarManager;
 import android.app.PendingIntent.CanceledException;
+import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -35,6 +36,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
@@ -51,6 +53,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -67,6 +70,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -213,8 +217,9 @@ public class NfcService extends Application {
     static final int MSG_SE_FIELD_DEACTIVATED = 9;
 
     // Locked on mNfcAdapter
-    IntentFilter[] mDispatchOverrideFilters;
     PendingIntent mDispatchOverrideIntent;
+    IntentFilter[] mDispatchOverrideFilters;
+    String[][] mDispatchOverrideTechLists; 
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -245,6 +250,7 @@ public class NfcService extends Application {
     private IActivityManager mIActivityManager;
     NdefPushClient mNdefPushClient;
     NdefPushServer mNdefPushServer;
+    RegisteredComponentCache mTechListFilters;
 
     private static NfcService sService;
 
@@ -266,6 +272,9 @@ public class NfcService extends Application {
 
         mNdefPushClient = new NdefPushClient(this);
         mNdefPushServer = new NdefPushServer();
+
+        mTechListFilters = new RegisteredComponentCache(this,
+                NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
 
         mSecureElement = new NativeNfcSecureElement();
 
@@ -353,7 +362,7 @@ public class NfcService extends Application {
 
         @Override
         public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
-                IntentFilter[] filters) {
+                IntentFilter[] filters, TechListParcel techListsParcel) {
             // Permission check
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
@@ -375,12 +384,19 @@ public class NfcService extends Application {
                 }
             }
 
+            // Validate the tech lists
+            String[][] techLists = null;
+            if (techListsParcel != null) {
+                techLists = techListsParcel.getTechLists();
+            }
+            
             synchronized (this) {
                 if (mDispatchOverrideIntent != null) {
                     Log.e(TAG, "Replacing active dispatch overrides");
                 }
                 mDispatchOverrideIntent = intent;
                 mDispatchOverrideFilters = filters;
+                mDispatchOverrideTechLists = techLists;
             }
         }
 
@@ -2566,18 +2582,6 @@ public class NfcService extends Application {
             }
         }
 
-        private Uri buildTechListUri(Tag tag) {
-            int[] techList = tag.getTechnologyList();
-            Arrays.sort(techList);
-            Uri.Builder builder = new Uri.Builder();
-            builder.scheme("vnd.android.nfc").authority("tag");
-            for (int tech : techList) {
-                builder.appendPath(Integer.toString(tech));
-            }
-            builder.appendPath("");
-            return builder.build();
-        }
-
         /** Returns false if no activities were found to dispatch to */
         private boolean dispatchTag(Tag tag, NdefMessage[] msgs) {
             if (DBG) {
@@ -2587,17 +2591,20 @@ public class NfcService extends Application {
 
             IntentFilter[] overrideFilters;
             PendingIntent overrideIntent;
+            String[][] overrideTechLists;
             boolean foregroundNdefPush = mNdefPushClient.getForegroundMessage() != null;
             synchronized (mNfcAdapter) {
                 overrideFilters = mDispatchOverrideFilters;
                 overrideIntent = mDispatchOverrideIntent;
+                overrideTechLists = mDispatchOverrideTechLists;
             }
 
             // First look for dispatch overrides
             if (overrideIntent != null) {
                 if (DBG) Log.d(TAG, "Attempting to dispatch tag with override");
                 try { 
-                    if (dispatchTagInternal(tag, msgs, overrideIntent, overrideFilters)) {
+                    if (dispatchTagInternal(tag, msgs, overrideIntent, overrideFilters,
+                            overrideTechLists)) {
                         if (DBG) Log.d(TAG, "Dispatched to override");
                         return true;
                     }
@@ -2607,6 +2614,7 @@ public class NfcService extends Application {
                     synchronized (mNfcAdapter) {
                         mDispatchOverrideFilters = null;
                         mDispatchOverrideIntent = null;
+                        mDispatchOverrideTechLists = null;
                     }
                 }
             }
@@ -2618,7 +2626,7 @@ public class NfcService extends Application {
             // remote device and the apps swapping which is in the foreground on each phone.
             if (!foregroundNdefPush) {
                 try {
-                    return dispatchTagInternal(tag, msgs, null, null);
+                    return dispatchTagInternal(tag, msgs, null, null, null);
                 } catch (CanceledException e) {
                     Log.e(TAG, "CanceledException unexpected here", e);
                     return false;
@@ -2628,11 +2636,28 @@ public class NfcService extends Application {
             return false;
         }
 
+        /** Returns true if the tech list filter matches the techs on the tag */
+        private boolean filterMatch(String[] tagTechs, String[] filterTechs) {
+            if (filterTechs == null || filterTechs.length == 0) return false;
+
+            for (String tech : filterTechs) {
+                if (Arrays.binarySearch(tagTechs, tech) < 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         // Dispatch to either an override pending intent or a standard startActivity()
         private boolean dispatchTagInternal(Tag tag, NdefMessage[] msgs,
-                PendingIntent overrideIntent, IntentFilter[] overrideFilters)
+                PendingIntent overrideIntent, IntentFilter[] overrideFilters,
+                String[][] overrideTechLists)
                 throws CanceledException{
             Intent intent;
+
+            //
+            // Try the NDEF content specific dispatch
+            //
             if (msgs != null && msgs.length > 0) {
                 NdefMessage msg = msgs[0];
                 NdefRecord[] records = msg.getRecords();
@@ -2643,7 +2668,8 @@ public class NfcService extends Application {
                     intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_NDEF_DISCOVERED);
                     if (setTypeOrDataFromNdef(intent, record)) {
                         // The record contains filterable data, try to start a matching activity
-                        if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
+                        if (startDispatchActivity(intent, overrideIntent, overrideFilters,
+                                overrideTechLists)) {
                             // If an activity is found then skip further dispatching
                             return true;
                         } else {
@@ -2653,18 +2679,74 @@ public class NfcService extends Application {
                 }
             }
 
+            //
             // Try the technology specific dispatch
-            intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
-            intent.setData(buildTechListUri(tag));
-            if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
-                return true;
+            //
+            String[] tagTechs = tag.getTechList();
+            Arrays.sort(tagTechs);
+
+            if (overrideIntent != null) {
+                // There are dispatch overrides in place
+                if (overrideTechLists != null) {
+                    for (String[] filterTechs : overrideTechLists) {
+                        if (filterMatch(tagTechs, filterTechs)) {
+                            // An override matched, send it to the foreground activity.
+                            intent = buildTagIntent(tag, msgs,
+                                    NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+                            overrideIntent.send(mContext, Activity.RESULT_OK, intent);
+                            return true;
+                        }
+                    }
+                }
             } else {
-                if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
+                // Standard tech dispatch path
+                ArrayList<ResolveInfo> matches = new ArrayList<ResolveInfo>();
+                ArrayList<ComponentInfo> registered = mTechListFilters.getComponents();
+    
+                // Check each registered activity to see if it matches
+                for (ComponentInfo info : registered) {
+                    // Don't allow wild card matching
+                    if (filterMatch(tagTechs, info.techs)) {
+                        matches.add(info.resolveInfo);
+                    }
+                }
+    
+                if (matches.size() == 1) {
+                    // Single match, launch directly
+                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+                    ResolveInfo info = matches.get(0);
+                    intent.setClassName(info.activityInfo.packageName, info.activityInfo.name);
+                    try {
+                        mContext.startActivity(intent);
+                        return true;
+                    } catch (ActivityNotFoundException e) {
+                        if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
+                    }
+                } else if (matches.size() > 1) {
+                    // Multiple matches, show a custom activity chooser dialog
+                    intent = new Intent(mContext, TechListChooserActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    intent.putExtra(Intent.EXTRA_INTENT,
+                            buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED));
+                    intent.putParcelableArrayListExtra(TechListChooserActivity.EXTRA_RESOLVE_INFOS,
+                            matches);
+                    try {
+                        mContext.startActivity(intent);
+                        return true;
+                    } catch (ActivityNotFoundException e) {
+                        if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
+                    }
+                } else {
+                    // No matches, move on
+                    if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
+                }
             }
 
+            //
             // Try the generic intent
+            //
             intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TAG_DISCOVERED);
-            if (startDispatchActivity(intent, overrideIntent, overrideFilters)) {
+            if (startDispatchActivity(intent, overrideIntent, overrideFilters, overrideTechLists)) {
                 return true;
             } else {
                 Log.e(TAG, "No tag fallback activity found for " + intent);
@@ -2673,13 +2755,14 @@ public class NfcService extends Application {
         }
 
         private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
-                IntentFilter[] overrideFilters) throws CanceledException {
+                IntentFilter[] overrideFilters, String[][] overrideTechLists)
+                throws CanceledException {
             if (overrideIntent != null) {
                 boolean found = false;
-                if (overrideFilters == null) {
+                if (overrideFilters == null && overrideTechLists == null) {
                     // No filters means to always dispatch regardless of match
                     found = true;
-                } else {
+                } else if (overrideFilters != null) {
                     for (IntentFilter filter : overrideFilters) {
                         if (filter.match(mContext.getContentResolver(), intent, false, TAG) >= 0) {
                             found = true;
