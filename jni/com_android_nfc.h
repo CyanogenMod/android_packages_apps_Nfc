@@ -23,6 +23,7 @@
 #include <jni.h>
 
 #include <pthread.h>
+#include <sys/queue.h>
 
 extern "C" {
 #include <phNfcStatus.h>
@@ -110,7 +111,6 @@ extern "C" {
   #define TRACE(...)
 #endif
 
-
 struct nfc_jni_native_data
 {
    /* Thread handle */
@@ -161,6 +161,11 @@ typedef struct nfc_jni_native_monitor
    /* List used to track pending semaphores waiting for callback */
    struct listHead sem_list;
 
+   /* List used to track incoming socket requests (and associated sync variables) */
+   LIST_HEAD(, nfc_jni_listen_data) incoming_socket_head;
+   pthread_mutex_t incoming_socket_mutex;
+   pthread_cond_t  incoming_socket_cond;
+
 } nfc_jni_native_monitor_t;
 
 typedef struct nfc_jni_callback_data
@@ -174,7 +179,23 @@ typedef struct nfc_jni_callback_data
    /* Used to provide a local context to the callback */
    void* pContext;
 
+   /* Used to create java attributes in callback */
+   JNIEnv* e;
+
 } nfc_jni_callback_data_t;
+
+typedef struct nfc_jni_listen_data
+{
+   /* LLCP server socket receiving the connection request */
+   phLibNfc_Handle pServerSocket;
+
+   /* LLCP socket created from the connection request */
+   phLibNfc_Handle pIncomingSocket;
+
+   /* List entries */
+   LIST_ENTRY(nfc_jni_listen_data) entries;
+
+} nfc_jni_listen_data_t;
 
 /* TODO: treat errors and add traces */
 #define REENTRANCE_LOCK()        pthread_mutex_lock(&nfc_jni_get_monitor()->reentrance_mutex)

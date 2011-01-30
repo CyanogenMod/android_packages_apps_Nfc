@@ -21,8 +21,6 @@
 
 namespace android {
 
-extern phLibNfc_Handle hIncommingLlcpSocket;
-extern sem_t *nfc_jni_llcp_listen_sem;
 extern void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
                                                        uint8_t    nErrCode);
 /*
@@ -41,11 +39,36 @@ static void nfc_jni_llcp_accept_socket_callback(void*        pContext,
  
  
 /*
+ * Utils
+ */
+
+static phLibNfc_Handle getIncomingSocket(nfc_jni_native_monitor_t * pMonitor,
+                                                 phLibNfc_Handle hServerSocket)
+{
+   nfc_jni_listen_data_t * pListenData;
+   phLibNfc_Handle pIncomingSocket = NULL;
+
+   /* Look for a pending incoming connection on the current server */
+   LIST_FOREACH(pListenData, &pMonitor->incoming_socket_head, entries)
+   {
+      if (pListenData->pServerSocket == hServerSocket)
+      {
+         pIncomingSocket = pListenData->pIncomingSocket;
+         LIST_REMOVE(pListenData, entries);
+         free(pListenData);
+         break;
+      }
+   }
+
+   return pIncomingSocket;
+}
+
+/*
  * Methods
  */ 
 static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, jint rw, jint linearBufferLength)
 {
-   NFCSTATUS ret;
+   NFCSTATUS ret = NFCSTATUS_SUCCESS;
    struct timespec ts;
    phLibNfc_Llcp_sSocketOptions_t sOptions;
    phNfc_sData_t sWorkingBuffer;
@@ -53,24 +76,17 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    jclass clsNativeLlcpSocket;
    jobject clientSocket = NULL;
    struct nfc_jni_callback_data cb_data;
-
-   /* Wait for tag Notification */
-   if(sem_wait(nfc_jni_llcp_listen_sem) == -1)
-   {
-      return NULL;
-   }
-
-   /* Check for error */
-   if (hIncommingLlcpSocket == NULL)
-   {
-      return NULL;
-   }
+   phLibNfc_Handle hIncomingSocket, hServerSocket;
+   nfc_jni_native_monitor_t * pMonitor = nfc_jni_get_monitor();
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
       goto clean_and_return;
    }
+
+   /* Get server socket */
+   hServerSocket = nfc_jni_get_nfc_socket_handle(e,o);
 
    /* Set socket options with the socket options of the service */
    sOptions.miu = miu;
@@ -79,34 +95,47 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    /* Allocate Working buffer length */
    sWorkingBuffer.buffer = (uint8_t*)malloc((miu*rw)+miu+linearBufferLength);
    sWorkingBuffer.length = (miu*rw)+ miu + linearBufferLength;
-   
-   /* Accept the incomming socket */
-   TRACE("phLibNfc_Llcp_Accept()");
-   REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Accept( hIncommingLlcpSocket,
-                               &sOptions,
-                               &sWorkingBuffer,
-                               nfc_jni_llcp_transport_socket_err_callback,
-                               nfc_jni_llcp_accept_socket_callback,
-                               (void*)&cb_data);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_PENDING)
-   {
-      LOGE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      return NULL;
-   }
-   TRACE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
+   while(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
-   }
+      /* Wait for tag Notification */
+      pthread_mutex_lock(&pMonitor->incoming_socket_mutex);
+      while ((hIncomingSocket = getIncomingSocket(pMonitor, hServerSocket)) == NULL) {
+         pthread_cond_wait(&pMonitor->incoming_socket_cond, &pMonitor->incoming_socket_mutex);
+      }
+      pthread_mutex_unlock(&pMonitor->incoming_socket_mutex);
 
-   if(cb_data.status != NFCSTATUS_SUCCESS)
-   {
-      goto clean_and_return;
+      /* Accept the incomming socket */
+      TRACE("phLibNfc_Llcp_Accept()");
+      REENTRANCE_LOCK();
+      ret = phLibNfc_Llcp_Accept( hIncomingSocket,
+                                  &sOptions,
+                                  &sWorkingBuffer,
+                                  nfc_jni_llcp_transport_socket_err_callback,
+                                  nfc_jni_llcp_accept_socket_callback,
+                                  (void*)&cb_data);
+      REENTRANCE_UNLOCK();
+      if(ret != NFCSTATUS_PENDING)
+      {
+         // NOTE: This may happen if link went down since incoming socket detected, then
+         //       just drop it and start a new accept loop.
+         LOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+         continue;
+      }
+      TRACE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+
+      /* Wait for callback response */
+      if(sem_wait(&cb_data.sem))
+      {
+         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+         goto clean_and_return;
+      }
+
+      if(cb_data.status != NFCSTATUS_SUCCESS)
+      {
+         /* NOTE: Do not generate an error if the accept failed to avoid error in server application */
+         LOGD("Failed to accept incoming socket  0x%04x[%s]", cb_data.status, nfc_jni_get_status_name(cb_data.status));
+      }
    }
 
    /* Create new LlcpSocket object */
@@ -126,7 +155,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
 
    /* Set socket handle */
    f = e->GetFieldID(clsNativeLlcpSocket, "mHandle", "I");
-   e->SetIntField(clientSocket, f,(jint)hIncommingLlcpSocket);
+   e->SetIntField(clientSocket, f,(jint)hIncomingSocket);
 
    /* Set socket MIU */
    f = e->GetFieldID(clsNativeLlcpSocket, "mLocalMiu", "I");
@@ -136,7 +165,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    f = e->GetFieldID(clsNativeLlcpSocket, "mLocalRw", "I");
    e->SetIntField(clientSocket, f,(jint)rw);
 
-   TRACE("socket handle 0x%02x: MIU = %d, RW = %d\n",hIncommingLlcpSocket, miu, rw);
+   TRACE("socket handle 0x%02x: MIU = %d, RW = %d\n",hIncomingSocket, miu, rw);
 
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
@@ -147,10 +176,17 @@ static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
    phLibNfc_Handle hLlcpSocket;
+   nfc_jni_native_monitor_t * pMonitor = nfc_jni_get_monitor();
+
    TRACE("Close Service socket");
-   
+
    /* Retrieve socket handle */
    hLlcpSocket = nfc_jni_get_nfc_socket_handle(e,o);
+
+   pthread_mutex_lock(&pMonitor->incoming_socket_mutex);
+   /* TODO: implement accept abort */
+   pthread_cond_broadcast(&pMonitor->incoming_socket_cond);
+   pthread_mutex_unlock(&pMonitor->incoming_socket_mutex);
 
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Close(hLlcpSocket);

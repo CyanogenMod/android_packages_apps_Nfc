@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc.mytag;
+package com.android.nfc.ndefpush;
 
 import com.android.internal.nfc.LlcpException;
 import com.android.internal.nfc.LlcpSocket;
@@ -30,18 +30,36 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Simple client to push the local NDEF message to a server on the remote side of an
  * LLCP connection. The message is set via {@link NfcAdapter#setLocalNdefMessage}.
  */
-public class MyTagClient extends BroadcastReceiver {
-    private static final String TAG = "MyTagClient";
+public class NdefPushClient extends BroadcastReceiver {
+    private static final String TAG = "NdefPushClient";
     private static final int MIU = 128;
     private static final boolean DBG = true;
 
-    public MyTagClient(Context context) {
+    /** Locked on MyTagClient.class */
+    NdefMessage mForegroundMsg;
+
+    public NdefPushClient(Context context) {
         context.registerReceiver(this, new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED));
+    }
+
+    public boolean setForegroundMessage(NdefMessage msg) {
+        synchronized (this) {
+            boolean set = mForegroundMsg != null;
+            mForegroundMsg = msg;
+            return set;
+        }
+    }
+
+    public NdefMessage getForegroundMessage() {
+        synchronized (this) {
+            return mForegroundMsg;
+        }
     }
 
     @Override
@@ -54,63 +72,68 @@ public class MyTagClient extends BroadcastReceiver {
         }
 
         if (DBG) Log.d(TAG, "LLCP connection up and running");
-        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(context);
-        NdefMessage msg = adapter.getLocalNdefMessage();
-        if (msg == null) {
-            if (DBG) Log.d(TAG, "No MyTag set, exiting");
-            // Nothing to send to the server
-            return;
+
+        NdefMessage foregroundMsg;
+        synchronized (this) {
+            foregroundMsg = mForegroundMsg;
         }
 
-        new SendAsync().execute(msg);
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(context);
+        NdefMessage myTag = adapter.getLocalNdefMessage();
+
+        if (foregroundMsg != null && myTag != null) {
+            if (DBG) Log.d(TAG, "sending foreground and my tag");
+            new SendAsync().execute(foregroundMsg, myTag);
+        } else if (myTag != null) {
+            if (DBG) Log.d(TAG, "sending my tag");
+            new SendAsync().execute(myTag);
+        } else if (foregroundMsg != null) {
+            if (DBG) Log.d(TAG, "sending foreground");
+            new SendAsync().execute(foregroundMsg);
+        } else {
+            if (DBG) Log.d(TAG, "no tags set, bailing");
+            return;
+        }
     }
 
     final class SendAsync extends AsyncTask<NdefMessage, Void, Void> {
-        private void trace(String msg) {
-            if (DBG) Log.d(TAG, Thread.currentThread().getId() + ": " + msg);
-        }
-        private void error(String msg, Throwable e) {
-            if (DBG) Log.e(TAG, Thread.currentThread().getId() + ": " + msg, e);
-        }
-
         @Override
         public Void doInBackground(NdefMessage... msgs) {
             NfcService service = NfcService.getInstance();
-            NdefMessage msg = msgs[0];
+
+            // We only handle a single immediate action for now
+            NdefPushProtocol msg = new NdefPushProtocol(msgs[0], NdefPushProtocol.ACTION_IMMEDIATE);
             byte[] buffer = msg.toByteArray();
             int offset = 0;
             int remoteMiu;
             LlcpSocket sock = null;
             try {
-                trace("about to create socket");
+                if (DBG) Log.d(TAG, "about to create socket");
                 // Connect to the my tag server on the remote side
                 sock = service.createLlcpSocket(0, MIU, 1, 1024);
-                trace("about to connect");
-//                sock.connect(MyTagServer.SERVICE_NAME);
-                sock.connect(0x20);
+                if (DBG) Log.d(TAG, "about to connect to service " + NdefPushServer.SERVICE_NAME);
+                sock.connect(NdefPushServer.SERVICE_NAME);
 
                 remoteMiu = sock.getRemoteSocketMiu();
-                trace("about to send a " + buffer.length + "-bytes message");
+                if (DBG) Log.d(TAG, "about to send a " + buffer.length + " byte message");
                 while (offset < buffer.length) {
-                    int length = buffer.length - offset;
-                    if (length > remoteMiu) {
-                        length = remoteMiu;
-                    }
-                    byte[] tmpBuffer = new byte[length];
-                    System.arraycopy(buffer, offset, tmpBuffer, 0, length);
-                    trace("about to send a " + length + "-bytes packet");
+                    int length = Math.min(buffer.length - offset, remoteMiu);
+                    byte[] tmpBuffer = Arrays.copyOfRange(buffer, offset, offset+length);
+                    if (DBG) Log.d(TAG, "about to send a " + length + " byte packet");
                     sock.send(tmpBuffer);
                     offset += length;
                 }
             } catch (IOException e) {
-                error("couldn't send tag", e);
+                Log.e(TAG, "couldn't send tag");
+                if (DBG) Log.d(TAG, "exception:", e);
             } catch (LlcpException e) {
                 // Most likely the other side doesn't support the my tag protocol
-                error("couldn't send tag", e);
+                Log.e(TAG, "couldn't send tag");
+                if (DBG) Log.d(TAG, "exception:", e);
             } finally {
                 if (sock != null) {
                     try {
-                        trace("about to close");
+                        if (DBG) Log.d(TAG, "about to close");
                         sock.close();
                     } catch (IOException e) {
                         // Ignore

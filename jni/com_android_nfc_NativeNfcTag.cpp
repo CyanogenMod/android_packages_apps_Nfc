@@ -32,6 +32,7 @@ namespace android {
 extern phLibNfc_Handle storedHandle;
 
 extern void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat);
+extern void nfc_jni_reset_timeout_values();
 
 /*
  * Callbacks
@@ -123,16 +124,6 @@ static void nfc_jni_async_disconnect_callback(void *pContext,
    }
    nfc_jni_ndef_buf = NULL;
    nfc_jni_ndef_buf_len = 0;
-}
-
-static void nfc_jni_presence_check_callback(void* pContext,NFCSTATUS  status)
-{
-   struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
-   LOG_CALLBACK("nfc_jni_presence_check_callback", status);
-
-   /* Report the callback status and wake up the caller */
-   pCallbackData->status = status;
-   sem_post(&pCallbackData->sem);
 }
 
 static phNfc_sData_t *nfc_jni_transceive_buffer;
@@ -302,12 +293,19 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     jclass tag_cls = e->GetObjectClass(tag);
+    jfieldID f = e->GetFieldID(tag_cls, "mTechPollBytes", "[[B");
+
+    jobjectArray existingPollBytes = (jobjectArray) e->GetObjectField(tag, f);
+
+    if (existingPollBytes != NULL) {
+        return;
+    }
+
     jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
     jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
     jint *techId = e->GetIntArrayElements(techList, 0);
     int techListLength = e->GetArrayLength(techList);
 
-    jfieldID f = e->GetFieldID(tag_cls, "mTechPollBytes", "[[B");
     jbyteArray pollBytes = e->NewByteArray(0);
     jobjectArray techPollBytes = e->NewObjectArray(techListLength,
             e->GetObjectClass(pollBytes), 0);
@@ -317,9 +315,19 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
         {
             /* ISO14443-3A: ATQA/SENS_RES */
             case TARGET_TYPE_ISO14443_3A:
-                pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
-                e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
-                                      (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
+                if (psRemoteDevInfo->RemDevType == phNfc_eJewel_PICC) {
+                    // Jewel ATQA is not read and stored by the PN544, but it is fixed
+                    // at {0x00, 0x0C} in the spec. So eJewel can safely be
+                    // translated to {0x00, 0x0C}.
+                    const static jbyte JewelAtqA[2] = {0x00, 0x0C};
+                    pollBytes = e->NewByteArray(2);
+                    e->SetByteArrayRegion(pollBytes, 0, 2, (jbyte*) JewelAtqA);
+                }
+                else {
+                    pollBytes = e->NewByteArray(sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA));
+                    e->SetByteArrayRegion(pollBytes, 0, sizeof(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA),
+                                          (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AtqA);
+                }
                 break;
             /* ISO14443-3B: Application data (4 bytes) and Protocol Info (3 bytes) from ATQB/SENSB_RES */
             case TARGET_TYPE_ISO14443_3B:
@@ -360,6 +368,8 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
 
     e->SetObjectField(tag, f, techPollBytes);
 
+    e->ReleaseIntArrayElements(techList, techId, 0);
+
 }
 
 /*
@@ -369,12 +379,19 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     jclass tag_cls = e->GetObjectClass(tag);
+
+    jfieldID f = e->GetFieldID(tag_cls, "mTechActBytes", "[[B");
+    jobjectArray existingActBytes = (jobjectArray) e->GetObjectField(tag, f);
+
+    if (existingActBytes != NULL) {
+        return;
+    }
+
     jfieldID techListField = e->GetFieldID(tag_cls, "mTechList", "[I");
     jintArray techList = (jintArray) e->GetObjectField(tag, techListField);
     int techListLength = e->GetArrayLength(techList);
     jint *techId = e->GetIntArrayElements(techList, 0);
 
-    jfieldID f = e->GetFieldID(tag_cls, "mTechActBytes", "[[B");
     jbyteArray actBytes = e->NewByteArray(0);
     jobjectArray techActBytes = e->NewObjectArray(techListLength,
             e->GetObjectClass(actBytes), 0);
@@ -398,7 +415,8 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
                     e->SetByteArrayRegion(actBytes, 0, psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerRespLength,
                                       (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443B_Info.HiLayerResp);
                 }
-                else {
+                else if (psRemoteDevInfo->RemDevType == phNfc_eISO14443_A_PICC ||
+                         psRemoteDevInfo->RemDevType == phNfc_eISO14443_4A_PICC) {
                     actBytes = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength);
                     e->SetByteArrayRegion(actBytes, 0,
                                           psRemoteDevInfo->RemoteDevInfo.Iso14443A_Info.AppDataLength,
@@ -422,6 +440,8 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
         e->SetObjectArrayElement(techActBytes, tech, actBytes);
     }
     e->SetObjectField(tag, f, techActBytes);
+
+    e->ReleaseIntArrayElements(techList, techId, 0);
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
@@ -521,10 +541,6 @@ static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
       goto clean_and_return;
    }
 
-   // Success, set poll & act bytes
-   set_target_pollBytes(e, o, pRemDevInfo);
-   set_target_activationBytes(e, o, pRemDevInfo);
-
    result = JNI_TRUE;
 
 clean_and_return:
@@ -578,6 +594,8 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    /* Reset the stored handle */
    storedHandle = 0;
 
+   nfc_jni_reset_timeout_values();
+
    /* Disconnect */
    TRACE("Disconnecting from tag (%x)", handle);
    
@@ -588,32 +606,6 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
        goto clean_and_return;
    }
-
-   /* Presence Check */
-   do
-   {
-      TRACE("phLibNfc_RemoteDev_CheckPresence(%x)", handle);
-      REENTRANCE_LOCK();
-      status = phLibNfc_RemoteDev_CheckPresence(handle,nfc_jni_presence_check_callback,(void *)&cb_data);
-      REENTRANCE_UNLOCK();
-      if(status != NFCSTATUS_PENDING)
-      {
-         LOGE("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-         /* Disconnect Tag */
-         break;
-      }
-      TRACE("phLibNfc_RemoteDev_CheckPresence(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-
-      /* Wait for callback response */
-      if(sem_wait(&cb_data.sem))
-      {
-         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-         goto clean_and_return;
-      }
-
-    } while(cb_data.status == NFCSTATUS_SUCCESS);
-
-    TRACE("Tag removed from the RF Field\n");
 
     TRACE("phLibNfc_RemoteDev_Disconnect(%x)", handle);
     REENTRANCE_LOCK();
@@ -708,7 +700,7 @@ crc_valid( uint8_t* msg, size_t len)
 }
 
 static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
-   jobject o, jbyteArray data, jboolean raw)
+   jobject o, jbyteArray data, jboolean raw, jintArray statusTargetLost)
 {
     uint8_t offset = 0;
     // buf is the pointer to the JNI array and never overwritten,
@@ -729,6 +721,16 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     int selectedLibNfcType = 0;
     jint* technologies = NULL;
     bool checkResponseCrc = false;
+
+    jint *targetLost;
+    if (statusTargetLost != NULL) {
+        targetLost = e->GetIntArrayElements(statusTargetLost, 0);
+        if (targetLost != NULL) {
+            *targetLost = 0;
+        }
+    } else {
+        targetLost = NULL;
+    }
 
     memset(&transceive_info, 0, sizeof(transceive_info));
     CONCURRENCY_LOCK();
@@ -829,6 +831,9 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     if(status != NFCSTATUS_PENDING)
     {
       LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      if ((targetLost != NULL) && (status == NFCSTATUS_TARGET_LOST)) {
+          *targetLost = 1;
+      }
       goto clean_and_return;
     }
     TRACE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -842,6 +847,9 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
 
     if(cb_data.status != NFCSTATUS_SUCCESS)
     {
+        if ((targetLost != NULL) && (cb_data.status == NFCSTATUS_TARGET_LOST)) {
+            *targetLost = 1;
+        }
         goto clean_and_return;
     }
 
@@ -879,6 +887,10 @@ clean_and_return:
 
     e->ReleaseByteArrayElements(data,
       (jbyte *)buf, JNI_ABORT);
+
+    if (targetLost != NULL) {
+        e->ReleaseIntArrayElements(statusTargetLost, targetLost, 0);
+    }
 
     nfc_cb_data_deinit(&cb_data);
 
@@ -1042,6 +1054,51 @@ clean_and_return:
    return result;
 }
 
+static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
+        jobject o, jint libNfcType, jbyteArray pollBytes, jbyteArray actBytes)
+{
+    // Determine whether libnfc can format this type
+    jboolean result = JNI_FALSE;
+
+    switch (libNfcType) {
+        case phNfc_eISO14443_A_PICC:
+        case phNfc_eISO14443_4A_PICC:
+            // ISO14443-4A -> only if it's a DESfire!
+            // DESfire has one sak byte and 2 ATQA bytes
+            if (pollBytes != NULL && (e->GetArrayLength(pollBytes) >= 2) &&
+                    actBytes != NULL && (e->GetArrayLength(actBytes) >= 1)) {
+                jbyte* poll = e->GetByteArrayElements(pollBytes, NULL);
+                jbyte* act = e->GetByteArrayElements(actBytes, NULL);
+                if (act[0] == 0x20 && poll[1] == 0x03) {
+                    uint8_t cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
+                    // Identifies as DESfire, use get version cmd to be sure
+                    jbyteArray versionCmd = e->NewByteArray(5);
+
+                    e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
+                    jbyteArray resp = com_android_nfc_NativeNfcTag_doTransceive(e, o,
+                                versionCmd, JNI_TRUE, NULL);
+                    if (resp != NULL) {
+                        // Having a response is a good enough indication this
+                        // is actually a DESfire.
+                        result = JNI_TRUE;
+                    }
+                }
+                e->ReleaseByteArrayElements(pollBytes, (jbyte *)poll, JNI_ABORT);
+                e->ReleaseByteArrayElements(actBytes, (jbyte *)act, JNI_ABORT);
+            }
+            break;
+        case phNfc_eMifare_PICC:
+            // We can always format Mifare Classic / UL
+            result = JNI_TRUE;
+            break;
+        default:
+            result = JNI_FALSE;
+            break;
+    }
+    return result;
+
+}
+
 static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, jbyteArray key)
 {
    phLibNfc_Handle handle = 0;
@@ -1152,7 +1209,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doReconnect},
    {"doHandleReconnect", "(I)Z",
       (void *)com_android_nfc_NativeNfcTag_doHandleReconnect},
-   {"doTransceive", "([BZ)[B",
+   {"doTransceive", "([BZ[I)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doGetNdefType", "(II)I",
       (void *)com_android_nfc_NativeNfcTag_doGetNdefType},
@@ -1164,6 +1221,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doWrite},
    {"doPresenceCheck", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
+   {"doIsNdefFormatable", "(I[B[B)Z",
+      (void *)com_android_nfc_NativeNfcTag_doIsNdefFormatable},
    {"doNdefFormat", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
    {"doMakeReadonly", "()Z",

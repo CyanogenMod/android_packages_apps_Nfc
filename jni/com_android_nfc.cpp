@@ -183,22 +183,37 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->reentrance_mutex, &recursive_attr) == -1)
       {
-         LOGE("NFC Manager Reentrance Mutex creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Reentrance Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
       {
-         LOGE("NFC Manager Concurrency Mutex creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Concurrency Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(!listInit(&nfc_jni_native_monitor->sem_list))
       {
-         LOGE("NFC Manager Semaphore List creation retruned 0x%08x", errno);
+         LOGE("NFC Manager Semaphore List creation failed");
          return NULL;
       }
-   }
+
+      LIST_INIT(&nfc_jni_native_monitor->incoming_socket_head);
+
+      if(pthread_mutex_init(&nfc_jni_native_monitor->incoming_socket_mutex, NULL) == -1)
+      {
+         LOGE("NFC Manager incoming socket mutex creation returned 0x%08x", errno);
+         return NULL;
+      }
+
+      if(pthread_cond_init(&nfc_jni_native_monitor->incoming_socket_cond, NULL) == -1)
+      {
+         LOGE("NFC Manager incoming socket condition creation returned 0x%08x", errno);
+         return NULL;
+      }
+
+}
 
    return nfc_jni_native_monitor;
 } 
@@ -458,8 +473,6 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
                       MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4, handle, type);
               index = addTechIfNeeded(technologies, handles, libnfctypes, index,
                       MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
-              index = addTechIfNeeded(technologies, handles, libnfctypes,
-                      index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
               break;
             }
           case phNfc_eISO14443_4B_PICC:
@@ -504,16 +517,12 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_UL, handle, type);
                   index = addTechIfNeeded(technologies, handles, libnfctypes,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
-                  index = addTechIfNeeded(technologies, handles, libnfctypes,
-                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
                   break;
                 default:
                   index = addTechIfNeeded(technologies, handles, libnfctypes,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_CLASSIC, handle, type);
                   index = addTechIfNeeded(technologies, handles, libnfctypes,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
-                  index = addTechIfNeeded(technologies, handles, libnfctypes,
-                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_NDEF_FORMATABLE, handle, type);
                   break;
               }
             }break;

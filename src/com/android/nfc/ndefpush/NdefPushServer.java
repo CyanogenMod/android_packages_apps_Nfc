@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc.mytag;
+package com.android.nfc.ndefpush;
 
 import com.android.internal.nfc.LlcpException;
 import com.android.internal.nfc.LlcpServiceSocket;
@@ -22,7 +22,6 @@ import com.android.internal.nfc.LlcpSocket;
 import com.android.nfc.NfcService;
 
 import android.nfc.FormatException;
-import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.util.Log;
 
@@ -33,14 +32,14 @@ import java.io.IOException;
  * A simple server that accepts NDEF messages pushed to it over an LLCP connection. Those messages
  * are typically set on the client side by using {@link NfcAdapter#setLocalNdefMessage}.
  */
-public class MyTagServer {
-    private static final String TAG = "MyTagServer";
+public class NdefPushServer {
+    private static final String TAG = "NdefPushServer";
     private static final boolean DBG = true;
 
-    private static final int SERVICE_SAP = 0x20;
-    private static final int MIU = 256;
+    private static final int SERVICE_SAP = 0x10;
+    private static final int MIU = 248;
 
-    static final String SERVICE_NAME = "com.android.mytag";
+    static final String SERVICE_NAME = "com.android.npp";
 
     NfcService mService = NfcService.getInstance();
 
@@ -52,7 +51,7 @@ public class MyTagServer {
         private LlcpSocket mSock;
 
         ConnectionThread(LlcpSocket sock) {
-            super("MyTagServer");
+            super(TAG);
             mSock = sock;
         }
 
@@ -83,12 +82,12 @@ public class MyTagServer {
                     }
                 }
 
-                // Build NDEF message from the stream
-                NdefMessage msg = new NdefMessage(buffer.toByteArray());
+                // Build NDEF message set from the stream
+                NdefPushProtocol msg = new NdefPushProtocol(buffer.toByteArray());
                 if (DBG) Log.d(TAG, "got message " + msg.toString());
 
                 // Send the intent for the fake tag
-                mService.sendMockNdefTag(msg);
+                mService.sendMockNdefTag(msg.getImmediate());
             } catch (FormatException e) {
                 Log.e(TAG, "badly formatted NDEF message, ignoring", e);
             } finally {
@@ -112,7 +111,7 @@ public class MyTagServer {
         public void run() {
             while (mRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
-                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, null,
+                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, SERVICE_NAME,
                         MIU, 1, 1024);
                 if (mServerSocket == null) {
                     if (DBG) Log.d(TAG, "failed to create LLCP service socket");

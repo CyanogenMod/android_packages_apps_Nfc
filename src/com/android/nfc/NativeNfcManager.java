@@ -93,6 +93,16 @@ public class NativeNfcManager {
     public native boolean doActivateLlcp();
 
 
+    public native void doResetIsoDepTimeout();
+    public void resetIsoDepTimeout() {
+        doResetIsoDepTimeout();
+    }
+
+    public native void doSetIsoDepTimeout(int timeout);
+    public void setIsoDepTimeout(int timeout) {
+        doSetIsoDepTimeout(timeout);
+    }
+
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
@@ -128,4 +138,11 @@ public class NativeNfcManager {
         mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
     }
 
+    private void notifySeFieldActivated() {
+        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
+    }
+
+    private void notifySeFieldDeactivated() {
+        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
+    }
 }

@@ -16,13 +16,13 @@
 
 package com.android.nfc;
 
-import android.nfc.technology.NfcA;
-import android.nfc.technology.NfcB;
-import android.nfc.technology.NfcF;
-import android.nfc.technology.NfcV;
-import android.nfc.technology.IsoDep;
-import android.nfc.technology.TagTechnology;
-import android.nfc.technology.Ndef;
+import android.nfc.tech.IsoDep;
+import android.nfc.tech.Ndef;
+import android.nfc.tech.NfcA;
+import android.nfc.tech.NfcB;
+import android.nfc.tech.NfcF;
+import android.nfc.tech.NfcV;
+import android.nfc.tech.TagTechnology;
 import android.nfc.NdefMessage;
 import android.os.Bundle;
 import android.util.Log;
@@ -45,43 +45,80 @@ public class NativeNfcTag {
 
     private final String TAG = "NativeNfcTag";
 
+    private boolean mIsPresent; // Whether the tag is known to be still present
+
     private PresenceCheckWatchdog mWatchdog;
     class PresenceCheckWatchdog extends Thread {
 
-        private boolean isPresent = true;
-        private boolean isRunning = true;
+        private int watchdogTimeout = 125;
 
-        public void reset() {
-            this.interrupt();
+        private boolean isPresent = true;
+        private boolean isStopped = false;
+        private boolean isPaused = false;
+        private boolean doCheck = true;
+
+        public synchronized void pause() {
+            isPaused = true;
+            doCheck = false;
+            this.notifyAll();
         }
 
-        public void end() {
-            isRunning = false;
-            this.interrupt();
+        public synchronized void doResume() {
+            isPaused = false;
+            // We don't want to resume presence checking immediately,
+            // but go through at least one more wait period.
+            doCheck = false;
+            this.notifyAll();
+        }
+
+        public synchronized void end() {
+            isStopped = true;
+            doCheck = false;
+            this.notifyAll();
+        }
+
+        public synchronized void setTimeout(int timeout) {
+            watchdogTimeout = timeout;
+            doCheck = false; // Do it only after we have waited "timeout" ms again
+            this.notifyAll();
         }
 
         @Override
-        public void run() {
+        public synchronized void run() {
             if (DBG) Log.d(TAG, "Starting background presence check");
-            while (isPresent && isRunning) {
+            while (isPresent && !isStopped) {
                 try {
-                    Thread.sleep(250);
-                    isPresent = doPresenceCheck();
+                    if (!isPaused) {
+                        doCheck = true;
+                    }
+                    this.wait(watchdogTimeout);
+                    if (doCheck) {
+                        isPresent = doPresenceCheck();
+                    } else {
+                        // 1) We are paused, waiting for unpause
+                        // 2) We just unpaused, do pres check in next iteration
+                        //       (after watchdogTimeout ms sleep)
+                        // 3) We just set the timeout, wait for this timeout
+                        //       to expire once first.
+                        // 4) We just stopped, exit loop anyway
+                    }
                 } catch (InterruptedException e) {
                     // Activity detected, loop
                 }
             }
-            // Restart the polling loop if the tag is not here any more
-            if (isRunning && !isPresent) {
-                Log.d(TAG, "Tag lost, restarting polling loop");
-                doDisconnect();
-            }
+            // Restart the polling loop
+
+            Log.d(TAG, "Tag lost, restarting polling loop");
+            doDisconnect();
             if (DBG) Log.d(TAG, "Stopping background presence check");
         }
     }
 
     private native boolean doConnect(int handle);
     public synchronized boolean connect(int technology) {
+        if (mWatchdog != null) {
+            mWatchdog.pause();
+        }
         boolean isSuccess = false;
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
@@ -116,18 +153,19 @@ public class NativeNfcTag {
                                 (technology == TagTechnology.NDEF_FORMATABLE)) {
                             isSuccess = true;
                         } else {
-                            // Don't allow to connect at a different level
-                            // on the same handle, not supported by libnfc!
-                            isSuccess = false;
+                            if ((technology != TagTechnology.ISO_DEP) &&
+                                (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
+                                // Don't allow to connect a -4 tag at a different level
+                                // than IsoDep, as this is not supported by
+                                // libNFC.
+                                isSuccess = false;
+                            } else {
+                                isSuccess = true;
+                            }
                         }
                     }
                     if (isSuccess) {
                         mConnectedTechnology = i;
-                        if (mWatchdog != null) {
-                            mWatchdog.end();
-                        }
-                        mWatchdog = new PresenceCheckWatchdog();
-                        mWatchdog.start();
                     }
                 } else {
                     isSuccess = true; // Already connect to this tech
@@ -135,15 +173,47 @@ public class NativeNfcTag {
                 break;
             }
         }
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
         return isSuccess;
+    }
+
+    public synchronized void startPresenceChecking() {
+        // Once we start presence checking, we allow the upper layers
+        // to know the tag is in the field.
+        mIsPresent = true;
+        if (mWatchdog == null) {
+            mWatchdog = new PresenceCheckWatchdog();
+            mWatchdog.start();
+        }
+    }
+
+    public synchronized boolean isPresent() {
+        // Returns whether the tag is still in the field to the best
+        // of our knowledge.
+        return mIsPresent;
     }
 
     native boolean doDisconnect();
     public synchronized boolean disconnect() {
+        boolean result = false;
+
+        mIsPresent = false;
         if (mWatchdog != null) {
+            // Watchdog has already disconnected or will do it
             mWatchdog.end();
+            try {
+                mWatchdog.join();
+            } catch (InterruptedException e) {
+                // Should never happen.
+            }
+            mWatchdog = null;
+            result = true;
+        } else {
+            result = doDisconnect();
         }
-        boolean result = doDisconnect();
+
         mConnectedTechnology = -1;
         return result;
     }
@@ -151,73 +221,122 @@ public class NativeNfcTag {
     native boolean doReconnect();
     public synchronized boolean reconnect() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doReconnect();
+        boolean result = doReconnect();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doHandleReconnect(int handle);
     public synchronized boolean reconnect(int handle) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doHandleReconnect(handle);
+        boolean result = doHandleReconnect(handle);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
-    private native byte[] doTransceive(byte[] data, boolean raw);
-    public synchronized byte[] transceive(byte[] data, boolean raw) {
+    private native byte[] doTransceive(byte[] data, boolean raw, int[] returnCode);
+    public synchronized byte[] transceive(byte[] data, boolean raw, int[] returnCode) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doTransceive(data, raw);
+        byte[] result = doTransceive(data, raw, returnCode);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native boolean doCheckNdef(int[] ndefinfo);
     public synchronized boolean checkNdef(int[] ndefinfo) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doCheckNdef(ndefinfo);
+        boolean result = doCheckNdef(ndefinfo);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native byte[] doRead();
     public synchronized byte[] read() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doRead();
+        byte[] result = doRead();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     private native boolean doWrite(byte[] buf);
     public synchronized boolean write(byte[] buf) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doWrite(buf);
+        boolean result = doWrite(buf);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doPresenceCheck();
     public synchronized boolean presenceCheck() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doPresenceCheck();
+        boolean result = doPresenceCheck();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doNdefFormat(byte[] key);
     public synchronized boolean formatNdef(byte[] key) {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doNdefFormat(key);
+        boolean result = doNdefFormat(key);
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
     }
 
     native boolean doMakeReadonly();
     public synchronized boolean makeReadonly() {
         if (mWatchdog != null) {
-            mWatchdog.reset();
+            mWatchdog.pause();
         }
-        return doMakeReadonly();
+        boolean result = doMakeReadonly();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return result;
+    }
+
+    native boolean doIsNdefFormatable(int libnfctype, byte[] poll, byte[] act);
+    public synchronized boolean isNdefFormatable() {
+        // Call native code to determine at lower level if format
+        // is possible. It will need poll/activation time bytes for this.
+        int nfcaTechIndex = getTechIndex(TagTechnology.NFC_A);
+        if (nfcaTechIndex != -1) {
+            return doIsNdefFormatable(mTechLibNfcTypes[nfcaTechIndex],
+                    mTechPollBytes[nfcaTechIndex], mTechActBytes[nfcaTechIndex]);
+        } else {
+            return false; // Formatting not supported by libnfc
+        }
     }
 
     private NativeNfcTag() {
@@ -273,17 +392,10 @@ public class NativeNfcTag {
         return doGetNdefType(libnfctype, javatype);
     }
 
-    // This method exists to "patch in" the ndef technologies,
-    // which is done inside Java instead of the native JNI code.
-    // To not create some nasty dependencies on the order on which things
-    // are called (most notably getTechExtras()), it needs some additional
-    // checking.
-    public void addNdefTechnology(NdefMessage msg, int handle, int libnfcType,
-            int javaType, int maxLength, int cardState) {
-        synchronized (this) {
+    private void addTechnology(int tech, int handle, int libnfctype) {
             int[] mNewTechList = new int[mTechList.length + 1];
             System.arraycopy(mTechList, 0, mNewTechList, 0, mTechList.length);
-            mNewTechList[mTechList.length] = TagTechnology.NDEF;
+            mNewTechList[mTechList.length] = tech;
             mTechList = mNewTechList;
 
             int[] mNewHandleList = new int[mTechHandles.length + 1];
@@ -293,8 +405,25 @@ public class NativeNfcTag {
 
             int[] mNewTypeList = new int[mTechLibNfcTypes.length + 1];
             System.arraycopy(mTechLibNfcTypes, 0, mNewTypeList, 0, mTechLibNfcTypes.length);
-            mNewTypeList[mTechLibNfcTypes.length] = handle;
+            mNewTypeList[mTechLibNfcTypes.length] = libnfctype;
             mTechLibNfcTypes = mNewTypeList;
+    }
+
+    public void addNdefFormatableTechnology(int handle, int libnfcType) {
+        synchronized (this) {
+            addTechnology(TagTechnology.NDEF_FORMATABLE, handle, libnfcType);
+        }
+    }
+
+    // This method exists to "patch in" the ndef technologies,
+    // which is done inside Java instead of the native JNI code.
+    // To not create some nasty dependencies on the order on which things
+    // are called (most notably getTechExtras()), it needs some additional
+    // checking.
+    public void addNdefTechnology(NdefMessage msg, int handle, int libnfcType,
+            int javaType, int maxLength, int cardState) {
+        synchronized (this) {
+            addTechnology(TagTechnology.NDEF, handle, libnfcType);
 
             Bundle extras = new Bundle();
             extras.putParcelable(Ndef.EXTRA_NDEF_MSG, msg);
@@ -317,7 +446,19 @@ public class NativeNfcTag {
                 mTechExtras = newTechExtras;
             }
 
+
         }
+    }
+
+    private int getTechIndex(int tech) {
+      int techIndex = -1;
+      for (int i = 0; i < mTechList.length; i++) {
+          if (mTechList[i] == tech) {
+              techIndex = i;
+              break;
+          }
+      }
+      return techIndex;
     }
 
     private boolean hasTech(int tech) {
@@ -329,6 +470,18 @@ public class NativeNfcTag {
           }
       }
       return hasTech;
+    }
+
+    private boolean hasTechOnHandle(int tech, int handle) {
+      boolean hasTech = false;
+      for (int i = 0; i < mTechList.length; i++) {
+          if (mTechList[i] == tech && mTechHandles[i] == handle) {
+              hasTech = true;
+              break;
+          }
+      }
+      return hasTech;
+
     }
 
     public Bundle[] getTechExtras() {
@@ -380,6 +533,7 @@ public class NativeNfcTag {
                         break;
                     }
                     case TagTechnology.ISO_DEP: {
+
                         if (hasTech(TagTechnology.NFC_A)) {
                             extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
                         }
