@@ -274,7 +274,7 @@ public class NfcService extends Application {
         mNdefPushServer = new NdefPushServer();
 
         mTechListFilters = new RegisteredComponentCache(this,
-                NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+                NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
 
         mSecureElement = new NativeNfcSecureElement();
 
@@ -2727,7 +2727,7 @@ public class NfcService extends Application {
                         if (filterMatch(tagTechs, filterTechs)) {
                             // An override matched, send it to the foreground activity.
                             intent = buildTagIntent(tag, msgs,
-                                    NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+                                    NfcAdapter.ACTION_TECH_DISCOVERED);
                             overrideIntent.send(mContext, Activity.RESULT_OK, intent);
                             return true;
                         }
@@ -2751,7 +2751,7 @@ public class NfcService extends Application {
     
                 if (matches.size() == 1) {
                     // Single match, launch directly
-                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED);
+                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED);
                     ResolveInfo info = matches.get(0);
                     intent.setClassName(info.activityInfo.packageName, info.activityInfo.name);
                     try {
@@ -2765,7 +2765,7 @@ public class NfcService extends Application {
                     intent = new Intent(mContext, TechListChooserActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     intent.putExtra(Intent.EXTRA_INTENT,
-                            buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECHNOLOGY_DISCOVERED));
+                            buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED));
                     intent.putParcelableArrayListExtra(TechListChooserActivity.EXTRA_RESOLVE_INFOS,
                             matches);
                     try {
