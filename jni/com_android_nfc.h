@@ -72,12 +72,12 @@ extern "C" {
  * Ndef.java in the framework.
  */
 
-#define NDEF_UNKNOWN_TYPE                0
+#define NDEF_UNKNOWN_TYPE                -1
 #define NDEF_TYPE1_TAG                   1
 #define NDEF_TYPE2_TAG                   2
 #define NDEF_TYPE3_TAG                   3
 #define NDEF_TYPE4_TAG                   4
-#define NDEF_MIFARE_CLASSIC_TAG          105
+#define NDEF_MIFARE_CLASSIC_TAG          101
 
 /* Pre-defined tag type values. These must match the values in
  * Ndef.java in the framework.
