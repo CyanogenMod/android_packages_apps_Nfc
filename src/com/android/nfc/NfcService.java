@@ -619,7 +619,7 @@ public class NfcService extends Application {
         }
 
         public INfcSecureElement getNfcSecureElementInterface() {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
             return mSecureElementService;
         }
 
@@ -1815,6 +1815,8 @@ public class NfcService extends Application {
     private INfcSecureElement mSecureElementService = new INfcSecureElement.Stub() {
 
         public int openSecureElementConnection() throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
             Log.d(TAG, "openSecureElementConnection");
             int handle;
 
@@ -1850,6 +1852,7 @@ public class NfcService extends Application {
 
         public int closeSecureElementConnection(int nativeHandle)
                 throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
@@ -1899,6 +1902,8 @@ public class NfcService extends Application {
 
         public int[] getSecureElementTechList(int nativeHandle)
                 throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
                 return null;
@@ -1926,6 +1931,8 @@ public class NfcService extends Application {
 
         public byte[] getSecureElementUid(int nativeHandle)
                 throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
             byte[] uid;
 
             // Check if NFC is enabled
@@ -1955,6 +1962,8 @@ public class NfcService extends Application {
 
         public byte[] exchangeAPDU(int nativeHandle, byte[] data)
                 throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+
             byte[] response;
 
             // Check if NFC is enabled
