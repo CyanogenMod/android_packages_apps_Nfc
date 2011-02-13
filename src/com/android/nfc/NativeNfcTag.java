@@ -106,6 +106,7 @@ public class NativeNfcTag {
                     // Activity detected, loop
                 }
             }
+            mIsPresent = false;
             // Restart the polling loop
 
             Log.d(TAG, "Tag lost, restarting polling loop");
