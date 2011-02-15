@@ -2054,6 +2054,9 @@ public class NfcService extends Application {
     /** Enable active tag discovery if screen is on and NFC is enabled */
     private synchronized void maybeEnableDiscovery() {
         if (mScreenOn && mIsNfcEnabled) {
+            if(mSelectedSeId != 0){
+                mManager.doSelectSecureElement(mSelectedSeId);
+            }
             mManager.enableDiscovery(DISCOVERY_MODE_READER);
         }
     }
@@ -2061,6 +2064,7 @@ public class NfcService extends Application {
     /** Disable active tag discovery if necessary */
     private synchronized void maybeDisableDiscovery() {
         if (mIsNfcEnabled) {
+            mManager.doDeselectSecureElement(mSelectedSeId);
             mManager.disableDiscovery();
         }
     }
