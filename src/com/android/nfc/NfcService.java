@@ -227,6 +227,7 @@ public class NfcService extends Application {
     private volatile boolean mIsNfcEnabled = false;
     private int mSelectedSeId = 0;
     private boolean mNfcSecureElementState;
+    private boolean mPollingLoopStarted = true;
 
     // Secure element
     private Timer mTimerOpenSmx;
@@ -1874,13 +1875,19 @@ public class NfcService extends Application {
                 /* Stop timer */
                 mTimerOpenSmx.cancel();
 
-                /* Restart polling loop for notification */
-                mManager.enableDiscovery(DISCOVERY_MODE_READER);
-
                 /* Update state */
                 isOpened = false;
                 isClosed = true;
                 mOpenSmxPending = false;
+
+                /* update Polling loop state */
+                if (!mPollingLoopStarted) {
+                    Log.d(TAG, "Stop Polling Loop");
+                    maybeDisableDiscovery();
+                } else {
+                    Log.d(TAG, "Start Polling Loop");
+                    maybeEnableDiscovery();
+                }
 
                 return ErrorCodes.SUCCESS;
             } else {
@@ -1888,13 +1895,19 @@ public class NfcService extends Application {
                 /* Stop timer */
                 mTimerOpenSmx.cancel();
 
-                /* Restart polling loop for notification */
-                mManager.enableDiscovery(DISCOVERY_MODE_READER);
-
                 /* Update state */
                 isOpened = false;
                 isClosed = true;
                 mOpenSmxPending = false;
+
+                /* update Polling loop state */
+                if (!mPollingLoopStarted) {
+                    Log.d(TAG, "Stop Polling Loop");
+                    maybeDisableDiscovery();
+                } else {
+                    Log.d(TAG, "Start Polling Loop");
+                    maybeEnableDiscovery();
+                }
 
                 return ErrorCodes.ERROR_DISCONNECT;
             }
@@ -2054,18 +2067,30 @@ public class NfcService extends Application {
     /** Enable active tag discovery if screen is on and NFC is enabled */
     private synchronized void maybeEnableDiscovery() {
         if (mScreenOn && mIsNfcEnabled) {
-            if(mSelectedSeId != 0){
-                mManager.doSelectSecureElement(mSelectedSeId);
+            if (!mOpenSmxPending) {
+                if (mSelectedSeId != 0) {
+                    Log.d(TAG,"Start Card Emulation mode");
+                    mManager.doSelectSecureElement(mSelectedSeId);
+                }
+                mManager.enableDiscovery(DISCOVERY_MODE_READER);
+            } else {
+                mPollingLoopStarted =  true;
             }
-            mManager.enableDiscovery(DISCOVERY_MODE_READER);
         }
     }
 
     /** Disable active tag discovery if necessary */
     private synchronized void maybeDisableDiscovery() {
         if (mIsNfcEnabled) {
-            mManager.doDeselectSecureElement(mSelectedSeId);
-            mManager.disableDiscovery();
+            if (!mOpenSmxPending) {
+                if (mSelectedSeId != 0) {
+                    Log.d(TAG,"Stop Card Emulation mode");
+                    mManager.doDeselectSecureElement(mSelectedSeId);
+                }
+                mManager.disableDiscovery();
+            } else {
+                mPollingLoopStarted =  false;
+            }
         }
     }
 
