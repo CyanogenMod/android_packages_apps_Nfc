@@ -27,6 +27,8 @@ static int SecureElementTech;
 
 namespace android {
 
+extern void nfc_jni_reset_timeout_values();
+
 static void com_android_nfc_jni_ioctl_callback ( void*            pContext,
                                             phNfc_sData_t*   Outparam_Cb,
                                             NFCSTATUS        status)
@@ -432,6 +434,10 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
             goto clean_and_return;
          }
          CONCURRENCY_UNLOCK();
+
+         TRACE("Set Transceive Timeout to 0x1E");
+         phLibNfc_SetIsoXchgTimeout(30);
+
          /* Return the Handle of the SecureElement */         
          return secureElementHandle;
       }
@@ -581,6 +587,8 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    result = JNI_TRUE;
 
 clean_and_return:
+   TRACE("Reset Transceive timeout to 0x1A");
+   nfc_jni_reset_timeout_values();
    CONCURRENCY_UNLOCK();
    return result;
 }
