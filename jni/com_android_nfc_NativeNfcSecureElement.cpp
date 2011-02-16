@@ -35,11 +35,11 @@ static void com_android_nfc_jni_ioctl_callback ( void*            pContext,
 
 	if (status == NFCSTATUS_SUCCESS )
 	{
-		LOGD("> IOCTL successful");
+	    LOG_CALLBACK("> IOCTL successful",status);
 	}
 	else
 	{
-		LOGD("> IOCTL error");
+	    LOG_CALLBACK("> IOCTL error",status);
 	}
 
    com_android_nfc_jni_ioctl_buffer = Outparam_Cb;
@@ -93,12 +93,12 @@ static void com_android_nfc_jni_smartMX_setModeCb (void*            pContext,
 
 	if(status==NFCSTATUS_SUCCESS)
 	{
-		LOGD("SE Set Mode is Successful");
-		LOGD("SE Handle: %lu", hSecureElement);		
+	    LOG_CALLBACK("SE Set Mode is Successful",status);
+	    TRACE("SE Handle: %lu", hSecureElement);
 	}
 	else
 	{
-    LOGD("SE Set Mode is failed\n ");
+	    LOG_CALLBACK("SE Set Mode is failed\n ",status);
   }
 	
    pContextData->status = status;
@@ -121,13 +121,13 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
    else
    {   
       LOG_CALLBACK("com_android_nfc_jni_open_secure_element_notification_callback", status);
-      LOGI("Discovered %d tags", uNofRemoteDev);
+      TRACE("Discovered %d tags", uNofRemoteDev);
       
       if(status == NFCSTATUS_MULTIPLE_PROTOCOLS)
       {	
-         LOGD("Multiple Protocol supported\n");
+         TRACE("Multiple Protocol supported\n");
                                  
-         LOGD("Secure Element Handle: 0x%08x",psRemoteDevList[1].hTargetDev);
+         TRACE("Secure Element Handle: 0x%08x",psRemoteDevList[1].hTargetDev);
          secureElementHandle = psRemoteDevList[1].hTargetDev;
          
          /* Set type name */
@@ -140,10 +140,10 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          if (pContextData->e->GetArrayLength(techList) > 0) {
              jint* technologies = pContextData->e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
-             LOGD("Store Secure Element Info\n");
+             TRACE("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
 
-             LOGD("Discovered secure element: tech=%d", SecureElementTech);
+             TRACE("Discovered secure element: tech=%d", SecureElementTech);
          }
          else {
              LOGE("Discovered secure element, but could not resolve tech");
@@ -153,7 +153,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
       }
       else
       {
-         LOGD("Secure Element Handle: 0x%08x",psRemoteDevList->hTargetDev);
+         TRACE("Secure Element Handle: 0x%08x",psRemoteDevList->hTargetDev);
          secureElementHandle = psRemoteDevList->hTargetDev;
          
          /* Set type name */      
@@ -167,10 +167,10 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          if ((techList != NULL) && pContextData->e->GetArrayLength(techList) > 0) {
              jint* technologies = pContextData->e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
-             LOGD("Store Secure Element Info\n");
+             TRACE("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
 
-             LOGD("Discovered secure element: tech=%d", SecureElementTech);
+             TRACE("Discovered secure element: tech=%d", SecureElementTech);
          }
          else {
              LOGE("Discovered secure element, but could not resolve tech");
@@ -193,14 +193,17 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index=0, SmartMX_detected = 0;
    phLibNfc_sADD_Cfg_t discovery_cfg;
    phLibNfc_Registry_Info_t registry_info;
-   phNfc_sData_t			InParam;
-   phNfc_sData_t			OutParam;
+   phNfc_sData_t        InParam;
+   phNfc_sData_t        OutParam;
    uint8_t              ExternalRFDetected[3] = {0x00, 0xFC, 0x01};
-   uint8_t					Output_Buff[50];
+   uint8_t              GpioGetValue[3] = {0x00, 0xF8, 0x2B};
+   uint8_t              GpioSetValue[4];
+   uint8_t              gpioValue;
+   uint8_t              Output_Buff[10];
    uint8_t              reg_value;
    uint8_t              mask_value;
    struct nfc_jni_callback_data cb_data;
-   
+
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
@@ -220,18 +223,20 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
      
    CONCURRENCY_LOCK();
    
-   LOGD("Open Secure Element");
+   TRACE("Open Secure Element");
    
    /* Test if External RF field is detected */
-	InParam.buffer = ExternalRFDetected;
-	InParam.length = 3;
-	OutParam.buffer = Output_Buff;
-	LOGD("phLibNfc_Mgt_IoCtl()");
+   InParam.buffer = ExternalRFDetected;
+   InParam.length = 3;
+   OutParam.buffer = Output_Buff;
+   TRACE("phLibNfc_Mgt_IoCtl()");
+   REENTRANCE_LOCK();
    ret = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_READ,&InParam, &OutParam,com_android_nfc_jni_ioctl_callback, (void *)&cb_data);
+   REENTRANCE_UNLOCK();
    if(ret!=NFCSTATUS_PENDING)
-	{
+   {
       LOGE("IOCTL status error");
-	}
+   }
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
@@ -245,93 +250,93 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
       LOGE("READ MEM ERROR");
       goto clean_and_return;
    }
-   
+
    /* Check the value */   
    reg_value = com_android_nfc_jni_ioctl_buffer->buffer[0];
    mask_value = reg_value & 0x40;
 
    if(mask_value == 0x40)
    {
-      LOGD("External RF Field detected");
+      TRACE("External RF Field detected");
       goto clean_and_return;   
    }   
-   
+
    /* Get Secure Element List */
-   LOGD("phLibNfc_SE_GetSecureElementList()");
+   TRACE("phLibNfc_SE_GetSecureElementList()");
    ret = phLibNfc_SE_GetSecureElementList( SE_List, &No_SE);
    if (ret == NFCSTATUS_SUCCESS)
    {
-      LOGD("\n> Number of Secure Element(s) : %d\n", No_SE);
+      TRACE("\n> Number of Secure Element(s) : %d\n", No_SE);
       /* Display Secure Element information */
       for (i = 0; i<No_SE; i++)
       {
          if (SE_List[i].eSE_Type == phLibNfc_SE_Type_SmartMX)
          {
-           LOGD("> SMX detected");
-           LOGD("> Secure Element Handle : %d\n", SE_List[i].hSecureElement);
+           TRACE("> SMX detected");
+           TRACE("> Secure Element Handle : %d\n", SE_List[i].hSecureElement);
            /* save SMARTMX index */
            SmartMX_detected = 1;
            SmartMX_index = i;
          }
       }
-       
+
       if(SmartMX_detected)
       {
          REENTRANCE_LOCK();
-         LOGD("phLibNfc_RemoteDev_NtfRegister()");
+         TRACE("phLibNfc_RemoteDev_NtfRegister()");
          ret = phLibNfc_RemoteDev_NtfRegister(&registry_info, com_android_nfc_jni_open_secure_element_notification_callback, (void *)&cb_data);
          REENTRANCE_UNLOCK();
          if(ret != NFCSTATUS_SUCCESS)
          {
-            LOGW("Register Notification error");
+            LOGE("Register Notification error");
             goto clean_and_return;
          }
-      
+
          /* Set wired mode */
          REENTRANCE_LOCK();
-         LOGD("phLibNfc_SE_SetMode: Wired mode");
+         TRACE("phLibNfc_SE_SetMode: Wired mode");
          ret = phLibNfc_SE_SetMode( SE_List[SmartMX_index].hSecureElement, 
-									         phLibNfc_SE_ActModeWired, 
-									         com_android_nfc_jni_smartMX_setModeCb,
-									         (void *)&cb_data);
+                                     phLibNfc_SE_ActModeWired,
+                                     com_android_nfc_jni_smartMX_setModeCb,
+                                     (void *)&cb_data);
          REENTRANCE_UNLOCK();
          if (ret != NFCSTATUS_PENDING )
          {
-            LOGD("\n> SE Set SmartMX mode ERROR \n" );
+            LOGE("\n> SE Set SmartMX mode ERROR \n" );
             goto clean_and_return;
          }
-			
+
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGW("Secure Element opening error");
+            LOGE("Secure Element opening error");
             goto clean_and_return;
          }
-      
+
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
             LOGE("SE set mode failed");
             goto clean_and_return;
          }
-      
-         LOGD("Waiting for notification");
+
+         TRACE("Waiting for notification");
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGW("Secure Element opening error");
+            LOGE("Secure Element opening error");
             goto clean_and_return;
          }
-      
+
          if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_MULTIPLE_PROTOCOLS)
          {
             LOGE("SE detection failed");
             goto clean_and_return;
          }
          CONCURRENCY_UNLOCK();
-         
+
          /* Connect Tag */
          CONCURRENCY_LOCK();
-         LOGD("phLibNfc_RemoteDev_Connect(SMX)");
+         TRACE("phLibNfc_RemoteDev_Connect(SMX)");
          REENTRANCE_LOCK();
          ret = phLibNfc_RemoteDev_Connect(secureElementHandle, com_android_nfc_jni_connect_callback,(void *)&cb_data);
          REENTRANCE_UNLOCK();
@@ -340,33 +345,105 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
             LOGE("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
             goto clean_and_return;
          }
-         LOGD("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      
+         TRACE("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
+             LOGE("CONNECT semaphore error");
              goto clean_and_return;
          }
-         
+
          /* Connect Status */
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
+            LOGE("Secure Element connect error");
             goto clean_and_return;
          }
-         
+
+         CONCURRENCY_UNLOCK();
+
+         /* Get GPIO information */
+         CONCURRENCY_LOCK();
+         InParam.buffer = GpioGetValue;
+         InParam.length = 3;
+         OutParam.buffer = Output_Buff;
+         TRACE("phLibNfc_Mgt_IoCtl()- GPIO Get Value");
+         REENTRANCE_LOCK();
+         ret = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_READ,&InParam, &OutParam,com_android_nfc_jni_ioctl_callback, (void *)&cb_data);
+         REENTRANCE_UNLOCK();
+         if(ret!=NFCSTATUS_PENDING)
+         {
+             LOGE("IOCTL status error");
+         }
+
+         /* Wait for callback response */
+         if(sem_wait(&cb_data.sem))
+         {
+            LOGE("IOCTL semaphore error");
+            goto clean_and_return;
+         }
+
+         if(cb_data.status != NFCSTATUS_SUCCESS)
+         {
+            LOGE("READ MEM ERROR");
+            goto clean_and_return;
+         }
+
+         gpioValue = com_android_nfc_jni_ioctl_buffer->buffer[0];
+         TRACE("GpioValue = Ox%02x",gpioValue);
+
+         /* Set GPIO information */
+         GpioSetValue[0] = 0x00;
+         GpioSetValue[1] = 0xF8;
+         GpioSetValue[2] = 0x2B;
+         GpioSetValue[3] = (gpioValue | 0x40);
+
+         TRACE("GpioValue to be set = Ox%02x",GpioSetValue[3]);
+
+         for(i=0;i<4;i++)
+         {
+             TRACE("0x%02x",GpioSetValue[i]);
+         }
+
+         InParam.buffer = GpioSetValue;
+         InParam.length = 4;
+         OutParam.buffer = Output_Buff;
+         TRACE("phLibNfc_Mgt_IoCtl()- GPIO Set Value");
+         REENTRANCE_LOCK();
+         ret = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_WRITE,&InParam, &OutParam,com_android_nfc_jni_ioctl_callback, (void *)&cb_data);
+         REENTRANCE_UNLOCK();
+         if(ret!=NFCSTATUS_PENDING)
+         {
+             LOGE("IOCTL status error");
+             goto clean_and_return;
+         }
+
+         /* Wait for callback response */
+         if(sem_wait(&cb_data.sem))
+         {
+            LOGE("IOCTL semaphore error");
+            goto clean_and_return;
+         }
+
+         if(cb_data.status != NFCSTATUS_SUCCESS)
+         {
+            LOGE("READ MEM ERROR");
+            goto clean_and_return;
+         }
          CONCURRENCY_UNLOCK();
          /* Return the Handle of the SecureElement */         
          return secureElementHandle;
       }
       else
       {
-         LOGD("phLibNfc_SE_GetSecureElementList(): No SMX detected");   
+         LOGE("phLibNfc_SE_GetSecureElementList(): No SMX detected");
          goto clean_and_return; 
       } 
   }
   else
   {
-      LOGD("phLibNfc_SE_GetSecureElementList(): Error");
+      LOGE("phLibNfc_SE_GetSecureElementList(): Error");
       goto clean_and_return;
   }
   
@@ -386,6 +463,12 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index=0, SmartMX_detected = 0;
    uint32_t SmartMX_Handle;
    struct nfc_jni_callback_data cb_data;
+   phNfc_sData_t    InParam;
+   phNfc_sData_t    OutParam;
+   uint8_t          Output_Buff[10];
+   uint8_t          GpioGetValue[3] = {0x00, 0xF8, 0x2B};
+   uint8_t          GpioSetValue[4];
+   uint8_t          gpioValue;
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -393,11 +476,11 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
       goto clean_and_return;
    }
 
-   LOGD("Close Secure element function ");
-   
+   TRACE("Close Secure element function ");
+
    CONCURRENCY_LOCK();
    /* Disconnect */
-   LOGI("Disconnecting from SMX (handle = 0x%x)", handle);
+   TRACE("Disconnecting from SMX (handle = 0x%x)", handle);
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Disconnect(handle, 
                                           NFC_SMARTMX_RELEASE,
@@ -409,21 +492,92 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
       LOGE("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
        goto clean_and_return;
    }
-   
+
    /* Disconnect Status */
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
      LOGE("\n> Disconnect SE ERROR \n" );
       goto clean_and_return;
    }
-   
+   CONCURRENCY_UNLOCK();
+
+   /* Get GPIO information */
+   CONCURRENCY_LOCK();
+   InParam.buffer = GpioGetValue;
+   InParam.length = 3;
+   OutParam.buffer = Output_Buff;
+   TRACE("phLibNfc_Mgt_IoCtl()- GPIO Get Value");
+   REENTRANCE_LOCK();
+   status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_READ,&InParam, &OutParam,com_android_nfc_jni_ioctl_callback, (void *)&cb_data);
+   REENTRANCE_UNLOCK();
+   if(status!=NFCSTATUS_PENDING)
+   {
+       LOGE("IOCTL status error");
+       goto clean_and_return;
+   }
+
+   /* Wait for callback response */
+   if(sem_wait(&cb_data.sem))
+   {
+      LOGE("IOCTL semaphore error");
+      goto clean_and_return;
+   }
+
+   if(cb_data.status != NFCSTATUS_SUCCESS)
+   {
+      LOGE("READ MEM ERROR");
+      goto clean_and_return;
+   }
+
+   gpioValue = com_android_nfc_jni_ioctl_buffer->buffer[0];
+   TRACE("GpioValue = Ox%02x",gpioValue);
+
+   /* Set GPIO information */
+   GpioSetValue[0] = 0x00;
+   GpioSetValue[1] = 0xF8;
+   GpioSetValue[2] = 0x2B;
+   GpioSetValue[3] = (gpioValue & 0xBF);
+
+   TRACE("GpioValue to be set = Ox%02x",GpioSetValue[3]);
+
+   for(i=0;i<4;i++)
+   {
+       TRACE("0x%02x",GpioSetValue[i]);
+   }
+
+   InParam.buffer = GpioSetValue;
+   InParam.length = 4;
+   OutParam.buffer = Output_Buff;
+   TRACE("phLibNfc_Mgt_IoCtl()- GPIO Set Value");
+   REENTRANCE_LOCK();
+   status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_MEM_WRITE,&InParam, &OutParam,com_android_nfc_jni_ioctl_callback, (void *)&cb_data);
+   REENTRANCE_UNLOCK();
+   if(status!=NFCSTATUS_PENDING)
+   {
+       LOGE("IOCTL status error");
+       goto clean_and_return;
+   }
+
+   /* Wait for callback response */
+   if(sem_wait(&cb_data.sem))
+   {
+      LOGE("IOCTL semaphore error");
+      goto clean_and_return;
+   }
+
+   if(cb_data.status != NFCSTATUS_SUCCESS)
+   {
+      LOGE("READ MEM ERROR");
+      goto clean_and_return;
+   }
+
    result = JNI_TRUE;
 
 clean_and_return:
@@ -451,11 +605,11 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
       goto clean_and_return;
    }
 
-   LOGD("Exchange APDU function ");
+   TRACE("Exchange APDU function ");
    
    CONCURRENCY_LOCK();
    
-   LOGD("Secure Element tech: %d\n", tech);
+   TRACE("Secure Element tech: %d\n", tech);
 
    buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
    buflen = (uint32_t)e->GetArrayLength(data);
@@ -483,7 +637,7 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
       goto clean_and_return;
    }
 
-   LOGD("phLibNfc_RemoteDev_Transceive(SMX)");
+   TRACE("phLibNfc_RemoteDev_Transceive(SMX)");
    REENTRANCE_LOCK();
    status = phLibNfc_RemoteDev_Transceive(handle, &transceive_info,
 		   com_android_nfc_jni_transceive_callback, (void *)&cb_data);
@@ -493,16 +647,18 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
       LOGE("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
-   LOGD("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+   TRACE("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
+       LOGE("TRANSCEIVE semaphore error");
        goto clean_and_return;
    }
 
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
+      LOGE("TRANSCEIVE error");
       goto clean_and_return;
    }
 
@@ -531,7 +687,7 @@ clean_and_return:
 
 static jbyteArray com_android_nfc_NativeNfcSecureElement_doGetUid(JNIEnv *e, jobject o, jint handle)
 {
-   LOGD("Get Secure element UID function ");
+   TRACE("Get Secure element UID function ");
    jbyteArray SecureElementUid;
       
    if(handle == secureElementHandle)
@@ -549,7 +705,7 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doGetUid(JNIEnv *e, job
 static jintArray com_android_nfc_NativeNfcSecureElement_doGetTechList(JNIEnv *e, jobject o, jint handle)
 {
    jintArray techList;
-   LOGD("Get Secure element Type function ");
+   TRACE("Get Secure element Type function ");
       
    if(handle == secureElementHandle)
    {
