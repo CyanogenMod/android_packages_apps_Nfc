@@ -928,6 +928,8 @@ static jint com_android_nfc_NativeNfcTag_doGetNdefType(JNIEnv *e, jobject o,
               }
               break;
           case phNfc_eISO15693_PICC:
+              ndefType = NDEF_ICODE_SLI_TAG;
+              break;
           default:
               ndefType = NDEF_UNKNOWN_TYPE;
               break;

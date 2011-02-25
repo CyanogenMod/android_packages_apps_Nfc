@@ -78,6 +78,7 @@ extern "C" {
 #define NDEF_TYPE3_TAG                   3
 #define NDEF_TYPE4_TAG                   4
 #define NDEF_MIFARE_CLASSIC_TAG          101
+#define NDEF_ICODE_SLI_TAG               102
 
 /* Pre-defined tag type values. These must match the values in
  * Ndef.java in the framework.
