@@ -180,9 +180,6 @@ typedef struct nfc_jni_callback_data
    /* Used to provide a local context to the callback */
    void* pContext;
 
-   /* Used to create java attributes in callback */
-   JNIEnv* e;
-
 } nfc_jni_callback_data_t;
 
 typedef struct nfc_jni_listen_data
@@ -206,6 +203,9 @@ typedef struct nfc_jni_listen_data
 
 namespace android {
 
+extern JavaVM *vm;
+
+JNIEnv *nfc_get_env();
 
 bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext);
 void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData);
