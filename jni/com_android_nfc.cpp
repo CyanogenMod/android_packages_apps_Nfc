@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <stdlib.h>
+
 #include "errno.h"
 #include "com_android_nfc.h"
 #include "com_android_nfc_list.h"
@@ -31,6 +33,8 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
    // Check JNI version
    if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6))
       return JNI_ERR;
+
+   android::vm = jvm;
 
    if (android::register_com_android_nfc_NativeNfcManager(e) == -1)
       return JNI_ERR;
@@ -54,9 +58,21 @@ namespace android {
 
 extern struct nfc_jni_native_data *exported_nat;
 
+JavaVM *vm;
+
 /*
  * JNI Utils
  */
+JNIEnv *nfc_get_env()
+{
+    JNIEnv *e;
+    if (vm->GetEnv((void **)&e, JNI_VERSION_1_6) != JNI_OK) {
+        LOGE("Current thread is not attached to VM");
+        abort();
+    }
+    return e;
+}
+
 bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext)
 {
    /* Create semaphore */

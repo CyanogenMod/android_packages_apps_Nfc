@@ -115,6 +115,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
    NFCSTATUS ret;
    int i;
+   JNIEnv *e = nfc_get_env();
    
    if(status == NFCSTATUS_DESELECTED)
    {
@@ -136,11 +137,12 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          jintArray techList;
          jintArray handleList;
          jintArray typeList;
-         nfc_jni_get_technology_tree(pContextData->e, psRemoteDevList,uNofRemoteDev, &techList,
+
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
                  &handleList, &typeList);
          // TODO: Should use the "connected" technology, for now use the first
-         if (pContextData->e->GetArrayLength(techList) > 0) {
-             jint* technologies = pContextData->e->GetIntArrayElements(techList, 0);
+         if (e->GetArrayLength(techList) > 0) {
+             jint* technologies = e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
              TRACE("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
@@ -162,12 +164,12 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          jintArray techList;
          jintArray handleList;
          jintArray typeList;
-         nfc_jni_get_technology_tree(pContextData->e, psRemoteDevList,uNofRemoteDev, &techList,
+         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
                  &handleList, &typeList);
 
          // TODO: Should use the "connected" technology, for now use the first
-         if ((techList != NULL) && pContextData->e->GetArrayLength(techList) > 0) {
-             jint* technologies = pContextData->e->GetIntArrayElements(techList, 0);
+         if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
+             jint* technologies = e->GetIntArrayElements(techList, 0);
              SecureElementTech = technologies[0];
              TRACE("Store Secure Element Info\n");
              SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
@@ -211,8 +213,6 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    {
       goto clean_and_return;
    }
-
-   cb_data.e = e;
 
    /* Registery */   
    registry_info.MifareUL = TRUE;
