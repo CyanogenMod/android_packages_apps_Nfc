@@ -557,6 +557,11 @@ clean_and_return:
    return result;
 }
 
+static int is_user_build() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.build.type", value, "");
+    return !strncmp("user", value, PROPERTY_VALUE_MAX);
+}
 
 /*
  * Last-chance fallback when there is no clean way to recover
@@ -566,8 +571,17 @@ void emergency_recovery(struct nfc_jni_native_data *nat)
 {
    phLibNfc_sADD_Cfg_t discovery_cfg;
    phLibNfc_Registry_Info_t registration_cfg;
-   
-   LOGE("emergency_recovery: force restart of NFC service");
+
+   if (!is_user_build()) {
+       LOGE("emergency_recovery: force restart of NFC service");
+   } else {
+       // dont recover immediately, so we can debug
+       unsigned int t;
+       for (t=1; t < 1000000; t <<= 1) {
+           LOGE("emergency_recovery: NFC stack dead-locked, please show to npelly");
+           sleep(t);
+       }
+   }
    abort();  // force a noisy crash
 }
 
