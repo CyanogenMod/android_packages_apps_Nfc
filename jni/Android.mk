@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_PRELINK_MODULE := false
+
 
 LOCAL_SRC_FILES:= \
     com_android_nfc_NativeLlcpConnectionlessSocket.cpp \
