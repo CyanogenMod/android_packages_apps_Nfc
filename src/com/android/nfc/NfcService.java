@@ -39,6 +39,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.nfc.ApduList;
 import android.nfc.ErrorCodes;
@@ -288,6 +289,26 @@ public class NfcService extends Application {
 
     public static NfcService getInstance() {
         return sService;
+    }
+
+    private static boolean isComponentEnabled(PackageManager pm, ResolveInfo info) {
+        boolean enabled = false;
+        ComponentName compname = new ComponentName(
+                info.activityInfo.packageName, info.activityInfo.name);
+        try {
+            // Note that getActivityInfo() will internally call
+            // isEnabledLP() to determine whether the component
+            // enabled. If it's not, null is returned.
+            if (pm.getActivityInfo(compname,0) != null) {
+                enabled = true;
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            enabled = false;
+        }
+        if (!enabled) {
+            Log.d(TAG, "Component not enabled: " + compname);
+        }
+        return enabled;
     }
 
     @Override
@@ -2770,11 +2791,13 @@ public class NfcService extends Application {
                 // Standard tech dispatch path
                 ArrayList<ResolveInfo> matches = new ArrayList<ResolveInfo>();
                 ArrayList<ComponentInfo> registered = mTechListFilters.getComponents();
+                PackageManager pm = getPackageManager();
 
                 // Check each registered activity to see if it matches
                 for (ComponentInfo info : registered) {
                     // Don't allow wild card matching
-                    if (filterMatch(tagTechs, info.techs)) {
+                    if (filterMatch(tagTechs, info.techs) &&
+                            isComponentEnabled(pm, info.resolveInfo)) {
                         // Add the activity as a match if it's not already in the list
                         if (!matches.contains(info.resolveInfo)) {
                             matches.add(info.resolveInfo);
