@@ -23,15 +23,13 @@ import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 import com.android.nfc2.R;
 
-import android.annotation.SdkConstant;
-import android.annotation.SdkConstant.SdkConstantType;
 import android.app.Activity;
 import android.app.ActivityManagerNative;
 import android.app.Application;
 import android.app.IActivityManager;
 import android.app.PendingIntent;
-import android.app.PendingIntent.CanceledException;
 import android.app.StatusBarManager;
+import android.app.PendingIntent.CanceledException;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -39,6 +37,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.nfc.ErrorCodes;
@@ -63,7 +62,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
-import android.os.Parcel;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -79,8 +77,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class NfcService extends Application {
     static final boolean DBG = false;
@@ -143,6 +139,10 @@ public class NfcService extends Application {
     private static final String NFC_PERM_ERROR = "NFC permission required";
     private static final String ADMIN_PERM = android.Manifest.permission.WRITE_SECURE_SETTINGS;
     private static final String ADMIN_PERM_ERROR = "WRITE_SECURE_SETTINGS permission required";
+    // STOPSHIP: This needs to be updated to the line below
+//    private static final String NFCEE_ADMIN_PERM = "com.android.nfc.permission.NFCEE_ADMIN";
+    private static final String NFCEE_ADMIN_PERM = NFC_PERM;
+    private static final String NFCEE_ADMIN_PERM_ERROR = "NFCEE_ADMIN permission required";
 
     private static final String PREF = "NfcServicePrefs";
 
@@ -263,6 +263,19 @@ public class NfcService extends Application {
 
     private static NfcService sService;
 
+    public static void enforceAdminPerm(Context context) {
+        int admin = context.checkCallingOrSelfPermission(ADMIN_PERM);
+        int nfcee = context.checkCallingOrSelfPermission(NFCEE_ADMIN_PERM);
+        if (admin != PackageManager.PERMISSION_GRANTED
+                && nfcee != PackageManager.PERMISSION_GRANTED) {
+            throw new SecurityException(ADMIN_PERM_ERROR);
+        }
+    }
+
+    public static void enforceNfceeAdminPerm(Context context) {
+        context.enforceCallingOrSelfPermission(NFCEE_ADMIN_PERM, NFCEE_ADMIN_PERM_ERROR);
+    }
+
     public static NfcService getInstance() {
         return sService;
     }
@@ -330,7 +343,7 @@ public class NfcService extends Application {
 
         @Override
         public boolean enable() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceAdminPerm(mContext);
 
             boolean isSuccess = false;
             boolean previouslyEnabled = isEnabled();
@@ -344,7 +357,7 @@ public class NfcService extends Application {
         @Override
         public boolean disable() throws RemoteException {
             boolean isSuccess = false;
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceAdminPerm(mContext);
             boolean previouslyEnabled = isEnabled();
             if (DBG) Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
@@ -604,7 +617,7 @@ public class NfcService extends Application {
         }
 
         public INfcAdapterExtras getNfcAdapterExtrasInterface() {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
             return mExtrasService;
         }
 
@@ -646,7 +659,7 @@ public class NfcService extends Application {
 
         @Override
         public int setProperties(String param, String value) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceAdminPerm(mContext);
 
             if (isEnabled()) {
                 return ErrorCodes.ERROR_NFC_ON;
@@ -783,7 +796,7 @@ public class NfcService extends Application {
 
         @Override
         public void localSet(NdefMessage message) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceAdminPerm(mContext);
 
             synchronized (this) {
                 mLocalMessage = message;
@@ -1757,7 +1770,7 @@ public class NfcService extends Application {
         }
 
         public Bundle open(IBinder b) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
 
             Bundle result;
             try {
@@ -1792,7 +1805,7 @@ public class NfcService extends Application {
         }
 
         public Bundle close() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
 
             Bundle result;
             try {
@@ -1828,7 +1841,7 @@ public class NfcService extends Application {
         }
 
         public Bundle transceive(byte[] in) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
 
             Bundle result;
             byte[] out;
@@ -1859,12 +1872,12 @@ public class NfcService extends Application {
         }
 
         public int getCardEmulationRoute() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
             return mEeRoutingState;
         }
 
         public void setCardEmulationRoute(int route) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
+            NfcService.enforceNfceeAdminPerm(mContext);
             mEeRoutingState = route;
             applyRouting();
         }
@@ -2272,7 +2285,7 @@ public class NfcService extends Application {
                aidIntent.setAction(ACTION_AID_SELECTED);
                aidIntent.putExtra(EXTRA_AID, aid);
                if (DBG) Log.d(TAG, "Broadcasting ACTION_AID_SELECTED");
-               mContext.sendBroadcast(aidIntent, ADMIN_PERM);
+               mContext.sendBroadcast(aidIntent, NFCEE_ADMIN_PERM);
                break;
 
            case MSG_LLCP_LINK_ACTIVATION:
@@ -2378,7 +2391,7 @@ public class NfcService extends Application {
                Intent eventFieldOnIntent = new Intent();
                eventFieldOnIntent.setAction(ACTION_RF_FIELD_ON_DETECTED);
                if (DBG) Log.d(TAG, "Broadcasting Intent");
-               mContext.sendBroadcast(eventFieldOnIntent, ADMIN_PERM);
+               mContext.sendBroadcast(eventFieldOnIntent, NFCEE_ADMIN_PERM);
                break;
            }
 
@@ -2387,7 +2400,7 @@ public class NfcService extends Application {
                Intent eventFieldOffIntent = new Intent();
                eventFieldOffIntent.setAction(ACTION_RF_FIELD_OFF_DETECTED);
                if (DBG) Log.d(TAG, "Broadcasting Intent");
-               mContext.sendBroadcast(eventFieldOffIntent, ADMIN_PERM);
+               mContext.sendBroadcast(eventFieldOffIntent, NFCEE_ADMIN_PERM);
                break;
            }
 

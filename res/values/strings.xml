@@ -2,4 +2,9 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">Nfc Service</string>
     <string name="nfcUserLabel">Nfc</string>
+    
+    <!-- The label for the NFC admin permission -->
+    <string name="permlab_nfcAdmin">NFCEE administration</string>
+    <!-- The description for the NFC admin permission -->
+    <string name="permdesc_nfcAdmin">Allows control of NFC execution environment hardware</string>
 </resources>
