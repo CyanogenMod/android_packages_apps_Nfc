@@ -101,6 +101,9 @@ extern "C" {
 #define TARGET_TYPE_MIFARE_CLASSIC        8
 #define TARGET_TYPE_MIFARE_UL             9
 
+/* Maximum byte length of an AID. */
+#define AID_MAXLEN                        16
+
 /* Utility macros for logging */
 #define GET_LEVEL(status) ((status)==NFCSTATUS_SUCCESS)?ANDROID_LOG_DEBUG:ANDROID_LOG_WARN
 
