@@ -1,0 +1,7 @@
+# Migrate the mytag file from the old pacakge name
+com.android.nfc2:com.android.nfc
+    files
+
+# Migrate the prefs from the old package name
+com.android.nfc2:com.android.nfc
+    shared_prefs
