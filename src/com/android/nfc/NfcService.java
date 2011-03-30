@@ -1781,6 +1781,8 @@ public class NfcService extends Application {
                 if (handle == 0) {
                     throw new IOException("NFC EE failed to open");
                 }
+                mManager.doSetIsoDepTimeout(10000);
+
                 mOpenEe = new OpenSecureElement(getCallingPid(), handle);
                 try {
                     b.linkToDeath(mOpenEe, 0);
@@ -1819,6 +1821,7 @@ public class NfcService extends Application {
                     throw new SecurityException("Wrong PID");
                 }
 
+                mManager.doResetIsoDepTimeout();
                 mSecureElement.doDisconnect(mOpenEe.handle);
                 mOpenEe = null;
 
