@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.STOP_APP_SWITCHES" />
+    <uses-permission android:name="android.permission.MASTER_CLEAR" />
 
     <permission android:name="com.android.nfc.permission.NFCEE_ADMIN"
         android:label="@string/permlab_nfcAdmin"
