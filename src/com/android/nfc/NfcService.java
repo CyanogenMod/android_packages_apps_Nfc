@@ -28,8 +28,8 @@ import android.app.ActivityManagerNative;
 import android.app.Application;
 import android.app.IActivityManager;
 import android.app.PendingIntent;
-import android.app.StatusBarManager;
 import android.app.PendingIntent.CanceledException;
+import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -40,6 +40,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.nfc.ApduList;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
 import android.nfc.ILlcpConnectionlessSocket;
@@ -68,6 +69,8 @@ import android.os.ServiceManager;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -77,11 +80,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 
 public class NfcService extends Application {
+    private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
+
     static final boolean DBG = false;
 
     private static final String MY_TAG_FILE_NAME = "mytag";
+    private static final String TEAR_DOWN_SCRIPTS_FILE_NAME = "teardowns";
 
     static {
         System.loadLibrary("nfc_jni");
@@ -263,6 +270,8 @@ public class NfcService extends Application {
 
     private static NfcService sService;
 
+    private HashMap<String, ApduList> mTearDownApdus = new HashMap<String, ApduList>();
+
     public static void enforceAdminPerm(Context context) {
         int admin = context.checkCallingOrSelfPermission(ADMIN_PERM);
         int nfcee = context.checkCallingOrSelfPermission(NFCEE_ADMIN_PERM);
@@ -311,11 +320,20 @@ public class NfcService extends Application {
 
         mIActivityManager = ActivityManagerNative.getDefault();
 
+        readTearDownApdus();
+
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         IntentFilter filter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
+        mContext.registerReceiver(mReceiver, filter);
+
+        filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addDataScheme("package");
+
         mContext.registerReceiver(mReceiver, filter);
 
         Thread t = new Thread() {
@@ -616,6 +634,7 @@ public class NfcService extends Application {
             return mP2pTargetService;
         }
 
+        @Override
         public INfcAdapterExtras getNfcAdapterExtrasInterface() {
             NfcService.enforceNfceeAdminPerm(mContext);
             return mExtrasService;
@@ -1769,6 +1788,7 @@ public class NfcService extends Application {
             return p;
         }
 
+        @Override
         public Bundle open(IBinder b) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
 
@@ -1806,6 +1826,7 @@ public class NfcService extends Application {
            }
         }
 
+        @Override
         public Bundle close() throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
 
@@ -1843,6 +1864,7 @@ public class NfcService extends Application {
             }
         }
 
+        @Override
         public Bundle transceive(byte[] in) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
 
@@ -1874,15 +1896,35 @@ public class NfcService extends Application {
             return mSecureElement.doTransceive(mOpenEe.handle, data);
         }
 
+        @Override
         public int getCardEmulationRoute() throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
             return mEeRoutingState;
         }
 
+        @Override
         public void setCardEmulationRoute(int route) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
             mEeRoutingState = route;
             applyRouting();
+        }
+
+        @Override
+        public void registerTearDownApdus(String packageName, ApduList apdu) throws RemoteException {
+            NfcService.enforceNfceeAdminPerm(mContext);
+            synchronized(NfcService.this) {
+                mTearDownApdus.put(packageName, apdu);
+                writeTearDownApdusLocked();
+            }
+        }
+
+        @Override
+        public void unregisterTearDownApdus(String packageName) throws RemoteException {
+            NfcService.enforceNfceeAdminPerm(mContext);
+            synchronized(NfcService.this) {
+                mTearDownApdus.remove(packageName);
+                writeTearDownApdusLocked();
+            }
         }
     };
 
@@ -1894,6 +1936,7 @@ public class NfcService extends Application {
             this.pid = pid;
             this.handle = handle;
         }
+        @Override
         public void binderDied() {
             synchronized (NfcService.this) {
                 if (DBG) Log.d(TAG, "Tracked app " + pid + " died");
@@ -1979,6 +2022,83 @@ public class NfcService extends Application {
                     }
                 }
                 iterator.remove();
+            }
+        }
+    }
+
+    private void readTearDownApdus() {
+        FileInputStream input = null;
+
+        try {
+            input = openFileInput(TEAR_DOWN_SCRIPTS_FILE_NAME);
+            DataInputStream stream = new DataInputStream(input);
+
+            int packagesSize = stream.readInt();
+
+            for (int i = 0 ; i < packagesSize ; i++) {
+                String packageName = stream.readUTF();
+                ApduList apdu = new ApduList();
+
+                int commandsSize = stream.readInt();
+
+                for (int j = 0 ; j < commandsSize ; j++) {
+                    int length = stream.readInt();
+
+                    byte[] cmd = new byte[length];
+
+                    stream.read(cmd);
+                    apdu.add(cmd);
+                }
+
+                mTearDownApdus.put(packageName, apdu);
+            }
+        } catch (FileNotFoundException e) {
+            // Ignore.
+        } catch (IOException e) {
+            Log.e(TAG, "Could not read tear down scripts file: ", e);
+            deleteFile(TEAR_DOWN_SCRIPTS_FILE_NAME);
+        } finally {
+            try {
+                if (input != null) {
+                    input.close();
+                }
+            } catch (IOException e) {
+                // Ignore
+            }
+        }
+    }
+
+    private void writeTearDownApdusLocked() {
+        FileOutputStream output = null;
+        DataOutputStream stream = null;
+
+        try {
+            output = openFileOutput(TEAR_DOWN_SCRIPTS_FILE_NAME, Context.MODE_PRIVATE);
+            stream = new DataOutputStream(output);
+
+            stream.writeInt(mTearDownApdus.size());
+
+            for (String packageName : mTearDownApdus.keySet()) {
+                stream.writeUTF(packageName);
+
+                List<byte[]> commands = mTearDownApdus.get(packageName).get();
+                stream.writeInt(commands.size());
+
+                for (byte[] cmd : commands) {
+                    stream.writeInt(cmd.length);
+                    stream.write(cmd, 0, cmd.length);
+                }
+            }
+
+        } catch (IOException e) {
+        } finally {
+            try {
+                if (output != null) {
+                    stream.flush();
+                    stream.close();
+                }
+            } catch (IOException e) {
+                // Ignore
             }
         }
     }
@@ -2777,6 +2897,41 @@ public class NfcService extends Application {
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
                 new EnableDisableDiscoveryTask().execute(new Boolean(false));
+            } else if (intent.getAction().equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
+                int handle = mSecureElement.doOpenSecureElementConnection();
+                if (handle == 0) {
+                    Log.e(TAG, "Could not open the secure element!");
+                    return;
+                }
+
+                synchronized (NfcService.this) {
+                    for (String packageName : mTearDownApdus.keySet()) {
+                        for (byte[] cmd : mTearDownApdus.get(packageName).get()) {
+                            mSecureElement.doTransceive(handle, cmd);
+                        }
+                    }
+                }
+
+                mSecureElement.doDisconnect(handle);
+            } else if (intent.getAction().equals(Intent.ACTION_PACKAGE_REMOVED)) {
+                final String packageName = intent.getData().getSchemeSpecificPart();
+
+                int handle = mSecureElement.doOpenSecureElementConnection();
+                if (handle == 0) {
+                    Log.e(TAG, "Could not open the secure element!");
+                    return;
+                }
+
+                synchronized (NfcService.this) {
+                    for (byte[] cmd : mTearDownApdus.get(packageName).get()) {
+                        mSecureElement.doTransceive(handle, cmd);
+                    }
+
+                    mTearDownApdus.remove(packageName);
+                    writeTearDownApdusLocked();
+                }
+
+                mSecureElement.doDisconnect(handle);
             }
         }
     };
