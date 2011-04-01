@@ -21,7 +21,7 @@ import com.android.internal.nfc.LlcpSocket;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
-import com.android.nfc2.R;
+import com.android.nfc3.R;
 
 import android.app.Activity;
 import android.app.ActivityManagerNative;
