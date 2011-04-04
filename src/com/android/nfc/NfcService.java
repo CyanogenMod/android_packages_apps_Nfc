@@ -2914,7 +2914,19 @@ public class NfcService extends Application {
 
                 mSecureElement.doDisconnect(handle);
             } else if (intent.getAction().equals(Intent.ACTION_PACKAGE_REMOVED)) {
-                final String packageName = intent.getData().getSchemeSpecificPart();
+                Uri data = intent.getData();
+                if (data == null) return;
+                String packageName = data.getSchemeSpecificPart();
+                ApduList apdus = null;
+
+                synchronized (NfcService.this) {
+                    apdus = mTearDownApdus.remove(packageName);
+                    if (apdus == null) {
+                        return;
+                    }
+
+                    writeTearDownApdusLocked();
+                }
 
                 int handle = mSecureElement.doOpenSecureElementConnection();
                 if (handle == 0) {
@@ -2922,16 +2934,13 @@ public class NfcService extends Application {
                     return;
                 }
 
-                synchronized (NfcService.this) {
-                    for (byte[] cmd : mTearDownApdus.get(packageName).get()) {
+                try {
+                    for (byte[] cmd : apdus.get()) {
                         mSecureElement.doTransceive(handle, cmd);
                     }
-
-                    mTearDownApdus.remove(packageName);
-                    writeTearDownApdusLocked();
+                } finally {
+                    mSecureElement.doDisconnect(handle);
                 }
-
-                mSecureElement.doDisconnect(handle);
             }
         }
     };
