@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include <sys/queue.h>
 
@@ -1152,20 +1153,21 @@ static void nfc_jni_transaction_callback(void *context,
             case phLibNfc_eSE_EvtStartTransaction:
             {
                 TRACE("> SE EVT_START_TRANSACTION");
-                if(evt_info->UiccEvtInfo.aid.length <= 16)
+                if(evt_info->UiccEvtInfo.aid.length <= AID_MAXLEN)
                 {
                     aid = &(evt_info->UiccEvtInfo.aid);
 
                     LOGD("> AID DETECTED");
 
-                    LOGD("> AID:");
-                    for(i=0; i<(aid->length);i++)
-                    {
-                        LOGD("Ox%02x",aid->buffer[i]);
-                    }
-
                     if(aid != NULL)
                     {
+                        char aid_str[AID_MAXLEN * 2 + 1];
+                        aid_str[0] = '\0';
+                        for (i = 0; i < (aid->length) && i < AID_MAXLEN; i++) {
+                          snprintf(&aid_str[i*2], 3, "%02x", aid->buffer[i]);
+                        }
+                        LOGD("> AID: %s", aid_str);
+
                         aid_array = e->NewByteArray(aid->length);
                         if(aid_array == NULL)
                         {
