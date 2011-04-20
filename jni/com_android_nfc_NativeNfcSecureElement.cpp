@@ -122,63 +122,41 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
    else
    {   
       LOG_CALLBACK("com_android_nfc_jni_open_secure_element_notification_callback", status);
-      TRACE("Discovered %d tags", uNofRemoteDev);
+      TRACE("Discovered %d secure elements", uNofRemoteDev);
       
       if(status == NFCSTATUS_MULTIPLE_PROTOCOLS)
       {	
          TRACE("Multiple Protocol supported\n");
-                                 
-         TRACE("Secure Element Handle: 0x%08x",psRemoteDevList[1].hTargetDev);
-         secureElementHandle = psRemoteDevList[1].hTargetDev;
-         
-         /* Set type name */
-         jintArray techList;
-         jintArray handleList;
-         jintArray typeList;
-
-         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
-                 &handleList, &typeList);
-         // TODO: Should use the "connected" technology, for now use the first
-         if (e->GetArrayLength(techList) > 0) {
-             jint* technologies = e->GetIntArrayElements(techList, 0);
-             SecureElementTech = technologies[0];
-             TRACE("Store Secure Element Info\n");
-             SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
-
-             TRACE("Discovered secure element: tech=%d", SecureElementTech);
-         }
-         else {
-             LOGE("Discovered secure element, but could not resolve tech");
-             status = NFCSTATUS_FAILED;
-         }
-    
+         secureElementHandle = psRemoteDevList[1].hTargetDev;         
       }
       else
       {
-         TRACE("Secure Element Handle: 0x%08x",psRemoteDevList->hTargetDev);
-         secureElementHandle = psRemoteDevList->hTargetDev;
-         
-         /* Set type name */      
-         jintArray techList;
-         jintArray handleList;
-         jintArray typeList;
-         nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
-                 &handleList, &typeList);
-
-         // TODO: Should use the "connected" technology, for now use the first
-         if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
-             jint* technologies = e->GetIntArrayElements(techList, 0);
-             SecureElementTech = technologies[0];
-             TRACE("Store Secure Element Info\n");
-             SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
-
-             TRACE("Discovered secure element: tech=%d", SecureElementTech);
-         }
-         else {
-             LOGE("Discovered secure element, but could not resolve tech");
-             status = NFCSTATUS_FAILED;
-         }
+         secureElementHandle = psRemoteDevList->hTargetDev;         
       }     
+
+      TRACE("Secure Element Handle: 0x%08x", secureElementHandle);
+
+      /* Set type name */      
+      jintArray techList;
+      jintArray handleList;
+      jintArray typeList;
+      nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList,
+            &handleList, &typeList);
+
+      // TODO: Should use the "connected" technology, for now use the first
+      if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
+         jint* technologies = e->GetIntArrayElements(techList, 0);
+         SecureElementTech = technologies[0];
+         e->ReleaseIntArrayElements(techList, technologies, JNI_ABORT);
+         TRACE("Store Secure Element Info\n");
+         SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
+
+         TRACE("Discovered secure element: tech=%d", SecureElementTech);
+      }
+      else {
+         LOGE("Discovered secure element, but could not resolve tech");
+         status = NFCSTATUS_FAILED;
+      }
    }
          
    pContextData->status = status;
