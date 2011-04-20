@@ -2914,32 +2914,36 @@ public class NfcService extends Application {
 
                 mSecureElement.doDisconnect(handle);
             } else if (intent.getAction().equals(Intent.ACTION_PACKAGE_REMOVED)) {
-                Uri data = intent.getData();
-                if (data == null) return;
-                String packageName = data.getSchemeSpecificPart();
-                ApduList apdus = null;
+                boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
+                if (dataRemoved) {
+                    Uri data = intent.getData();
+                    if (data == null) return;
+                    String packageName = data.getSchemeSpecificPart();
+                    ApduList apdus = null;
 
-                synchronized (NfcService.this) {
-                    apdus = mTearDownApdus.remove(packageName);
-                    if (apdus == null) {
+                    synchronized (NfcService.this) {
+                        apdus = mTearDownApdus.remove(packageName);
+                        if (apdus == null) {
+                            return;
+                        }
+
+
+                        writeTearDownApdusLocked();
+                    }
+
+                    int handle = mSecureElement.doOpenSecureElementConnection();
+                    if (handle == 0) {
+                        Log.e(TAG, "Could not open the secure element!");
                         return;
                     }
 
-                    writeTearDownApdusLocked();
-                }
-
-                int handle = mSecureElement.doOpenSecureElementConnection();
-                if (handle == 0) {
-                    Log.e(TAG, "Could not open the secure element!");
-                    return;
-                }
-
-                try {
-                    for (byte[] cmd : apdus.get()) {
-                        mSecureElement.doTransceive(handle, cmd);
+                    try {
+                        for (byte[] cmd : apdus.get()) {
+                            mSecureElement.doTransceive(handle, cmd);
+                        }
+                    } finally {
+                        mSecureElement.doDisconnect(handle);
                     }
-                } finally {
-                    mSecureElement.doDisconnect(handle);
                 }
             }
         }
