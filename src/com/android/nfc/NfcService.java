@@ -46,6 +46,7 @@ import android.nfc.FormatException;
 import android.nfc.ILlcpConnectionlessSocket;
 import android.nfc.ILlcpServiceSocket;
 import android.nfc.ILlcpSocket;
+import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcTag;
@@ -473,9 +474,23 @@ public class NfcService extends Application {
         }
 
         @Override
+        public void enableForegroundNdefPushWithCallback(ComponentName activity,
+                INdefPushCallback callback) {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            if (activity == null || callback == null) {
+                throw new IllegalArgumentException();
+            }
+            if (mNdefPushClient.setForegroundCallback(callback)) {
+                Log.e(TAG, "Replacing active NDEF push message");
+            }
+        }
+
+        @Override
         public void disableForegroundNdefPush(ComponentName activity) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            if (!mNdefPushClient.setForegroundMessage(null)) {
+            boolean hadMsg = mNdefPushClient.setForegroundMessage(null);
+            boolean hadCallback = mNdefPushClient.setForegroundCallback(null);
+            if (!hadMsg || !hadCallback) {
                 Log.e(TAG, "No active foreground NDEF push message");
             }
         }

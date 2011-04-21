@@ -24,9 +24,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.nfc.INdefPushCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.os.AsyncTask;
+import android.os.RemoteException;
 import android.util.Log;
 
 import java.io.IOException;
@@ -43,6 +45,7 @@ public class NdefPushClient extends BroadcastReceiver {
 
     /** Locked on MyTagClient.class */
     NdefMessage mForegroundMsg;
+    INdefPushCallback mCallback;
 
     public NdefPushClient(Context context) {
         context.registerReceiver(this, new IntentFilter(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED));
@@ -52,6 +55,14 @@ public class NdefPushClient extends BroadcastReceiver {
         synchronized (this) {
             boolean set = mForegroundMsg != null;
             mForegroundMsg = msg;
+            return set;
+        }
+    }
+
+    public boolean setForegroundCallback(INdefPushCallback callback) {
+        synchronized (this) {
+            boolean set = mCallback != null;
+            mCallback = callback;
             return set;
         }
     }
@@ -76,6 +87,19 @@ public class NdefPushClient extends BroadcastReceiver {
         NdefMessage foregroundMsg;
         synchronized (this) {
             foregroundMsg = mForegroundMsg;
+        }
+
+        INdefPushCallback callback;
+        synchronized (this) {
+            callback = mCallback;
+        }
+
+        if (callback != null) {
+            try {
+                foregroundMsg = callback.onConnect();
+            } catch (RemoteException e) {
+                // Ignore
+            }
         }
 
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(context);
@@ -140,6 +164,20 @@ public class NdefPushClient extends BroadcastReceiver {
                     }
                 }
             }
+
+            INdefPushCallback callback;
+            synchronized (this) {
+                callback = mCallback;
+            }
+
+            if (callback != null) {
+                try {
+                    callback.onMessagePushed();
+                } catch (RemoteException e) {
+                    // Ignore
+                }
+            }
+
             return null;
         }
     }
