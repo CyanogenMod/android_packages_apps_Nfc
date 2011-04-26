@@ -1076,14 +1076,27 @@ static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
                     uint8_t cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
                     // Identifies as DESfire, use get version cmd to be sure
                     jbyteArray versionCmd = e->NewByteArray(5);
-
                     e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
-                    jbyteArray resp = com_android_nfc_NativeNfcTag_doTransceive(e, o,
+                    jbyteArray respBytes = com_android_nfc_NativeNfcTag_doTransceive(e, o,
                                 versionCmd, JNI_TRUE, NULL);
-                    if (resp != NULL) {
-                        // Having a response is a good enough indication this
-                        // is actually a DESfire.
-                        result = JNI_TRUE;
+                    if (respBytes != NULL) {
+                        // Check whether the response matches a typical DESfire
+                        // response.
+                        // libNFC even does more advanced checking than we do
+                        // here, and will only format DESfire's with a certain
+                        // major/minor sw version and NXP as a manufacturer.
+                        // We don't want to do such checking here, to avoid
+                        // having to change code in multiple places.
+                        // A succesful (wrapped) DESFire getVersion command returns
+                        // 9 bytes, with byte 7 0x91 and byte 8 having status
+                        // code 0xAF (these values are fixed and well-known).
+                        int respLength = e->GetArrayLength(respBytes);
+                        jbyte* resp = e->GetByteArrayElements(respBytes, NULL);
+                        if (respLength == 9 && resp[7] == (jbyte)0x91 &&
+                                resp[8] == (jbyte)0xAF) {
+                            result = JNI_TRUE;
+                        }
+                        e->ReleaseByteArrayElements(respBytes, (jbyte *)resp, JNI_ABORT);
                     }
                 }
                 e->ReleaseByteArrayElements(pollBytes, (jbyte *)poll, JNI_ABORT);
