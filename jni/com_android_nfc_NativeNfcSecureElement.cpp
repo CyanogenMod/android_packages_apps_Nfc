@@ -235,7 +235,8 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
 
    if(mask_value == 0x40)
    {
-      TRACE("External RF Field detected");
+      // There is an external RF field present, fail the open request
+      LOGD("Unable to open SE connection, external RF Field detected");
       goto clean_and_return;   
    }   
 
