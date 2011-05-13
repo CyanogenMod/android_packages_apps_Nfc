@@ -400,13 +400,14 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    }
    else
    {
-       LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, FW Update Info = %d",
+       LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
              caps.psDevCapabilities.hal_version,
              caps.psDevCapabilities.fw_version,
              caps.psDevCapabilities.hw_version,
              caps.psDevCapabilities.model_id,
              caps.psDevCapabilities.hci_version,
              caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1],
+             caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-2],
              caps.psDevCapabilities.firmware_update_info);
    }
 
