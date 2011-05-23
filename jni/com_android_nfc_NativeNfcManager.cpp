@@ -1271,6 +1271,30 @@ static void nfc_jni_start_card_emu_discovery_locked(struct nfc_jni_native_data *
        return;
 }
 
+static short get_p2p_mode() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.nfc.NXP_NFCI_MODE", value, "");
+    if (value[0]) {
+        short mode;
+        mode = atoi(value);
+        LOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
+        return mode;
+    }
+    return phNfc_eP2P_ALL;  // default
+}
+
+static bool get_p2p_target_disable() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.nfc.TARGET_DISABLE", value, "");
+    if (value[0]) {
+        int mode;
+        mode = atoi(value);
+        LOGD("debug.nfc.TARGET_DISABLE = %d", mode);
+        return mode;
+    }
+    return FALSE;  // default
+}
+
 
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 {
@@ -1299,9 +1323,9 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 #endif
    
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
-   nat->discovery_cfg.NfcIP_Mode = phNfc_ePassive424;
+   nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
    nat->discovery_cfg.Duration = 300000; /* in ms */
-   nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
+   nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
 
 
    nat->registry_info.MifareUL = TRUE;
