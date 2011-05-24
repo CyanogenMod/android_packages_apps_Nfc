@@ -142,9 +142,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
 
       // TODO: Should use the "connected" technology, for now use the first
       if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
-         jint* technologies = e->GetIntArrayElements(techList, 0);
-         SecureElementTech = technologies[0];
-         e->ReleaseIntArrayElements(techList, technologies, JNI_ABORT);
+         e->GetIntArrayRegion(techList, 0, 1, &SecureElementTech);
          TRACE("Store Secure Element Info\n");
          SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
 
@@ -157,7 +155,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
 
       // This thread may not return to the virtual machine for a long time
       // so make sure to delete the local refernce to the tech list.
-      if (techList != NULL) e->DeleteLocalRef(techList);
+      e->DeleteLocalRef(techList);
    }
          
    pContextData->status = status;

@@ -546,30 +546,17 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
    // Build the Java arrays
    if (techList != NULL) {
        *techList = e->NewIntArray(index);
-       jint* techItems = e->GetIntArrayElements(*techList, NULL);
-       for (int i = 0; i < index; i++) {
-           techItems[i] = technologies[i];
-       }
-       e->ReleaseIntArrayElements(*techList, techItems, 0);
+       e->SetIntArrayRegion(*techList, 0, index, technologies);
    }
 
    if (handleList != NULL) {
        *handleList = e->NewIntArray(index);
-       jint* handleItems = e->GetIntArrayElements(*handleList, NULL);
-       for (int i = 0; i < index; i++) {
-           handleItems[i] = handles[i];
-       }
-       e->ReleaseIntArrayElements(*handleList, handleItems, 0);
+       e->SetIntArrayRegion(*handleList, 0, index, handles);
    }
 
    if (libnfcTypeList != NULL) {
        *libnfcTypeList = e->NewIntArray(index);
-
-       jint* typeItems = e->GetIntArrayElements(*libnfcTypeList, NULL);
-       for (int i = 0; i < index; i++) {
-           typeItems[i] = libnfctypes[i];
-       }
-       e->ReleaseIntArrayElements(*libnfcTypeList, typeItems, 0);
+       e->SetIntArrayRegion(*libnfcTypeList, 0, index, libnfctypes);
    }
 }
 
