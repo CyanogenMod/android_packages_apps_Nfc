@@ -12,8 +12,6 @@ LOCAL_JNI_SHARED_LIBRARIES := libnfc_jni
 
 LOCAL_PROGUARD_ENABLED := disabled
 
-# dont build in master
-# temporary
-#include $(BUILD_PACKAGE)
+include $(BUILD_PACKAGE)
 
-#include $(call all-makefiles-under,$(LOCAL_PATH))
+include $(call all-makefiles-under,$(LOCAL_PATH))
