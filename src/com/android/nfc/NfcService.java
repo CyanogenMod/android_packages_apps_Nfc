@@ -2591,10 +2591,12 @@ public class NfcService extends Application {
                         intent.setType(new String(type, Charsets.US_ASCII));
                         return true;
                     }
+
                     case NdefRecord.TNF_ABSOLUTE_URI: {
                         intent.setData(Uri.parse(new String(record.getPayload(), Charsets.UTF_8)));
                         return true;
                     }
+
                     case NdefRecord.TNF_WELL_KNOWN: {
                         byte[] payload = record.getPayload();
                         if (payload == null || payload.length == 0) return false;
@@ -2626,6 +2628,12 @@ public class NfcService extends Application {
                             return true;
                         }
                         return false;
+                    }
+
+                    case NdefRecord.TNF_EXTERNAL_TYPE: {
+                        intent.setData(Uri.parse("vnd.android.nfc://ext/" +
+                                new String(record.getType(), Charsets.US_ASCII)));
+                        return true;
                     }
                 }
                 return false;
