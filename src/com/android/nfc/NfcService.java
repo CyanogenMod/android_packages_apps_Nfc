@@ -2593,7 +2593,7 @@ public class NfcService extends Application {
                     }
 
                     case NdefRecord.TNF_ABSOLUTE_URI: {
-                        intent.setData(Uri.parse(new String(record.getPayload(), Charsets.UTF_8)));
+                        intent.setData(Uri.parse(new String(type, Charsets.UTF_8)));
                         return true;
                     }
 
@@ -2615,7 +2615,7 @@ public class NfcService extends Application {
                                         intent.setData(parseWellKnownUriRecord(subRecord));
                                         return true;
                                     } else if (subTnf == NdefRecord.TNF_ABSOLUTE_URI) {
-                                        intent.setData(Uri.parse(new String(subRecord.getPayload(),
+                                        intent.setData(Uri.parse(new String(subRecord.getType(),
                                                 Charsets.UTF_8)));
                                         return true;
                                     }
