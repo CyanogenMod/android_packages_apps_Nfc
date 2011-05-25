@@ -88,7 +88,7 @@ public class NfcService extends Application {
     static final boolean DBG = false;
 
     private static final String MY_TAG_FILE_NAME = "mytag";
-    private static final String TEAR_DOWN_SCRIPTS_FILE_NAME = "teardowns";
+    private static final String SE_RESET_SCRIPT_FILE_NAME = "/system/etc/se-reset-script";
 
     static {
         System.loadLibrary("nfc_jni");
@@ -146,15 +146,15 @@ public class NfcService extends Application {
     private static final String NFC_PERM_ERROR = "NFC permission required";
     private static final String ADMIN_PERM = android.Manifest.permission.WRITE_SECURE_SETTINGS;
     private static final String ADMIN_PERM_ERROR = "WRITE_SECURE_SETTINGS permission required";
-    // STOPSHIP: This needs to be updated to the line below
-//    private static final String NFCEE_ADMIN_PERM = "com.android.nfc.permission.NFCEE_ADMIN";
-    private static final String NFCEE_ADMIN_PERM = NFC_PERM;
+    private static final String NFCEE_ADMIN_PERM = "com.android.nfc.permission.NFCEE_ADMIN";
     private static final String NFCEE_ADMIN_PERM_ERROR = "NFCEE_ADMIN permission required";
 
     private static final String PREF = "NfcServicePrefs";
 
     private static final String PREF_NFC_ON = "nfc_on";
     private static final boolean NFC_ON_DEFAULT = true;
+
+    private static final String PREF_FIRST_BOOT = "first_boot";
 
     private static final String PREF_LLCP_LTO = "llcp_lto";
     private static final int LLCP_LTO_DEFAULT = 150;
@@ -256,6 +256,7 @@ public class NfcService extends Application {
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
     private boolean mScreenOn;
+    private String mSePackageName;
 
     // fields below are final after onCreate()
     Context mContext;
@@ -269,8 +270,6 @@ public class NfcService extends Application {
     RegisteredComponentCache mTechListFilters;
 
     private static NfcService sService;
-
-    private HashMap<String, ApduList> mTearDownApdus = new HashMap<String, ApduList>();
 
     public static void enforceAdminPerm(Context context) {
         int admin = context.checkCallingOrSelfPermission(ADMIN_PERM);
@@ -320,8 +319,6 @@ public class NfcService extends Application {
 
         mIActivityManager = ActivityManagerNative.getDefault();
 
-        readTearDownApdus();
-
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         IntentFilter filter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
@@ -343,6 +340,7 @@ public class NfcService extends Application {
                 if (nfc_on) {
                     _enable(false);
                 }
+                resetSeOnFirstBoot();
             }
         };
         t.start();
@@ -1912,19 +1910,15 @@ public class NfcService extends Application {
         @Override
         public void registerTearDownApdus(String packageName, ApduList apdu) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
-            synchronized(NfcService.this) {
-                mTearDownApdus.put(packageName, apdu);
-                writeTearDownApdusLocked();
-            }
+            Log.w(TAG, "NOP");
+            //TODO: Remove this API
         }
 
         @Override
         public void unregisterTearDownApdus(String packageName) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
-            synchronized(NfcService.this) {
-                mTearDownApdus.remove(packageName);
-                writeTearDownApdusLocked();
-            }
+            Log.w(TAG, "NOP");
+            //TODO: Remove this API
         }
     };
 
@@ -2026,37 +2020,73 @@ public class NfcService extends Application {
         }
     }
 
-    private void readTearDownApdus() {
+    //TODO: dont hardcode this
+    private static final byte[][] SE_RESET_APDUS = {
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00, (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
+        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00, (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
+        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+    };
+
+    private void resetSeOnFirstBoot() {
+        if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
+            Log.i(TAG, "First Boot");
+            executeSeReset();
+            mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
+            mPrefsEditor.apply();
+        }
+    }
+
+    private synchronized void executeSeReset() {
+        // TODO: read SE reset list from /system/etc
+        //List<byte[]> apdus = readSeResetApdus();
+        byte[][]apdus = SE_RESET_APDUS;
+        if (apdus == null) {
+            return;
+        }
+        Log.i(TAG, "Executing SE Reset Script");
+        int handle = mSecureElement.doOpenSecureElementConnection();
+        if (handle == 0) {
+            Log.e(TAG, "Could not open the secure element!");
+            return;
+        }
+
+        for (byte[] cmd : apdus) {
+            mSecureElement.doTransceive(handle, cmd);
+        }
+
+        mSecureElement.doDisconnect(handle);
+    }
+
+    private List<byte[]> readSeResetApdus() {
         FileInputStream input = null;
+        List<byte[]> apdus = null;
 
         try {
-            input = openFileInput(TEAR_DOWN_SCRIPTS_FILE_NAME);
+            input = openFileInput(SE_RESET_SCRIPT_FILE_NAME);
             DataInputStream stream = new DataInputStream(input);
 
-            int packagesSize = stream.readInt();
+            int commandsSize = stream.readInt();
+            apdus = new ArrayList<byte[]>(commandsSize);
 
-            for (int i = 0 ; i < packagesSize ; i++) {
-                String packageName = stream.readUTF();
-                ApduList apdu = new ApduList();
+            for (int i = 0 ; i < commandsSize ; i++) {
+                int length = stream.readInt();
 
-                int commandsSize = stream.readInt();
+                byte[] cmd = new byte[length];
 
-                for (int j = 0 ; j < commandsSize ; j++) {
-                    int length = stream.readInt();
-
-                    byte[] cmd = new byte[length];
-
-                    stream.read(cmd);
-                    apdu.add(cmd);
-                }
-
-                mTearDownApdus.put(packageName, apdu);
+                stream.read(cmd);
+                apdus.add(cmd);
             }
+
+            return apdus;
         } catch (FileNotFoundException e) {
-            // Ignore.
+            Log.e(TAG, "SE Reset Script not found: " + SE_RESET_SCRIPT_FILE_NAME);
         } catch (IOException e) {
-            Log.e(TAG, "Could not read tear down scripts file: ", e);
-            deleteFile(TEAR_DOWN_SCRIPTS_FILE_NAME);
+            Log.e(TAG, "SE Reset Script corrupt: ", e);
+            apdus = null;
         } finally {
             try {
                 if (input != null) {
@@ -2066,41 +2096,7 @@ public class NfcService extends Application {
                 // Ignore
             }
         }
-    }
-
-    private void writeTearDownApdusLocked() {
-        FileOutputStream output = null;
-        DataOutputStream stream = null;
-
-        try {
-            output = openFileOutput(TEAR_DOWN_SCRIPTS_FILE_NAME, Context.MODE_PRIVATE);
-            stream = new DataOutputStream(output);
-
-            stream.writeInt(mTearDownApdus.size());
-
-            for (String packageName : mTearDownApdus.keySet()) {
-                stream.writeUTF(packageName);
-
-                List<byte[]> commands = mTearDownApdus.get(packageName).get();
-                stream.writeInt(commands.size());
-
-                for (byte[] cmd : commands) {
-                    stream.writeInt(cmd.length);
-                    stream.write(cmd, 0, cmd.length);
-                }
-            }
-
-        } catch (IOException e) {
-        } finally {
-            try {
-                if (output != null) {
-                    stream.flush();
-                    stream.close();
-                }
-            } catch (IOException e) {
-                // Ignore
-            }
-        }
+        return apdus;
     }
 
     private void applyProperties() {
@@ -2898,51 +2894,18 @@ public class NfcService extends Application {
                 // be safe on the main thread, and the NFC stack should not wedge.
                 new EnableDisableDiscoveryTask().execute(new Boolean(false));
             } else if (intent.getAction().equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
-                int handle = mSecureElement.doOpenSecureElementConnection();
-                if (handle == 0) {
-                    Log.e(TAG, "Could not open the secure element!");
-                    return;
-                }
-
-                synchronized (NfcService.this) {
-                    for (String packageName : mTearDownApdus.keySet()) {
-                        for (byte[] cmd : mTearDownApdus.get(packageName).get()) {
-                            mSecureElement.doTransceive(handle, cmd);
-                        }
-                    }
-                }
-
-                mSecureElement.doDisconnect(handle);
+                executeSeReset();
             } else if (intent.getAction().equals(Intent.ACTION_PACKAGE_REMOVED)) {
                 boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
                 if (dataRemoved) {
                     Uri data = intent.getData();
                     if (data == null) return;
                     String packageName = data.getSchemeSpecificPart();
-                    ApduList apdus = null;
 
                     synchronized (NfcService.this) {
-                        apdus = mTearDownApdus.remove(packageName);
-                        if (apdus == null) {
-                            return;
+                        if (packageName.equals(mSePackageName)) {
+                            executeSeReset();
                         }
-
-
-                        writeTearDownApdusLocked();
-                    }
-
-                    int handle = mSecureElement.doOpenSecureElementConnection();
-                    if (handle == 0) {
-                        Log.e(TAG, "Could not open the secure element!");
-                        return;
-                    }
-
-                    try {
-                        for (byte[] cmd : apdus.get()) {
-                            mSecureElement.doTransceive(handle, cmd);
-                        }
-                    } finally {
-                        mSecureElement.doDisconnect(handle);
                     }
                 }
             }
