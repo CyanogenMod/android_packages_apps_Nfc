@@ -22,6 +22,7 @@ import android.nfc.tech.NfcA;
 import android.nfc.tech.NfcB;
 import android.nfc.tech.NfcF;
 import android.nfc.tech.NfcV;
+import android.nfc.tech.MifareUltralight;
 import android.nfc.tech.TagTechnology;
 import android.nfc.NdefMessage;
 import android.os.Bundle;
@@ -490,6 +491,59 @@ public class NativeNfcTag {
 
     }
 
+    private boolean isUltralightC() {
+        /* Make a best-effort attempt at classifying ULTRALIGHT
+         * vs ULTRALIGHT-C (based on NXP's public AN1303).
+         * The memory layout is as follows:
+         *   Page # BYTE1  BYTE2  BYTE3  BYTE4
+         *   2      INT1   INT2   LOCK   LOCK
+         *   3      OTP    OTP    OTP    OTP  (NDEF CC if NDEF-formatted)
+         *   4      DATA   DATA   DATA   DATA (version info if factory-state)
+         *
+         * Read four blocks from page 2, which will get us both
+         * the lock page, the OTP page and the version info.
+        */
+        boolean isUltralightC = false;
+        byte[] readCmd = { 0x30, 0x02 };
+        int[] retCode = new int[2];
+        byte[] respData = transceive(readCmd, false, retCode);
+        if (respData != null && respData.length == 16) {
+            // Check the lock bits (last 2 bytes in page2)
+            // and the OTP bytes (entire page 3)
+            if (respData[2] == 0 && respData[3] == 0 && respData[4] == 0 &&
+                respData[5] == 0 && respData[6] == 0 && respData[7] == 0) {
+                // Very likely to be a blank card, look at version info
+                // in page 4.
+                if ((respData[8] == (byte)0x02) && respData[9] == (byte)0x00) {
+                    // This is Ultralight-C
+                    isUltralightC = true;
+                } else {
+                    // 0xFF 0xFF would indicate Ultralight, but we also use Ultralight
+                    // as a fallback if it's anything else
+                    isUltralightC = false;
+                }
+            } else {
+                // See if we can find the NDEF CC in the OTP page and if it's
+                // smaller than major version two
+                if (respData[4] == (byte)0xE1 && ((respData[5] & 0xff) < 0x20)) {
+                    // OK, got NDEF. Technically we'd have to search for the
+                    // NDEF TLV as well. However, this would add too much
+                    // time for discovery and we can make already make a good guess
+                    // with the data we have here. Byte 2 of the OTP page
+                    // indicates the size of the tag - 0x06 is UL, anything
+                    // above indicates UL-C.
+                    if ((respData[6] & 0xff) > 0x06) {
+                        isUltralightC = true;
+                    }
+                } else {
+                    // Fall back to ultralight
+                    isUltralightC = false;
+                }
+            }
+        }
+        return isUltralightC;
+    }
+
     public Bundle[] getTechExtras() {
         synchronized (this) {
             if (mTechExtras != null) return mTechExtras;
@@ -554,6 +608,11 @@ public class NativeNfcTag {
                             extras.putByte(NfcV.EXTRA_RESP_FLAGS, mTechPollBytes[i][0]);
                             extras.putByte(NfcV.EXTRA_DSFID, mTechPollBytes[i][1]);
                         }
+                        break;
+                    }
+                    case TagTechnology.MIFARE_ULTRALIGHT: {
+                        boolean isUlc = isUltralightC();
+                        extras.putBoolean(MifareUltralight.EXTRA_IS_UL_C, isUlc);
                         break;
                     }
 
