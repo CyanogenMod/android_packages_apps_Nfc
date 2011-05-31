@@ -22,7 +22,10 @@
                  android:icon="@drawable/icon"
                  android:label="@string/app_name"
                  android:persistent="true"
+                 android:backupAgent="com.android.nfc.NfcBackupAgent"
     >
+        <meta-data android:name="com.google.android.backup.api_key"
+            android:value="AEdPqrEAAAAIEXGvR1H2lq6SEOC7O7rGHoAmAf-GHCR_EhLqzg" />
 
         <activity android:name="com.android.nfc.TechListChooserActivity"
             android:theme="@*android:style/Theme.Dialog.Alert"

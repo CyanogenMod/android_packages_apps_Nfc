@@ -152,7 +152,7 @@ public class NfcService extends Application {
     private static final String NFCEE_ADMIN_PERM = NFC_PERM;
     private static final String NFCEE_ADMIN_PERM_ERROR = "NFCEE_ADMIN permission required";
 
-    private static final String PREF = "NfcServicePrefs";
+    /*package*/ static final String PREF = "NfcServicePrefs";
 
     private static final String PREF_NFC_ON = "nfc_on";
     private static final boolean NFC_ON_DEFAULT = true;
