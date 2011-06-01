@@ -27,6 +27,7 @@ import android.app.Activity;
 import android.app.ActivityManagerNative;
 import android.app.Application;
 import android.app.IActivityManager;
+import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
 import android.app.StatusBarManager;
@@ -257,7 +258,7 @@ public class NfcService extends Application {
     // fields below are used in multiple threads and protected by synchronized(this)
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
-    private boolean mScreenOn;
+    private boolean mScreenUnlocked;
 
     // fields below are final after onCreate()
     Context mContext;
@@ -269,6 +270,7 @@ public class NfcService extends Application {
     NdefPushClient mNdefPushClient;
     NdefPushServer mNdefPushServer;
     RegisteredComponentCache mTechListFilters;
+    private KeyguardManager mKeyguard;
 
     private static NfcService sService;
 
@@ -320,7 +322,7 @@ public class NfcService extends Application {
         sService = this;
 
         mContext = this;
-        mManager = new NativeNfcManager(mContext, this);
+        mManager = new NativeNfcManager(this, this);
         mManager.initializeNativeStructure();
 
         mNdefPushClient = new NdefPushClient(this);
@@ -331,14 +333,16 @@ public class NfcService extends Application {
 
         mSecureElement = new NativeNfcSecureElement();
 
-        mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        mPrefs = getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
         mIsNfcEnabled = false;  // real preference read later
 
-        PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
-        mScreenOn = pm.isScreenOn();
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
+        mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        mScreenUnlocked = !mKeyguard.isKeyguardLocked() && !mKeyguard.isKeyguardSecure();
 
         mIActivityManager = ActivityManagerNative.getDefault();
 
@@ -350,13 +354,14 @@ public class NfcService extends Application {
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
-        mContext.registerReceiver(mReceiver, filter);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        registerReceiver(mReceiver, filter);
 
         filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme("package");
 
-        mContext.registerReceiver(mReceiver, filter);
+        registerReceiver(mReceiver, filter);
 
         Thread t = new Thread() {
             @Override
@@ -2010,7 +2015,7 @@ public class NfcService extends Application {
     /** apply NFC discovery and EE routing */
     private synchronized void applyRouting() {
         if (mIsNfcEnabled && mOpenEe == null) {
-            if (mScreenOn) {
+            if (mScreenUnlocked) {
                 if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
                     Log.d(TAG, "NFC-EE routing ON");
                     mManager.doSelectSecureElement(SECURE_ELEMENT_ID);
@@ -2894,18 +2899,28 @@ public class NfcService extends Application {
 
     private class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
         @Override
-        protected Void doInBackground(Boolean... enable) {
-            if (enable != null && enable.length > 0 && enable[0]) {
+        protected Void doInBackground(Boolean... params) {
+            if (DBG) Log.d(TAG, "EnableDisableDiscoveryTask: enable = " + params[0]);
+
+            if (params != null && params.length > 0 && params[0]) {
                 synchronized (NfcService.this) {
-                    mScreenOn = true;
-                    applyRouting();
+                    if (!mScreenUnlocked) {
+                        mScreenUnlocked = true;
+                        applyRouting();
+                    } else {
+                        if (DBG) Log.d(TAG, "Ignoring enable request");
+                    }
                 }
             } else {
                 mWakeLock.acquire();
                 synchronized (NfcService.this) {
-                    mScreenOn = false;
-                    applyRouting();
-                    maybeDisconnectTarget();
+                    if (mScreenUnlocked) {
+                        mScreenUnlocked = false;
+                        applyRouting();
+                        maybeDisconnectTarget();
+                    } else {
+                        if (DBG) Log.d(TAG, "Ignoring disable request");
+                    }
                 }
                 mWakeLock.release();
             }
@@ -2928,13 +2943,22 @@ public class NfcService extends Application {
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(Boolean.TRUE);
+
+                // Only enable if the screen is unlocked. If the screen is locked
+                // Intent.ACTION_USER_PRESENT will be broadcast when the screen is
+                // unlocked.
+                boolean enable = !mKeyguard.isKeyguardLocked() && !mKeyguard.isKeyguardSecure();
+
+                new EnableDisableDiscoveryTask().execute(enable);
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
                 // Perform discovery disable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(new Boolean(false));
+                new EnableDisableDiscoveryTask().execute(Boolean.FALSE);
+            } else if (intent.getAction().equals(Intent.ACTION_USER_PRESENT)) {
+                // The user has unlocked the screen. Enabled!
+                new EnableDisableDiscoveryTask().execute(Boolean.TRUE);
             } else if (intent.getAction().equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
                 int handle = mSecureElement.doOpenSecureElementConnection();
                 if (handle == 0) {
