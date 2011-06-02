@@ -1060,7 +1060,10 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         f = e->GetFieldID(tag_cls, "mTechLibNfcTypes", "[I");
         e->SetObjectField(tag, f, typeList);
 
-        f = e->GetFieldID(tag_cls, "mConnectedTechnology", "I");
+        f = e->GetFieldID(tag_cls, "mConnectedTechIndex", "I");
+        e->SetIntField(tag, f,(jint)-1);
+
+        f = e->GetFieldID(tag_cls, "mConnectedHandle", "I");
         e->SetIntField(tag, f,(jint)-1);
       }
 

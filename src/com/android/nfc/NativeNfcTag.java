@@ -42,7 +42,19 @@ public class NativeNfcTag {
     private byte[][] mTechActBytes;
     private byte[] mUid;
 
-    private int mConnectedTechnology; // Index in mTechList
+    // mConnectedHandle stores the *real* libnfc handle
+    // that we're connected to.
+    private int mConnectedHandle;
+
+    // mConnectedTechIndex stores to which technology
+    // the upper layer stack is connected. Note that
+    // we may be connected to a libnfchandle without being
+    // connected to a technology - technology changes
+    // may occur runtime, whereas the underlying handle
+    // could stay present. Usually all technologies are on the
+    // same handle, with the exception of multi-protocol
+    // tags.
+    private int mConnectedTechIndex; // Index in mTechHandles
 
     private final String TAG = "NativeNfcTag";
 
@@ -125,52 +137,49 @@ public class NativeNfcTag {
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
                 // Get the handle and connect, if not already connected
-                if (mConnectedTechnology != i) {
-                    // We're not yet connected, there are a few scenario's
-                    // here:
+                if (mConnectedHandle != mTechHandles[i]) {
+                    // We're not yet connected to this handle, there are
+                    // a few scenario's here:
                     // 1) We are not connected to anything yet - allow
                     // 2) We are connected to a technology which has
                     //    a different handle (multi-protocol tag); we support
                     //    switching to that.
-                    // 3) We are connected to a technology which has the same
-                    //    handle; we do not support connecting at a different
-                    //    level (libnfc auto-activates to the max level on
-                    //    any handle).
-                    // 4) We are connecting to the ndef technology - always
-                    //    allowed.
-                    if (mConnectedTechnology == -1) {
+                    if (mConnectedHandle == -1) {
                         // Not connected yet
                         isSuccess = doConnect(mTechHandles[i]);
-                    }
-                    else if ((mConnectedTechnology != -1) &&
-                            (mTechHandles[mConnectedTechnology] != mTechHandles[i])) {
+                    } else {
                         // Connect to a tech with a different handle
                         isSuccess = reconnect(mTechHandles[i]);
                     }
-                    else {
-                        // Already connected to a tech with the same handle
-                        // Only allow Ndef / NdefFormatable techs to return
-                        // success
-                        if ((technology == TagTechnology.NDEF) ||
-                                (technology == TagTechnology.NDEF_FORMATABLE)) {
-                            isSuccess = true;
+                    if (isSuccess) {
+                        mConnectedHandle = mTechHandles[i];
+                        mConnectedTechIndex = i;
+                    }
+                } else {
+                    // 1) We are connected to a technology which has the same
+                    //    handle; we do not support connecting at a different
+                    //    level (libnfc auto-activates to the max level on
+                    //    any handle).
+                    // 2) We are connecting to the ndef technology - always
+                    //    allowed.
+                    if ((technology == TagTechnology.NDEF) ||
+                            (technology == TagTechnology.NDEF_FORMATABLE)) {
+                        isSuccess = true;
+                    } else {
+                        if ((technology != TagTechnology.ISO_DEP) &&
+                            (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
+                            // Don't allow to connect a -4 tag at a different level
+                            // than IsoDep, as this is not supported by
+                            // libNFC.
+                            isSuccess = false;
                         } else {
-                            if ((technology != TagTechnology.ISO_DEP) &&
-                                (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
-                                // Don't allow to connect a -4 tag at a different level
-                                // than IsoDep, as this is not supported by
-                                // libNFC.
-                                isSuccess = false;
-                            } else {
-                                isSuccess = true;
-                            }
+                            isSuccess = true;
                         }
                     }
                     if (isSuccess) {
-                        mConnectedTechnology = i;
+                        mConnectedTechIndex = i;
+                        // Handle was already identical
                     }
-                } else {
-                    isSuccess = true; // Already connect to this tech
                 }
                 break;
             }
@@ -216,7 +225,8 @@ public class NativeNfcTag {
             result = doDisconnect();
         }
 
-        mConnectedTechnology = -1;
+        mConnectedTechIndex = -1;
+        mConnectedHandle = -1;
         return result;
     }
 
@@ -372,24 +382,20 @@ public class NativeNfcTag {
     }
 
     public int getConnectedHandle() {
-        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechHandles.length) {
-            return mTechHandles[mConnectedTechnology];
-        } else {
-            return 0;
-        }
+        return mConnectedHandle;
     }
 
     public int getConnectedLibNfcType() {
-        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechLibNfcTypes.length) {
-            return mTechLibNfcTypes[mConnectedTechnology];
+        if (mConnectedTechIndex != -1 && mConnectedTechIndex < mTechLibNfcTypes.length) {
+            return mTechLibNfcTypes[mConnectedTechIndex];
         } else {
             return 0;
         }
     }
 
     public int getConnectedTechnology() {
-        if (mConnectedTechnology != -1 && mConnectedTechnology < mTechList.length) {
-            return mTechList[mConnectedTechnology];
+        if (mConnectedTechIndex != -1 && mConnectedTechIndex < mTechList.length) {
+            return mTechList[mConnectedTechIndex];
         } else {
             return 0;
         }
@@ -414,6 +420,31 @@ public class NativeNfcTag {
             System.arraycopy(mTechLibNfcTypes, 0, mNewTypeList, 0, mTechLibNfcTypes.length);
             mNewTypeList[mTechLibNfcTypes.length] = libnfctype;
             mTechLibNfcTypes = mNewTypeList;
+    }
+
+    public void removeTechnology(int tech) {
+        synchronized (this) {
+            int techIndex = getTechIndex(tech);
+            if (techIndex != -1) {
+                int[] mNewTechList = new int[mTechList.length - 1];
+                System.arraycopy(mTechList, 0, mNewTechList, 0, techIndex);
+                System.arraycopy(mTechList, techIndex + 1, mNewTechList, techIndex,
+                        mTechList.length - techIndex - 1);
+                mTechList = mNewTechList;
+
+                int[] mNewHandleList = new int[mTechHandles.length - 1];
+                System.arraycopy(mTechHandles, 0, mNewHandleList, 0, techIndex);
+                System.arraycopy(mTechHandles, techIndex + 1, mNewTechList, techIndex,
+                        mTechHandles.length - techIndex - 1);
+                mTechHandles = mNewHandleList;
+
+                int[] mNewTypeList = new int[mTechLibNfcTypes.length - 1];
+                System.arraycopy(mTechLibNfcTypes, 0, mNewTypeList, 0, techIndex);
+                System.arraycopy(mTechLibNfcTypes, techIndex + 1, mNewTypeList, techIndex,
+                        mTechLibNfcTypes.length - techIndex - 1);
+                mTechLibNfcTypes = mNewTypeList;
+            }
+        }
     }
 
     public void addNdefFormatableTechnology(int handle, int libnfcType) {
