@@ -1749,6 +1749,30 @@ public class NfcService extends Application {
         }
     };
 
+    private void _nfcEeClose(boolean checkPid, int callingPid) throws IOException {
+        // Blocks until a pending open() or transceive() times out.
+        //TODO: This is incorrect behavior - the close should interrupt pending
+        // operations. However this is not supported by current hardware.
+
+        synchronized(NfcService.this) {
+            if (!mIsNfcEnabled) {
+                throw new IOException("NFC adapter is disabled");
+            }
+            if (mOpenEe == null) {
+                throw new IOException("NFC EE closed");
+            }
+            if (checkPid && mOpenEe.pid != -1 && callingPid != mOpenEe.pid) {
+                throw new SecurityException("Wrong PID");
+            }
+
+            mManager.doResetIsoDepTimeout();
+            mSecureElement.doDisconnect(mOpenEe.handle);
+            mOpenEe = null;
+
+            applyRouting();
+        }
+    }
+
     private INfcAdapterExtras mExtrasService = new INfcAdapterExtras.Stub() {
         private Bundle writeNoException() {
             Bundle p = new Bundle();
@@ -1806,36 +1830,12 @@ public class NfcService extends Application {
 
             Bundle result;
             try {
-                _close();
+                _nfcEeClose(true, getCallingPid());
                 result = writeNoException();
             } catch (IOException e) {
                 result = writeIoException(e);
             }
             return result;
-        }
-
-        void _close() throws IOException, RemoteException {
-            // Blocks until a pending open() or transceive() times out.
-            //TODO: This is incorrect behavior - the close should interrupt pending
-            // operations. However this is not supported by current hardware.
-
-            synchronized(NfcService.this) {
-                if (!mIsNfcEnabled) {
-                    throw new IOException("NFC adapter is disabled");
-                }
-                if (mOpenEe == null) {
-                    throw new IOException("NFC EE closed");
-                }
-                if (mOpenEe.pid != -1 && getCallingPid() != mOpenEe.pid) {
-                    throw new SecurityException("Wrong PID");
-                }
-
-                mManager.doResetIsoDepTimeout();
-                mSecureElement.doDisconnect(mOpenEe.handle);
-                mOpenEe = null;
-
-                applyRouting();
-            }
         }
 
         @Override
@@ -1912,8 +1912,8 @@ public class NfcService extends Application {
                 if (DBG) Log.d(TAG, "Tracked app " + pid + " died");
                 pid = -1;
                 try {
-                    mExtrasService.close();
-                } catch (RemoteException e) { /* local call never fails */ }
+                    _nfcEeClose(false, -1);
+                } catch (IOException e) { /* already closed */ }
             }
         }
     }
