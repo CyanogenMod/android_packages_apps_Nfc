@@ -61,6 +61,7 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
+import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -1350,6 +1351,10 @@ public class NfcService extends Application {
             tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag == null) {
                 return ErrorCodes.ERROR_DISCONNECT;
+            }
+
+            if (technology == TagTechnology.NFC_B) {
+                return ErrorCodes.ERROR_NOT_SUPPORTED;
             }
 
             // Note that on most tags, all technologies are behind a single
