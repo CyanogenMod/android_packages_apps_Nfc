@@ -487,8 +487,6 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
             {
               index = addTechIfNeeded(technologies, handles, libnfctypes, index,
                       MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4, handle, type);
-              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
-                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
               break;
             }
           case phNfc_eISO14443_4B_PICC:
@@ -531,14 +529,10 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
                   // could be UL or UL-C
                   index = addTechIfNeeded(technologies, handles, libnfctypes,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_UL, handle, type);
-                  index = addTechIfNeeded(technologies, handles, libnfctypes,
-                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
                   break;
                 default:
                   index = addTechIfNeeded(technologies, handles, libnfctypes,
                           index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_MIFARE_CLASSIC, handle, type);
-                  index = addTechIfNeeded(technologies, handles, libnfctypes,
-                          index, MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_3A, handle, type);
                   break;
               }
             }break;
