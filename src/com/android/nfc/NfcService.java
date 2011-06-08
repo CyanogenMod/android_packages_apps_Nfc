@@ -90,6 +90,7 @@ public class NfcService extends Application {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
     static final boolean DBG = false;
+    static final String TAG = "NfcService";
 
     private static final String MY_TAG_FILE_NAME = "mytag";
     private static final String SE_RESET_SCRIPT_FILE_NAME = "/system/etc/se-reset-script";
@@ -98,53 +99,7 @@ public class NfcService extends Application {
         System.loadLibrary("nfc_jni");
     }
 
-    /**
-     * NFC Forum "URI Record Type Definition"
-     *
-     * This is a mapping of "URI Identifier Codes" to URI string prefixes,
-     * per section 3.2.2 of the NFC Forum URI Record Type Definition document.
-     */
-    private static final String[] URI_PREFIX_MAP = new String[] {
-            "", // 0x00
-            "http://www.", // 0x01
-            "https://www.", // 0x02
-            "http://", // 0x03
-            "https://", // 0x04
-            "tel:", // 0x05
-            "mailto:", // 0x06
-            "ftp://anonymous:anonymous@", // 0x07
-            "ftp://ftp.", // 0x08
-            "ftps://", // 0x09
-            "sftp://", // 0x0A
-            "smb://", // 0x0B
-            "nfs://", // 0x0C
-            "ftp://", // 0x0D
-            "dav://", // 0x0E
-            "news:", // 0x0F
-            "telnet://", // 0x10
-            "imap:", // 0x11
-            "rtsp://", // 0x12
-            "urn:", // 0x13
-            "pop:", // 0x14
-            "sip:", // 0x15
-            "sips:", // 0x16
-            "tftp:", // 0x17
-            "btspp://", // 0x18
-            "btl2cap://", // 0x19
-            "btgoep://", // 0x1A
-            "tcpobex://", // 0x1B
-            "irdaobex://", // 0x1C
-            "file://", // 0x1D
-            "urn:epc:id:", // 0x1E
-            "urn:epc:tag:", // 0x1F
-            "urn:epc:pat:", // 0x20
-            "urn:epc:raw:", // 0x21
-            "urn:epc:", // 0x22
-    };
-
     public static final String SERVICE_NAME = "nfc";
-
-    private static final String TAG = "NfcService";
 
     private static final String NFC_PERM = android.Manifest.permission.NFC;
     private static final String NFC_PERM_ERROR = "NFC permission required";
@@ -238,10 +193,6 @@ public class NfcService extends Application {
         "com.android.nfc_extras.action.AID_SELECTED";
     public static final String EXTRA_AID = "com.android.nfc_extras.extra.AID";
 
-    // Locked on mNfcAdapter
-    PendingIntent mDispatchOverrideIntent;
-    IntentFilter[] mDispatchOverrideFilters;
-    String[][] mDispatchOverrideTechLists;
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -268,10 +219,9 @@ public class NfcService extends Application {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
-    private IActivityManager mIActivityManager;
     NdefPushClient mNdefPushClient;
     NdefPushServer mNdefPushServer;
-    RegisteredComponentCache mTechListFilters;
+    private NfcDispatcher mNfcDispatcher;
     private KeyguardManager mKeyguard;
 
     private static NfcService sService;
@@ -293,26 +243,6 @@ public class NfcService extends Application {
         return sService;
     }
 
-    private static boolean isComponentEnabled(PackageManager pm, ResolveInfo info) {
-        boolean enabled = false;
-        ComponentName compname = new ComponentName(
-                info.activityInfo.packageName, info.activityInfo.name);
-        try {
-            // Note that getActivityInfo() will internally call
-            // isEnabledLP() to determine whether the component
-            // enabled. If it's not, null is returned.
-            if (pm.getActivityInfo(compname,0) != null) {
-                enabled = true;
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            enabled = false;
-        }
-        if (!enabled) {
-            Log.d(TAG, "Component not enabled: " + compname);
-        }
-        return enabled;
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
@@ -327,9 +257,7 @@ public class NfcService extends Application {
 
         mNdefPushClient = new NdefPushClient(this);
         mNdefPushServer = new NdefPushServer();
-
-        mTechListFilters = new RegisteredComponentCache(this,
-                NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
+        mNfcDispatcher = new NfcDispatcher(this, mNdefPushClient);
 
         mSecureElement = new NativeNfcSecureElement();
 
@@ -343,8 +271,6 @@ public class NfcService extends Application {
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
         mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         mScreenUnlocked = !mKeyguard.isKeyguardLocked() && !mKeyguard.isKeyguardSecure();
-
-        mIActivityManager = ActivityManagerNative.getDefault();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
@@ -421,11 +347,7 @@ public class NfcService extends Application {
                 if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
                 if (isSuccess) {
                     mIsNfcEnabled = false;
-                    // Clear out any old dispatch overrides and NDEF push message
-                    synchronized (this) {
-                        mDispatchOverrideFilters = null;
-                        mDispatchOverrideIntent = null;
-                    }
+                    mNfcDispatcher.disableForegroundDispatch();
                     mNdefPushClient.setForegroundMessage(null);
                 }
             }
@@ -465,26 +387,14 @@ public class NfcService extends Application {
                 techLists = techListsParcel.getTechLists();
             }
 
-            synchronized (this) {
-                if (mDispatchOverrideIntent != null) {
-                    Log.e(TAG, "Replacing active dispatch overrides");
-                }
-                mDispatchOverrideIntent = intent;
-                mDispatchOverrideFilters = filters;
-                mDispatchOverrideTechLists = techLists;
-            }
+            mNfcDispatcher.enableForegroundDispatch(intent, filters, techLists);
         }
 
         @Override
         public void disableForegroundDispatch(ComponentName activity) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            synchronized (this) {
-                if (mDispatchOverrideIntent == null) {
-                    Log.e(TAG, "No active foreground dispatching");
-                }
-                mDispatchOverrideIntent = null;
-                mDispatchOverrideFilters = null;
-            }
+
+            mNfcDispatcher.disableForegroundDispatch();
         }
 
         @Override
@@ -2418,7 +2328,7 @@ public class NfcService extends Application {
                        new Bundle[] { });
                Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                Log.d(TAG, tag.toString());
-               dispatchTag(tag, new NdefMessage[] { ndefMsg });
+               mNfcDispatcher.dispatchTag(tag, new NdefMessage[] { ndefMsg });
                break;
            }
 
@@ -2575,331 +2485,13 @@ public class NfcService extends Application {
            }
         }
 
-        private Intent buildTagIntent(Tag tag, NdefMessage[] msgs, String action) {
-            Intent intent = new Intent(action);
-            intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
-            intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
-            intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, msgs);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            return intent;
-        }
-
         private void dispatchNativeTag(NativeNfcTag nativeTag, NdefMessage[] msgs) {
             Tag tag = new Tag(nativeTag.getUid(), nativeTag.getTechList(),
                     nativeTag.getTechExtras(), nativeTag.getHandle(), mNfcTagService);
             registerTagObject(nativeTag);
-            if (!dispatchTag(tag, msgs)) {
+            if (!mNfcDispatcher.dispatchTag(tag, msgs)) {
                 unregisterObject(nativeTag.getHandle());
                 nativeTag.disconnect();
-            }
-        }
-
-        public byte[] concat(byte[]... arrays) {
-            int length = 0;
-            for (byte[] array : arrays) {
-                length += array.length;
-            }
-            byte[] result = new byte[length];
-            int pos = 0;
-            for (byte[] array : arrays) {
-                System.arraycopy(array, 0, result, pos, array.length);
-                pos += array.length;
-            }
-            return result;
-        }
-
-        private Uri parseWellKnownUriRecord(NdefRecord record) {
-            byte[] payload = record.getPayload();
-
-            /*
-             * payload[0] contains the URI Identifier Code, per the
-             * NFC Forum "URI Record Type Definition" section 3.2.2.
-             *
-             * payload[1]...payload[payload.length - 1] contains the rest of
-             * the URI.
-             */
-            String prefix = URI_PREFIX_MAP[(payload[0] & 0xff)];
-            byte[] fullUri = concat(prefix.getBytes(Charsets.UTF_8),
-                    Arrays.copyOfRange(payload, 1, payload.length));
-            return Uri.parse(new String(fullUri, Charsets.UTF_8));
-        }
-
-        private boolean setTypeOrDataFromNdef(Intent intent, NdefRecord record) {
-            short tnf = record.getTnf();
-            byte[] type = record.getType();
-            try {
-                switch (tnf) {
-                    case NdefRecord.TNF_MIME_MEDIA: {
-                        intent.setType(new String(type, Charsets.US_ASCII));
-                        return true;
-                    }
-
-                    case NdefRecord.TNF_ABSOLUTE_URI: {
-                        intent.setData(Uri.parse(new String(type, Charsets.UTF_8)));
-                        return true;
-                    }
-
-                    case NdefRecord.TNF_WELL_KNOWN: {
-                        byte[] payload = record.getPayload();
-                        if (payload == null || payload.length == 0) return false;
-                        if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
-                            intent.setType("text/plain");
-                            return true;
-                        } else if (Arrays.equals(type, NdefRecord.RTD_SMART_POSTER)) {
-                            // Parse the smart poster looking for the URI
-                            try {
-                                NdefMessage msg = new NdefMessage(record.getPayload());
-                                for (NdefRecord subRecord : msg.getRecords()) {
-                                    short subTnf = subRecord.getTnf();
-                                    if (subTnf == NdefRecord.TNF_WELL_KNOWN
-                                            && Arrays.equals(subRecord.getType(),
-                                                    NdefRecord.RTD_URI)) {
-                                        intent.setData(parseWellKnownUriRecord(subRecord));
-                                        return true;
-                                    } else if (subTnf == NdefRecord.TNF_ABSOLUTE_URI) {
-                                        intent.setData(Uri.parse(new String(subRecord.getType(),
-                                                Charsets.UTF_8)));
-                                        return true;
-                                    }
-                                }
-                            } catch (FormatException e) {
-                                return false;
-                            }
-                        } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
-                            intent.setData(parseWellKnownUriRecord(record));
-                            return true;
-                        }
-                        return false;
-                    }
-
-                    case NdefRecord.TNF_EXTERNAL_TYPE: {
-                        intent.setData(Uri.parse("vnd.android.nfc://ext/" +
-                                new String(record.getType(), Charsets.US_ASCII)));
-                        return true;
-                    }
-                }
-                return false;
-            } catch (Exception e) {
-                Log.e(TAG, "failed to parse record", e);
-                return false;
-            }
-        }
-
-        /** Returns false if no activities were found to dispatch to */
-        private boolean dispatchTag(Tag tag, NdefMessage[] msgs) {
-            if (DBG) {
-                Log.d(TAG, "Dispatching tag");
-                Log.d(TAG, tag.toString());
-            }
-
-            IntentFilter[] overrideFilters;
-            PendingIntent overrideIntent;
-            String[][] overrideTechLists;
-            boolean foregroundNdefPush = mNdefPushClient.getForegroundMessage() != null;
-            synchronized (mNfcAdapter) {
-                overrideFilters = mDispatchOverrideFilters;
-                overrideIntent = mDispatchOverrideIntent;
-                overrideTechLists = mDispatchOverrideTechLists;
-            }
-
-            // First look for dispatch overrides
-            if (overrideIntent != null) {
-                if (DBG) Log.d(TAG, "Attempting to dispatch tag with override");
-                try {
-                    if (dispatchTagInternal(tag, msgs, overrideIntent, overrideFilters,
-                            overrideTechLists)) {
-                        if (DBG) Log.d(TAG, "Dispatched to override");
-                        return true;
-                    }
-                    Log.w(TAG, "Dispatch override registered, but no filters matched");
-                } catch (CanceledException e) {
-                    Log.w(TAG, "Dispatch overrides pending intent was canceled");
-                    synchronized (mNfcAdapter) {
-                        mDispatchOverrideFilters = null;
-                        mDispatchOverrideIntent = null;
-                        mDispatchOverrideTechLists = null;
-                    }
-                }
-            }
-
-            // If there is not foreground NDEF push setup try a normal dispatch.
-            //
-            // This is avoided when disabled in the NDEF push case to avoid the situation where each
-            // user has a different app in the foreground, causing each to launch itself on the
-            // remote device and the apps swapping which is in the foreground on each phone.
-            if (!foregroundNdefPush) {
-                try {
-                    return dispatchTagInternal(tag, msgs, null, null, null);
-                } catch (CanceledException e) {
-                    Log.e(TAG, "CanceledException unexpected here", e);
-                    return false;
-                }
-            }
-
-            return false;
-        }
-
-        /** Returns true if the tech list filter matches the techs on the tag */
-        private boolean filterMatch(String[] tagTechs, String[] filterTechs) {
-            if (filterTechs == null || filterTechs.length == 0) return false;
-
-            for (String tech : filterTechs) {
-                if (Arrays.binarySearch(tagTechs, tech) < 0) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        // Dispatch to either an override pending intent or a standard startActivity()
-        private boolean dispatchTagInternal(Tag tag, NdefMessage[] msgs,
-                PendingIntent overrideIntent, IntentFilter[] overrideFilters,
-                String[][] overrideTechLists)
-                throws CanceledException{
-            Intent intent;
-
-            //
-            // Try the NDEF content specific dispatch
-            //
-            if (msgs != null && msgs.length > 0) {
-                NdefMessage msg = msgs[0];
-                NdefRecord[] records = msg.getRecords();
-                if (records.length > 0) {
-                    // Found valid NDEF data, try to dispatch that first
-                    NdefRecord record = records[0];
-
-                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_NDEF_DISCOVERED);
-                    if (setTypeOrDataFromNdef(intent, record)) {
-                        // The record contains filterable data, try to start a matching activity
-                        if (startDispatchActivity(intent, overrideIntent, overrideFilters,
-                                overrideTechLists)) {
-                            // If an activity is found then skip further dispatching
-                            return true;
-                        } else {
-                            if (DBG) Log.d(TAG, "No activities for NDEF handling of " + intent);
-                        }
-                    }
-                }
-            }
-
-            //
-            // Try the technology specific dispatch
-            //
-            String[] tagTechs = tag.getTechList();
-            Arrays.sort(tagTechs);
-
-            if (overrideIntent != null) {
-                // There are dispatch overrides in place
-                if (overrideTechLists != null) {
-                    for (String[] filterTechs : overrideTechLists) {
-                        if (filterMatch(tagTechs, filterTechs)) {
-                            // An override matched, send it to the foreground activity.
-                            intent = buildTagIntent(tag, msgs,
-                                    NfcAdapter.ACTION_TECH_DISCOVERED);
-                            overrideIntent.send(mContext, Activity.RESULT_OK, intent);
-                            return true;
-                        }
-                    }
-                }
-            } else {
-                // Standard tech dispatch path
-                ArrayList<ResolveInfo> matches = new ArrayList<ResolveInfo>();
-                ArrayList<ComponentInfo> registered = mTechListFilters.getComponents();
-                PackageManager pm = getPackageManager();
-
-                // Check each registered activity to see if it matches
-                for (ComponentInfo info : registered) {
-                    // Don't allow wild card matching
-                    if (filterMatch(tagTechs, info.techs) &&
-                            isComponentEnabled(pm, info.resolveInfo)) {
-                        // Add the activity as a match if it's not already in the list
-                        if (!matches.contains(info.resolveInfo)) {
-                            matches.add(info.resolveInfo);
-                        }
-                    }
-                }
-
-                if (matches.size() == 1) {
-                    // Single match, launch directly
-                    intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED);
-                    ResolveInfo info = matches.get(0);
-                    intent.setClassName(info.activityInfo.packageName, info.activityInfo.name);
-                    try {
-                        mContext.startActivity(intent);
-                        return true;
-                    } catch (ActivityNotFoundException e) {
-                        if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
-                    }
-                } else if (matches.size() > 1) {
-                    // Multiple matches, show a custom activity chooser dialog
-                    intent = new Intent(mContext, TechListChooserActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    intent.putExtra(Intent.EXTRA_INTENT,
-                            buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED));
-                    intent.putParcelableArrayListExtra(TechListChooserActivity.EXTRA_RESOLVE_INFOS,
-                            matches);
-                    try {
-                        mContext.startActivity(intent);
-                        return true;
-                    } catch (ActivityNotFoundException e) {
-                        if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
-                    }
-                } else {
-                    // No matches, move on
-                    if (DBG) Log.w(TAG, "No activities for technology handling");
-                }
-            }
-
-            //
-            // Try the generic intent
-            //
-            intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TAG_DISCOVERED);
-            if (startDispatchActivity(intent, overrideIntent, overrideFilters, overrideTechLists)) {
-                return true;
-            } else {
-                Log.e(TAG, "No tag fallback activity found for " + intent);
-                return false;
-            }
-        }
-
-        private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
-                IntentFilter[] overrideFilters, String[][] overrideTechLists)
-                throws CanceledException {
-            if (overrideIntent != null) {
-                boolean found = false;
-                if (overrideFilters == null && overrideTechLists == null) {
-                    // No filters means to always dispatch regardless of match
-                    found = true;
-                } else if (overrideFilters != null) {
-                    for (IntentFilter filter : overrideFilters) {
-                        if (filter.match(mContext.getContentResolver(), intent, false, TAG) >= 0) {
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (found) {
-                    Log.i(TAG, "Dispatching to override intent " + overrideIntent);
-                    overrideIntent.send(mContext, Activity.RESULT_OK, intent);
-                    return true;
-                } else {
-                    return false;
-                }
-            } else {
-                try {
-                    // If the current app called stopAppSwitches() then our startActivity()
-                    // can be delayed for several seconds. This happens with the default home
-                    // screen. As a system service we can override this behavior with
-                    // resumeAppSwitches()
-                    mIActivityManager.resumeAppSwitches();
-                } catch (RemoteException e) { }
-                try {
-                    mContext.startActivity(intent);
-                    return true;
-                } catch (ActivityNotFoundException e) {
-                    return false;
-                }
             }
         }
     }
