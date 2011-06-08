@@ -25,17 +25,10 @@ import android.nfc.LlcpPacket;
 public class NativeLlcpConnectionlessSocket {
 
     private int mHandle;
-
     private int mSap;
-
     private int mLinkMiu;
 
-    public NativeLlcpConnectionlessSocket(){;
-    }
-
-    public NativeLlcpConnectionlessSocket(int sap){
-        mSap = sap;
-    }
+    public NativeLlcpConnectionlessSocket(){ };
 
     public native boolean doSendTo(int sap, byte[] data);
 

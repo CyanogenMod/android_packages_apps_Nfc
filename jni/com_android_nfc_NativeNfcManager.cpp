@@ -610,11 +610,7 @@ static int is_user_build() {
  * Last-chance fallback when there is no clean way to recover
  * Performs a software reset
   */
-void emergency_recovery(struct nfc_jni_native_data *nat)
-{
-   phLibNfc_sADD_Cfg_t discovery_cfg;
-   phLibNfc_Registry_Info_t registration_cfg;
-
+void emergency_recovery(struct nfc_jni_native_data *nat) {
    if (!is_user_build()) {
        LOGE("emergency_recovery: force restart of NFC service");
    } else {
@@ -690,8 +686,8 @@ clean_and_return:
 }
 
  /*
-+ *  Utility to recover UID from target infos
-+ */
+  *  Utility to recover UID from target infos
+  */
 static phNfc_sData_t get_target_uid(phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     phNfc_sData_t uid;
@@ -1300,21 +1296,6 @@ static void nfc_jni_se_set_mode_callback(void *pContext,
 /*
  * NFCManager methods
  */
- 
-static void nfc_jni_start_card_emu_discovery_locked(struct nfc_jni_native_data *nat)
-{
-   NFCSTATUS ret;
-   
-   TRACE("******  NFC Config Mode Card Emulation ******");   
-
-   /* Register for the card emulation mode */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
-   REENTRANCE_UNLOCK();
-   TRACE("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
-   if(ret != NFCSTATUS_SUCCESS)
-       return;
-}
 
 static short get_p2p_mode() {
     char value[PROPERTY_VALUE_MAX];
@@ -1346,10 +1327,6 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    NFCSTATUS ret;
    struct nfc_jni_callback_data cb_data;
 
-   /* Clear previous configuration */
-   //memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
-   //memset(&nat->registry_info, 0, sizeof(phLibNfc_Registry_Info_t));
-
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
@@ -1358,29 +1335,10 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
 
-#if 0
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = TRUE;
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = TRUE;
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693  = TRUE;
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableNfcActive = FALSE;
-#endif
-   
-   nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
    nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
    nat->discovery_cfg.Duration = 300000; /* in ms */
    nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
 
-
-   nat->registry_info.MifareUL = TRUE;
-   nat->registry_info.MifareStd = TRUE;
-   nat->registry_info.ISO14443_4A = TRUE;
-   nat->registry_info.ISO14443_4B = TRUE;
-   nat->registry_info.Jewel = TRUE;
-   nat->registry_info.Felica = TRUE;
-   nat->registry_info.NFC = TRUE;   
-   nat->registry_info.ISO15693 = TRUE;
    TRACE("******  NFC Config Mode Reader ******");
       
    /* Register for the reader mode */
@@ -1402,7 +1360,6 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
       nat->registry_info.NFC==TRUE?"P2P":"",
       nat->registry_info.ISO15693==TRUE?"R":"", ret);
 
-   
    /* Register for the card emulation mode */
    REENTRANCE_LOCK();
    ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
@@ -1459,7 +1416,6 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
 
    discovery_cfg.PollDevInfo.PollEnabled = 0;
    discovery_cfg.Duration = 0xffffffff;
-   /*discovery_cfg.NfcIP_Mode = phNfc_eInvalidP2PMode;*/
    discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
  
@@ -1510,27 +1466,16 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 
 }
     
-static void com_android_nfc_NfcManager_enableDiscovery(
-   JNIEnv *e, jobject o, jint mode)
-{
-   NFCSTATUS ret;
-   struct nfc_jni_native_data *nat;
+static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o) {
+    NFCSTATUS ret;
+    struct nfc_jni_native_data *nat;
 
-   CONCURRENCY_LOCK();
-   
-   /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
-   
-   if(mode == DISCOVERY_MODE_TAG_READER)
-   {
-      nfc_jni_start_discovery_locked(nat);
-   }
-   else if(DISCOVERY_MODE_CARD_EMULATION)
-   {
-      nfc_jni_start_card_emu_discovery_locked(nat);
-   }
+    CONCURRENCY_LOCK();
 
-   CONCURRENCY_UNLOCK();
+    nat = nfc_jni_get_nat(e, o);
+    nfc_jni_start_discovery_locked(nat);
+
+    CONCURRENCY_UNLOCK();
 }
 
 static void com_android_nfc_NfcManager_doResetTimeouts( JNIEnv *e, jobject o) {
@@ -1694,7 +1639,31 @@ static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 #endif
 
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o);
+
+   nat->seId = SMX_SECURE_ELEMENT_ID;
+
+   nat->lto = 150;  // LLCP_LTO
+   nat->miu = 128; // LLCP_MIU
+   nat->wks = 1;  // LLCP_WKS
+   nat->opt = 0;  // LLCP_OPT
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableNfcActive = TRUE;
+   nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
+
+   nat->registry_info.MifareUL = TRUE;
+   nat->registry_info.MifareStd = TRUE;
+   nat->registry_info.ISO14443_4A = TRUE;
+   nat->registry_info.ISO14443_4B = TRUE;
+   nat->registry_info.Jewel = TRUE;
+   nat->registry_info.Felica = TRUE;
+   nat->registry_info.NFC = TRUE;
+   nat->registry_info.ISO15693 = TRUE;
+
    exported_nat = nat;
 
    /* Perform the initialization */
@@ -1791,137 +1760,124 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 }
 
 /* Secure Element methods */
-static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o)
-{
-   NFCSTATUS ret;
-   jintArray list= NULL;
-   phLibNfc_SE_List_t se_list[PHLIBNFC_MAXNO_OF_SE];
-   uint8_t i, se_count = PHLIBNFC_MAXNO_OF_SE;
+static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o) {
+    NFCSTATUS ret;
+    jintArray list= NULL;
+    phLibNfc_SE_List_t se_list[PHLIBNFC_MAXNO_OF_SE];
+    uint8_t i, se_count = PHLIBNFC_MAXNO_OF_SE;
+
+    TRACE("******  Get Secure Element List ******");
     
-   TRACE("******  Get Secure Element List ******");  
-   
-   TRACE("phLibNfc_SE_GetSecureElementList()");
-   REENTRANCE_LOCK();
-   ret = phLibNfc_SE_GetSecureElementList(se_list, &se_count);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-      LOGE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      return list;  
-   }
-   TRACE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+    TRACE("phLibNfc_SE_GetSecureElementList()");
+    REENTRANCE_LOCK();
+    ret = phLibNfc_SE_GetSecureElementList(se_list, &se_count);
+    REENTRANCE_UNLOCK();
+    if (ret != NFCSTATUS_SUCCESS) {
+        LOGE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret,
+                nfc_jni_get_status_name(ret));
+        return list;
+    }
+    TRACE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret,
+            nfc_jni_get_status_name(ret));
 
-   TRACE("Nb SE: %d", se_count);
-   list =e->NewIntArray(se_count);
-   for(i=0;i<se_count;i++)
-   {
-      if (se_list[i].eSE_Type == phLibNfc_SE_Type_SmartMX)
-      {
-        LOGD("phLibNfc_SE_GetSecureElementList(): SMX detected"); 
-        LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
-      }
-      else if(se_list[i].eSE_Type == phLibNfc_SE_Type_UICC)
-      {
-        LOGD("phLibNfc_SE_GetSecureElementList(): UICC detected");
-        LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement); 
-      }
-      
-      e->SetIntArrayRegion(list, i, 1, (jint*)&se_list[i].hSecureElement);
-   }
+    TRACE("Nb SE: %d", se_count);
+    list =e->NewIntArray(se_count);
+    for (i = 0; i < se_count; i++) {
+        if (se_list[i].eSE_Type == phLibNfc_SE_Type_SmartMX) {
+            LOGD("phLibNfc_SE_GetSecureElementList(): SMX detected");
+            LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
+        } else if(se_list[i].eSE_Type == phLibNfc_SE_Type_UICC) {
+            LOGD("phLibNfc_SE_GetSecureElementList(): UICC detected");
+            LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
+        }
+        e->SetIntArrayRegion(list, i, 1, (jint*)&se_list[i].hSecureElement);
+    }
 
-   e->DeleteLocalRef(list);
-  
-   return list;
+    e->DeleteLocalRef(list);
+
+    return list;
 }
 
-static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o, jint seID)
-{
-   NFCSTATUS ret;
-   struct nfc_jni_native_data *nat;
-   struct nfc_jni_callback_data cb_data;
+static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o) {
+    NFCSTATUS ret;
+    struct nfc_jni_native_data *nat;
+    struct nfc_jni_callback_data cb_data;
 
-   CONCURRENCY_LOCK();
-   
-   /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o);
-   nat->seId = seID;
+    CONCURRENCY_LOCK();
 
-   /* Create the local semaphore */
-   if (!nfc_cb_data_init(&cb_data, NULL))
-   {
-      goto clean_and_return;
-   }
+    /* Retrieve native structure address */
+    nat = nfc_jni_get_nat(e, o);
 
-   TRACE("******  Select Secure Element ******"); 
+    /* Create the local semaphore */
+    if (!nfc_cb_data_init(&cb_data, NULL)) {
+        goto clean_and_return;
+    }
 
-   TRACE("phLibNfc_SE_SetMode(0x%08x, ...)", seID);
-   /* Set SE mode - Virtual */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,(void *)&cb_data);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_PENDING)
-   {
-      LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      goto clean_and_return;
-   }
-   TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+    TRACE("******  Select Secure Element ******");
 
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
-   {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
-   }
+    TRACE("phLibNfc_SE_SetMode()");
+    /* Set SE mode - Virtual */
+    REENTRANCE_LOCK();
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,
+            (void *)&cb_data);
+    REENTRANCE_UNLOCK();
+    if (ret != NFCSTATUS_PENDING) {
+        LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+        goto clean_and_return;
+    }
+    TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
-clean_and_return:
-   nfc_cb_data_deinit(&cb_data);
-   CONCURRENCY_UNLOCK();
+    /* Wait for callback response */
+    if (sem_wait(&cb_data.sem)) {
+        LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+        goto clean_and_return;
+    }
+
+    clean_and_return:
+    nfc_cb_data_deinit(&cb_data);
+    CONCURRENCY_UNLOCK();
 }
 
-static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobject o, jint seID)
-{
-   NFCSTATUS ret;
-   struct nfc_jni_native_data *nat;
-   struct nfc_jni_callback_data cb_data;
+static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobject o) {
+    NFCSTATUS ret;
+    struct nfc_jni_native_data *nat;
+    struct nfc_jni_callback_data cb_data;
 
-   CONCURRENCY_LOCK();
-   
-   /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o);
-   nat->seId = 0;
+    CONCURRENCY_LOCK();
 
-   /* Create the local semaphore */
-   if (!nfc_cb_data_init(&cb_data, NULL))
-   {
-      goto clean_and_return;
-   }
+    /* Retrieve native structure address */
+    nat = nfc_jni_get_nat(e, o);
 
-   TRACE("******  Deselect Secure Element ******"); 
+    /* Create the local semaphore */
+    if (!nfc_cb_data_init(&cb_data, NULL)) {
+        goto clean_and_return;
+    }
 
-   TRACE("phLibNfc_SE_SetMode(0x%02x, ...)", seID);
-   /* Set SE mode - Off */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_SE_SetMode(seID,phLibNfc_SE_ActModeOff, nfc_jni_se_set_mode_callback,(void *)&cb_data);
-   REENTRANCE_UNLOCK();
+    TRACE("****** Deselect Secure Element ******");
+
+    TRACE("phLibNfc_SE_SetMode()");
+    /* Set SE mode - Off */
+    REENTRANCE_LOCK();
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeOff,
+           nfc_jni_se_set_mode_callback, (void *)&cb_data);
+    REENTRANCE_UNLOCK();
        
-   TRACE("phLibNfc_SE_SetMode for SE 0x%02x returned 0x%02x",seID, ret);
-   if(ret != NFCSTATUS_PENDING)
-   {
-      LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      goto clean_and_return;
-   }
-   TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+    TRACE("phLibNfc_SE_SetMode returned 0x%02x", ret);
+    if (ret != NFCSTATUS_PENDING) {
+        LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+        goto clean_and_return;
+    }
+    TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
-   {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
-   }
+    /* Wait for callback response */
+    if (sem_wait(&cb_data.sem)) {
+        LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+        goto clean_and_return;
+    }
 
-clean_and_return:
-   nfc_cb_data_deinit(&cb_data);
-   CONCURRENCY_UNLOCK();
+    clean_and_return:
+    nfc_cb_data_deinit(&cb_data);
+    CONCURRENCY_UNLOCK();
 }
 
 /* Llcp methods */
@@ -2330,78 +2286,6 @@ static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
    }
 }
 
-static void com_android_nfc_NfcManager_doSetProperties(JNIEnv *e, jobject o, jint param, jint value)
-{  
-   NFCSTATUS ret;
-   struct nfc_jni_native_data *nat;
-
-   /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o);
-   
-   switch(param)
-   {
-   case PROPERTY_LLCP_LTO:
-      {
-         TRACE("> Set LLCP LTO to %d",value); 
-         nat->lto = value;
-      }break;
-      
-   case PROPERTY_LLCP_MIU:
-      {
-         TRACE("> Set LLCP MIU to %d",value);  
-         nat->miu = value;
-      }break;
-      
-   case PROPERTY_LLCP_WKS:
-      {
-         TRACE("> Set LLCP WKS to %d",value); 
-         nat->wks = value;
-      }break;
-      
-   case PROPERTY_LLCP_OPT:
-      {
-         TRACE("> Set LLCP OPT to %d",value); 
-         nat->opt = value;    
-      }break;
-      
-   case PROPERTY_NFC_DISCOVERY_A:
-      {
-         TRACE("> Set NFC DISCOVERY A to %d",value); 
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = value;  
-      }break;
-      
-   case PROPERTY_NFC_DISCOVERY_B:
-      {
-         TRACE("> Set NFC DISCOVERY B to %d",value); 
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = value;    
-      }break;
-      
-   case PROPERTY_NFC_DISCOVERY_F:
-      {
-         TRACE("> Set NFC DISCOVERY F to %d",value); 
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = value;
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = value;
-      }break;
-      
-   case PROPERTY_NFC_DISCOVERY_15693:
-      {
-         TRACE("> Set NFC DISCOVERY 15693 to %d",value); 
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = value; 
-      }break;
-      
-   case PROPERTY_NFC_DISCOVERY_NCFIP:
-      {
-         TRACE("> Set NFC DISCOVERY NFCIP to %d",value); 
-         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableNfcActive = value; 
-      }break;
-   default:
-      {
-         TRACE("> Unknown Property "); 
-      }break;
-   }
-   
-
-}
 /*
  * JNI registration.
  */
@@ -2416,16 +2300,16 @@ static JNINativeMethod gMethods[] =
    {"deinitialize", "()Z",
       (void *)com_android_nfc_NfcManager_deinitialize},
       
-   {"enableDiscovery", "(I)V",
+   {"enableDiscovery", "()V",
       (void *)com_android_nfc_NfcManager_enableDiscovery},
 
    {"doGetSecureElementList", "()[I",
       (void *)com_android_nfc_NfcManager_doGetSecureElementList},
       
-   {"doSelectSecureElement", "(I)V",
+   {"doSelectSecureElement", "()V",
       (void *)com_android_nfc_NfcManager_doSelectSecureElement},
       
-   {"doDeselectSecureElement", "(I)V",
+   {"doDeselectSecureElement", "()V",
       (void *)com_android_nfc_NfcManager_doDeselectSecureElement},
       
    {"doCheckLlcp", "()Z",
@@ -2445,9 +2329,6 @@ static JNINativeMethod gMethods[] =
       
    {"doGetLastError", "()I",
       (void *)com_android_nfc_NfcManager_doGetLastError},
-      
-   {"doSetProperties", "(II)V",
-      (void *)com_android_nfc_NfcManager_doSetProperties},
 
    {"disableDiscovery", "()V",
       (void *)com_android_nfc_NfcManager_disableDiscovery},

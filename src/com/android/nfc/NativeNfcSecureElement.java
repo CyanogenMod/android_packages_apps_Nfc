@@ -25,9 +25,7 @@ package com.android.nfc;
  */
 public class NativeNfcSecureElement {
     
-        
-    public NativeNfcSecureElement() {
-    }
+    public NativeNfcSecureElement() { }
     
     public native int doOpenSecureElementConnection();
         
@@ -38,5 +36,4 @@ public class NativeNfcSecureElement {
     public native int[] doGetTechList(int handle);
     
     public native byte [] doGetUid(int handle);
-    
 }

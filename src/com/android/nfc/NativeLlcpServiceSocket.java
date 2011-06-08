@@ -21,30 +21,14 @@ package com.android.nfc;
  * Connection-oriented communication
  */
 public class NativeLlcpServiceSocket {
-
     private int mHandle;
-
     private int mLocalMiu;
-
     private int mLocalRw;
-
     private int mLocalLinearBufferLength;
-
     private int mSap;
-
     private String mServiceName;
 
-    public NativeLlcpServiceSocket(){
-
-    }
-
-    public NativeLlcpServiceSocket(int sap, String serviceName, int miu, int rw, int linearBufferLength){
-        mSap = sap;
-        mServiceName = serviceName;
-        mLocalMiu = miu;
-        mLocalRw = rw;
-        mLocalLinearBufferLength = linearBufferLength;
-    }
+    public NativeLlcpServiceSocket(){ }
 
     public native NativeLlcpSocket doAccept(int miu, int rw, int linearBufferLength);
 
