@@ -332,28 +332,8 @@ public class NfcService extends Application {
             if (DBG) Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
             if (previouslyEnabled) {
-                /* tear down the my tag server */
-                mNdefPushServer.stop();
-
-                // Stop watchdog if tag present
-                // A convenient way to stop the watchdog properly consists of
-                // disconnecting the tag. The polling loop shall be stopped before
-                // to avoid the tag being discovered again.
-                mIsDiscoveryOn = false;
-                applyRouting();
-                maybeDisconnectTarget();
-
-                isSuccess = mManager.deinitialize();
-                if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
-                if (isSuccess) {
-                    mIsNfcEnabled = false;
-                    mNfcDispatcher.disableForegroundDispatch();
-                    mNdefPushClient.setForegroundMessage(null);
-                }
+                isSuccess = _disable(previouslyEnabled);
             }
-
-            updateNfcOnSetting(previouslyEnabled);
-
             return isSuccess;
         }
 
@@ -1920,7 +1900,35 @@ public class NfcService extends Application {
             mNdefPushServer.start();
 
         } else {
+            Log.w(TAG, "Error enabling NFC");
             mIsNfcEnabled = false;
+        }
+
+        updateNfcOnSetting(oldEnabledState);
+
+        return isSuccess;
+    }
+
+    private boolean _disable(boolean oldEnabledState) {
+        boolean isSuccess;
+
+        /* tear down the my tag server */
+        mNdefPushServer.stop();
+
+        // Stop watchdog if tag present
+        // A convenient way to stop the watchdog properly consists of
+        // disconnecting the tag. The polling loop shall be stopped before
+        // to avoid the tag being discovered again.
+        mIsDiscoveryOn = false;
+        applyRouting();
+        maybeDisconnectTarget();
+
+        isSuccess = mManager.deinitialize();
+        if (DBG) Log.d(TAG, "NFC success of deinitialize = " + isSuccess);
+        if (isSuccess) {
+            mIsNfcEnabled = false;
+            mNfcDispatcher.disableForegroundDispatch();
+            mNdefPushClient.setForegroundMessage(null);
         }
 
         updateNfcOnSetting(oldEnabledState);
@@ -2010,10 +2018,22 @@ public class NfcService extends Application {
         if (apdus == null) {
             return;
         }
+
+        boolean tempEnable = !mIsNfcEnabled;
+        if (tempEnable) {
+            if (!_enable(false)) {
+                Log.w(TAG, "Could not enable NFC to reset EE!");
+                return;
+            }
+        }
+
         Log.i(TAG, "Executing SE Reset Script");
         int handle = mSecureElement.doOpenSecureElementConnection();
         if (handle == 0) {
             Log.e(TAG, "Could not open the secure element!");
+            if (tempEnable) {
+                _disable(true);
+            }
             return;
         }
 
@@ -2022,6 +2042,10 @@ public class NfcService extends Application {
         }
 
         mSecureElement.doDisconnect(handle);
+
+        if (tempEnable) {
+            _disable(true);
+        }
     }
 
     private List<byte[]> readSeResetApdus() {
