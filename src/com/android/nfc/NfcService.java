@@ -1310,19 +1310,15 @@ public class NfcService extends Application {
             return null;
         }
 
-
         @Override
-        public void setIsoDepTimeout(int timeout) throws RemoteException {
+        public int setTimeout(int tech, int timeout) throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            mManager.setIsoDepTimeout(timeout);
-        }
-
-        @Override
-        public void setFelicaTimeout(int timeout) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            mManager.setFelicaTimeout(timeout);
+            boolean success = mManager.setTimeout(tech, timeout);
+            if (success) {
+                return ErrorCodes.SUCCESS;
+            } else {
+                return ErrorCodes.ERROR_INVALID_PARAM;
+            }
         }
 
         @Override
@@ -1599,7 +1595,7 @@ public class NfcService extends Application {
                 if (handle == 0) {
                     throw new IOException("NFC EE failed to open");
                 }
-                mManager.doSetIsoDepTimeout(10000);
+                mManager.doSetTimeout(TagTechnology.ISO_DEP, 10000);
 
                 mOpenEe = new OpenSecureElement(getCallingPid(), handle);
                 try {

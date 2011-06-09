@@ -630,6 +630,7 @@ void nfc_jni_reset_timeout_values()
     phLibNfc_SetIsoXchgTimeout(NXP_ISO_XCHG_TIMEOUT);
     phLibNfc_SetHciTimeout(NXP_NFC_HCI_TIMEOUT);
     phLibNfc_SetFelicaTimeout(NXP_FELICA_XCHG_TIMEOUT);
+    phLibNfc_SetMifareRawTimeout(NXP_MIFARE_XCHG_TIMEOUT);
     REENTRANCE_UNLOCK();
 }
 
@@ -1484,17 +1485,11 @@ static void com_android_nfc_NfcManager_doResetTimeouts( JNIEnv *e, jobject o) {
     CONCURRENCY_UNLOCK();
 }
 
-
-static void com_android_nfc_NfcManager_doSetFelicaTimeout( JNIEnv *e, jobject o,
-        jint timeout) {
-   CONCURRENCY_LOCK();
+static void setFelicaTimeout(jint timeout) {
    // The Felica timeout is configurable in the PN544 upto a maximum of 255 ms.
    // It can be set to 0 to disable the timeout altogether, in which case we
    // use the sw watchdog as a fallback.
-   if (timeout == 0) {
-       // Disable timeout altogether, not allowed
-       LOGE("It's not allowed to set the NFC Felica timeout to 0!");
-   } else if (timeout <= 255) {
+   if (timeout <= 255) {
        phLibNfc_SetFelicaTimeout(timeout);
    } else {
        // Disable hw timeout, use sw watchdog for timeout
@@ -1502,7 +1497,6 @@ static void com_android_nfc_NfcManager_doSetFelicaTimeout( JNIEnv *e, jobject o,
        phLibNfc_SetHciTimeout(timeout);
    }
 
-   CONCURRENCY_UNLOCK();
 }
 // Calculates ceiling log2 of value
 static unsigned int log2(int value) {
@@ -1513,29 +1507,24 @@ static unsigned int log2(int value) {
     return ret;
 }
 
-static void com_android_nfc_NfcManager_doSetIsoDepTimeout( JNIEnv *e, jobject o,
-        jint timeout) {
-   CONCURRENCY_LOCK();
-   // The Iso Xchg timeout in PN544 is a non-linear function over X
+static int calcTimeout(int timeout_in_ms) {
+   // The Iso/Mifare Xchg timeout in PN544 is a non-linear function over X
    // spanning 0 - 4.9s: timeout in seconds = (256 * 16 / 13560000) * 2 ^ X
-   // Also note that if we desire a timeout > 4.9s, the Iso Xchg timeout
-   // must be disabled completely, to prevent the PN544 from aborting
-   // the transaction. We reuse the HCI sw watchdog to catch the timeout
-   // in that case.
    //
    // We keep the constant part of the formula in a static; note the factor
    // 1000 off, which is due to the fact that the formula calculates seconds,
    // but this method gets milliseconds as an argument.
    static double factor = (256 * 16) / 13560.0;
+   // timeout = (256 * 16 / 13560000) * 2 ^ X
+   // First find the first X for which timeout > requested timeout
+   return (log2(ceil(((double) timeout_in_ms) / factor)));
+}
 
-   if (timeout == 0) {
-       // Disable timeout altogether, not allowed
-       LOGE("It's not allowed to set the NFC ISO DEP timeout to 0!");
-   }
-   else if (timeout <= 4900) {
-       // timeout = (256 * 16 / 13560000) * 2 ^ X
-       // First find the first X for which timeout > requested timeout
-       int value = log2(ceil(((double) timeout) / factor));
+static void setIsoDepTimeout(jint timeout) {
+   static double factor = (256 * 16) / 13560.0;
+
+   if (timeout <= 4900) {
+       int value = calcTimeout(timeout);
        // Then re-compute the actual timeout based on X
        double actual_timeout = factor * (1 << value);
        // Set the sw watchdog a bit longer (The PN544 timeout is very accurate,
@@ -1546,12 +1535,59 @@ static void com_android_nfc_NfcManager_doSetIsoDepTimeout( JNIEnv *e, jobject o,
        phLibNfc_SetIsoXchgTimeout(value);
    }
    else {
-       // Disable ISO XCHG timeout, use HCI sw watchdog instead
+       // Also note that if we desire a timeout > 4.9s, the Iso Xchg timeout
+       // must be disabled completely, to prevent the PN544 from aborting
+       // the transaction. We reuse the HCI sw watchdog to catch the timeout
+       // in that case.
        phLibNfc_SetIsoXchgTimeout(0x00);
        phLibNfc_SetHciTimeout(timeout);
    }
+}
 
-   CONCURRENCY_UNLOCK();
+static void setNfcATimeout(jint timeout) {
+   if (timeout <= 4900) {
+       int value = calcTimeout(timeout);
+       phLibNfc_SetMifareRawTimeout(value);
+   }
+   else {
+       // Disable mifare raw timeout, use HCI sw watchdog instead
+       phLibNfc_SetMifareRawTimeout(0x00);
+       phLibNfc_SetHciTimeout(timeout);
+   }
+}
+
+static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
+        jint tech, jint timeout) {
+    bool success = false;
+    CONCURRENCY_LOCK();
+    if (timeout <= 0) {
+        LOGE("Timeout must be positive.");
+        return false;
+    } else {
+        switch (tech) {
+            case TARGET_TYPE_MIFARE_CLASSIC:
+            case TARGET_TYPE_MIFARE_UL:
+                // Intentional fall-through, Mifare UL, Classic
+                // transceive just uses raw 3A frames
+            case TARGET_TYPE_ISO14443_3A:
+                setNfcATimeout(timeout);
+                success = true;
+                break;
+            case TARGET_TYPE_ISO14443_4:
+                setIsoDepTimeout(timeout);
+                success = true;
+                break;
+            case TARGET_TYPE_FELICA:
+                setFelicaTimeout(timeout);
+                success = true;
+                break;
+            default:
+                LOGW("doSetTimeout: Timeout not supported for tech %d", tech);
+                success = false;
+        }
+    }
+    CONCURRENCY_UNLOCK();
+    return success;
 }
 
 static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject o)
@@ -2333,14 +2369,11 @@ static JNINativeMethod gMethods[] =
    {"disableDiscovery", "()V",
       (void *)com_android_nfc_NfcManager_disableDiscovery},
 
-   {"doSetIsoDepTimeout", "(I)V",
-      (void *)com_android_nfc_NfcManager_doSetIsoDepTimeout},
+   {"doSetTimeout", "(II)Z",
+      (void *)com_android_nfc_NfcManager_doSetTimeout},
 
    {"doResetTimeouts", "()V",
       (void *)com_android_nfc_NfcManager_doResetTimeouts},
-
-   {"doSetFelicaTimeout", "(I)V",
-      (void *)com_android_nfc_NfcManager_doSetFelicaTimeout},
 };   
   
       

@@ -77,16 +77,10 @@ public class NativeNfcManager {
         doResetTimeouts();
     }
 
-    public native void doSetIsoDepTimeout(int timeout);
-    public void setIsoDepTimeout(int timeout) {
-        doSetIsoDepTimeout(timeout);
+    public native boolean doSetTimeout(int tech, int timeout);
+    public boolean setTimeout(int tech, int timeout) {
+        return doSetTimeout(tech, timeout);
     }
-
-    public native void doSetFelicaTimeout(int timeout);
-    public void setFelicaTimeout(int timeout) {
-        doSetFelicaTimeout(timeout);
-    }
-
 
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
