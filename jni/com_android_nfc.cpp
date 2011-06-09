@@ -270,7 +270,7 @@ int nfc_jni_get_connected_tech_index(JNIEnv *e, jobject o)
    jfieldID f;
 
    c = e->GetObjectClass(o);
-   f = e->GetFieldID(c, "mConnectedTechnology", "I");
+   f = e->GetFieldID(c, "mConnectedTechIndex", "I");
 
    return e->GetIntField(o, f);
 
@@ -325,23 +325,11 @@ phLibNfc_Handle nfc_jni_get_connected_handle(JNIEnv *e, jobject o)
 {
    jclass c;
    jfieldID f;
-   phLibNfc_Handle connectedHandle = -1;
 
-   int connectedTechIndex = nfc_jni_get_connected_tech_index(e,o);
    c = e->GetObjectClass(o);
-   f = e->GetFieldID(c, "mTechHandles", "[I");
-   jintArray techHandles =  (jintArray) e->GetObjectField(o, f);
+   f = e->GetFieldID(c, "mConnectedHandle", "I");
 
-   if ((connectedTechIndex != -1) && (techHandles != NULL) &&
-           (connectedTechIndex < e->GetArrayLength(techHandles))) {
-       jint* handles = e->GetIntArrayElements(techHandles, 0);
-       if (handles != NULL) {
-           connectedHandle = handles[connectedTechIndex];
-           e->ReleaseIntArrayElements(techHandles, handles, JNI_ABORT);
-       }
-   }
-   return connectedHandle;
-
+   return e->GetIntField(o, f);
 }
 
 phLibNfc_Handle nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o)

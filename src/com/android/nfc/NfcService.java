@@ -59,6 +59,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.tech.TagTechnology;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
 import android.nfc.tech.TagTechnology;
@@ -787,6 +788,7 @@ public class NfcService extends Application {
                 }
             }
         }
+
     };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
@@ -1491,6 +1493,40 @@ public class NfcService extends Application {
                 return ErrorCodes.ERROR_IO;
             }
         }
+
+        @Override
+        public Tag rediscover(int nativeHandle) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            NativeNfcTag tag = null;
+
+            // Check if NFC is enabled
+            if (!mIsNfcEnabled) {
+                return null;
+            }
+
+            /* find the tag in the hmap */
+            tag = (NativeNfcTag) findObject(nativeHandle);
+            if (tag != null) {
+                // For now the prime usecase for rediscover() is to be able
+                // to access the NDEF technology after formatting without
+                // having to remove the tag from the field, or similar
+                // to have access to NdefFormatable in case low-level commands
+                // were used to remove NDEF. So instead of doing a full stack
+                // rediscover (which is poorly supported at the moment anyway),
+                // we simply remove these two technologies and detect them
+                // again.
+                tag.removeTechnology(TagTechnology.NDEF);
+                tag.removeTechnology(TagTechnology.NDEF_FORMATABLE);
+                NdefMessage[] msgs = findAndReadNdef(tag);
+                // Build a new Tag object to return
+                Tag newTag = new Tag(tag.getUid(), tag.getTechList(),
+                        tag.getTechExtras(), tag.getHandle(), mNfcTagService);
+                return newTag;
+            }
+            return null;
+        }
+
 
         @Override
         public void setIsoDepTimeout(int timeout) throws RemoteException {
@@ -2263,91 +2299,92 @@ public class NfcService extends Application {
         mHandler.sendMessage(msg);
     }
 
-    final class NfcServiceHandler extends Handler {
+    static public NdefMessage[] findAndReadNdef(NativeNfcTag nativeTag) {
+        // Try to find NDEF on any of the technologies.
+        int[] technologies = nativeTag.getTechList();
+        int[] handles = nativeTag.getHandleList();
+        int techIndex = 0;
+        int lastHandleScanned = 0;
+        boolean ndefFoundAndConnected = false;
+        NdefMessage[] ndefMsgs = null;
+        boolean foundFormattable = false;
+        int formattableHandle = 0;
+        int formattableLibNfcType = 0;
 
-        public NdefMessage[] findAndReadNdef(NativeNfcTag nativeTag) {
-            // Try to find NDEF on any of the technologies.
-            int[] technologies = nativeTag.getTechList();
-            int[] handles = nativeTag.getHandleList();
-            int techIndex = 0;
-            int lastHandleScanned = 0;
-            boolean ndefFoundAndConnected = false;
-            NdefMessage[] ndefMsgs = null;
-            boolean foundFormattable = false;
-            int formattableHandle = 0;
-            int formattableTechnology = 0;
+        while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
+            if (handles[techIndex] != lastHandleScanned) {
+                // We haven't seen this handle yet, connect and checkndef
+                if (nativeTag.connect(technologies[techIndex])) {
+                    // Check if this type is NDEF formatable
+                    if (!foundFormattable) {
+                        if (nativeTag.isNdefFormatable()) {
+                            foundFormattable = true;
+                            formattableHandle = nativeTag.getConnectedHandle();
+                            formattableLibNfcType = nativeTag.getConnectedLibNfcType();
+                            // We'll only add formattable tech if no ndef is
+                            // found - this is because libNFC refuses to format
+                            // an already NDEF formatted tag.
+                        }
+                        nativeTag.reconnect();
+                    } // else, already found formattable technology
 
-            while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
-                if (handles[techIndex] != lastHandleScanned) {
-                    // We haven't seen this handle yet, connect and checkndef
-                    if (nativeTag.connect(technologies[techIndex])) {
-                        // Check if this type is NDEF formatable
-                        if (!foundFormattable) {
-                            if (nativeTag.isNdefFormatable()) {
-                                foundFormattable = true;
-                                formattableHandle = nativeTag.getConnectedHandle();
-                                formattableTechnology = nativeTag.getConnectedTechnology();
-                                // We'll only add formattable tech if no ndef is
-                                // found - this is because libNFC refuses to format
-                                // an already NDEF formatted tag.
+                    int[] ndefinfo = new int[2];
+                    if (nativeTag.checkNdef(ndefinfo)) {
+                        ndefFoundAndConnected = true;
+                        boolean generateEmptyNdef = false;
+
+                        int supportedNdefLength = ndefinfo[0];
+                        int cardState = ndefinfo[1];
+                        byte[] buff = nativeTag.read();
+                        if (buff != null) {
+                            ndefMsgs = new NdefMessage[1];
+                            try {
+                                ndefMsgs[0] = new NdefMessage(buff);
+                                nativeTag.addNdefTechnology(ndefMsgs[0],
+                                        nativeTag.getConnectedHandle(),
+                                        nativeTag.getConnectedLibNfcType(),
+                                        nativeTag.getConnectedTechnology(),
+                                        supportedNdefLength, cardState);
+                                nativeTag.reconnect();
+                            } catch (FormatException e) {
+                               // Create an intent anyway, without NDEF messages
+                               generateEmptyNdef = true;
                             }
-                            nativeTag.reconnect();
-                        } // else, already found formattable technology
+                        } else {
+                            generateEmptyNdef = true;
+                        }
 
-                        int[] ndefinfo = new int[2];
-                        if (nativeTag.checkNdef(ndefinfo)) {
-                            ndefFoundAndConnected = true;
-                            boolean generateEmptyNdef = false;
-
-                            int supportedNdefLength = ndefinfo[0];
-                            int cardState = ndefinfo[1];
-                            byte[] buff = nativeTag.read();
-                            if (buff != null) {
-                                ndefMsgs = new NdefMessage[1];
-                                try {
-                                    ndefMsgs[0] = new NdefMessage(buff);
-                                    nativeTag.addNdefTechnology(ndefMsgs[0],
-                                            nativeTag.getConnectedHandle(),
-                                            nativeTag.getConnectedLibNfcType(),
-                                            nativeTag.getConnectedTechnology(),
-                                            supportedNdefLength, cardState);
-                                    nativeTag.reconnect();
-                                } catch (FormatException e) {
-                                   // Create an intent anyway, without NDEF messages
-                                   generateEmptyNdef = true;
-                                }
-                            } else {
-                                generateEmptyNdef = true;
-                            }
-
-                           if (generateEmptyNdef) {
-                               ndefMsgs = new NdefMessage[] { };
-                               nativeTag.addNdefTechnology(null,
-                                       nativeTag.getConnectedHandle(),
-                                       nativeTag.getConnectedLibNfcType(),
-                                       nativeTag.getConnectedTechnology(),
-                                       supportedNdefLength, cardState);
-                               nativeTag.reconnect();
-                           }
-                        } // else, no NDEF on this tech, continue loop
-                    } else {
-                        // Connect failed, tag maybe lost. Try next handle
-                        // anyway.
-                    }
+                       if (generateEmptyNdef) {
+                           ndefMsgs = new NdefMessage[] { };
+                           nativeTag.addNdefTechnology(null,
+                                   nativeTag.getConnectedHandle(),
+                                   nativeTag.getConnectedLibNfcType(),
+                                   nativeTag.getConnectedTechnology(),
+                                   supportedNdefLength, cardState);
+                           nativeTag.reconnect();
+                       }
+                    } // else, no NDEF on this tech, continue loop
+                } else {
+                    // Connect failed, tag maybe lost. Try next handle
+                    // anyway.
                 }
-                lastHandleScanned = handles[techIndex];
-                techIndex++;
             }
-            if (ndefMsgs == null && foundFormattable) {
-                // Tag is not NDEF yet, and found a formattable target,
-                // so add formattable tech to tech list.
-                nativeTag.addNdefFormatableTechnology(
-                        formattableHandle,
-                        formattableTechnology);
-            }
-
-            return ndefMsgs;
+            lastHandleScanned = handles[techIndex];
+            techIndex++;
         }
+        if (ndefMsgs == null && foundFormattable) {
+            // Tag is not NDEF yet, and found a formattable target,
+            // so add formattable tech to tech list.
+            nativeTag.addNdefFormatableTechnology(
+                    formattableHandle,
+                    formattableLibNfcType);
+        }
+
+        return ndefMsgs;
+    }
+
+
+    final class NfcServiceHandler extends Handler {
 
         @Override
         public void handleMessage(Message msg) {
