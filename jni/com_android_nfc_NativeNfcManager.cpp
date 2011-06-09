@@ -205,12 +205,13 @@ static void nfc_jni_deinit_download_callback(void *pContext, NFCSTATUS status)
    sem_post(&pCallbackData->sem);
 }
 
-static int nfc_jni_download(struct nfc_jni_native_data *nat)
+static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
 {
     uint8_t OutputBuffer[1];
     uint8_t InputBuffer[1];
     struct timespec ts;
     NFCSTATUS status;
+    phLibNfc_StackCapabilities_t caps;
     struct nfc_jni_callback_data cb_data;
 
     /* Create the local semaphore */
@@ -219,33 +220,33 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat)
        goto clean_and_return;
     }
 
-    //deinit
-    TRACE("phLibNfc_Mgt_DeInitialize() (download)");
-    REENTRANCE_LOCK();
-    status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_download_callback, (void *)&cb_data);
-    REENTRANCE_UNLOCK();
-    if (status != NFCSTATUS_PENDING)
+    if(update)
     {
-        LOGE("phLibNfc_Mgt_DeInitialize() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-        goto reinit;
-    }
+        //deinit
+        TRACE("phLibNfc_Mgt_DeInitialize() (download)");
+        REENTRANCE_LOCK();
+        status = phLibNfc_Mgt_DeInitialize(gHWRef, nfc_jni_deinit_download_callback, (void *)&cb_data);
+        REENTRANCE_UNLOCK();
+        if (status != NFCSTATUS_PENDING)
+        {
+            LOGE("phLibNfc_Mgt_DeInitialize() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        }
 
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 5;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += 5;
 
-    /* Wait for callback response */
-    if(sem_timedwait(&cb_data.sem, &ts))
-    {
-        LOGW("Deinitialization timed out (download)");
-        goto reinit;
-    }
+        /* Wait for callback response */
+        if(sem_timedwait(&cb_data.sem, &ts))
+        {
+            LOGW("Deinitialization timed out (download)");
+        }
 
-    if(cb_data.status != NFCSTATUS_SUCCESS)
-    {
-        LOGW("Deinitialization FAILED (download)");
-        goto reinit;
+        if(cb_data.status != NFCSTATUS_SUCCESS)
+        {
+            LOGW("Deinitialization FAILED (download)");
+        }
+        TRACE("Deinitialization SUCCESS (download)");
     }
-    TRACE("Deinitialization SUCCESS (download)");
 
     TRACE("Go in Download Mode");
     phLibNfc_Download_Mode();
@@ -263,7 +264,8 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat)
     if(status != NFCSTATUS_PENDING)
     {
         LOGE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-        goto reinit;
+        status = NFCSTATUS_FAILED;
+        goto clean_and_return;
     }
     TRACE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
 
@@ -273,6 +275,13 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat)
        LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
        status = NFCSTATUS_FAILED;
        goto clean_and_return;
+    }
+
+    /* Download Status */
+    if(cb_data.status != NFCSTATUS_SUCCESS)
+    {
+        status = cb_data.status;
+        goto clean_and_return;
     }
 
 reinit:
@@ -304,6 +313,26 @@ reinit:
         goto clean_and_return;
     }
 
+    /* ====== CAPABILITIES ======= */
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_GetstackCapabilities(&caps, (void*)nat);
+    REENTRANCE_UNLOCK();
+    if (status != NFCSTATUS_SUCCESS)
+    {
+       LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    }
+    else
+    {
+        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, FW Update Info = %d",
+              caps.psDevCapabilities.hal_version,
+              caps.psDevCapabilities.fw_version,
+              caps.psDevCapabilities.hw_version,
+              caps.psDevCapabilities.model_id,
+              caps.psDevCapabilities.hci_version,
+              caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1],
+              caps.psDevCapabilities.firmware_update_info);
+    }
+
     /*Download is successful*/
     status = NFCSTATUS_SUCCESS;
 
@@ -325,6 +354,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    phLibNfc_Llcp_sLinkParameters_t LlcpConfigInfo;
    struct nfc_jni_callback_data cb_data;
    uint8_t firmware_status;
+   uint8_t update = TRUE;
 
    LOGD("Start Initialization\n");
 
@@ -375,7 +405,8 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    if(status != NFCSTATUS_PENDING)
    {
       LOGE("phLibNfc_Mgt_Initialize() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-      goto clean_and_return;
+      update = FALSE;
+      goto force_download;
    }
    TRACE("phLibNfc_Mgt_Initialize returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
   
@@ -389,9 +420,9 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    /* Initialization Status */
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      goto clean_and_return;
+      update = FALSE;
+      goto force_download;
    }
-
 
    /* ====== CAPABILITIES ======= */
 
@@ -418,15 +449,21 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    /* ====== FIRMWARE VERSION ======= */
    if(caps.psDevCapabilities.firmware_update_info)
    {
-       TRACE("Firmware version not UpToDate");
-       status = nfc_jni_download(nat);
-       if(status == NFCSTATUS_SUCCESS)
+force_download:
+       for (i=0; i<3; i++)
        {
-           TRACE("Firmware update SUCCESS");
+           TRACE("Firmware version not UpToDate");
+           status = nfc_jni_download(nat, update);
+           if(status == NFCSTATUS_SUCCESS)
+           {
+               LOGI("Firmware update SUCCESS");
+               break;
+           }
+           LOGW("Firmware update FAILED");
        }
-       else
+       if(i>=3)
        {
-           TRACE("Firmware update FAILED");
+           LOGE("Unable to update firmware, giving up");
            goto clean_and_return;
        }
    }
