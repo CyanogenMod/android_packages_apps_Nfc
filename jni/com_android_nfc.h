@@ -101,6 +101,8 @@ extern "C" {
 #define TARGET_TYPE_MIFARE_CLASSIC        8
 #define TARGET_TYPE_MIFARE_UL             9
 
+#define SMX_SECURE_ELEMENT_ID   11259375
+
 /* Maximum byte length of an AID. */
 #define AID_MAXLEN                        16
 

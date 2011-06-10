@@ -21,24 +21,12 @@ package com.android.nfc;
  * connection-oriented communication
  */
 public class NativeLlcpSocket {
-
     private int mHandle;
-
     private int mSap;
-
     private int mLocalMiu;
-
     private int mLocalRw;
 
-    public NativeLlcpSocket(){
-
-    }
-
-    public NativeLlcpSocket(int sap, int miu, int rw){
-        mSap = sap;
-        mLocalMiu = miu;
-        mLocalRw = rw;
-    }
+    public NativeLlcpSocket(){ }
 
     public native boolean doConnect(int nSap);
 
@@ -69,5 +57,4 @@ public class NativeLlcpSocket {
     public int getHandle(){
         return mHandle;
     }
-
 }

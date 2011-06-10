@@ -27,58 +27,38 @@ public class NativeNfcManager {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION = "com.android.nfc.action.INTERNAL_LLCP_LINK_STATE_CHANGED";
 
+    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA = "com.android.nfc.extra.INTERNAL_LLCP_LINK_STATE";
 
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
-    private static final String NFC_PERM = android.Manifest.permission.NFC;
-
     /* Native structure */
     private int mNative;
 
-    private final Context mContext;
-
     private final NfcService mNfcService;
 
-    private static final String TAG = "NativeNfcManager";
-
     public NativeNfcManager(Context context, NfcService service) {
-        mContext = context;
         mNfcService = service;
     }
 
-    /**
-     * Initializes Native structure
-     */
     public native boolean initializeNativeStructure();
 
-    /**
-     * Initializes NFC stack.
-     */
     public native boolean initialize();
 
-    /**
-     * Deinitializes NFC stack.
-     */
     public native boolean deinitialize();
 
-    /**
-     * Enable discory for the NdefMessage and Transaction notification
-     */
-    public native void enableDiscovery(int mode);
+    public native void enableDiscovery();
 
     public native void disableDiscovery();
 
     public native int[] doGetSecureElementList();
 
-    public native void doSelectSecureElement(int seID);
+    public native void doSelectSecureElement();
 
-    public native void doDeselectSecureElement(int seID);
+    public native void doDeselectSecureElement();
 
     public native int doGetLastError();
-
-    public native void doSetProperties(int param, int value);
 
     public native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 
@@ -91,7 +71,6 @@ public class NativeNfcManager {
     public native boolean doCheckLlcp();
 
     public native boolean doActivateLlcp();
-
 
     public native void doResetTimeouts();
     public void resetTimeouts() {

@@ -40,7 +40,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.nfc.ApduList;
 import android.nfc.ErrorCodes;
@@ -62,7 +61,6 @@ import android.nfc.Tag;
 import android.nfc.tech.TagTechnology;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
-import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -116,61 +114,6 @@ public class NfcService extends Application {
 
     private static final String PREF_FIRST_BOOT = "first_boot";
 
-    private static final String PREF_LLCP_LTO = "llcp_lto";
-    private static final int LLCP_LTO_DEFAULT = 150;
-    private static final int LLCP_LTO_MAX = 255;
-
-    /** Maximum Information Unit */
-    private static final String PREF_LLCP_MIU = "llcp_miu";
-    private static final int LLCP_MIU_DEFAULT = 128;
-    private static final int LLCP_MIU_MAX = 2176;
-
-    /** Well Known Service List */
-    private static final String PREF_LLCP_WKS = "llcp_wks";
-    private static final int LLCP_WKS_DEFAULT = 1;
-    private static final int LLCP_WKS_MAX = 15;
-
-    private static final String PREF_LLCP_OPT = "llcp_opt";
-    private static final int LLCP_OPT_DEFAULT = 0;
-    private static final int LLCP_OPT_MAX = 3;
-
-    private static final String PREF_DISCOVERY_A = "discovery_a";
-    private static final boolean DISCOVERY_A_DEFAULT = true;
-
-    private static final String PREF_DISCOVERY_B = "discovery_b";
-    private static final boolean DISCOVERY_B_DEFAULT = true;
-
-    private static final String PREF_DISCOVERY_F = "discovery_f";
-    private static final boolean DISCOVERY_F_DEFAULT = true;
-
-    private static final String PREF_DISCOVERY_15693 = "discovery_15693";
-    private static final boolean DISCOVERY_15693_DEFAULT = true;
-
-    private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
-    private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
-
-    /** NFC Reader Discovery mode for enableDiscovery() */
-    private static final int DISCOVERY_MODE_READER = 0;
-
-    private static final int PROPERTY_LLCP_LTO = 0;
-    private static final String PROPERTY_LLCP_LTO_VALUE = "llcp.lto";
-    private static final int PROPERTY_LLCP_MIU = 1;
-    private static final String PROPERTY_LLCP_MIU_VALUE = "llcp.miu";
-    private static final int PROPERTY_LLCP_WKS = 2;
-    private static final String PROPERTY_LLCP_WKS_VALUE = "llcp.wks";
-    private static final int PROPERTY_LLCP_OPT = 3;
-    private static final String PROPERTY_LLCP_OPT_VALUE = "llcp.opt";
-    private static final int PROPERTY_NFC_DISCOVERY_A = 4;
-    private static final String PROPERTY_NFC_DISCOVERY_A_VALUE = "discovery.iso14443A";
-    private static final int PROPERTY_NFC_DISCOVERY_B = 5;
-    private static final String PROPERTY_NFC_DISCOVERY_B_VALUE = "discovery.iso14443B";
-    private static final int PROPERTY_NFC_DISCOVERY_F = 6;
-    private static final String PROPERTY_NFC_DISCOVERY_F_VALUE = "discovery.felica";
-    private static final int PROPERTY_NFC_DISCOVERY_15693 = 7;
-    private static final String PROPERTY_NFC_DISCOVERY_15693_VALUE = "discovery.iso15693";
-    private static final int PROPERTY_NFC_DISCOVERY_NFCIP = 8;
-    private static final String PROPERTY_NFC_DISCOVERY_NFCIP_VALUE = "discovery.nfcip";
-
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
@@ -186,6 +129,7 @@ public class NfcService extends Application {
     // Must keep in sync with com.android.nfc_extras
     static final int ROUTE_OFF = 1;
     static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
+
     public static final String ACTION_RF_FIELD_ON_DETECTED =
         "com.android.nfc_extras.action.RF_FIELD_ON_DETECTED";
     public static final String ACTION_RF_FIELD_OFF_DETECTED =
@@ -193,7 +137,6 @@ public class NfcService extends Application {
     public static final String ACTION_AID_SELECTED =
         "com.android.nfc_extras.action.AID_SELECTED";
     public static final String EXTRA_AID = "com.android.nfc_extras.extra.AID";
-
 
     // TODO: none of these appear to be synchronized but are
     // read/written from different threads (notably Binder threads)...
@@ -203,7 +146,6 @@ public class NfcService extends Application {
 
     // NFC Execution Environment
     // fields below are protected by this
-    private static final int SECURE_ELEMENT_ID = 11259375;  //TODO: remove hard-coded value
     private NativeNfcSecureElement mSecureElement;
     private OpenSecureElement mOpenEe;  // null when EE closed
     private int mEeRoutingState;  // contactless interface routing
@@ -265,7 +207,7 @@ public class NfcService extends Application {
         mPrefs = getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
-        mIsNfcEnabled = false;  // real preference read later
+        mIsNfcEnabled = false;  // load from preferences later
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
@@ -572,167 +514,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public String getProperties(String param) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            if (param == null) {
-                return null;
-            }
-
-            if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
-                return Integer.toString(mPrefs.getInt(PREF_LLCP_LTO, LLCP_LTO_DEFAULT));
-            } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
-                return Integer.toString(mPrefs.getInt(PREF_LLCP_MIU, LLCP_MIU_DEFAULT));
-            } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
-                return Integer.toString(mPrefs.getInt(PREF_LLCP_WKS, LLCP_WKS_DEFAULT));
-            } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
-                return Integer.toString(mPrefs.getInt(PREF_LLCP_OPT, LLCP_OPT_DEFAULT));
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
-                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_A, DISCOVERY_A_DEFAULT));
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
-                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_B, DISCOVERY_B_DEFAULT));
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
-                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_F, DISCOVERY_F_DEFAULT));
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
-                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_NFCIP, DISCOVERY_NFCIP_DEFAULT));
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
-                return Boolean.toString(mPrefs.getBoolean(PREF_DISCOVERY_15693, DISCOVERY_15693_DEFAULT));
-            } else {
-                return "Unknown property";
-            }
-        }
-
-        @Override
         public boolean isEnabled() throws RemoteException {
             return mIsNfcEnabled;
-        }
-
-        @Override
-        public int setProperties(String param, String value) throws RemoteException {
-            NfcService.enforceAdminPerm(mContext);
-
-            if (isEnabled()) {
-                return ErrorCodes.ERROR_NFC_ON;
-            }
-
-            int val;
-
-            /* Check params validity */
-            if (param == null || value == null) {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            if (param.equals(PROPERTY_LLCP_LTO_VALUE)) {
-                val = Integer.parseInt(value);
-
-                /* Check params */
-                if (val > LLCP_LTO_MAX)
-                    return ErrorCodes.ERROR_INVALID_PARAM;
-
-                /* Store value */
-                mPrefsEditor.putInt(PREF_LLCP_LTO, val);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_LLCP_LTO, val);
-
-            } else if (param.equals(PROPERTY_LLCP_MIU_VALUE)) {
-                val = Integer.parseInt(value);
-
-                /* Check params */
-                if ((val < LLCP_MIU_DEFAULT) || (val > LLCP_MIU_MAX))
-                    return ErrorCodes.ERROR_INVALID_PARAM;
-
-                /* Store value */
-                mPrefsEditor.putInt(PREF_LLCP_MIU, val);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_LLCP_MIU, val);
-
-            } else if (param.equals(PROPERTY_LLCP_WKS_VALUE)) {
-                val = Integer.parseInt(value);
-
-                /* Check params */
-                if (val > LLCP_WKS_MAX)
-                    return ErrorCodes.ERROR_INVALID_PARAM;
-
-                /* Store value */
-                mPrefsEditor.putInt(PREF_LLCP_WKS, val);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_LLCP_WKS, val);
-
-            } else if (param.equals(PROPERTY_LLCP_OPT_VALUE)) {
-                val = Integer.parseInt(value);
-
-                /* Check params */
-                if (val > LLCP_OPT_MAX)
-                    return ErrorCodes.ERROR_INVALID_PARAM;
-
-                /* Store value */
-                mPrefsEditor.putInt(PREF_LLCP_OPT, val);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_LLCP_OPT, val);
-
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_A_VALUE)) {
-                boolean b = Boolean.parseBoolean(value);
-
-                /* Store value */
-                mPrefsEditor.putBoolean(PREF_DISCOVERY_A, b);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A, b ? 1 : 0);
-
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_B_VALUE)) {
-                boolean b = Boolean.parseBoolean(value);
-
-                /* Store value */
-                mPrefsEditor.putBoolean(PREF_DISCOVERY_B, b);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B, b ? 1 : 0);
-
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_F_VALUE)) {
-                boolean b = Boolean.parseBoolean(value);
-
-                /* Store value */
-                mPrefsEditor.putBoolean(PREF_DISCOVERY_F, b);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F, b ? 1 : 0);
-
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_15693_VALUE)) {
-                boolean b = Boolean.parseBoolean(value);
-
-                /* Store value */
-                mPrefsEditor.putBoolean(PREF_DISCOVERY_15693, b);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693, b ? 1 : 0);
-
-            } else if (param.equals(PROPERTY_NFC_DISCOVERY_NFCIP_VALUE)) {
-                boolean b = Boolean.parseBoolean(value);
-
-                /* Store value */
-                mPrefsEditor.putBoolean(PREF_DISCOVERY_NFCIP, b);
-                mPrefsEditor.apply();
-
-                /* Update JNI */
-                mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP, b ? 1 : 0);
-
-            } else {
-                return ErrorCodes.ERROR_INVALID_PARAM;
-            }
-
-            return ErrorCodes.SUCCESS;
         }
 
         @Override
@@ -1885,20 +1668,6 @@ public class NfcService extends Application {
             mEeRoutingState = route;
             applyRouting();
         }
-
-        @Override
-        public void registerTearDownApdus(String packageName, ApduList apdu) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
-            Log.w(TAG, "NOP");
-            //TODO: Remove this API
-        }
-
-        @Override
-        public void unregisterTearDownApdus(String packageName) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
-            Log.w(TAG, "NOP");
-            //TODO: Remove this API
-        }
     };
 
     /** resources kept while secure element is open */
@@ -1922,8 +1691,6 @@ public class NfcService extends Application {
     }
 
     private boolean _enable(boolean oldEnabledState) {
-        applyProperties();
-
         boolean isSuccess = mManager.initialize();
         if (isSuccess) {
             mIsNfcEnabled = true;
@@ -1978,21 +1745,21 @@ public class NfcService extends Application {
             if (mScreenUnlocked) {
                 if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
                     Log.d(TAG, "NFC-EE routing ON");
-                    mManager.doSelectSecureElement(SECURE_ELEMENT_ID);
+                    mManager.doSelectSecureElement();
                 } else {
                     Log.d(TAG, "NFC-EE routing OFF");
-                    mManager.doDeselectSecureElement(SECURE_ELEMENT_ID);
+                    mManager.doDeselectSecureElement();
                 }
                 if (mIsDiscoveryOn) {
                     Log.d(TAG, "NFC-C discovery ON");
-                    mManager.enableDiscovery(DISCOVERY_MODE_READER);
+                    mManager.enableDiscovery();
                 } else {
                     Log.d(TAG, "NFC-C discovery OFF");
                     mManager.disableDiscovery();
                 }
             } else {
                 Log.d(TAG, "NFC-EE routing OFF");
-                mManager.doDeselectSecureElement(SECURE_ELEMENT_ID);
+                mManager.doDeselectSecureElement();
                 Log.d(TAG, "NFC-C discovery OFF");
                 mManager.disableDiscovery();
             }
@@ -2121,23 +1888,6 @@ public class NfcService extends Application {
         }
         return apdus;
     }
-
-    private void applyProperties() {
-        mManager.doSetProperties(PROPERTY_LLCP_LTO, mPrefs.getInt(PREF_LLCP_LTO, LLCP_LTO_DEFAULT));
-        mManager.doSetProperties(PROPERTY_LLCP_MIU, mPrefs.getInt(PREF_LLCP_MIU, LLCP_MIU_DEFAULT));
-        mManager.doSetProperties(PROPERTY_LLCP_WKS, mPrefs.getInt(PREF_LLCP_WKS, LLCP_WKS_DEFAULT));
-        mManager.doSetProperties(PROPERTY_LLCP_OPT, mPrefs.getInt(PREF_LLCP_OPT, LLCP_OPT_DEFAULT));
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_A,
-                mPrefs.getBoolean(PREF_DISCOVERY_A, DISCOVERY_A_DEFAULT) ? 1 : 0);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_B,
-                mPrefs.getBoolean(PREF_DISCOVERY_B, DISCOVERY_B_DEFAULT) ? 1 : 0);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_F,
-                mPrefs.getBoolean(PREF_DISCOVERY_F, DISCOVERY_F_DEFAULT) ? 1 : 0);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_15693,
-                mPrefs.getBoolean(PREF_DISCOVERY_15693, DISCOVERY_15693_DEFAULT) ? 1 : 0);
-        mManager.doSetProperties(PROPERTY_NFC_DISCOVERY_NFCIP,
-                mPrefs.getBoolean(PREF_DISCOVERY_NFCIP, DISCOVERY_NFCIP_DEFAULT) ? 1 : 0);
-     }
 
     private void updateNfcOnSetting(boolean oldEnabledState) {
         mPrefsEditor.putBoolean(PREF_NFC_ON, mIsNfcEnabled);
