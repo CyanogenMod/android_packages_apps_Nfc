@@ -1943,6 +1943,10 @@ public class NfcService extends Application {
     }
 
     private boolean _disable(boolean oldEnabledState) {
+        /* sometimes mManager.deinitialize() hangs, watch-dog it */
+        WatchDogThread watchDog = new WatchDogThread();
+        watchDog.start();
+
         boolean isSuccess;
 
         /* tear down the my tag server */
@@ -1970,7 +1974,32 @@ public class NfcService extends Application {
 
         updateNfcOnSetting(oldEnabledState);
 
+        watchDog.cancel();
         return isSuccess;
+    }
+
+    private class WatchDogThread extends Thread {
+        boolean mWatchDogCanceled = false;
+        @Override
+        public void run() {
+            boolean slept = false;
+            while (!slept) {
+                try {
+                    Thread.sleep(10000);
+                    slept = true;
+                } catch (InterruptedException e) { }
+            }
+            synchronized (this) {
+                if (!mWatchDogCanceled) {
+                    // Trigger watch-dog
+                    Log.e(TAG, "Watch dog triggered");
+                    mManager.doAbort();
+                }
+            }
+        }
+        public synchronized void cancel() {
+            mWatchDogCanceled = true;
+        }
     }
 
     /** apply NFC discovery and EE routing */
@@ -2042,9 +2071,9 @@ public class NfcService extends Application {
     private void resetSeOnFirstBoot() {
         if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
             Log.i(TAG, "First Boot");
-            executeSeReset();
             mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
             mPrefsEditor.apply();
+            executeSeReset();
         }
     }
 
@@ -2891,13 +2920,13 @@ public class NfcService extends Application {
                     applyRouting();
                 }
             } else {
-                mWakeLock.acquire();
                 synchronized (NfcService.this) {
+                    mWakeLock.acquire();
                     mScreenOn = false;
                     applyRouting();
                     maybeDisconnectTarget();
+                    mWakeLock.release();
                 }
-                mWakeLock.release();
             }
             return null;
         }

@@ -2378,6 +2378,12 @@ static void com_android_nfc_NfcManager_doSetProperties(JNIEnv *e, jobject o, jin
    
 
 }
+
+static void com_android_nfc_NfcManager_doAbort(JNIEnv *e, jobject o)
+{
+    emergency_recovery(NULL);
+}
+
 /*
  * JNI registration.
  */
@@ -2433,6 +2439,9 @@ static JNINativeMethod gMethods[] =
 
    {"doResetIsoDepTimeout", "()V",
       (void *)com_android_nfc_NfcManager_doResetIsoDepTimeout},
+
+   {"doAbort", "()V",
+      (void *)com_android_nfc_NfcManager_doAbort},
 };   
   
       
