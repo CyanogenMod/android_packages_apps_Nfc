@@ -52,7 +52,7 @@ public class NfcDispatcher {
     private static final String TAG = NfcService.TAG;
 
     private final Context mContext;
-    private final NdefPushClient mNdefPushClient;
+    private final NdefP2pManager mP2pManager;
     private final IActivityManager mIActivityManager;
     private final RegisteredComponentCache mTechListFilters;
 
@@ -61,9 +61,9 @@ public class NfcDispatcher {
     private IntentFilter[] mOverrideFilters;
     private String[][] mOverrideTechLists;
 
-    public NfcDispatcher(Context context, NdefPushClient ndefPushClient) {
+    public NfcDispatcher(Context context, NdefP2pManager p2pManager) {
         mContext = context;
-        mNdefPushClient = ndefPushClient;
+        mP2pManager = p2pManager;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
@@ -94,7 +94,7 @@ public class NfcDispatcher {
         IntentFilter[] overrideFilters;
         PendingIntent overrideIntent;
         String[][] overrideTechLists;
-        boolean foregroundNdefPush = mNdefPushClient.getForegroundMessage() != null;
+        boolean foregroundNdefPush = mP2pManager.getForegroundMessage() != null;
         synchronized (this) {
             overrideFilters = mOverrideFilters;
             overrideIntent = mOverrideIntent;
