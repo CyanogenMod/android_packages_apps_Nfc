@@ -16,22 +16,25 @@
 
 package com.android.nfc.nxp;
 
+import com.android.nfc.DeviceHost.TagEndpoint;
+
+import android.nfc.FormatException;
+import android.nfc.NdefMessage;
 import android.nfc.tech.IsoDep;
+import android.nfc.tech.MifareUltralight;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NfcA;
 import android.nfc.tech.NfcB;
 import android.nfc.tech.NfcF;
 import android.nfc.tech.NfcV;
-import android.nfc.tech.MifareUltralight;
 import android.nfc.tech.TagTechnology;
-import android.nfc.NdefMessage;
 import android.os.Bundle;
 import android.util.Log;
 
 /**
  * Native interface to the NFC tag functions
  */
-public class NativeNfcTag {
+public class NativeNfcTag implements TagEndpoint {
     static final boolean DBG = false;
 
     private int[] mTechList;
@@ -129,6 +132,7 @@ public class NativeNfcTag {
     }
 
     private native boolean doConnect(int handle);
+    @Override
     public synchronized boolean connect(int technology) {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -190,6 +194,7 @@ public class NativeNfcTag {
         return isSuccess;
     }
 
+    @Override
     public synchronized void startPresenceChecking() {
         // Once we start presence checking, we allow the upper layers
         // to know the tag is in the field.
@@ -200,6 +205,7 @@ public class NativeNfcTag {
         }
     }
 
+    @Override
     public synchronized boolean isPresent() {
         // Returns whether the tag is still in the field to the best
         // of our knowledge.
@@ -207,6 +213,7 @@ public class NativeNfcTag {
     }
 
     native boolean doDisconnect();
+    @Override
     public synchronized boolean disconnect() {
         boolean result = false;
 
@@ -231,6 +238,7 @@ public class NativeNfcTag {
     }
 
     native boolean doReconnect();
+    @Override
     public synchronized boolean reconnect() {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -255,6 +263,7 @@ public class NativeNfcTag {
     }
 
     private native byte[] doTransceive(byte[] data, boolean raw, int[] returnCode);
+    @Override
     public synchronized byte[] transceive(byte[] data, boolean raw, int[] returnCode) {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -267,6 +276,7 @@ public class NativeNfcTag {
     }
 
     private native boolean doCheckNdef(int[] ndefinfo);
+    @Override
     public synchronized boolean checkNdef(int[] ndefinfo) {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -279,7 +289,8 @@ public class NativeNfcTag {
     }
 
     private native byte[] doRead();
-    public synchronized byte[] read() {
+    @Override
+    public synchronized byte[] readNdef() {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
@@ -291,7 +302,8 @@ public class NativeNfcTag {
     }
 
     private native boolean doWrite(byte[] buf);
-    public synchronized boolean write(byte[] buf) {
+    @Override
+    public synchronized boolean writeNdef(byte[] buf) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
@@ -303,6 +315,7 @@ public class NativeNfcTag {
     }
 
     native boolean doPresenceCheck();
+    @Override
     public synchronized boolean presenceCheck() {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -315,6 +328,7 @@ public class NativeNfcTag {
     }
 
     native boolean doNdefFormat(byte[] key);
+    @Override
     public synchronized boolean formatNdef(byte[] key) {
         if (mWatchdog != null) {
             mWatchdog.pause();
@@ -327,7 +341,8 @@ public class NativeNfcTag {
     }
 
     native boolean doMakeReadonly();
-    public synchronized boolean makeReadonly() {
+    @Override
+    public synchronized boolean makeReadOnly() {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
@@ -339,6 +354,7 @@ public class NativeNfcTag {
     }
 
     native boolean doIsNdefFormatable(int libnfctype, byte[] uid, byte[] poll, byte[] act);
+    @Override
     public synchronized boolean isNdefFormatable() {
         // Call native code to determine at lower level if format
         // is possible. It will need poll/activation time bytes for this.
@@ -356,9 +372,7 @@ public class NativeNfcTag {
         }
     }
 
-    private NativeNfcTag() {
-    }
-
+    @Override
     public int getHandle() {
         // This is just a handle for the clients; it can simply use the first
         // technology handle we have.
@@ -369,23 +383,25 @@ public class NativeNfcTag {
         }
     }
 
+    @Override
     public byte[] getUid() {
         return mUid;
     }
 
+    @Override
     public int[] getTechList() {
         return mTechList;
     }
 
-    public int[] getHandleList() {
+    private int[] getHandleList() {
         return mTechHandles;
     }
 
-    public int getConnectedHandle() {
+    private int getConnectedHandle() {
         return mConnectedHandle;
     }
 
-    public int getConnectedLibNfcType() {
+    private int getConnectedLibNfcType() {
         if (mConnectedTechIndex != -1 && mConnectedTechIndex < mTechLibNfcTypes.length) {
             return mTechLibNfcTypes[mConnectedTechIndex];
         } else {
@@ -393,7 +409,7 @@ public class NativeNfcTag {
         }
     }
 
-    public int getConnectedTechnology() {
+    private int getConnectedTechnology() {
         if (mConnectedTechIndex != -1 && mConnectedTechIndex < mTechList.length) {
             return mTechList[mConnectedTechIndex];
         } else {
@@ -422,6 +438,7 @@ public class NativeNfcTag {
             mTechLibNfcTypes = mNewTypeList;
     }
 
+    @Override
     public void removeTechnology(int tech) {
         synchronized (this) {
             int techIndex = getTechIndex(tech);
@@ -533,7 +550,7 @@ public class NativeNfcTag {
          *
          * Read four blocks from page 2, which will get us both
          * the lock page, the OTP page and the version info.
-        */
+         */
         boolean isUltralightC = false;
         byte[] readCmd = { 0x30, 0x02 };
         int[] retCode = new int[2];
@@ -575,6 +592,7 @@ public class NativeNfcTag {
         return isUltralightC;
     }
 
+    @Override
     public Bundle[] getTechExtras() {
         synchronized (this) {
             if (mTechExtras != null) return mTechExtras;
@@ -609,6 +627,7 @@ public class NativeNfcTag {
                         }
                         break;
                     }
+
                     case TagTechnology.NFC_F: {
                         byte[] pmm = new byte[8];
                         byte[] sc = new byte[2];
@@ -623,8 +642,8 @@ public class NativeNfcTag {
                         }
                         break;
                     }
-                    case TagTechnology.ISO_DEP: {
 
+                    case TagTechnology.ISO_DEP: {
                         if (hasTech(TagTechnology.NFC_A)) {
                             extras.putByteArray(IsoDep.EXTRA_HIST_BYTES, mTechActBytes[i]);
                         }
@@ -633,6 +652,7 @@ public class NativeNfcTag {
                         }
                         break;
                     }
+
                     case TagTechnology.NFC_V: {
                         // First byte response flags, second byte DSFID
                         if (mTechPollBytes[i] != null && mTechPollBytes[i].length >= 2) {
@@ -641,6 +661,7 @@ public class NativeNfcTag {
                         }
                         break;
                     }
+
                     case TagTechnology.MIFARE_ULTRALIGHT: {
                         boolean isUlc = isUltralightC();
                         extras.putBoolean(MifareUltralight.EXTRA_IS_UL_C, isUlc);
@@ -656,5 +677,91 @@ public class NativeNfcTag {
             }
             return mTechExtras;
         }
+    }
+
+    @Override
+    public NdefMessage[] findAndReadNdef() {
+        // Try to find NDEF on any of the technologies.
+        int[] technologies = getTechList();
+        int[] handles = getHandleList();
+        int techIndex = 0;
+        int lastHandleScanned = 0;
+        boolean ndefFoundAndConnected = false;
+        NdefMessage[] ndefMsgs = null;
+        boolean foundFormattable = false;
+        int formattableHandle = 0;
+        int formattableLibNfcType = 0;
+
+        while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
+            if (handles[techIndex] != lastHandleScanned) {
+                // We haven't seen this handle yet, connect and checkndef
+                if (connect(technologies[techIndex])) {
+                    // Check if this type is NDEF formatable
+                    if (!foundFormattable) {
+                        if (isNdefFormatable()) {
+                            foundFormattable = true;
+                            formattableHandle = getConnectedHandle();
+                            formattableLibNfcType = getConnectedLibNfcType();
+                            // We'll only add formattable tech if no ndef is
+                            // found - this is because libNFC refuses to format
+                            // an already NDEF formatted tag.
+                        }
+                        reconnect();
+                    } // else, already found formattable technology
+
+                    int[] ndefinfo = new int[2];
+                    if (checkNdef(ndefinfo)) {
+                        ndefFoundAndConnected = true;
+                        boolean generateEmptyNdef = false;
+
+                        int supportedNdefLength = ndefinfo[0];
+                        int cardState = ndefinfo[1];
+                        byte[] buff = readNdef();
+                        if (buff != null) {
+                            ndefMsgs = new NdefMessage[1];
+                            try {
+                                ndefMsgs[0] = new NdefMessage(buff);
+                                addNdefTechnology(ndefMsgs[0],
+                                        getConnectedHandle(),
+                                        getConnectedLibNfcType(),
+                                        getConnectedTechnology(),
+                                        supportedNdefLength, cardState);
+                                reconnect();
+                            } catch (FormatException e) {
+                               // Create an intent anyway, without NDEF messages
+                               generateEmptyNdef = true;
+                            }
+                        } else {
+                            generateEmptyNdef = true;
+                        }
+
+                        if (generateEmptyNdef) {
+                            ndefMsgs = new NdefMessage[] { };
+                            addNdefTechnology(null,
+                                    getConnectedHandle(),
+                                    getConnectedLibNfcType(),
+                                    getConnectedTechnology(),
+                                    supportedNdefLength, cardState);
+                            reconnect();
+                        }
+                    } // else, no NDEF on this tech, continue loop
+                } else {
+                    // Connect failed, tag maybe lost. Try next handle
+                    // anyway.
+                }
+            }
+            lastHandleScanned = handles[techIndex];
+            techIndex++;
+        }
+
+        if (ndefMsgs == null && foundFormattable) {
+            // Tag is not NDEF yet, and found a formattable target,
+            // so add formattable tech to tech list.
+            addNdefFormatableTechnology(
+                    formattableHandle,
+                    formattableLibNfcType);
+        }
+
+        return ndefMsgs;
     }
 }

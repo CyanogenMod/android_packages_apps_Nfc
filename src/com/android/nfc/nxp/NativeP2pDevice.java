@@ -16,25 +16,12 @@
 
 package com.android.nfc.nxp;
 
+import com.android.nfc.DeviceHost.NfcDepEndpoint;
+
 /**
  * Native interface to the P2P Initiator functions
  */
-public class NativeP2pDevice {
-
-    /**
-    * Peer-to-Peer Target.
-    */
-    public static final short MODE_P2P_TARGET          = 0x00;
-
-    /**
-    * Peer-to-Peer Initiator.
-    */
-    public static final short MODE_P2P_INITIATOR       = 0x01;
-
-    /**
-    * Invalid target type.
-    */
-    public static final short MODE_INVALID             = 0xff;
+public class NativeP2pDevice implements NfcDepEndpoint {
 
     private int mHandle;
 
@@ -42,15 +29,35 @@ public class NativeP2pDevice {
 
     private byte[] mGeneralBytes;
 
-    public native byte[] doReceive();
+    private native byte[] doReceive();
+    @Override
+    public byte[] receive() {
+        return doReceive();
+    }
 
-    public native boolean doSend(byte[] data);
+    private native boolean doSend(byte[] data);
+    @Override
+    public boolean send(byte[] data) {
+        return doSend(data);
+    }
 
-    public native boolean doConnect();
+    private native boolean doConnect();
+    @Override
+    public boolean connect() {
+        return doConnect();
+    }
 
-    public native boolean doDisconnect();
+    private native boolean doDisconnect();
+    @Override
+    public boolean disconnect() {
+        return doDisconnect();
+    }
 
     public native byte[] doTransceive(byte[] data);
+    @Override
+    public byte[] transceive(byte[] data) {
+        return doTransceive(data);
+    }
 
     public int getHandle() {
         return mHandle;

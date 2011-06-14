@@ -16,7 +16,7 @@
 
 package com.android.nfc.nxp;
 
-import com.android.nfc.NfcService;
+import com.android.nfc.DeviceHost;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
@@ -25,12 +25,10 @@ import android.content.Context;
 /**
  * Native interface to the NFC Manager functions
  */
-public class NativeNfcManager {
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_ACTION = "com.android.nfc.action.INTERNAL_LLCP_LINK_STATE_CHANGED";
-
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_LLCP_LINK_STATE_CHANGED_EXTRA = "com.android.nfc.extra.INTERNAL_LLCP_LINK_STATE";
+public class NativeNfcManager implements DeviceHost {
+    static {
+        System.loadLibrary("nfc_jni");
+    }
 
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
@@ -38,92 +36,109 @@ public class NativeNfcManager {
     /* Native structure */
     private int mNative;
 
-    private final NfcService mNfcService;
+    private final DeviceHostListener mListener;
 
-    public NativeNfcManager(Context context, NfcService service) {
-        mNfcService = service;
+    public NativeNfcManager(Context context, DeviceHostListener listener) {
+        mListener = listener;
     }
 
     public native boolean initializeNativeStructure();
 
+    @Override
     public native boolean initialize();
 
+    @Override
     public native boolean deinitialize();
 
+    @Override
     public native void enableDiscovery();
 
+    @Override
     public native void disableDiscovery();
 
+    @Override
     public native int[] doGetSecureElementList();
 
+    @Override
     public native void doSelectSecureElement();
 
+    @Override
     public native void doDeselectSecureElement();
 
+    @Override
     public native int doGetLastError();
 
+    @Override
     public native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 
+    @Override
     public native NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,
             int rw, int linearBufferLength);
 
+    @Override
     public native NativeLlcpSocket doCreateLlcpSocket(int sap, int miu, int rw,
             int linearBufferLength);
 
+    @Override
     public native boolean doCheckLlcp();
 
+    @Override
     public native boolean doActivateLlcp();
 
-    public native void doResetTimeouts();
+    private native void doResetTimeouts();
+
+    @Override
     public void resetTimeouts() {
         doResetTimeouts();
     }
 
-    public native boolean doSetTimeout(int tech, int timeout);
+    private native boolean doSetTimeout(int tech, int timeout);
+    @Override
     public boolean setTimeout(int tech, int timeout) {
         return doSetTimeout(tech, timeout);
     }
+
 
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
     private void notifyNdefMessageListeners(NativeNfcTag tag) {
-        mNfcService.sendMessage(NfcService.MSG_NDEF_TAG, tag);
+        mListener.onRemoteEndpointDiscovered(tag);
     }
 
     /**
      * Notifies transaction
      */
     private void notifyTargetDeselected() {
-        mNfcService.sendMessage(NfcService.MSG_TARGET_DESELECTED, null);
+        mListener.onCardEmulationDeselected();
     }
 
     /**
      * Notifies transaction
      */
     private void notifyTransactionListeners(byte[] aid) {
-        mNfcService.sendMessage(NfcService.MSG_CARD_EMULATION, aid);
+        mListener.onCardEmulationAidSelected(aid);
     }
 
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
     private void notifyLlcpLinkActivation(NativeP2pDevice device) {
-        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_ACTIVATION, device);
+        mListener.onLlcpLinkActivated(device);
     }
 
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
     private void notifyLlcpLinkDeactivated(NativeP2pDevice device) {
-        mNfcService.sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
+        mListener.onLlcpLinkDeactivated(device);
     }
 
     private void notifySeFieldActivated() {
-        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
+        mListener.onRemoteFieldActivated();
     }
 
     private void notifySeFieldDeactivated() {
-        mNfcService.sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
+        mListener.onRemoteFieldDeactivated();
     }
 }
