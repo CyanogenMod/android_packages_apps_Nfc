@@ -250,7 +250,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/NativeLlcpConnectionlessSocket",
+      "com/android/nfc/nxp/NativeLlcpConnectionlessSocket",
       gMethods, NELEM(gMethods));
 }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+package com.android.nfc.nxp;
 
 /**
  * Native interface to the P2P Initiator functions

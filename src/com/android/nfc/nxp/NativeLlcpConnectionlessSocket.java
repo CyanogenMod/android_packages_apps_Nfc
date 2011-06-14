@@ -14,39 +14,38 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+package com.android.nfc.nxp;
+
+import android.nfc.LlcpPacket;
 
 /**
- * LlcpServiceSocket represents a LLCP Service to be used in a
- * Connection-oriented communication
+ * LlcpConnectionlessSocket represents a LLCP Connectionless object to be used
+ * in a connectionless communication
  */
-public class NativeLlcpServiceSocket {
+public class NativeLlcpConnectionlessSocket {
+
     private int mHandle;
-    private int mLocalMiu;
-    private int mLocalRw;
-    private int mLocalLinearBufferLength;
     private int mSap;
-    private String mServiceName;
+    private int mLinkMiu;
 
-    public NativeLlcpServiceSocket(){ }
+    public NativeLlcpConnectionlessSocket(){ };
 
-    public native NativeLlcpSocket doAccept(int miu, int rw, int linearBufferLength);
+    public native boolean doSendTo(int sap, byte[] data);
+
+    public native LlcpPacket doReceiveFrom(int linkMiu);
 
     public native boolean doClose();
+
+    public int getLinkMiu(){
+        return mLinkMiu;
+    }
+
+    public int getSap(){
+        return mSap;
+    }
 
     public int getHandle(){
         return mHandle;
     }
 
-    public int getRw(){
-        return mLocalRw;
-    }
-
-    public int getMiu(){
-        return mLocalMiu;
-    }
-
-    public int getLinearBufferLength(){
-        return mLocalLinearBufferLength;
-    }
 }

@@ -14,38 +14,47 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
-
-import android.nfc.LlcpPacket;
+package com.android.nfc.nxp;
 
 /**
- * LlcpConnectionlessSocket represents a LLCP Connectionless object to be used
- * in a connectionless communication
+ * LlcpClientSocket represents a LLCP Connection-Oriented client to be used in a
+ * connection-oriented communication
  */
-public class NativeLlcpConnectionlessSocket {
-
+public class NativeLlcpSocket {
     private int mHandle;
     private int mSap;
-    private int mLinkMiu;
+    private int mLocalMiu;
+    private int mLocalRw;
 
-    public NativeLlcpConnectionlessSocket(){ };
+    public NativeLlcpSocket(){ }
 
-    public native boolean doSendTo(int sap, byte[] data);
+    public native boolean doConnect(int nSap);
 
-    public native LlcpPacket doReceiveFrom(int linkMiu);
+    public native boolean doConnectBy(String sn);
 
     public native boolean doClose();
 
-    public int getLinkMiu(){
-        return mLinkMiu;
-    }
+    public native boolean doSend(byte[] data);
+
+    public native int doReceive(byte[] recvBuff);
+
+    public native int doGetRemoteSocketMiu();
+
+    public native int doGetRemoteSocketRw();
 
     public int getSap(){
         return mSap;
     }
 
+    public int getMiu(){
+        return mLocalMiu;
+    }
+
+    public int getRw(){
+        return mLocalRw;
+    }
+
     public int getHandle(){
         return mHandle;
     }
-
 }

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+package com.android.nfc.nxp;
+
+import com.android.nfc.NfcService;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;

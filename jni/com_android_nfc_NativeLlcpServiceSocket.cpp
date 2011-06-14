@@ -139,7 +139,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    }
 
    /* Create new LlcpSocket object */
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpSocket",&(clientSocket)) == -1)
    {
       LOGD("LLCP Socket creation error");
       goto clean_and_return;
@@ -209,7 +209,7 @@ static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doAccept", "(III)Lcom/android/nfc/NativeLlcpSocket;",
+   {"doAccept", "(III)Lcom/android/nfc/nxp/NativeLlcpSocket;",
       (void *)com_NativeLlcpServiceSocket_doAccept},
       
    {"doClose", "()Z",
@@ -220,7 +220,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/NativeLlcpServiceSocket",
+      "com/android/nfc/nxp/NativeLlcpServiceSocket",
       gMethods, NELEM(gMethods));
 }
 

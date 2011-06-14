@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+package com.android.nfc.nxp;
 
 import android.nfc.tech.IsoDep;
 import android.nfc.tech.Ndef;

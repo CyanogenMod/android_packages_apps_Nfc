@@ -1618,16 +1618,16 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
                  
    /* Initialize native cached references */
    cached_NfcManager_notifyNdefMessageListeners = e->GetMethodID(cls,
-      "notifyNdefMessageListeners","(Lcom/android/nfc/NativeNfcTag;)V");
+      "notifyNdefMessageListeners","(Lcom/android/nfc/nxp/NativeNfcTag;)V");
 
    cached_NfcManager_notifyTransactionListeners = e->GetMethodID(cls,
       "notifyTransactionListeners", "([B)V");
          
    cached_NfcManager_notifyLlcpLinkActivation = e->GetMethodID(cls,
-      "notifyLlcpLinkActivation","(Lcom/android/nfc/NativeP2pDevice;)V");
+      "notifyLlcpLinkActivation","(Lcom/android/nfc/nxp/NativeP2pDevice;)V");
          
    cached_NfcManager_notifyLlcpLinkDeactivated = e->GetMethodID(cls,
-      "notifyLlcpLinkDeactivated","(Lcom/android/nfc/NativeP2pDevice;)V"); 
+      "notifyLlcpLinkDeactivated","(Lcom/android/nfc/nxp/NativeP2pDevice;)V"); 
       
    cached_NfcManager_notifyTargetDeselected = e->GetMethodID(cls,
       "notifyTargetDeselected","()V");
@@ -1638,13 +1638,13 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    cached_NfcManager_notifySeFieldDeactivated = e->GetMethodID(cls,
        "notifySeFieldDeactivated", "()V");
 
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
       LOGD("Native Structure initialization failed");
       return FALSE;
    }
          
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
       LOGD("Native Structure initialization failed");
       return FALSE;   
@@ -2048,7 +2048,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
  
    
    /* Create new NativeLlcpConnectionlessSocket object */
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
    {
       return NULL;           
    } 
@@ -2166,7 +2166,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    TRACE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpServiceSocket object */
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
    {
       LOGE("Llcp Socket object creation error");
       return NULL;           
@@ -2245,7 +2245,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
    TRACE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
    /* Create new NativeLlcpSocket object */
-   if(nfc_jni_cache_object(e,"com/android/nfc/NativeLlcpSocket",&(clientSocket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpSocket",&(clientSocket)) == -1)
    {
       LOGE("Llcp socket object creation error");  
       return NULL;           
@@ -2354,13 +2354,13 @@ static JNINativeMethod gMethods[] =
    {"doActivateLlcp", "()Z",
       (void *)com_android_nfc_NfcManager_doActivateLlcp},
             
-   {"doCreateLlcpConnectionlessSocket", "(I)Lcom/android/nfc/NativeLlcpConnectionlessSocket;",
+   {"doCreateLlcpConnectionlessSocket", "(I)Lcom/android/nfc/nxp/NativeLlcpConnectionlessSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket},
         
-   {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/android/nfc/NativeLlcpServiceSocket;",
+   {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/android/nfc/nxp/NativeLlcpServiceSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpServiceSocket},
       
-   {"doCreateLlcpSocket", "(IIII)Lcom/android/nfc/NativeLlcpSocket;",
+   {"doCreateLlcpSocket", "(IIII)Lcom/android/nfc/nxp/NativeLlcpSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpSocket},
       
    {"doGetLastError", "()I",
@@ -2389,7 +2389,7 @@ int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
    }
 
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/NativeNfcManager",
+      "com/android/nfc/nxp/NativeNfcManager",
       gMethods, NELEM(gMethods));
 }
 

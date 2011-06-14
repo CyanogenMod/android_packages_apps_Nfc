@@ -478,7 +478,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeP2pDevice(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/NativeP2pDevice",
+      "com/android/nfc/nxp/NativeP2pDevice",
       gMethods, NELEM(gMethods));
 }
 
