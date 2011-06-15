@@ -92,6 +92,8 @@ public class NativeNfcManager implements DeviceHost {
         doResetTimeouts();
     }
 
+    public native void doAbort();
+
     private native boolean doSetTimeout(int tech, int timeout);
     @Override
     public boolean setTimeout(int tech, int timeout) {

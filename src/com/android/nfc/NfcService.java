@@ -1735,6 +1735,10 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     private boolean _disable(boolean oldEnabledState) {
+        /* sometimes mDeviceHost.deinitialize() hangs, watch-dog it */
+        WatchDogThread watchDog = new WatchDogThread();
+        watchDog.start();
+
         boolean isSuccess;
 
         /* tear down the p2p server */
@@ -1758,7 +1762,32 @@ public class NfcService extends Application implements DeviceHostListener {
 
         updateNfcOnSetting(oldEnabledState);
 
+        watchDog.cancel();
         return isSuccess;
+    }
+
+    private class WatchDogThread extends Thread {
+        boolean mWatchDogCanceled = false;
+        @Override
+        public void run() {
+            boolean slept = false;
+            while (!slept) {
+                try {
+                    Thread.sleep(10000);
+                    slept = true;
+                } catch (InterruptedException e) { }
+            }
+            synchronized (this) {
+                if (!mWatchDogCanceled) {
+                    // Trigger watch-dog
+                    Log.e(TAG, "Watch dog triggered");
+                    mDeviceHost.doAbort();
+                }
+            }
+        }
+        public synchronized void cancel() {
+            mWatchDogCanceled = true;
+        }
     }
 
     /** apply NFC discovery and EE routing */
@@ -1828,9 +1857,9 @@ public class NfcService extends Application implements DeviceHostListener {
     private void resetSeOnFirstBoot() {
         if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
             Log.i(TAG, "First Boot");
-            executeSeReset();
             mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
             mPrefsEditor.apply();
+            executeSeReset();
         }
     }
 
