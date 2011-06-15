@@ -21,8 +21,6 @@ import com.android.internal.nfc.LlcpSocket;
 import com.android.nfc.DeviceHost.DeviceHostListener;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
-import com.android.nfc.ndefpush.NdefPushClient;
-import com.android.nfc.ndefpush.NdefPushServer;
 import com.android.nfc.nxp.NativeLlcpConnectionlessSocket;
 import com.android.nfc.nxp.NativeLlcpServiceSocket;
 import com.android.nfc.nxp.NativeLlcpSocket;
@@ -154,8 +152,8 @@ public class NfcService extends Application implements DeviceHostListener {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
-    NdefPushClient mNdefPushClient;
-    NdefPushServer mNdefPushServer;
+    NdefP2pManager mP2pManager;
+
     private NfcDispatcher mNfcDispatcher;
     private KeyguardManager mKeyguard;
 
@@ -232,9 +230,8 @@ public class NfcService extends Application implements DeviceHostListener {
         mDeviceHost = new NativeNfcManager(this, this);
         mDeviceHost.initializeNativeStructure();
 
-        mNdefPushClient = new NdefPushClient(this);
-        mNdefPushServer = new NdefPushServer();
-        mNfcDispatcher = new NfcDispatcher(this, mNdefPushClient);
+        mP2pManager = new NdefP2pManager(mNfcAdapter);
+        mNfcDispatcher = new NfcDispatcher(this, mP2pManager);
 
         mSecureElement = new NativeNfcSecureElement();
 
@@ -360,7 +357,7 @@ public class NfcService extends Application implements DeviceHostListener {
             if (activity == null || msg == null) {
                 throw new IllegalArgumentException();
             }
-            if (mNdefPushClient.setForegroundMessage(msg)) {
+            if (mP2pManager.setForegroundMessage(msg)) {
                 Log.e(TAG, "Replacing active NDEF push message");
             }
         }
@@ -372,7 +369,7 @@ public class NfcService extends Application implements DeviceHostListener {
             if (activity == null || callback == null) {
                 throw new IllegalArgumentException();
             }
-            if (mNdefPushClient.setForegroundCallback(callback)) {
+            if (mP2pManager.setForegroundCallback(callback)) {
                 Log.e(TAG, "Replacing active NDEF push message");
             }
         }
@@ -380,8 +377,8 @@ public class NfcService extends Application implements DeviceHostListener {
         @Override
         public void disableForegroundNdefPush(ComponentName activity) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            boolean hadMsg = mNdefPushClient.setForegroundMessage(null);
-            boolean hadCallback = mNdefPushClient.setForegroundCallback(null);
+            boolean hadMsg = mP2pManager.setForegroundMessage(null);
+            boolean hadCallback = mP2pManager.setForegroundCallback(null);
             if (!hadMsg || !hadCallback) {
                 Log.e(TAG, "No active foreground NDEF push message");
             }
@@ -1725,9 +1722,8 @@ public class NfcService extends Application implements DeviceHostListener {
             /* Start polling loop */
             applyRouting();
 
-            /* bring up the my tag server */
-            mNdefPushServer.start();
-
+            /* bring up p2p ndef servers */
+            mP2pManager.enablePushServer();
         } else {
             Log.w(TAG, "Error enabling NFC");
             mIsNfcEnabled = false;
@@ -1741,8 +1737,8 @@ public class NfcService extends Application implements DeviceHostListener {
     private boolean _disable(boolean oldEnabledState) {
         boolean isSuccess;
 
-        /* tear down the my tag server */
-        mNdefPushServer.stop();
+        /* tear down the p2p server */
+        mP2pManager.disablePushServer();
 
         // Stop watchdog if tag present
         // A convenient way to stop the watchdog properly consists of
@@ -1757,7 +1753,7 @@ public class NfcService extends Application implements DeviceHostListener {
         if (isSuccess) {
             mIsNfcEnabled = false;
             mNfcDispatcher.disableForegroundDispatch();
-            mNdefPushClient.setForegroundMessage(null);
+            mP2pManager.setForegroundMessage(null);
         }
 
         updateNfcOnSetting(oldEnabledState);
@@ -2050,18 +2046,6 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
-    private void activateLlcpLink() {
-        /* Broadcast Intent Link LLCP activated */
-        Intent LlcpLinkIntent = new Intent();
-        LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
-
-        LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                NfcAdapter.LLCP_LINK_STATE_ACTIVATED);
-
-        if (DBG) Log.d(TAG, "Broadcasting LLCP activation");
-        mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
-    }
-
     public void sendMockNdefTag(NdefMessage msg) {
         sendMessage(MSG_MOCK_NDEF, msg);
     }
@@ -2136,7 +2120,7 @@ public class NfcService extends Application implements DeviceHostListener {
                                if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
                                // Register P2P device
                                mObjectMap.put(device.getHandle(), device);
-                               activateLlcpLink();
+                               mP2pManager.llcpActivated();
                            } else {
                                /* should not happen */
                                Log.w(TAG, "Initiator Activate LLCP NOK. Disconnect.");
@@ -2161,7 +2145,7 @@ public class NfcService extends Application implements DeviceHostListener {
                            if (DBG) Log.d(TAG, "Target Activate LLCP OK");
                            // Register P2P device
                            mObjectMap.put(device.getHandle(), device);
-                           activateLlcpLink();
+                           mP2pManager.llcpActivated();
                       }
                    } else {
                        Log.w(TAG, "checkLlcp failed");
@@ -2187,13 +2171,7 @@ public class NfcService extends Application implements DeviceHostListener {
                    }
                }
 
-               /* Broadcast Intent Link LLCP activated */
-               Intent LlcpLinkIntent = new Intent();
-               LlcpLinkIntent.setAction(NfcAdapter.ACTION_LLCP_LINK_STATE_CHANGED);
-               LlcpLinkIntent.putExtra(NfcAdapter.EXTRA_LLCP_LINK_STATE_CHANGED,
-                       NfcAdapter.LLCP_LINK_STATE_DEACTIVATED);
-               if (DBG) Log.d(TAG, "Broadcasting LLCP deactivation");
-               mContext.sendOrderedBroadcast(LlcpLinkIntent, NFC_PERM);
+               mP2pManager.llcpDeactivated();
                break;
 
            case MSG_TARGET_DESELECTED:
