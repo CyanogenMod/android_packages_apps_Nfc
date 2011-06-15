@@ -92,6 +92,7 @@ public class NativeNfcManager {
 
     public native boolean doActivateLlcp();
 
+    public native void doAbort();
 
     public native void doResetIsoDepTimeout();
     public void resetIsoDepTimeout() {
