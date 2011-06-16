@@ -2109,9 +2109,13 @@ public class NfcService extends Application {
             return;
         }
 
+        mManager.doSetIsoDepTimeout(10000);
+
         for (byte[] cmd : apdus) {
             mSecureElement.doTransceive(handle, cmd);
         }
+
+        mManager.doResetIsoDepTimeout();
 
         mSecureElement.doDisconnect(handle);
 
