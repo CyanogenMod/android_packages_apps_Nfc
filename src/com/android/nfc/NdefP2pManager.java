@@ -22,16 +22,23 @@ import com.android.nfc.snep.SnepClient;
 import com.android.nfc.snep.SnepMessage;
 import com.android.nfc.snep.SnepServer;
 
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningTaskInfo;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
 import android.os.AsyncTask;
 import android.os.RemoteException;
 import android.util.Log;
 
 
 import java.io.IOException;
+import java.util.List;
 
 public class NdefP2pManager implements SnepServer.Callback {
     private static final String TAG = "P2PManager";
@@ -39,15 +46,19 @@ public class NdefP2pManager implements SnepServer.Callback {
     private final INfcAdapter.Stub mNfcAdapter;
     private final NdefPushServer mNdefPushServer;
     private final SnepServer mSnepServer;
+    private final ActivityManager mActivityManager;
+    private final PackageManager mPackageManager;
 
     /** Locked on NdefP2pManager.class */
     NdefMessage mForegroundMsg;
     INdefPushCallback mCallback;
 
-    public NdefP2pManager(INfcAdapter.Stub adapter) {
+    public NdefP2pManager(Context context, INfcAdapter.Stub adapter) {
         mNfcAdapter = adapter;
         mNdefPushServer = new NdefPushServer();
         mSnepServer = new SnepServer(this);
+        mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        mPackageManager = context.getPackageManager();
     }
 
     public void enablePushServer() {
@@ -112,6 +123,29 @@ public class NdefP2pManager implements SnepServer.Callback {
                 foregroundMsg = callback.onConnect();
             } catch (RemoteException e) {
                 // Ignore
+            }
+        }
+
+        if (foregroundMsg == null) {
+            List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
+            if (tasks.size() > 0) {
+                String pkg = tasks.get(0).baseActivity.getPackageName();
+                try {
+                    ApplicationInfo appInfo = mPackageManager.getApplicationInfo(pkg, 0);
+                    if (0 == (appInfo.flags & ApplicationInfo.FLAG_SYSTEM)) {
+                        byte[] appUri = ("market.android.com/search?q=pname:" + pkg).getBytes();
+                        byte[] recordUri = new byte[appUri.length + 1];
+                        recordUri[0] = 0x03; // "http://"
+                        System.arraycopy(appUri, 0, recordUri, 1, appUri.length);
+                        NdefRecord appRecord = new NdefRecord(NdefRecord.TNF_WELL_KNOWN,
+                                NdefRecord.RTD_URI, new byte[0], recordUri);
+                        foregroundMsg = new NdefMessage(new NdefRecord[] { appRecord });
+                    }
+                } catch (NameNotFoundException e) {
+                    Log.e(TAG, "Bad package returned from ActivityManager: " + pkg);
+                }
+            } else {
+                Log.d(TAG, "no foreground activity");
             }
         }
 

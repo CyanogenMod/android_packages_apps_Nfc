@@ -230,7 +230,7 @@ public class NfcService extends Application implements DeviceHostListener {
         mDeviceHost = new NativeNfcManager(this, this);
         mDeviceHost.initializeNativeStructure();
 
-        mP2pManager = new NdefP2pManager(mNfcAdapter);
+        mP2pManager = new NdefP2pManager(this, mNfcAdapter);
         mNfcDispatcher = new NfcDispatcher(this, mP2pManager);
 
         mSecureElement = new NativeNfcSecureElement();
