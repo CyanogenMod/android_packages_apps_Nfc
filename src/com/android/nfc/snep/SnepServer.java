@@ -46,7 +46,8 @@ public final class SnepServer {
     private final int mFragmentLength;
 
     /** Protected by 'this', null when stopped, non-null when running */
-    ServerThread mServerThread = null;
+    private ServerThread mServerThread = null;
+    private boolean mServerRunning = false;
 
     public interface Callback {
         public SnepMessage doPut(NdefMessage msg);
@@ -89,9 +90,18 @@ public final class SnepServer {
         public void run() {
             if (DBG) Log.d(TAG, "starting connection thread");
             try {
-                while (true) { // Client closes connection
+                boolean running;
+                synchronized (SnepServer.this) {
+                    running = mServerRunning;
+                }
+
+                while (running) {
                     if (!handleRequest(mMessager, mCallback)) {
                         break;
+                    }
+
+                    synchronized (SnepServer.this) {
+                        running = mServerRunning;
                     }
                 }
             } catch (IOException e) {
@@ -143,12 +153,17 @@ public final class SnepServer {
 
     /** Server class, used to listen for incoming connection request */
     class ServerThread extends Thread {
-        boolean mRunning = true;
+        private boolean mThreadRunning = true;
         LlcpServiceSocket mServerSocket;
 
         @Override
         public void run() {
-            while (mRunning) {
+            boolean threadRunning;
+            synchronized (SnepServer.this) {
+                threadRunning = mThreadRunning;
+            }
+
+            while (threadRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
                 synchronized (SnepServer.this) {
                     mServerSocket = NfcService.getInstance().createLlcpServiceSocket(mServiceSap,
@@ -160,11 +175,16 @@ public final class SnepServer {
                 }
                 if (DBG) Log.d(TAG, "created LLCP service socket");
                 try {
-                    while (mRunning) {
+                    synchronized (SnepServer.this) {
+                        threadRunning = mThreadRunning;
+                    }
+
+                    while (threadRunning) {
                         LlcpServiceSocket serverSocket;
                         synchronized (SnepServer.this) {
                             serverSocket = mServerSocket;
                         }
+
                         if (serverSocket == null) {
                             if (DBG) Log.d(TAG, "Server socket shut down.");
                             return;
@@ -177,6 +197,10 @@ public final class SnepServer {
                             int fragmentLength = (mFragmentLength == -1) ?
                                     miu : Math.min(miu, mFragmentLength);
                             new ConnectionThread(communicationSocket, fragmentLength).start();
+                        }
+
+                        synchronized (SnepServer.this) {
+                            threadRunning = mThreadRunning;
                         }
                     }
                     if (DBG) Log.d(TAG, "stop running");
@@ -193,12 +217,16 @@ public final class SnepServer {
                         }
                     }
                 }
+
+                synchronized (SnepServer.this) {
+                    threadRunning = mThreadRunning;
+                }
             }
         }
 
         private void shutdown() {
-            mRunning = false;
             synchronized (SnepServer.this) {
+                mThreadRunning = false;
                 if (mServerSocket != null) {
                     mServerSocket.close();
                     mServerSocket = null;
@@ -214,6 +242,7 @@ public final class SnepServer {
                 if (DBG) Log.d(TAG, "starting new server thread");
                 mServerThread = new ServerThread();
                 mServerThread.start();
+                mServerRunning = true;
             }
         }
     }
@@ -225,6 +254,7 @@ public final class SnepServer {
                 if (DBG) Log.d(TAG, "shuting down server thread");
                 mServerThread.shutdown();
                 mServerThread = null;
+                mServerRunning = false;
             }
         }
     }
