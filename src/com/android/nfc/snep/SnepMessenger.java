@@ -183,4 +183,8 @@ public class SnepMessenger {
             throw new SnepException(e);
         }
     }
+
+    public void close() throws IOException {
+        mSocket.close();
+    }
 }

@@ -31,13 +31,17 @@ public final class SnepClient {
     private static final int DEFAULT_ACCEPTABLE_LENGTH = 100*1024;
     private static final int MIU = 128;
     SnepMessenger mMessenger = null;
+    private final Object mTransmissionLock = new Object();
 
     private final String mServiceName;
     private final int mPort;
-    private LlcpSocket mSocket = null;
-    private boolean mConnected = false;
+    private int  mState = DISCONNECTED;
     private final int mAcceptableLength;
     private final int mFragmentLength;
+
+    private static final int DISCONNECTED = 0;
+    private static final int CONNECTING = 1;
+    private static final int CONNECTED = 2;
 
     public SnepClient() {
         mServiceName = SnepServer.DEFAULT_SERVICE_NAME;
@@ -68,14 +72,18 @@ public final class SnepClient {
     }
 
     public void put(NdefMessage msg) throws IOException {
+        SnepMessenger messenger;
         synchronized (this) {
-            if (!mConnected) {
+            if (mState != CONNECTED) {
                 throw new IOException("Socket not connected.");
             }
+            messenger = mMessenger;
+        }
 
+        synchronized (mTransmissionLock) {
             try {
-                mMessenger.sendMessage(SnepMessage.getPutRequest(msg));
-                mMessenger.getMessage();
+                messenger.sendMessage(SnepMessage.getPutRequest(msg));
+                messenger.getMessage();
             } catch (SnepException e) {
                 throw new IOException(e);
             }
@@ -83,14 +91,18 @@ public final class SnepClient {
     }
 
     public SnepMessage get(NdefMessage msg) throws IOException {
+        SnepMessenger messenger;
         synchronized (this) {
-            if (!mConnected) {
+            if (mState != CONNECTED) {
                 throw new IOException("Socket not connected.");
             }
+            messenger = mMessenger;
+        }
 
+        synchronized (mTransmissionLock) {
             try {
-                mMessenger.sendMessage(SnepMessage.getGetRequest(mAcceptableLength, msg));
-                return mMessenger.getMessage();
+                messenger.sendMessage(SnepMessage.getGetRequest(mAcceptableLength, msg));
+                return messenger.getMessage();
             } catch (SnepException e) {
                 throw new IOException(e);
             }
@@ -99,44 +111,51 @@ public final class SnepClient {
 
     public void connect() throws IOException {
         synchronized (this) {
-            try {
-                if (mConnected) {
-                    throw new IOException("Socket already connected.");
-                }
-                if (DBG) Log.d(TAG, "about to create socket");
-                // Connect to the snep server on the remote side
-                mSocket = NfcService.getInstance().createLlcpSocket(0, MIU, 1, 1024);
-                if (mSocket == null) {
-                    throw new IOException("Could not connect to socket.");
-                }
-                if (mPort == -1) {
-                    if (DBG) Log.d(TAG, "about to connect to service " + mServiceName);
-                    mSocket.connect(mServiceName);
-                } else {
-                    if (DBG) Log.d(TAG, "about to connect to port " + mPort);
-                    mSocket.connect(mPort);
-                }
-
-                int miu = mSocket.getRemoteSocketMiu();
-                int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
-                mMessenger = new SnepMessenger(true, mSocket, fragmentLength);
-            } catch (LlcpException e) {
-                throw new IOException("Could not connect to socket");
+            if (mState != DISCONNECTED) {
+                throw new IOException("Socket already in use.");
             }
+            mState = CONNECTING;
+        }
+
+        SnepMessenger messenger;
+        try {
+            if (DBG) Log.d(TAG, "about to create socket");
+            // Connect to the snep server on the remote side
+            LlcpSocket socket = NfcService.getInstance().createLlcpSocket(0, MIU, 1, 1024);
+            if (socket == null) {
+                throw new IOException("Could not connect to socket.");
+            }
+            if (mPort == -1) {
+                if (DBG) Log.d(TAG, "about to connect to service " + mServiceName);
+                socket.connect(mServiceName);
+            } else {
+                if (DBG) Log.d(TAG, "about to connect to port " + mPort);
+                socket.connect(mPort);
+            }
+
+            int miu = socket.getRemoteSocketMiu();
+            int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
+            messenger = new SnepMessenger(true, socket, fragmentLength);
+        } catch (LlcpException e) {
+            throw new IOException("Could not connect to socket");
+        }
+
+        synchronized (this) {
+            mMessenger = messenger;
+            mState = CONNECTED;
         }
     }
 
     public void close() {
         synchronized (this) {
-            if (mSocket != null) {
+            if (mMessenger != null) {
                try {
-                   mSocket.close();
+                   mMessenger.close();
                } catch (IOException e) {
                    // ignore
                } finally {
-                   mConnected = false;
-                   mSocket = null;
                    mMessenger = null;
+                   mState = DISCONNECTED;
                }
             }
         }
