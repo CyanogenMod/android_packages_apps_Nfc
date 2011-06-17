@@ -16,6 +16,8 @@
 
 package com.android.nfc;
 
+import com.android.nfc.RegisteredComponentCache.ComponentInfo;
+
 import android.app.Activity;
 import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
@@ -36,9 +38,6 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.os.RemoteException;
 import android.util.Log;
-
-import com.android.nfc.ndefpush.NdefPushClient;
-import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 
 import java.nio.charset.Charsets;
 import java.util.ArrayList;

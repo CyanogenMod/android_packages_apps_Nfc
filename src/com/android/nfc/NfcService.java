@@ -39,6 +39,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.net.Uri;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
@@ -153,6 +155,10 @@ public class NfcService extends Application implements DeviceHostListener {
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
     NdefP2pManager mP2pManager;
+    int mStartSound;
+    int mEndSound;
+    int mErrorSound;
+    SoundPool mSoundPool; // playback synchronized on this
 
     private NfcDispatcher mNfcDispatcher;
     private KeyguardManager mKeyguard;
@@ -184,6 +190,7 @@ public class NfcService extends Application implements DeviceHostListener {
     /**
      * Notifies transaction
      */
+    @Override
     public void onCardEmulationDeselected() {
         sendMessage(NfcService.MSG_TARGET_DESELECTED, null);
     }
@@ -191,6 +198,7 @@ public class NfcService extends Application implements DeviceHostListener {
     /**
      * Notifies transaction
      */
+    @Override
     public void onCardEmulationAidSelected(byte[] aid) {
         sendMessage(NfcService.MSG_CARD_EMULATION, aid);
     }
@@ -206,14 +214,17 @@ public class NfcService extends Application implements DeviceHostListener {
     /**
      * Notifies P2P Device detected, to activate LLCP link
      */
+    @Override
     public void onLlcpLinkDeactivated(NfcDepEndpoint device) {
         sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
     }
 
+    @Override
     public void onRemoteFieldActivated() {
         sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
     }
 
+    @Override
     public void onRemoteFieldDeactivated() {
         sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
     }
@@ -225,6 +236,11 @@ public class NfcService extends Application implements DeviceHostListener {
         Log.i(TAG, "Starting NFC service");
 
         sService = this;
+
+        mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
+        mStartSound = mSoundPool.load(this, R.raw.start, 1);
+        mEndSound = mSoundPool.load(this, R.raw.end, 1);
+        mErrorSound = mSoundPool.load(this, R.raw.error, 1);
 
         mContext = this;
         mDeviceHost = new NativeNfcManager(this, this);
@@ -272,6 +288,12 @@ public class NfcService extends Application implements DeviceHostListener {
             }
         };
         t.start();
+    }
+
+    public void playSound(int sound) {
+        synchronized (this) {
+            mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+        }
     }
 
     @Override
@@ -2099,13 +2121,19 @@ public class NfcService extends Application implements DeviceHostListener {
                        new Bundle[] { });
                Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                Log.d(TAG, tag.toString());
-               mNfcDispatcher.dispatchTag(tag, new NdefMessage[] { ndefMsg });
+               boolean delivered = mNfcDispatcher.dispatchTag(tag, new NdefMessage[] { ndefMsg });
+               if (delivered) {
+                   playSound(mEndSound);
+               } else {
+                   playSound(mErrorSound);
+               }
                break;
            }
 
            case MSG_NDEF_TAG:
                if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                TagEndpoint tag = (TagEndpoint) msg.obj;
+               playSound(mStartSound);
                NdefMessage[] ndefMsgs = tag.findAndReadNdef();
 
                if (ndefMsgs != null) {
@@ -2135,55 +2163,15 @@ public class NfcService extends Application implements DeviceHostListener {
                break;
 
            case MSG_LLCP_LINK_ACTIVATION:
-               NfcDepEndpoint device = (NfcDepEndpoint) msg.obj;
-
-               Log.d(TAG, "LLCP Activation message");
-
-               if (device.getMode() == NfcDepEndpoint.MODE_P2P_TARGET) {
-                   if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_TARGET");
-                   if (device.connect()) {
-                       /* Check Llcp compliancy */
-                       if (mDeviceHost.doCheckLlcp()) {
-                           /* Activate Llcp Link */
-                           if (mDeviceHost.doActivateLlcp()) {
-                               if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
-                               // Register P2P device
-                               mObjectMap.put(device.getHandle(), device);
-                               mP2pManager.llcpActivated();
-                           } else {
-                               /* should not happen */
-                               Log.w(TAG, "Initiator Activate LLCP NOK. Disconnect.");
-                               device.disconnect();
-                           }
-
-                       } else {
-                           if (DBG) Log.d(TAG, "Remote Target does not support LLCP. Disconnect.");
-                           device.disconnect();
-                       }
-                   } else {
-                       if (DBG) Log.d(TAG, "Cannot connect remote Target. Polling loop restarted...");
-                       /* The polling loop should have been restarted in failing doConnect */
-                   }
-
-               } else if (device.getMode() == NfcDepEndpoint.MODE_P2P_INITIATOR) {
-                   if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_INITIATOR");
-                   /* Check Llcp compliancy */
-                   if (mDeviceHost.doCheckLlcp()) {
-                       /* Activate Llcp Link */
-                       if (mDeviceHost.doActivateLlcp()) {
-                           if (DBG) Log.d(TAG, "Target Activate LLCP OK");
-                           // Register P2P device
-                           mObjectMap.put(device.getHandle(), device);
-                           mP2pManager.llcpActivated();
-                      }
-                   } else {
-                       Log.w(TAG, "checkLlcp failed");
-                   }
+               if (llcpActivated((NfcDepEndpoint) msg.obj)) {
+                   playSound(mStartSound);
+               } else {
+                   playSound(mErrorSound);
                }
                break;
 
            case MSG_LLCP_LINK_DEACTIVATED:
-               device = (NfcDepEndpoint) msg.obj;
+               NfcDepEndpoint device = (NfcDepEndpoint) msg.obj;
 
                Log.d(TAG, "LLCP Link Deactivated message. Restart polling loop.");
                synchronized (NfcService.this) {
@@ -2248,13 +2236,66 @@ public class NfcService extends Application implements DeviceHostListener {
            }
         }
 
+        private boolean llcpActivated(NfcDepEndpoint device) {
+            Log.d(TAG, "LLCP Activation message");
+
+            if (device.getMode() == NfcDepEndpoint.MODE_P2P_TARGET) {
+                if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_TARGET");
+                if (device.connect()) {
+                    /* Check LLCP compliancy */
+                    if (mDeviceHost.doCheckLlcp()) {
+                        /* Activate LLCP Link */
+                        if (mDeviceHost.doActivateLlcp()) {
+                            if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
+                            // Register P2P device
+                            mObjectMap.put(device.getHandle(), device);
+                            mP2pManager.llcpActivated();
+                            return true;
+                        } else {
+                            /* should not happen */
+                            Log.w(TAG, "Initiator LLCP activation failed. Disconnect.");
+                            device.disconnect();
+                        }
+                    } else {
+                        if (DBG) Log.d(TAG, "Remote Target does not support LLCP. Disconnect.");
+                        device.disconnect();
+                    }
+                } else {
+                    if (DBG) Log.d(TAG, "Cannot connect remote Target. Polling loop restarted.");
+                    /*
+                     * The polling loop should have been restarted in failing
+                     * doConnect
+                     */
+                }
+            } else if (device.getMode() == NfcDepEndpoint.MODE_P2P_INITIATOR) {
+                if (DBG) Log.d(TAG, "NativeP2pDevice.MODE_P2P_INITIATOR");
+                /* Check LLCP compliancy */
+                if (mDeviceHost.doCheckLlcp()) {
+                    /* Activate LLCP Link */
+                    if (mDeviceHost.doActivateLlcp()) {
+                        if (DBG) Log.d(TAG, "Target Activate LLCP OK");
+                        // Register P2P device
+                        mObjectMap.put(device.getHandle(), device);
+                        mP2pManager.llcpActivated();
+                        return true;
+                    }
+                } else {
+                    Log.w(TAG, "checkLlcp failed");
+                }
+            }
+
+            return false;
+        }
+
         private void dispatchTagEndpoint(TagEndpoint tagEndpoint, NdefMessage[] msgs) {
             Tag tag = new Tag(tagEndpoint.getUid(), tagEndpoint.getTechList(),
                     tagEndpoint.getTechExtras(), tagEndpoint.getHandle(), mNfcTagService);
             registerTagObject(tagEndpoint);
             if (!mNfcDispatcher.dispatchTag(tag, msgs)) {
                 unregisterObject(tagEndpoint.getHandle());
-                tagEndpoint.disconnect();
+                playSound(mErrorSound);
+            } else {
+                playSound(mEndSound);
             }
         }
     }
