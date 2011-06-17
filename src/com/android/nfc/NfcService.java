@@ -70,7 +70,6 @@ import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -79,6 +78,7 @@ import java.nio.charset.Charsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -256,7 +256,7 @@ public class NfcService extends Application {
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
     private boolean mScreenOn;
-    private String mSePackageName;
+    private HashSet<String> mSePackages = new HashSet<String>();
 
     // fields below are final after onCreate()
     Context mContext;
@@ -1821,6 +1821,12 @@ public class NfcService extends Application {
                 } catch (RemoteException e) {
                     mOpenEe.binderDied();
                 }
+
+                // Add the calling package to the list of packages that have accessed
+                // the secure element.
+                for (String packageName : getPackageManager().getPackagesForUid(getCallingUid())) {
+                    mSePackages.add(packageName);
+                }
            }
         }
 
@@ -2964,8 +2970,9 @@ public class NfcService extends Application {
                     String packageName = data.getSchemeSpecificPart();
 
                     synchronized (NfcService.this) {
-                        if (packageName.equals(mSePackageName)) {
+                        if (mSePackages.contains(packageName)) {
                             executeSeReset();
+                            mSePackages.remove(packageName);
                         }
                     }
                 }
