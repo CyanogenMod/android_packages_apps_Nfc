@@ -1907,17 +1907,8 @@ public class NfcService extends Application {
         }
 
         @Override
-        public void registerTearDownApdus(String packageName, ApduList apdu) throws RemoteException {
+        public void authenticate(byte[] token) throws RemoteException {
             NfcService.enforceNfceeAdminPerm(mContext);
-            Log.w(TAG, "NOP");
-            //TODO: Remove this API
-        }
-
-        @Override
-        public void unregisterTearDownApdus(String packageName) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
-            Log.w(TAG, "NOP");
-            //TODO: Remove this API
         }
     };
 
