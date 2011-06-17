@@ -208,6 +208,7 @@ public class NdefP2pManager implements SnepServer.Callback {
             snepClient.connect();
         } catch (IOException e) {
             // Throw exception to fall back to NPP.
+            snepClient.close();
             throw new IOException("SNEP not available.", e);
         }
 

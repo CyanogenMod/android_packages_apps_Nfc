@@ -117,11 +117,12 @@ public final class SnepClient {
             mState = CONNECTING;
         }
 
+        LlcpSocket socket = null;
         SnepMessenger messenger;
         try {
             if (DBG) Log.d(TAG, "about to create socket");
             // Connect to the snep server on the remote side
-            LlcpSocket socket = NfcService.getInstance().createLlcpSocket(0, MIU, 1, 1024);
+            socket = NfcService.getInstance().createLlcpSocket(0, MIU, 1, 1024);
             if (socket == null) {
                 throw new IOException("Could not connect to socket.");
             }
@@ -137,6 +138,12 @@ public final class SnepClient {
             int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
             messenger = new SnepMessenger(true, socket, fragmentLength);
         } catch (LlcpException e) {
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException e2) {
+                }
+            }
             throw new IOException("Could not connect to socket");
         }
 
