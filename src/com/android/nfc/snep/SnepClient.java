@@ -133,7 +133,6 @@ public final class SnepClient {
                 if (DBG) Log.d(TAG, "about to connect to port " + mPort);
                 socket.connect(mPort);
             }
-
             int miu = socket.getRemoteSocketMiu();
             int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
             messenger = new SnepMessenger(true, socket, fragmentLength);
@@ -145,6 +144,14 @@ public final class SnepClient {
                 }
             }
             throw new IOException("Could not connect to socket");
+        } catch (IOException e) {
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException e2) {
+                }
+            }
+            throw new IOException("Failed to connect to socket");
         }
 
         synchronized (this) {
