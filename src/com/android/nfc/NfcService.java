@@ -78,6 +78,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -146,7 +147,7 @@ public class NfcService extends Application implements DeviceHostListener {
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private final HashMap<Integer, Object> mSocketMap = new HashMap<Integer, Object>();
     private boolean mScreenUnlocked;
-    private String mSePackageName;
+    private HashSet<String> mSePackages = new HashSet<String>();
 
     // fields below are final after onCreate()
     Context mContext;
@@ -1652,6 +1653,12 @@ public class NfcService extends Application implements DeviceHostListener {
                 } catch (RemoteException e) {
                     mOpenEe.binderDied();
                 }
+
+                // Add the calling package to the list of packages that have accessed
+                // the secure element.
+                for (String packageName : getPackageManager().getPackagesForUid(getCallingUid())) {
+                    mSePackages.add(packageName);
+                }
            }
         }
 
@@ -2374,8 +2381,9 @@ public class NfcService extends Application implements DeviceHostListener {
                     String packageName = data.getSchemeSpecificPart();
 
                     synchronized (NfcService.this) {
-                        if (packageName.equals(mSePackageName)) {
+                        if (mSePackages.contains(packageName)) {
                             executeSeReset();
+                            mSePackages.remove(packageName);
                         }
                     }
                 }
