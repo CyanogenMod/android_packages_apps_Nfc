@@ -146,4 +146,16 @@ public class NativeNfcManager {
     private void notifySeFieldDeactivated() {
         mNfcService.sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
     }
+
+    private void notifySeApduReceived(byte[] apdu) {
+        mNfcService.sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
+    }
+
+    private void notifySeEmvCardRemoval() {
+        mNfcService.sendMessage(NfcService.MSG_SE_EMV_CARD_REMOVAL, null);
+    }
+
+    private void notifySeMifareAccess(byte[] block) {
+        mNfcService.sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
+    }
 }
