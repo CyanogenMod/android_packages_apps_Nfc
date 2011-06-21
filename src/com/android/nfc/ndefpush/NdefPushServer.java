@@ -36,8 +36,8 @@ public class NdefPushServer {
     private static final String TAG = "NdefPushServer";
     private static final boolean DBG = true;
 
-    private static final int SERVICE_SAP = 0x10;
     private static final int MIU = 248;
+    private static int mSap;
 
     static final String SERVICE_NAME = "com.android.npp";
 
@@ -45,6 +45,10 @@ public class NdefPushServer {
 
     /** Protected by 'this', null when stopped, non-null when running */
     ServerThread mServerThread = null;
+
+    public NdefPushServer(final int sap) {
+        mSap = sap;
+    }
 
     /** Connection class, used to handle incoming connections */
     private class ConnectionThread extends Thread {
@@ -111,7 +115,7 @@ public class NdefPushServer {
         public void run() {
             while (mRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
-                mServerSocket = mService.createLlcpServiceSocket(SERVICE_SAP, SERVICE_NAME,
+                mServerSocket = mService.createLlcpServiceSocket(mSap, SERVICE_NAME,
                         MIU, 1, 1024);
                 if (mServerSocket == null) {
                     if (DBG) Log.d(TAG, "failed to create LLCP service socket");

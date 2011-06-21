@@ -1752,7 +1752,7 @@ public class NfcService extends Application implements DeviceHostListener {
             applyRouting();
 
             /* bring up p2p ndef servers */
-            mP2pManager.enablePushServer();
+            mP2pManager.enableNdefServer();
         } else {
             Log.w(TAG, "Error enabling NFC");
             mIsNfcEnabled = false;
@@ -1771,7 +1771,7 @@ public class NfcService extends Application implements DeviceHostListener {
         boolean isSuccess;
 
         /* tear down the p2p server */
-        mP2pManager.disablePushServer();
+        mP2pManager.disableNdefServer();
 
         // Stop watchdog if tag present
         // A convenient way to stop the watchdog properly consists of
