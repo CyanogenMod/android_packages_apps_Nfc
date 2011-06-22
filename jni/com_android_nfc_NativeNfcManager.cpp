@@ -447,9 +447,6 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    }
 
    /* ====== FIRMWARE VERSION ======= */
-   //Temporarily turn off FW update
-   //TODO: Re-enable FW update
-   caps.psDevCapabilities.firmware_update_info = 0;
    if(caps.psDevCapabilities.firmware_update_info)
    {
 force_download:
