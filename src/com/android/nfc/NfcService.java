@@ -1720,6 +1720,11 @@ public class NfcService extends Application implements DeviceHostListener {
             mEeRoutingState = route;
             applyRouting();
         }
+
+        @Override
+        public void authenticate(byte[] token) throws RemoteException {
+            NfcService.enforceNfceeAdminPerm(mContext);
+        }
     };
 
     /** resources kept while secure element is open */
