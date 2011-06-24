@@ -68,7 +68,6 @@ public class NdefP2pManager {
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
-            appendQueryParameter(ContactsContract.INCLUDE_PROFILE, "true").
             build();
 
     /** Locked on NdefP2pManager.class */
