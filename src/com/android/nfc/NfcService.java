@@ -247,6 +247,21 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     @Override
+    public void onSeApduReceived(byte[] apdu) {
+        sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
+    }
+
+    @Override
+    public void onSeEmvCardRemoval() {
+        sendMessage(NfcService.MSG_SE_EMV_CARD_REMOVAL, null);
+    }
+
+    @Override
+    public void onSeMifareAccess(byte[] block) {
+        sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
 

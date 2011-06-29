@@ -50,6 +50,12 @@ public interface DeviceHost {
         public void onRemoteFieldActivated();
 
         public void onRemoteFieldDeactivated();
+
+        public void onSeApduReceived(byte[] apdu);
+
+        public void onSeEmvCardRemoval();
+
+        public void onSeMifareAccess(byte[] block);
     }
 
     public interface TagEndpoint {

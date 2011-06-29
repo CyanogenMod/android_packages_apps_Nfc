@@ -145,14 +145,14 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     private void notifySeApduReceived(byte[] apdu) {
-        mNfcService.sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
+        mListener.onSeApduReceived(apdu);
     }
 
     private void notifySeEmvCardRemoval() {
-        mNfcService.sendMessage(NfcService.MSG_SE_EMV_CARD_REMOVAL, null);
+        mListener.onSeEmvCardRemoval();
     }
 
     private void notifySeMifareAccess(byte[] block) {
-        mNfcService.sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
+        mListener.onSeMifareAccess(block);
     }
 }
