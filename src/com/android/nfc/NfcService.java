@@ -338,7 +338,7 @@ public class NfcService extends Application {
             public void run() {
                 boolean nfc_on = mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT);
                 if (nfc_on) {
-                    _enable(false);
+                    _enable(false, true);
                 }
                 resetSeOnFirstBoot();
             }
@@ -365,7 +365,7 @@ public class NfcService extends Application {
             boolean previouslyEnabled = isEnabled();
             if (!previouslyEnabled) {
                 reset();
-                isSuccess = _enable(previouslyEnabled);
+                isSuccess = _enable(previouslyEnabled, true);
             }
             return isSuccess;
         }
@@ -378,7 +378,7 @@ public class NfcService extends Application {
             if (DBG) Log.d(TAG, "Disabling NFC.  previous=" + previouslyEnabled);
 
             if (previouslyEnabled) {
-                isSuccess = _disable(previouslyEnabled);
+                isSuccess = _disable(previouslyEnabled, true);
             }
             return isSuccess;
         }
@@ -1918,7 +1918,7 @@ public class NfcService extends Application {
         }
     }
 
-    private boolean _enable(boolean oldEnabledState) {
+    private boolean _enable(boolean oldEnabledState, boolean savePref) {
         applyProperties();
 
         boolean isSuccess = mManager.initialize();
@@ -1937,12 +1937,14 @@ public class NfcService extends Application {
             mIsNfcEnabled = false;
         }
 
-        updateNfcOnSetting(oldEnabledState);
+        if (savePref) {
+            updateNfcOnSetting(oldEnabledState);
+        }
 
         return isSuccess;
     }
 
-    private boolean _disable(boolean oldEnabledState) {
+    private boolean _disable(boolean oldEnabledState, boolean savePref) {
         /* sometimes mManager.deinitialize() hangs, watch-dog it */
         WatchDogThread watchDog = new WatchDogThread();
         watchDog.start();
@@ -1972,7 +1974,9 @@ public class NfcService extends Application {
             mNdefPushClient.setForegroundMessage(null);
         }
 
-        updateNfcOnSetting(oldEnabledState);
+        if (savePref) {
+            updateNfcOnSetting(oldEnabledState);
+        }
 
         watchDog.cancel();
         return isSuccess;
@@ -2087,7 +2091,7 @@ public class NfcService extends Application {
 
         boolean tempEnable = !mIsNfcEnabled;
         if (tempEnable) {
-            if (!_enable(false)) {
+            if (!_enable(false, false)) {
                 Log.w(TAG, "Could not enable NFC to reset EE!");
                 return;
             }
@@ -2098,7 +2102,7 @@ public class NfcService extends Application {
         if (handle == 0) {
             Log.e(TAG, "Could not open the secure element!");
             if (tempEnable) {
-                _disable(true);
+                _disable(true, false);
             }
             return;
         }
@@ -2114,7 +2118,7 @@ public class NfcService extends Application {
         mSecureElement.doDisconnect(handle);
 
         if (tempEnable) {
-            _disable(true);
+            _disable(true, false);
         }
     }
 
