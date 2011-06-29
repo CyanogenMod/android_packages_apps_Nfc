@@ -46,6 +46,10 @@ static jmethodID cached_NfcManager_notifyTargetDeselected;
 static jmethodID cached_NfcManager_notifySeFieldActivated;
 static jmethodID cached_NfcManager_notifySeFieldDeactivated;
 
+static jmethodID cached_NfcManager_notifySeApduReceived;
+static jmethodID cached_NfcManager_notifySeMifareAccess;
+static jmethodID cached_NfcManager_notifySeEmvCardRemoval;
+
 namespace android {
 
 phLibNfc_Handle     storedHandle = 0;
@@ -210,7 +214,7 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
     uint8_t OutputBuffer[1];
     uint8_t InputBuffer[1];
     struct timespec ts;
-    NFCSTATUS status;
+    NFCSTATUS status = NFCSTATUS_FAILED;
     phLibNfc_StackCapabilities_t caps;
     struct nfc_jni_callback_data cb_data;
 
@@ -1176,9 +1180,11 @@ static void nfc_jni_transaction_callback(void *context,
    phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status)
 {
     JNIEnv *e;
-    jobject aid_array = NULL;
+    jobject tmp_array = NULL;
+    jobject mifare_block = NULL;
     struct nfc_jni_native_data *nat;
     phNfc_sData_t *aid;
+    phNfc_sData_t *mifare_command;
     struct nfc_jni_callback_data *pCallbackData;
     int i=0;
 
@@ -1205,18 +1211,18 @@ static void nfc_jni_transaction_callback(void *context,
                     {
                         char aid_str[AID_MAXLEN * 2 + 1];
                         aid_str[0] = '\0';
-                        for (i = 0; i < (aid->length) && i < AID_MAXLEN; i++) {
+                        for (i = 0; i < (int) (aid->length) && i < AID_MAXLEN; i++) {
                           snprintf(&aid_str[i*2], 3, "%02x", aid->buffer[i]);
                         }
                         LOGD("> AID: %s", aid_str);
 
-                        aid_array = e->NewByteArray(aid->length);
-                        if(aid_array == NULL)
+                        tmp_array = e->NewByteArray(aid->length);
+                        if (tmp_array == NULL)
                         {
                             goto error;
                         }
 
-                        e->SetByteArrayRegion((jbyteArray)aid_array, 0, aid->length, (jbyte *)aid->buffer);
+                        e->SetByteArrayRegion((jbyteArray)tmp_array, 0, aid->length, (jbyte *)aid->buffer);
                         if(e->ExceptionCheck())
                         {
                             goto error;
@@ -1229,7 +1235,7 @@ static void nfc_jni_transaction_callback(void *context,
 
                     TRACE("Notify Nfc Service");
                     /* Notify manager that a new event occurred on a SE */
-                    e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTransactionListeners, aid_array);
+                    e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTransactionListeners, tmp_array);
                     if(e->ExceptionCheck())
                     {
                         goto error;
@@ -1239,6 +1245,56 @@ static void nfc_jni_transaction_callback(void *context,
                 {
                     LOGD("> NO AID DETECTED");
                 }
+            }break;
+
+            case phLibNfc_eSE_EvtApduReceived:
+            {
+                phNfc_sData_t *apdu = &(evt_info->UiccEvtInfo.aid);
+                TRACE("> SE EVT_APDU_RECEIVED");
+
+                if (apdu != NULL) {
+                        TRACE("  APDU length=%d", apdu->length);
+                        tmp_array = e->NewByteArray(apdu->length);
+                        if (tmp_array == NULL) {
+                            goto error;
+                        }
+                        e->SetByteArrayRegion((jbyteArray)tmp_array, 0, apdu->length, (jbyte *)apdu->buffer);
+                        if (e->ExceptionCheck()) {
+                            goto error;
+                        }
+                } else {
+                        TRACE("  APDU EMPTY");
+                }
+
+                TRACE("Notify Nfc Service");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifySeApduReceived, tmp_array);
+            }break;
+
+            case phLibNfc_eSE_EvtCardRemoval:
+            {
+                TRACE("> SE EVT_EMV_CARD_REMOVAL");
+                TRACE("Notify Nfc Service");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifySeEmvCardRemoval);
+            }break;
+
+            case phLibNfc_eSE_EvtMifareAccess:
+            {
+                TRACE("> SE EVT_MIFARE_ACCESS");
+                mifare_command = &(evt_info->UiccEvtInfo.aid);
+                TRACE("> MIFARE Block: %d",mifare_command->buffer[1]);
+                tmp_array = e->NewByteArray(2);
+                if (tmp_array == NULL)
+                {
+                    goto error;
+                }
+
+                e->SetByteArrayRegion((jbyteArray)tmp_array, 0, 2, (jbyte *)mifare_command->buffer);
+                if(e->ExceptionCheck())
+                {
+                    goto error;
+                }
+                TRACE("Notify Nfc Service");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifySeMifareAccess, mifare_block);
             }break;
 
             case phLibNfc_eSE_EvtFieldOn:
@@ -1276,9 +1332,9 @@ static void nfc_jni_transaction_callback(void *context,
     e->ExceptionClear();
 
  clean_and_return:
-    if(aid_array != NULL)
+    if(tmp_array != NULL)
     {
-       e->DeleteLocalRef(aid_array);
+       e->DeleteLocalRef(tmp_array);
     }
 }
 
@@ -1631,7 +1687,16 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       "notifySeFieldActivated", "()V");
 
    cached_NfcManager_notifySeFieldDeactivated = e->GetMethodID(cls,
-       "notifySeFieldDeactivated", "()V");
+      "notifySeFieldDeactivated", "()V");
+
+   cached_NfcManager_notifySeApduReceived= e->GetMethodID(cls,
+      "notifySeApduReceived", "([B)V");
+
+   cached_NfcManager_notifySeMifareAccess = e->GetMethodID(cls,
+      "notifySeMifareAccess", "([B)V");
+
+   cached_NfcManager_notifySeEmvCardRemoval =  e->GetMethodID(cls,
+      "notifySeEmvCardRemoval", "()V");
 
    if(nfc_jni_cache_object(e,"com/android/nfc/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
