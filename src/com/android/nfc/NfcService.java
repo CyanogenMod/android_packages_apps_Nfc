@@ -55,6 +55,7 @@ import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
@@ -86,7 +87,7 @@ import java.util.List;
 public class NfcService extends Application implements DeviceHostListener {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
-    static final boolean DBG = false;
+    static final boolean DBG = true;
     static final String TAG = "NfcService";
 
     private static final String MY_TAG_FILE_NAME = "mytag";
@@ -2154,13 +2155,16 @@ public class NfcService extends Application implements DeviceHostListener {
         sendMessage(MSG_MOCK_NDEF, msg);
     }
 
+    public void sendMeProfile(NdefMessage target, NdefMessage profile) {
+        mP2pManager.sendMeProfile(target, profile);
+    }
+
     void sendMessage(int what, Object obj) {
         Message msg = mHandler.obtainMessage();
         msg.what = what;
         msg.obj = obj;
         mHandler.sendMessage(msg);
     }
-
 
     final class NfcServiceHandler extends Handler {
 

@@ -4,6 +4,8 @@
         android:sharedUserId="android.uid.nfc"
         android:sharedUserLabel="@string/nfcUserLabel"
 >
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.STATUS_BAR" />
@@ -36,6 +38,8 @@
             android:excludeFromRecents="true"
             android:multiprocess="true"
         />
+
+        <receiver android:name="com.android.nfc.BluetoothMeProfileReceiver" />
 
     </application>
 </manifest>

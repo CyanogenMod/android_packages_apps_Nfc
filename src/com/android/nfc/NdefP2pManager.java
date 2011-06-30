@@ -34,34 +34,34 @@ import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
-import android.provider.ContactsContract;
-import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.Profile;
 import android.os.AsyncTask;
 import android.os.RemoteException;
+import android.provider.ContactsContract.Contacts;
+import android.provider.ContactsContract.Profile;
 import android.util.Log;
 
-
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 
 public class NdefP2pManager {
     public static final String ANDROID_SNEP_SERVICE = "urn:nfc:xsn:android.com:snep";
-    static final byte[] RTD_ANDROID_VCARD_REQUEST = "vnd.android.nfc/myprofile".getBytes();
+    // Disable Large-ndef-over-BT while we stabilize me-over-BT   (old value 5*1024)
+    private static final int MAX_SNEP_SIZE_BYTES = Integer.MAX_VALUE;
 
     // TODO dynamically assign SAP values
     private static final int NDEFPUSH_SAP = 0x10;
     private static final int ANDROIDSNEP_SAP = 0x11;
 
     private static final String TAG = "P2PManager";
-    private static final boolean DBG = false;
+    private static final boolean DBG = true;
     private final INfcAdapter.Stub mNfcAdapter;
     private final NdefPushServer mNdefPushServer;
     private final SnepServer mDefaultSnepServer;
     private final SnepServer mAndroidSnepServer;
+    final BluetoothDropbox mBluetoothDropbox;
     private final ActivityManager mActivityManager;
     private final PackageManager mPackageManager;
     private final Context mContext;
@@ -80,6 +80,7 @@ public class NdefP2pManager {
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
         mAndroidSnepServer = new SnepServer(ANDROID_SNEP_SERVICE, ANDROIDSNEP_SAP,
                 mAndroidSnepCallback);
+        mBluetoothDropbox = new BluetoothDropbox(context);
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
@@ -92,12 +93,24 @@ public class NdefP2pManager {
         mAndroidSnepServer.start();
         // Legacy
         mNdefPushServer.start();
+        // Out-of-band
+        // TODO: Hack to make sure Bluetooth is available
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException e) {}
+                mBluetoothDropbox.start();
+            };
+        }.start();
     }
 
     public void disableNdefServer() {
         mDefaultSnepServer.stop();
         mAndroidSnepServer.stop();
         mNdefPushServer.stop();
+        mBluetoothDropbox.stop();
     }
 
     public boolean setForegroundMessage(NdefMessage msg) {
@@ -140,6 +153,15 @@ public class NdefP2pManager {
         }
 
         return ndefMsg;
+    }
+
+    public void sendMeProfile(NdefMessage target, NdefMessage profile) {
+        try {
+            mBluetoothDropbox.sendContent(target, profile);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to send me profile via BT dropbox");
+            if (DBG) Log.e(TAG, "error:", e);
+        }
     }
 
     public NdefMessage getForegroundMessage() {
@@ -204,11 +226,18 @@ public class NdefP2pManager {
     final class P2pTask extends AsyncTask<NdefMessage, Void, Void> {
         @Override
         public Void doInBackground(NdefMessage... msgs) {
+            NdefMessage dropboxTarget = getDropboxTarget();
             try {
                 if (msgs.length > 0) {
-                    doSnepProtocol(msgs[0]);
+                    NdefMessage foregroundMsg = msgs[0];
+                    if (dropboxTarget != null &&
+                            foregroundMsg.toByteArray().length > MAX_SNEP_SIZE_BYTES) {
+                        if (DBG) Log.d(TAG, "Sending large ndef to dropbox");
+                        mBluetoothDropbox.sendContent(dropboxTarget, foregroundMsg);
+                    } else {
+                        doSnepProtocol(msgs[0]);
+                    }
                 }
-                doMyTagProtocol();
             } catch (IOException e) {
                 if (DBG) Log.d(TAG, "Failed to connect over SNEP, trying NPP");
                 new NdefPushClient().push(msgs);
@@ -227,11 +256,22 @@ public class NdefP2pManager {
                 }
             }
 
+            // Me profile
+            NdefMessage me = getMeProfile();
+            if (dropboxTarget != null && me != null) {
+                if (DBG) Log.d(TAG, "Sending me profile");
+                try {
+                    mBluetoothDropbox.handleOutboundMeProfile(dropboxTarget, me);
+                } catch (IOException e) {
+                    if (DBG) Log.d(TAG, "Failed to send me profile");
+                }
+            }
+
             return null;
         }
     }
 
-    private void doSnepProtocol(NdefMessage msg) throws IOException {
+    void doSnepProtocol(NdefMessage msg) throws IOException {
         SnepClient snepClient = new SnepClient();
         try {
             snepClient.connect();
@@ -250,25 +290,32 @@ public class NdefP2pManager {
         }
     }
 
-    private void doMyTagProtocol() {
+    /**
+     * Retrieves the remote dropbox address, and grants the remote device access
+     * to our local dropbox for a short period of time.
+     * @return
+     */
+    NdefMessage getDropboxTarget() {
         NdefRecord key = new NdefRecord(NdefRecord.TNF_EXTERNAL_TYPE,
-                RTD_ANDROID_VCARD_REQUEST, new byte[0], new byte[0]);
+                BluetoothDropbox.MIME_TYPE.getBytes(), new byte[0], new byte[0]);
         NdefMessage request = new NdefMessage(new NdefRecord[] { key });
         SnepClient client = new SnepClient(ANDROID_SNEP_SERVICE);
         try {
             client.connect();
             SnepMessage response = client.get(request);
             if (response.getField() == SnepMessage.RESPONSE_SUCCESS) {
-                NdefMessage meProf = response.getNdefMessage();
-                // TODO handle it
-                if (DBG) Log.d(TAG, "Received me profile.");
+                NdefMessage remoteDropboxAddress = response.getNdefMessage();
+                mBluetoothDropbox.grantAccess(remoteDropboxAddress);
+                return remoteDropboxAddress;
             } else {
-                Log.w(TAG, "Did not receive me profile.");
+                Log.w(TAG, "Error sending content to dropbox.");
             }
         } catch (IOException e) {
-            Log.w(TAG, "IOException receiving me profile");
-
+            if (DBG) Log.w(TAG, "IOException during bluetooth dropbox");
+        } finally {
+            client.close();
         }
+        return null;
     }
 
     private final SnepServer.Callback mDefaultSnepCallback = new SnepServer.Callback() {
@@ -299,13 +346,14 @@ public class NdefP2pManager {
 
             NdefRecord key = msg.getRecords()[0];
             if (key.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE &&
-                    Arrays.equals(RTD_ANDROID_VCARD_REQUEST, key.getType())) {
+                    Arrays.equals(BluetoothDropbox.MIME_TYPE.getBytes(), key.getType())) {
 
-                NdefMessage meProf = getMeProfile();
-
-                if (meProf != null) {
-                    return SnepMessage.getSuccessResponse(meProf);
+                NdefMessage dropboxAddress = mBluetoothDropbox.getDropboxAddressNdef();
+                if (dropboxAddress != null) {
+                    if (DBG) Log.d(TAG, "responding with dropbox invitation");
+                    return SnepMessage.getSuccessResponse(dropboxAddress);
                 } else {
+                    if (DBG) Log.d(TAG, "denying dropbox");
                     return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
                 }
             }

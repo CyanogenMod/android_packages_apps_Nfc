@@ -5,6 +5,19 @@
     
     <!-- The label for the NFC admin permission -->
     <string name="permlab_nfcAdmin">NFCEE administration</string>
+
     <!-- The description for the NFC admin permission -->
     <string name="permdesc_nfcAdmin">Allows control of NFC execution environment hardware</string>
+
+    <!-- A notification description string informing the user that contact details were received over NFC [CHAR-LIMIT=64] -->
+    <string name="inbound_me_profile_title">Contact received over NFC</string>
+
+    <!-- A notification action string prompting the user to add contact details to the People application [CHAR-LIMIT=64] -->
+    <string name="inbound_me_profile_text">Tap to add this person as a contact</string>
+
+    <!-- A notification description string asking the user to share their contact details over NFC [CHAR-LIMIT=64] -->
+    <string name="outbound_me_profile_title">NFC interaction complete</string>
+
+    <!-- A notification action string prompting the user to share their contact details over NFC [CHAR-LIMIT=64] -->
+    <string name="outbound_me_profile_text">Tap to give this person your contact info</string>
 </resources>
