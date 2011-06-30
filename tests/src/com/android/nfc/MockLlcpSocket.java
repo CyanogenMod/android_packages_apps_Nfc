@@ -16,25 +16,17 @@
 
 package com.android.nfc;
 
+import android.util.Log;
+
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.List;
 
-import android.util.Log;
-
-import com.android.internal.nfc.LlcpException;
-import com.android.internal.nfc.LlcpSocket;
-
-public class MockLlcpSocket extends LlcpSocket {
+public class MockLlcpSocket implements DeviceHost.LlcpSocket {
     private static final String TAG = "mockLlcpSocket";
     private MockLlcpSocket mPairedSocket;
     private List<byte[]> mReceivedPackets = new LinkedList<byte[]>();
     private boolean mClosed = false;
-
-    public MockLlcpSocket() {
-        super(null, -1);
-    }
 
     @Override
     public void close() throws IOException {
@@ -43,7 +35,7 @@ public class MockLlcpSocket extends LlcpSocket {
     }
 
     @Override
-    public void connect(int sap) throws IOException, LlcpException {
+    public void connectToSap(int sap) throws IOException {
         throw new UnsupportedOperationException("Use MockLlcpSocket.bind(client, server)");
     }
 
@@ -79,5 +71,35 @@ public class MockLlcpSocket extends LlcpSocket {
     public static void bind(MockLlcpSocket client, MockLlcpSocket server) {
         client.mPairedSocket = server;
         server.mPairedSocket = client;
+    }
+
+    @Override
+    public void connectToService(String serviceName) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getRemoteMiu() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getRemoteRw() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getLocalSap() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getLocalMiu() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getLocalRw() {
+        throw new UnsupportedOperationException();
     }
 }

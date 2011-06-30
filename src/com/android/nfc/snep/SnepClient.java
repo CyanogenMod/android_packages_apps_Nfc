@@ -16,14 +16,14 @@
 
 package com.android.nfc.snep;
 
-import java.io.IOException;
-
-import com.android.internal.nfc.LlcpException;
-import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.DeviceHost.LlcpSocket;
+import com.android.nfc.LlcpException;
 import com.android.nfc.NfcService;
 
 import android.nfc.NdefMessage;
 import android.util.Log;
+
+import java.io.IOException;
 
 public final class SnepClient {
     private static final String TAG = "SnepClient";
@@ -128,12 +128,12 @@ public final class SnepClient {
             }
             if (mPort == -1) {
                 if (DBG) Log.d(TAG, "about to connect to service " + mServiceName);
-                socket.connect(mServiceName);
+                socket.connectToService(mServiceName);
             } else {
                 if (DBG) Log.d(TAG, "about to connect to port " + mPort);
-                socket.connect(mPort);
+                socket.connectToSap(mPort);
             }
-            int miu = socket.getRemoteSocketMiu();
+            int miu = socket.getRemoteMiu();
             int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
             messenger = new SnepMessenger(true, socket, fragmentLength);
         } catch (LlcpException e) {

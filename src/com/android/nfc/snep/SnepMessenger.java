@@ -16,16 +16,16 @@
 
 package com.android.nfc.snep;
 
+import com.android.nfc.DeviceHost.LlcpSocket;
+
+import android.nfc.FormatException;
+import android.util.Log;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
-
-import com.android.internal.nfc.LlcpSocket;
-
-import android.nfc.FormatException;
-import android.util.Log;
 
 public class SnepMessenger {
     private static final String TAG = "SnepMessager";

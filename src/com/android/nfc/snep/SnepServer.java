@@ -16,9 +16,9 @@
 
 package com.android.nfc.snep;
 
-import com.android.internal.nfc.LlcpException;
-import com.android.internal.nfc.LlcpServiceSocket;
-import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.DeviceHost.LlcpServerSocket;
+import com.android.nfc.DeviceHost.LlcpSocket;
+import com.android.nfc.LlcpException;
 import com.android.nfc.NfcService;
 
 import android.nfc.NdefMessage;
@@ -29,7 +29,7 @@ import java.io.IOException;
 
 /**
  * A simple server that accepts NDEF messages pushed to it over an LLCP connection. Those messages
- * are typically set on the client side by using {@link NfcAdapter#setLocalNdefMessage}.
+ * are typically set on the client side by using {@link NfcAdapter#enableForegroundNdefPush}.
  */
 public final class SnepServer {
     private static final String TAG = "SnepServer";
@@ -40,14 +40,14 @@ public final class SnepServer {
 
     public static final String DEFAULT_SERVICE_NAME = "urn:nfc:sn:snep";
 
-    private final Callback mCallback;
-    private final String mServiceName;
-    private final int mServiceSap;
-    private final int mFragmentLength;
+    final Callback mCallback;
+    final String mServiceName;
+    final int mServiceSap;
+    final int mFragmentLength;
 
     /** Protected by 'this', null when stopped, non-null when running */
-    private ServerThread mServerThread = null;
-    private boolean mServerRunning = false;
+    ServerThread mServerThread = null;
+    boolean mServerRunning = false;
 
     public interface Callback {
         public SnepMessage doPut(NdefMessage msg);
@@ -154,7 +154,7 @@ public final class SnepServer {
     /** Server class, used to listen for incoming connection request */
     class ServerThread extends Thread {
         private boolean mThreadRunning = true;
-        LlcpServiceSocket mServerSocket;
+        LlcpServerSocket mServerSocket;
 
         @Override
         public void run() {
@@ -165,22 +165,22 @@ public final class SnepServer {
 
             while (threadRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
-                synchronized (SnepServer.this) {
-                    mServerSocket = NfcService.getInstance().createLlcpServiceSocket(mServiceSap,
-                            mServiceName, MIU, 1, 1024);
-                }
-                if (mServerSocket == null) {
-                    if (DBG) Log.d(TAG, "failed to create LLCP service socket");
-                    return;
-                }
-                if (DBG) Log.d(TAG, "created LLCP service socket");
                 try {
+                    synchronized (SnepServer.this) {
+                        mServerSocket = NfcService.getInstance().createLlcpServerSocket(mServiceSap,
+                                mServiceName, MIU, 1, 1024);
+                    }
+                    if (mServerSocket == null) {
+                        if (DBG) Log.d(TAG, "failed to create LLCP service socket");
+                        return;
+                    }
+                    if (DBG) Log.d(TAG, "created LLCP service socket");
                     synchronized (SnepServer.this) {
                         threadRunning = mThreadRunning;
                     }
 
                     while (threadRunning) {
-                        LlcpServiceSocket serverSocket;
+                        LlcpServerSocket serverSocket;
                         synchronized (SnepServer.this) {
                             serverSocket = mServerSocket;
                         }
@@ -193,7 +193,7 @@ public final class SnepServer {
                         LlcpSocket communicationSocket = serverSocket.accept();
                         if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
                         if (communicationSocket != null) {
-                            int miu = communicationSocket.getRemoteSocketMiu();
+                            int miu = communicationSocket.getRemoteMiu();
                             int fragmentLength = (mFragmentLength == -1) ?
                                     miu : Math.min(miu, mFragmentLength);
                             new ConnectionThread(communicationSocket, fragmentLength).start();
@@ -212,7 +212,11 @@ public final class SnepServer {
                     synchronized (SnepServer.this) {
                         if (mServerSocket != null) {
                             if (DBG) Log.d(TAG, "about to close");
-                            mServerSocket.close();
+                            try {
+                                mServerSocket.close();
+                            } catch (IOException e) {
+                                // ignore
+                            }
                             mServerSocket = null;
                         }
                     }
@@ -224,11 +228,15 @@ public final class SnepServer {
             }
         }
 
-        private void shutdown() {
+        public void shutdown() {
             synchronized (SnepServer.this) {
                 mThreadRunning = false;
                 if (mServerSocket != null) {
-                    mServerSocket.close();
+                    try {
+                        mServerSocket.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
                     mServerSocket = null;
                 }
             }

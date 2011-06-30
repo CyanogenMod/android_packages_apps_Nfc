@@ -16,17 +16,14 @@
 
 package com.android.nfc.snep;
 
-import java.io.IOException;
-
 import com.android.nfc.MockLlcpSocket;
-import com.android.nfc.snep.SnepMessage;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
-import com.android.internal.nfc.LlcpSocket;
+import java.io.IOException;
 
 /**
  * Tests the SNEP cleint/server interfaces using a mock LLCP socket.
@@ -45,6 +42,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -75,6 +73,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -105,6 +104,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -135,6 +135,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -165,6 +166,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -195,6 +197,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -228,6 +231,7 @@ public class SnepBasicTests extends AndroidTestCase {
         final SnepMessenger server = new SnepMessenger(false, serverSocket, MIU);
 
         new Thread() {
+            @Override
             public void run() {
                 try {
                     SnepServer.handleRequest(server, mCallback);
@@ -254,13 +258,13 @@ public class SnepBasicTests extends AndroidTestCase {
         assertEquals(SnepMessage.RESPONSE_SUCCESS, response.getField());
     }
 
-    private NdefMessage getSmallNdef() {
+    NdefMessage getSmallNdef() {
         NdefRecord rec = new NdefRecord(NdefRecord.TNF_ABSOLUTE_URI, NdefRecord.RTD_URI,
                 new byte[0], "http://android.com".getBytes());
         return new NdefMessage(new NdefRecord[] { rec });
     }
 
-    private NdefMessage getNdef(int size) {
+    NdefMessage getNdef(int size) {
         StringBuffer string = new StringBuffer(size);
         for (int i = 0; i < size; i++) {
             string.append('A' + (i % 26));
@@ -268,10 +272,6 @@ public class SnepBasicTests extends AndroidTestCase {
         NdefRecord rec = new NdefRecord(NdefRecord.TNF_MIME_MEDIA, "text/plain".getBytes(),
                 new byte[0], string.toString().getBytes());
         return new NdefMessage(new NdefRecord[] { rec });
-    }
-
-    private class SnepMessageContainer {
-        SnepMessage message;
     }
 
     /**
