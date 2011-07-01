@@ -59,6 +59,7 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
+import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -2167,9 +2168,14 @@ public class NfcService extends Application implements DeviceHostListener {
            switch (msg.what) {
            case MSG_MOCK_NDEF: {
                NdefMessage ndefMsg = (NdefMessage) msg.obj;
+               Bundle extras = new Bundle();
+               extras.putParcelable(Ndef.EXTRA_NDEF_MSG, ndefMsg);
+               extras.putInt(Ndef.EXTRA_NDEF_MAXLENGTH, 0);
+               extras.putInt(Ndef.EXTRA_NDEF_CARDSTATE, Ndef.NDEF_MODE_READ_ONLY);
+               extras.putInt(Ndef.EXTRA_NDEF_TYPE, Ndef.TYPE_OTHER);
                Tag tag = Tag.createMockTag(new byte[] { 0x00 },
-                       new int[] { },
-                       new Bundle[] { });
+                       new int[] { TagTechnology.NDEF },
+                       new Bundle[] { extras });
                Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                Log.d(TAG, tag.toString());
                boolean delivered = mNfcDispatcher.dispatchTag(tag, new NdefMessage[] { ndefMsg });
