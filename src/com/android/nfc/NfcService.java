@@ -2438,16 +2438,15 @@ public class NfcService extends Application implements DeviceHostListener {
                 applyRouting();
 
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
+                // Only enable if the screen is unlocked. If the screen is locked
+                // Intent.ACTION_USER_PRESENT will be broadcast when the screen is
+                // unlocked.
+                boolean enable = !mKeyguard.isKeyguardSecure() || !mKeyguard.isKeyguardLocked();
+
                 // Perform discovery enable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
                 // configuration of the local NFC adapter should be very quick and should
                 // be safe on the main thread, and the NFC stack should not wedge.
-
-                // Only enable if the screen is unlocked. If the screen is locked
-                // Intent.ACTION_USER_PRESENT will be broadcast when the screen is
-                // unlocked.
-                boolean enable = !mKeyguard.isKeyguardLocked() && !mKeyguard.isKeyguardSecure();
-
                 new EnableDisableDiscoveryTask().execute(enable);
             } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
                 // Perform discovery disable in thread to protect against ANR when the
