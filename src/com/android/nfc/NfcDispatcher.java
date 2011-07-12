@@ -47,6 +47,7 @@ import java.util.Arrays;
  * Dispatch of NFC events to start activities
  */
 public class NfcDispatcher {
+    public static final byte[] RTD_ANDROID_APP = "android.com:pkg".getBytes();
     private static final boolean DBG = NfcService.DBG;
     private static final String TAG = NfcService.TAG;
 
@@ -167,7 +168,7 @@ public class NfcDispatcher {
                 if (setTypeOrDataFromNdef(intent, record)) {
                     // The record contains filterable data, try to start a matching activity
                     if (startDispatchActivity(intent, overrideIntent, overrideFilters,
-                            overrideTechLists)) {
+                            overrideTechLists, records)) {
                         // If an activity is found then skip further dispatching
                         return true;
                     } else {
@@ -249,7 +250,8 @@ public class NfcDispatcher {
         // Try the generic intent
         //
         intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TAG_DISCOVERED);
-        if (startDispatchActivity(intent, overrideIntent, overrideFilters, overrideTechLists)) {
+        if (startDispatchActivity(intent, overrideIntent, overrideFilters, overrideTechLists,
+                null)) {
             return true;
         } else {
             Log.e(TAG, "No tag fallback activity found for " + intent);
@@ -258,7 +260,7 @@ public class NfcDispatcher {
     }
 
     private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
-            IntentFilter[] overrideFilters, String[][] overrideTechLists)
+            IntentFilter[] overrideFilters, String[][] overrideTechLists, NdefRecord[] records)
             throws CanceledException {
         if (overrideIntent != null) {
             boolean found = false;
@@ -289,6 +291,41 @@ public class NfcDispatcher {
                 // resumeAppSwitches()
                 mIActivityManager.resumeAppSwitches();
             } catch (RemoteException e) { }
+            if (records != null) {
+                String firstPackage = null;
+                for (NdefRecord record : records) {
+                    if (record.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE) {
+                        if (Arrays.equals(record.getType(), RTD_ANDROID_APP)) {
+                            String pkg = new String(record.getPayload(), Charsets.US_ASCII);
+                            if (firstPackage == null) {
+                                firstPackage = pkg;
+                            }
+                            intent.setPackage(pkg);
+                            try {
+                                mContext.startActivity(intent);
+                                return true;
+                            } catch (ActivityNotFoundException e) {
+                                // Continue; there may be another match.
+                            }
+                        }
+                    }
+                }
+                if (firstPackage != null) {
+                    // Found an Android package, but could not handle ndef intent.
+                    // If the application is installed, call its main activity.
+                    try {
+                        Intent main = new Intent(Intent.ACTION_MAIN);
+                        main.addCategory(Intent.CATEGORY_LAUNCHER);
+                        main.setPackage(firstPackage);
+                        mContext.startActivity(main);
+                        return true;
+                    } catch (ActivityNotFoundException e) {
+                        Intent market = getAppSearchIntent(firstPackage);
+                        mContext.startActivity(market);
+                        return true;
+                    }
+                }
+            }
             try {
                 mContext.startActivity(intent);
                 return true;
@@ -369,6 +406,16 @@ public class NfcDispatcher {
             Log.e(TAG, "failed to parse record", e);
             return false;
         }
+    }
+
+    /**
+     * Returns an intent that can be used to find an application not currently
+     * installed on the device.
+     */
+    private static Intent getAppSearchIntent(String pkg) {
+        Intent market = new Intent(Intent.ACTION_VIEW);
+        market.setData(Uri.parse("market://details?id=" + pkg));
+        return market;
     }
 
     private static boolean isComponentEnabled(PackageManager pm, ResolveInfo info) {
