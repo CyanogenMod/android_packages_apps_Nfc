@@ -28,6 +28,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
@@ -42,6 +43,7 @@ import android.util.Log;
 import java.nio.charset.Charsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Dispatch of NFC events to start activities
@@ -313,17 +315,30 @@ public class NfcDispatcher {
                 if (firstPackage != null) {
                     // Found an Android package, but could not handle ndef intent.
                     // If the application is installed, call its main activity.
+                    Intent main = new Intent(Intent.ACTION_MAIN);
+                    main.addCategory(Intent.CATEGORY_LAUNCHER);
+                    main.setPackage(firstPackage);
+                    main.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    // Use default main:
                     try {
-                        Intent main = new Intent(Intent.ACTION_MAIN);
-                        main.addCategory(Intent.CATEGORY_LAUNCHER);
-                        main.setPackage(firstPackage);
                         mContext.startActivity(main);
                         return true;
                     } catch (ActivityNotFoundException e) {
-                        Intent market = getAppSearchIntent(firstPackage);
-                        mContext.startActivity(market);
+                    }
+                    // Use first available main:
+                    List<ResolveInfo> info =
+                            mContext.getPackageManager().queryIntentActivities(main, 0);
+                    if (info.size() > 0) {
+                        ActivityInfo launchInfo = info.get(0).activityInfo;
+                        main.setClassName(launchInfo.packageName, launchInfo.name);
+                        mContext.startActivity(main);
                         return true;
                     }
+                    // Find in Market:
+                    Intent market = getAppSearchIntent(firstPackage);
+                    market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    mContext.startActivity(market);
+                    return true;
                 }
             }
             try {
