@@ -1472,7 +1472,7 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    }
 
    discovery_cfg.PollDevInfo.PollEnabled = 0;
-   discovery_cfg.Duration = 0xffffffff;
+   discovery_cfg.Duration = 300000; /* in ms */
    discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
  
