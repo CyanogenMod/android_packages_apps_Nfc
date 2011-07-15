@@ -43,6 +43,8 @@ public class NativeNfcTag {
 
     private int mConnectedTechnology; // Index in mTechList
 
+    private int mLastStatusCode;
+
     private final String TAG = "NativeNfcTag";
 
     private boolean mIsPresent; // Whether the tag is known to be still present
@@ -115,12 +117,12 @@ public class NativeNfcTag {
         }
     }
 
-    private native boolean doConnect(int handle);
-    public synchronized boolean connect(int technology) {
+    private native int doConnect(int handle);
+    public synchronized int connect(int technology) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean isSuccess = false;
+        int status = -1;
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
                 // Get the handle and connect, if not already connected
@@ -139,12 +141,12 @@ public class NativeNfcTag {
                     //    allowed.
                     if (mConnectedTechnology == -1) {
                         // Not connected yet
-                        isSuccess = doConnect(mTechHandles[i]);
+                        status = doConnect(mTechHandles[i]);
                     }
                     else if ((mConnectedTechnology != -1) &&
                             (mTechHandles[mConnectedTechnology] != mTechHandles[i])) {
                         // Connect to a tech with a different handle
-                        isSuccess = reconnect(mTechHandles[i]);
+                        status = reconnect(mTechHandles[i]);
                     }
                     else {
                         // Already connected to a tech with the same handle
@@ -152,24 +154,23 @@ public class NativeNfcTag {
                         // success
                         if ((technology == TagTechnology.NDEF) ||
                                 (technology == TagTechnology.NDEF_FORMATABLE)) {
-                            isSuccess = true;
+                            status = 0;
                         } else {
                             if ((technology != TagTechnology.ISO_DEP) &&
                                 (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
                                 // Don't allow to connect a -4 tag at a different level
                                 // than IsoDep, as this is not supported by
                                 // libNFC.
-                                isSuccess = false;
                             } else {
-                                isSuccess = true;
+                                status = 0;
                             }
                         }
                     }
-                    if (isSuccess) {
+                    if (status == 0) {
                         mConnectedTechnology = i;
                     }
                 } else {
-                    isSuccess = true; // Already connect to this tech
+                    status = 0; // Already connect to this tech
                 }
                 break;
             }
@@ -177,7 +178,8 @@ public class NativeNfcTag {
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return isSuccess;
+        mLastStatusCode = status;
+        return status;
     }
 
     public synchronized void startPresenceChecking() {
@@ -219,28 +221,28 @@ public class NativeNfcTag {
         return result;
     }
 
-    native boolean doReconnect();
-    public synchronized boolean reconnect() {
+    native int doReconnect();
+    public synchronized int reconnect() {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doReconnect();
+        int status = doReconnect();
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return result;
+        return status;
     }
 
-    native boolean doHandleReconnect(int handle);
-    public synchronized boolean reconnect(int handle) {
+    native int doHandleReconnect(int handle);
+    public synchronized int reconnect(int handle) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doHandleReconnect(handle);
+        int status = doHandleReconnect(handle);
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return result;
+        return status;
     }
 
     private native byte[] doTransceive(byte[] data, boolean raw, int[] returnCode);
@@ -255,16 +257,17 @@ public class NativeNfcTag {
         return result;
     }
 
-    private native boolean doCheckNdef(int[] ndefinfo);
-    public synchronized boolean checkNdef(int[] ndefinfo) {
+    private native int doCheckNdef(int[] ndefinfo);
+    public synchronized int checkNdef(int[] ndefinfo) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doCheckNdef(ndefinfo);
+        int status = doCheckNdef(ndefinfo);
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return result;
+        mLastStatusCode = status;
+        return status;
     }
 
     private native byte[] doRead();
@@ -346,6 +349,10 @@ public class NativeNfcTag {
     }
 
     private NativeNfcTag() {
+    }
+
+    public int getLastStatusCode() {
+        return mLastStatusCode;
     }
 
     public int getHandle() {
