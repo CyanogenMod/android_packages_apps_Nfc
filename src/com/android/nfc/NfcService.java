@@ -283,6 +283,7 @@ public class NfcService extends Application implements DeviceHostListener {
         mNfcDispatcher = new NfcDispatcher(this, mP2pManager);
 
         mSecureElement = new NativeNfcSecureElement();
+        mEeRoutingState = ROUTE_OFF;
 
         mPrefs = getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
