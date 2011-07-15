@@ -323,6 +323,7 @@ public class NfcService extends Application {
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
 
         mSecureElement = new NativeNfcSecureElement();
+        mEeRoutingState = ROUTE_OFF;
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
