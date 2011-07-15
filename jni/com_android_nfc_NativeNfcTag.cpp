@@ -444,13 +444,12 @@ static void set_target_activationBytes(JNIEnv *e, jobject tag,
     e->ReleaseIntArrayElements(techList, techId, 0);
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
+static jint com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    jobject o, phLibNfc_Handle handle)
 {
    jclass cls;
    jfieldID f;
-   NFCSTATUS status;
-   jboolean result = JNI_FALSE;
+   jint status;
    struct nfc_jni_callback_data cb_data;
    phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
 
@@ -459,6 +458,7 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
    {
+      status = NFCSTATUS_NOT_ENOUGH_MEMORY;
       goto clean_and_return;
    }
 
@@ -478,11 +478,15 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    if(sem_wait(&cb_data.sem))
    {
       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
-   
+
+   status = cb_data.status;
+   TRACE("phLibNfc_RemoteDev_Connect() - Status code = %d", status);
+
    /* Connect Status */
-   if(cb_data.status != NFCSTATUS_SUCCESS)
+   if(status != NFCSTATUS_SUCCESS)
    {
       goto clean_and_return;
    }
@@ -491,21 +495,18 @@ static jboolean com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    set_target_pollBytes(e, o, pRemDevInfo);
    set_target_activationBytes(e, o, pRemDevInfo);
 
-   result = JNI_TRUE;
-
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
-   return result;
+   return status;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
+static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    jobject o, phLibNfc_Handle handle)
 {
    jclass cls;
    jfieldID f;
-   NFCSTATUS status;
-   jboolean result = JNI_FALSE;
+   jint status;
    struct nfc_jni_callback_data cb_data;
    phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
    CONCURRENCY_LOCK();
@@ -513,6 +514,7 @@ static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
    {
+      status = NFCSTATUS_NOT_ENOUGH_MEMORY;
       goto clean_and_return;
    }
 
@@ -532,24 +534,25 @@ static jboolean com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    if(sem_wait(&cb_data.sem))
    {
       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
 
+   status = cb_data.status;
+
    /* Connect Status */
-   if(cb_data.status != NFCSTATUS_SUCCESS)
+   if(status != NFCSTATUS_SUCCESS)
    {
       goto clean_and_return;
    }
 
-   result = JNI_TRUE;
-
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
-   return result;
+   return status;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
+static jint com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
    jobject o)
 {
     // Reconnect is provided by libnfc by just calling connect again
@@ -563,11 +566,11 @@ static jboolean com_android_nfc_NativeNfcTag_doReconnect(JNIEnv *e,
             return com_android_nfc_NativeNfcTag_doConnect(e, o, handle);
         }
         else {
-            return JNI_TRUE;
+            return NFCSTATUS_SUCCESS;
         }
     }
     else {
-        return JNI_FALSE;
+        return NFCSTATUS_REJECTED;
     }
 }
 
@@ -940,11 +943,10 @@ static jint com_android_nfc_NativeNfcTag_doGetNdefType(JNIEnv *e, jobject o,
     return ndefType;
 }
 
-static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintArray ndefinfo)
+static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintArray ndefinfo)
 {
    phLibNfc_Handle handle = 0;
-   NFCSTATUS status;
-   bool result = JNI_FALSE;
+   jint status;
    phLibNfc_ChkNdef_Info_t sNdefInfo;
    struct nfc_jni_callback_data cb_data;
    jint *ndef = e->GetIntArrayElements(ndefinfo, 0);
@@ -955,6 +957,7 @@ static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
+      status = NFCSTATUS_NOT_ENOUGH_MEMORY;
       goto clean_and_return;
    }
    cb_data.pContext = &sNdefInfo;
@@ -976,15 +979,17 @@ static bool com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    if(sem_wait(&cb_data.sem))
    {
       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
 
-   if (cb_data.status != NFCSTATUS_SUCCESS)
+   status = cb_data.status;
+   TRACE("phLibNfc_Ndef_CheckNdef() - Status code = %d", status);
+
+   if (status != NFCSTATUS_SUCCESS)
    {
       goto clean_and_return;
    }
-
-   result = JNI_TRUE;
 
    ndef[0] = sNdefInfo.MaxNdefMsgLength;
    // Translate the card state to know values for the NFC API
@@ -1008,7 +1013,7 @@ clean_and_return:
    e->ReleaseIntArrayElements(ndefinfo, ndef, 0);
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
-   return result;
+   return status;
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject o)
@@ -1221,19 +1226,19 @@ clean_and_return:
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doConnect", "(I)Z",
+   {"doConnect", "(I)I",
       (void *)com_android_nfc_NativeNfcTag_doConnect},
    {"doDisconnect", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doDisconnect},
-   {"doReconnect", "()Z",
+   {"doReconnect", "()I",
       (void *)com_android_nfc_NativeNfcTag_doReconnect},
-   {"doHandleReconnect", "(I)Z",
+   {"doHandleReconnect", "(I)I",
       (void *)com_android_nfc_NativeNfcTag_doHandleReconnect},
    {"doTransceive", "([BZ[I)[B",
       (void *)com_android_nfc_NativeNfcTag_doTransceive},
    {"doGetNdefType", "(II)I",
       (void *)com_android_nfc_NativeNfcTag_doGetNdefType},
-   {"doCheckNdef", "([I)Z",
+   {"doCheckNdef", "([I)I",
       (void *)com_android_nfc_NativeNfcTag_doCheckNdef},
    {"doRead", "()[B",
       (void *)com_android_nfc_NativeNfcTag_doRead},
