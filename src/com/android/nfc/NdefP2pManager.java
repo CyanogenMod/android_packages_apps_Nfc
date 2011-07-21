@@ -226,7 +226,8 @@ public class NdefP2pManager {
     final class P2pTask extends AsyncTask<NdefMessage, Void, Void> {
         @Override
         public Void doInBackground(NdefMessage... msgs) {
-            NdefMessage dropboxTarget = getDropboxTarget();
+            //TODO: call getDropboxTarget() here for large NDEF transfer
+            NdefMessage dropboxTarget = null;
             try {
                 if (msgs.length > 0) {
                     NdefMessage foregroundMsg = msgs[0];
@@ -235,6 +236,7 @@ public class NdefP2pManager {
                         if (DBG) Log.d(TAG, "Sending large ndef to dropbox");
                         mBluetoothDropbox.sendContent(dropboxTarget, foregroundMsg);
                     } else {
+                        if (DBG) Log.d(TAG, "Sending ndef via SNEP");
                         doSnepProtocol(msgs[0]);
                     }
                 }
@@ -257,6 +259,7 @@ public class NdefP2pManager {
             }
 
             // Me profile
+            dropboxTarget = getDropboxTarget();
             NdefMessage me = getMeProfile();
             if (dropboxTarget != null && me != null) {
                 if (DBG) Log.d(TAG, "Sending me profile");
