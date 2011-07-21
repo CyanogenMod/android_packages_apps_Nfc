@@ -1777,13 +1777,14 @@ public class NfcService extends Application implements DeviceHostListener {
 
             /* Start polling loop */
             applyRouting();
-
-            boolean zeroclick_on = mPrefs.getBoolean(PREF_ZEROCLICK_ON,
-                    ZEROCLICK_ON_DEFAULT);
-            if (zeroclick_on) {
-                /* bring up p2p ndef servers */
-                mP2pManager.enableNdefServer();
-                mZeroClickOn = true;
+            synchronized(NfcService.this) {
+                boolean zeroclick_on = mPrefs.getBoolean(PREF_ZEROCLICK_ON,
+                        ZEROCLICK_ON_DEFAULT);
+                if (zeroclick_on) {
+                    /* bring up p2p ndef servers */
+                    mP2pManager.enableNdefServer();
+                    mZeroClickOn = true;
+                }
             }
         } else {
             Log.w(TAG, "Error enabling NFC");
@@ -1805,9 +1806,11 @@ public class NfcService extends Application implements DeviceHostListener {
         boolean isSuccess;
 
         /* tear down the p2p server */
-        if (mZeroClickOn) {
-            mP2pManager.disableNdefServer();
-            mZeroClickOn = false;
+        synchronized(NfcService.this) {
+            if (mZeroClickOn) {
+                mP2pManager.disableNdefServer();
+                mZeroClickOn = false;
+            }
         }
         // Stop watchdog if tag present
         // A convenient way to stop the watchdog properly consists of
