@@ -90,7 +90,6 @@ public class NfcService extends Application implements DeviceHostListener {
     static final boolean DBG = true;
     static final String TAG = "NfcService";
 
-    private static final String MY_TAG_FILE_NAME = "mytag";
     private static final String SE_RESET_SCRIPT_FILE_NAME = "/system/etc/se-reset-script";
 
     public static final String SERVICE_NAME = "nfc";
@@ -114,8 +113,6 @@ public class NfcService extends Application implements DeviceHostListener {
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
     static final int MSG_LLCP_LINK_DEACTIVATED = 3;
     static final int MSG_TARGET_DESELECTED = 4;
-    static final int MSG_SHOW_MY_TAG_ICON = 5;
-    static final int MSG_HIDE_MY_TAG_ICON = 6;
     static final int MSG_MOCK_NDEF = 7;
     static final int MSG_SE_FIELD_ACTIVATED = 8;
     static final int MSG_SE_FIELD_DEACTIVATED = 9;
@@ -605,61 +602,6 @@ public class NfcService extends Application implements DeviceHostListener {
         public boolean isEnabled() throws RemoteException {
             return mIsNfcEnabled;
         }
-
-        @Override
-        public NdefMessage localGet() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            synchronized (this) {
-                return mLocalMessage;
-            }
-        }
-
-        @Override
-        public void localSet(NdefMessage message) throws RemoteException {
-            NfcService.enforceAdminPerm(mContext);
-
-            synchronized (this) {
-                mLocalMessage = message;
-                Context context = NfcService.this.getApplicationContext();
-
-                // Send a message to the UI thread to show or hide the icon so the requests are
-                // serialized and the icon can't get out of sync with reality.
-                if (message != null) {
-                    FileOutputStream out = null;
-
-                    try {
-                        out = context.openFileOutput(MY_TAG_FILE_NAME, Context.MODE_PRIVATE);
-                        byte[] bytes = message.toByteArray();
-                        if (bytes.length == 0) {
-                            Log.w(TAG, "Setting a empty mytag");
-                        }
-
-                        out.write(bytes);
-                    } catch (IOException e) {
-                        Log.e(TAG, "Could not write mytag file", e);
-                    } finally {
-                        try {
-                            if (out != null) {
-                                out.flush();
-                                out.close();
-                            }
-                        } catch (IOException e) {
-                            // Ignore
-                        }
-                    }
-
-                    // Only show the icon if NFC is enabled.
-                    if (mIsNfcEnabled) {
-                        sendMessage(MSG_SHOW_MY_TAG_ICON, null);
-                    }
-                } else {
-                    context.deleteFile(MY_TAG_FILE_NAME);
-                    sendMessage(MSG_HIDE_MY_TAG_ICON, null);
-                }
-            }
-        }
-
     };
 
     private final ILlcpSocket mLlcpSocket = new ILlcpSocket.Stub() {
@@ -2025,55 +1967,6 @@ public class NfcService extends Application implements DeviceHostListener {
                 intent.putExtra(NfcAdapter.EXTRA_NEW_BOOLEAN_STATE, mIsNfcEnabled);
                 mContext.sendBroadcast(intent);
             }
-
-            if (mIsNfcEnabled) {
-
-                Context context = getApplicationContext();
-
-                // Set this to null by default. If there isn't a tag on disk
-                // or if there was an error reading the tag then this will cause
-                // the status bar icon to be removed.
-                NdefMessage myTag = null;
-
-                FileInputStream input = null;
-
-                try {
-                    input = context.openFileInput(MY_TAG_FILE_NAME);
-                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-
-                    byte[] buffer = new byte[4096];
-                    int read = 0;
-                    while ((read = input.read(buffer)) > 0) {
-                        bytes.write(buffer, 0, read);
-                    }
-
-                    myTag = new NdefMessage(bytes.toByteArray());
-                } catch (FileNotFoundException e) {
-                    // Ignore.
-                } catch (IOException e) {
-                    Log.e(TAG, "Could not read mytag file: ", e);
-                    context.deleteFile(MY_TAG_FILE_NAME);
-                } catch (FormatException e) {
-                    Log.e(TAG, "Invalid NdefMessage for mytag", e);
-                    context.deleteFile(MY_TAG_FILE_NAME);
-                } finally {
-                    try {
-                        if (input != null) {
-                            input.close();
-                        }
-                    } catch (IOException e) {
-                        // Ignore
-                    }
-                }
-
-                try {
-                    mNfcAdapter.localSet(myTag);
-                } catch (RemoteException e) {
-                    // Ignore
-                }
-            } else {
-                sendMessage(MSG_HIDE_MY_TAG_ICON, null);
-            }
         }
     }
 
@@ -2298,20 +2191,6 @@ public class NfcService extends Application implements DeviceHostListener {
                if (DBG) Log.d(TAG, "Broadcasting Intent");
                mContext.sendOrderedBroadcast(intent, NFC_PERM);
                break;
-
-           case MSG_SHOW_MY_TAG_ICON: {
-               StatusBarManager sb = (StatusBarManager) getSystemService(
-                       Context.STATUS_BAR_SERVICE);
-               sb.setIcon("nfc", R.drawable.stat_sys_nfc, 0);
-               break;
-           }
-
-           case MSG_HIDE_MY_TAG_ICON: {
-               StatusBarManager sb = (StatusBarManager) getSystemService(
-                       Context.STATUS_BAR_SERVICE);
-               sb.removeIcon("nfc");
-               break;
-           }
 
            case MSG_SE_FIELD_ACTIVATED:{
                if (DBG) Log.d(TAG, "SE FIELD ACTIVATED");
