@@ -1563,26 +1563,25 @@ static unsigned int log2(int value) {
     return ret;
 }
 
+// The Iso/Mifare Xchg timeout in PN544 is a non-linear function over X
+// spanning 0 - 4.9s: timeout in seconds = (256 * 16 / 13560000) * 2 ^ X
+//
+// We keep the constant part of the formula in a static; note the factor
+// 1000 off, which is due to the fact that the formula calculates seconds,
+// but this method gets milliseconds as an argument.
+static double nxp_nfc_timeout_factor = (256 * 16) / 13560.0;
+
 static int calcTimeout(int timeout_in_ms) {
-   // The Iso/Mifare Xchg timeout in PN544 is a non-linear function over X
-   // spanning 0 - 4.9s: timeout in seconds = (256 * 16 / 13560000) * 2 ^ X
-   //
-   // We keep the constant part of the formula in a static; note the factor
-   // 1000 off, which is due to the fact that the formula calculates seconds,
-   // but this method gets milliseconds as an argument.
-   static double factor = (256 * 16) / 13560.0;
    // timeout = (256 * 16 / 13560000) * 2 ^ X
    // First find the first X for which timeout > requested timeout
-   return (log2(ceil(((double) timeout_in_ms) / factor)));
+   return (log2(ceil(((double) timeout_in_ms) / nxp_nfc_timeout_factor)));
 }
 
 static void setIsoDepTimeout(jint timeout) {
-   static double factor = (256 * 16) / 13560.0;
-
    if (timeout <= 4900) {
        int value = calcTimeout(timeout);
        // Then re-compute the actual timeout based on X
-       double actual_timeout = factor * (1 << value);
+       double actual_timeout = nxp_nfc_timeout_factor * (1 << value);
        // Set the sw watchdog a bit longer (The PN544 timeout is very accurate,
        // but it will take some time to get back through the sw layers.
        // 500 ms should be enough).
@@ -1645,6 +1644,50 @@ static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
     CONCURRENCY_UNLOCK();
     return success;
 }
+
+static jint com_android_nfc_NfcManager_doGetTimeout( JNIEnv *e, jobject o,
+        jint tech) {
+    int timeout = -1;
+    CONCURRENCY_LOCK();
+    switch (tech) {
+        case TARGET_TYPE_MIFARE_CLASSIC:
+        case TARGET_TYPE_MIFARE_UL:
+            // Intentional fall-through, Mifare UL, Classic
+            // transceive just uses raw 3A frames
+        case TARGET_TYPE_ISO14443_3A:
+            timeout = phLibNfc_GetMifareRawTimeout();
+            if (timeout == 0) {
+                timeout = phLibNfc_GetHciTimeout();
+            } else {
+                // Timeout returned from libnfc needs conversion to ms
+                timeout = (nxp_nfc_timeout_factor * (1 << timeout));
+            }
+            break;
+        case TARGET_TYPE_ISO14443_4:
+            timeout = phLibNfc_GetIsoXchgTimeout() & 0x0F; // lower 4 bits only
+            if (timeout == 0) {
+                timeout = phLibNfc_GetHciTimeout();
+            } else {
+                // Timeout returned from libnfc needs conversion to ms
+                timeout = (nxp_nfc_timeout_factor * (1 << timeout));
+            }
+            break;
+        case TARGET_TYPE_FELICA:
+            timeout = phLibNfc_GetFelicaTimeout();
+            if (timeout == 0) {
+                timeout = phLibNfc_GetHciTimeout();
+            } else {
+                // Felica timeout already in ms
+            }
+            break;
+        default:
+            LOGW("doGetTimeout: Timeout not supported for tech %d", tech);
+            break;
+    }
+    CONCURRENCY_UNLOCK();
+    return timeout;
+}
+
 
 static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject o)
 {
@@ -2441,6 +2484,9 @@ static JNINativeMethod gMethods[] =
 
    {"doSetTimeout", "(II)Z",
       (void *)com_android_nfc_NfcManager_doSetTimeout},
+
+   {"doGetTimeout", "(I)I",
+      (void *)com_android_nfc_NfcManager_doGetTimeout},
 
    {"doResetTimeouts", "()V",
       (void *)com_android_nfc_NfcManager_doResetTimeouts},

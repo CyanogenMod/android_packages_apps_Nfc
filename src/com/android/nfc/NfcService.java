@@ -1350,6 +1350,13 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
+        public int getTimeout(int tech) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            return mDeviceHost.getTimeout(tech);
+        }
+
+        @Override
         public void resetTimeouts() throws RemoteException {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 

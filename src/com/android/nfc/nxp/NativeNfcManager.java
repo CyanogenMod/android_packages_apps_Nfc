@@ -100,6 +100,11 @@ public class NativeNfcManager implements DeviceHost {
         return doSetTimeout(tech, timeout);
     }
 
+    private native int doGetTimeout(int tech);
+    @Override
+    public int getTimeout(int tech) {
+        return doGetTimeout(tech);
+    }
 
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)

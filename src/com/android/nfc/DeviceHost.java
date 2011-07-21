@@ -151,4 +151,6 @@ public interface DeviceHost {
     public void resetTimeouts();
 
     public boolean setTimeout(int technology, int timeout);
+
+    public int getTimeout(int technology);
 }
