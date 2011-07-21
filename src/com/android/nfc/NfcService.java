@@ -105,6 +105,8 @@ public class NfcService extends Application implements DeviceHostListener {
 
     private static final String PREF_NFC_ON = "nfc_on";
     private static final boolean NFC_ON_DEFAULT = true;
+    private static final String PREF_ZEROCLICK_ON = "zeroclick_on";
+    private static final boolean ZEROCLICK_ON_DEFAULT = true;
 
     private static final String PREF_FIRST_BOOT = "first_boot";
 
@@ -151,6 +153,7 @@ public class NfcService extends Application implements DeviceHostListener {
     private int mGeneratedSocketHandle = 0;
     private volatile boolean mIsNfcEnabled = false;
     private boolean mIsDiscoveryOn = false;
+    private boolean mZeroClickOn = false;
 
     // NFC Execution Environment
     // fields below are protected by this
@@ -364,6 +367,42 @@ public class NfcService extends Application implements DeviceHostListener {
             }
             return isSuccess;
         }
+
+        @Override
+        public boolean zeroClickEnabled() throws RemoteException {
+            return mZeroClickOn;
+        }
+
+        @Override
+        public boolean enableZeroClick() throws RemoteException {
+            NfcService.enforceAdminPerm(mContext);
+            synchronized(NfcService.this) {
+                if (!mZeroClickOn) {
+                    Log.e(TAG, "ENABLING 0-CLICK");
+                    mPrefsEditor.putBoolean(PREF_ZEROCLICK_ON, true);
+                    mPrefsEditor.apply();
+                    mP2pManager.enableNdefServer();
+                    mZeroClickOn = true;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public boolean disableZeroClick() throws RemoteException {
+            NfcService.enforceAdminPerm(mContext);
+            synchronized(NfcService.this) {
+                if (mZeroClickOn) {
+                    Log.e(TAG, "DISABLING 0-CLICK");
+                    mPrefsEditor.putBoolean(PREF_ZEROCLICK_ON, false);
+                    mPrefsEditor.apply();
+                    mP2pManager.disableNdefServer();
+                    mZeroClickOn = false;
+                }
+            }
+            return true;
+        }
+
 
         @Override
         public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
@@ -1739,8 +1778,13 @@ public class NfcService extends Application implements DeviceHostListener {
             /* Start polling loop */
             applyRouting();
 
-            /* bring up p2p ndef servers */
-            mP2pManager.enableNdefServer();
+            boolean zeroclick_on = mPrefs.getBoolean(PREF_ZEROCLICK_ON,
+                    ZEROCLICK_ON_DEFAULT);
+            if (zeroclick_on) {
+                /* bring up p2p ndef servers */
+                mP2pManager.enableNdefServer();
+                mZeroClickOn = true;
+            }
         } else {
             Log.w(TAG, "Error enabling NFC");
             mIsNfcEnabled = false;
@@ -1761,8 +1805,10 @@ public class NfcService extends Application implements DeviceHostListener {
         boolean isSuccess;
 
         /* tear down the p2p server */
-        mP2pManager.disableNdefServer();
-
+        if (mZeroClickOn) {
+            mP2pManager.disableNdefServer();
+            mZeroClickOn = false;
+        }
         // Stop watchdog if tag present
         // A convenient way to stop the watchdog properly consists of
         // disconnecting the tag. The polling loop shall be stopped before
@@ -2234,7 +2280,10 @@ public class NfcService extends Application implements DeviceHostListener {
                             if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
                             // Register P2P device
                             mObjectMap.put(device.getHandle(), device);
-                            mP2pManager.llcpActivated();
+                            // TODO this should be done decently instead, not depend on the bool
+                            if (mZeroClickOn) {
+                                mP2pManager.llcpActivated();
+                            }
                             return true;
                         } else {
                             /* should not happen */
@@ -2261,7 +2310,10 @@ public class NfcService extends Application implements DeviceHostListener {
                         if (DBG) Log.d(TAG, "Target Activate LLCP OK");
                         // Register P2P device
                         mObjectMap.put(device.getHandle(), device);
-                        mP2pManager.llcpActivated();
+                        // TODO this should be done decently instead, not depend on the bool
+                        if (mZeroClickOn) {
+                            mP2pManager.llcpActivated();
+                        }
                         return true;
                     }
                 } else {
