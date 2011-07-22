@@ -20,6 +20,8 @@
 
 #include "com_android_nfc.h"
 
+extern uint8_t device_connected_flag;
+
 namespace android {
 
 extern void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat);
@@ -252,9 +254,12 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     {
         goto clean_and_return;
     }
+
     result = JNI_TRUE;
 
 clean_and_return:
+    /* Reset device connected flag */
+    device_connected_flag = 0;
     nfc_cb_data_deinit(&cb_data);
     CONCURRENCY_UNLOCK();
     return result;
