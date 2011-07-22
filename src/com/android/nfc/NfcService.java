@@ -31,7 +31,6 @@ import com.android.nfc3.R;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
-import android.app.StatusBarManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -55,7 +54,6 @@ import android.nfc.IP2pInitiator;
 import android.nfc.IP2pTarget;
 import android.nfc.LlcpPacket;
 import android.nfc.NdefMessage;
-import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
@@ -72,11 +70,9 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,7 +80,13 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
-public class NfcService extends Application implements DeviceHostListener {
+interface P2pStatusListener {
+    void onP2pBegin();
+    void onP2pEnd();
+    void onP2pError();
+}
+
+public class NfcService extends Application implements DeviceHostListener, P2pStatusListener {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
     static final boolean DBG = true;
@@ -160,6 +162,9 @@ public class NfcService extends Application implements DeviceHostListener {
     private NativeNfcSecureElement mSecureElement;
     private OpenSecureElement mOpenEe;  // null when EE closed
     private int mEeRoutingState;  // contactless interface routing
+
+    // fields below must be used only on the UI thread and therefore aren't synchronized
+    boolean mP2pStarted = false;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -280,7 +285,7 @@ public class NfcService extends Application implements DeviceHostListener {
         mDeviceHost = new NativeNfcManager(this, this);
         mDeviceHost.initializeNativeStructure();
 
-        mP2pManager = new NdefP2pManager(this, mNfcAdapter);
+        mP2pManager = new NdefP2pManager(this, this);
         mNfcDispatcher = new NfcDispatcher(this, mP2pManager);
 
         mSecureElement = new NativeNfcSecureElement();
@@ -325,9 +330,33 @@ public class NfcService extends Application implements DeviceHostListener {
         t.start();
     }
 
-    public void playSound(int sound) {
+    private void playSound(int sound) {
         synchronized (this) {
             mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+        }
+    }
+
+    @Override
+    public void onP2pBegin() {
+        if (!mP2pStarted) {
+            playSound(mStartSound);
+            mP2pStarted = true;
+        }
+    }
+
+    @Override
+    public void onP2pEnd() {
+        if (mP2pStarted) {
+            playSound(mEndSound);
+            mP2pStarted = false;
+        }
+    }
+
+    @Override
+    public void onP2pError() {
+        if (mP2pStarted) {
+            playSound(mErrorSound);
+            mP2pStarted = false;
         }
     }
 
@@ -2134,9 +2163,7 @@ public class NfcService extends Application implements DeviceHostListener {
                Log.d(TAG, tag.toString());
                boolean delivered = mNfcDispatcher.dispatchTag(tag, new NdefMessage[] { ndefMsg });
                if (delivered) {
-                   playSound(mEndSound);
-               } else {
-                   playSound(mErrorSound);
+                   onP2pEnd();
                }
                break;
            }
@@ -2158,6 +2185,7 @@ public class NfcService extends Application implements DeviceHostListener {
                    } else {
                        Log.w(TAG, "Failed to connect to tag");
                        tag.disconnect();
+                       playSound(mErrorSound);
                    }
                }
                break;
@@ -2211,11 +2239,7 @@ public class NfcService extends Application implements DeviceHostListener {
                break;
 
            case MSG_LLCP_LINK_ACTIVATION:
-               if (llcpActivated((NfcDepEndpoint) msg.obj)) {
-                   playSound(mStartSound);
-               } else {
-                   playSound(mErrorSound);
-               }
+               llcpActivated((NfcDepEndpoint) msg.obj);
                break;
 
            case MSG_LLCP_LINK_DEACTIVATED:
