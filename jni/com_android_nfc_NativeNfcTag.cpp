@@ -25,7 +25,7 @@ static phLibNfc_Handle handle;
 uint8_t *nfc_jni_ndef_buf = NULL;
 uint32_t nfc_jni_ndef_buf_len = 0;
 
-
+extern uint8_t device_connected_flag;
 
 namespace android {
 
@@ -639,9 +639,12 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     {
         goto clean_and_return;
     }
+
     result = JNI_TRUE;
 
 clean_and_return:
+    /* Reset device connected flag */
+    device_connected_flag = 0;
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
    return result;
@@ -1051,6 +1054,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
 
 clean_and_return:
    nfc_cb_data_deinit(&cb_data);
+
    CONCURRENCY_UNLOCK();
 
    return result;

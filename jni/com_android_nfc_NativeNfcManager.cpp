@@ -33,6 +33,8 @@ void   *gHWRef;
 static phNfc_sData_t gInputParam;
 static phNfc_sData_t gOutputParam;
 
+uint8_t device_connected_flag;
+
 static phLibNfc_Handle              hLlcpHandle;
 static NFCSTATUS                    lastErrorStatus = NFCSTATUS_FAILED;
 static phLibNfc_Llcp_eLinkStatus_t  g_eLinkStatus = phFriNfc_LlcpMac_eLinkDefault;
@@ -371,6 +373,9 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       goto clean_and_return;
    }
 
+   /* Reset device connected handle */
+   device_connected_flag = 0;
+
    /* Reset stored handle */
    storedHandle = 0;
 
@@ -660,6 +665,9 @@ void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat)
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
 
+   /* Reset device connected flag */
+   device_connected_flag = 0;
+
    /* Restart Polling loop */
    TRACE("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
@@ -844,12 +852,15 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
                                                                                   sLinkParams.miu,
                                                                                   sLinkParams.option,
                                                                                   sLinkParams.wks);
+           device_connected_flag = 1;
       }
    }
    else if(eLinkStatus == phFriNfc_LlcpMac_eLinkDeactivated)
    {
       LOGI("LLCP Link deactivated");
       free(pContextData);
+      /* Reset device connected flag */
+      device_connected_flag = 0;
 
       /* Reset incoming socket list */
       while (!LIST_EMPTY(&pMonitor->incoming_socket_head))
@@ -987,7 +998,10 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
    {
       LOG_CALLBACK("nfc_jni_Discovery_notification_callback", status);
       TRACE("Discovered %d tags", uNofRemoteDev);
-      
+
+      /* Reset device connected flag */
+      device_connected_flag = 1;
+
       if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
           || (psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
@@ -1394,6 +1408,9 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    }
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
+
+   /* Reset device connected flag */
+   device_connected_flag = 0;
 
    nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
    nat->discovery_cfg.Duration = 300000; /* in ms */
@@ -1832,7 +1849,7 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
    struct nfc_jni_callback_data cb_data;
 
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o);
 
    /* Clear previous configuration */
    memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
