@@ -35,12 +35,12 @@ public class NdefPushClient {
     private static final int MIU = 128;
     private static final boolean DBG = true;
 
-    public void push(NdefMessage[] msgs) {
+    public boolean push(NdefMessage msg) {
         NfcService service = NfcService.getInstance();
 
         // We only handle a single immediate action for now
-        NdefPushProtocol msg = new NdefPushProtocol(msgs[0], NdefPushProtocol.ACTION_IMMEDIATE);
-        byte[] buffer = msg.toByteArray();
+        NdefPushProtocol proto = new NdefPushProtocol(msg, NdefPushProtocol.ACTION_IMMEDIATE);
+        byte[] buffer = proto.toByteArray();
         int offset = 0;
         int remoteMiu;
         LlcpSocket sock = null;
@@ -63,6 +63,7 @@ public class NdefPushClient {
                 sock.send(tmpBuffer);
                 offset += length;
             }
+            return true;
         } catch (IOException e) {
             Log.e(TAG, "couldn't send tag");
             if (DBG) Log.d(TAG, "exception:", e);
@@ -80,5 +81,6 @@ public class NdefPushClient {
                 }
             }
         }
+        return false;
     }
 }

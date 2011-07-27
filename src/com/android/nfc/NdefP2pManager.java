@@ -57,7 +57,7 @@ public class NdefP2pManager {
 
     private static final String TAG = "P2PManager";
     private static final boolean DBG = true;
-    private final INfcAdapter.Stub mNfcAdapter;
+    final ScreenshotWindowAnimator mScreenshot;
     private final NdefPushServer mNdefPushServer;
     private final SnepServer mDefaultSnepServer;
     private final SnepServer mAndroidSnepServer;
@@ -65,6 +65,9 @@ public class NdefP2pManager {
     private final ActivityManager mActivityManager;
     private final PackageManager mPackageManager;
     private final Context mContext;
+    final P2pStatusListener mListener;
+
+    P2pTask mActiveTask;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
@@ -74,8 +77,7 @@ public class NdefP2pManager {
     NdefMessage mForegroundMsg;
     INdefPushCallback mCallback;
 
-    public NdefP2pManager(Context context, INfcAdapter.Stub adapter) {
-        mNfcAdapter = adapter;
+    public NdefP2pManager(Context context, P2pStatusListener listener) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
         mAndroidSnepServer = new SnepServer(ANDROID_SNEP_SERVICE, ANDROIDSNEP_SAP,
@@ -84,6 +86,8 @@ public class NdefP2pManager {
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
+        mScreenshot = new ScreenshotWindowAnimator(context);
+        mListener = listener;
     }
 
     public void enableNdefServer() {
@@ -173,6 +177,8 @@ public class NdefP2pManager {
     /*package*/ void llcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
+        mListener.onP2pBegin();
+
         NdefMessage foregroundMsg;
         synchronized (this) {
             foregroundMsg = mForegroundMsg;
@@ -210,39 +216,64 @@ public class NdefP2pManager {
             }
         }
 
-        if (foregroundMsg != null) {
-            if (DBG) Log.d(TAG, "sending foreground");
-            new P2pTask().execute(foregroundMsg);
-        } else {
-            if (DBG) Log.d(TAG, "no foreground msg");
-            new P2pTask().execute();
-        }
+        mActiveTask = new P2pTask(foregroundMsg);
+        mActiveTask.execute();
     }
 
     /*package*/ void llcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
+
+        // Call error here since a previous call to onP2pEnd() will have played the success
+        // sound and this will be ignored. If no one has called that and the LLCP link
+        // is broken we want to play the error sound.
+        mListener.onP2pError();
+
+        if (mActiveTask != null) {
+            mActiveTask.cancel(true);
+            mActiveTask = null;
+        }
     }
 
-    final class P2pTask extends AsyncTask<NdefMessage, Void, Void> {
+    final class P2pTask extends AsyncTask<Void, Void, Void> {
+        final private NdefMessage mMessage;
+
+        private boolean mSuccess = false;
+
+        public P2pTask(NdefMessage msg) {
+            mMessage = msg;
+        }
+
         @Override
-        public Void doInBackground(NdefMessage... msgs) {
+        public void onPreExecute() {
+            if (mMessage != null) {
+                mScreenshot.start();
+            }
+        }
+
+        @Override
+        public Void doInBackground(Void... args) {
             //TODO: call getDropboxTarget() here for large NDEF transfer
             NdefMessage dropboxTarget = null;
             try {
-                if (msgs.length > 0) {
-                    NdefMessage foregroundMsg = msgs[0];
+                if (mMessage != null) {
                     if (dropboxTarget != null &&
-                            foregroundMsg.toByteArray().length > MAX_SNEP_SIZE_BYTES) {
+                            mMessage.toByteArray().length > MAX_SNEP_SIZE_BYTES) {
                         if (DBG) Log.d(TAG, "Sending large ndef to dropbox");
-                        mBluetoothDropbox.sendContent(dropboxTarget, foregroundMsg);
+                        mBluetoothDropbox.sendContent(dropboxTarget, mMessage);
+                        // TODO set mSuccess
                     } else {
                         if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                        doSnepProtocol(msgs[0]);
+                        mSuccess = doSnepProtocol(mMessage);
                     }
                 }
             } catch (IOException e) {
                 if (DBG) Log.d(TAG, "Failed to connect over SNEP, trying NPP");
-                new NdefPushClient().push(msgs);
+
+                if (isCancelled()) {
+                    return null;
+                }
+
+                mSuccess = new NdefPushClient().push(mMessage);
             }
 
             INdefPushCallback callback;
@@ -258,12 +289,19 @@ public class NdefP2pManager {
                 }
             }
 
+            if (isCancelled()) {
+                return null;
+            }
+
             // Me profile
             dropboxTarget = getDropboxTarget();
             NdefMessage me = getMeProfile();
             if (dropboxTarget != null && me != null) {
                 if (DBG) Log.d(TAG, "Sending me profile");
                 try {
+                    if (isCancelled()) {
+                        return null;
+                    }
                     mBluetoothDropbox.handleOutboundMeProfile(dropboxTarget, me);
                 } catch (IOException e) {
                     if (DBG) Log.d(TAG, "Failed to send me profile");
@@ -272,9 +310,31 @@ public class NdefP2pManager {
 
             return null;
         }
+
+        @Override
+        public void onCancelled() {
+            if (mMessage != null) {
+                mScreenshot.stop();
+            }
+        }
+
+        @Override
+        public void onPostExecute(Void result) {
+            // Make sure to stop the screenshot animation
+            if (mMessage != null) {
+                mScreenshot.stop();
+            }
+
+            // Play the end sound if successful
+            if (mMessage != null && mSuccess) {
+                mListener.onP2pEnd();
+            }
+
+            mActiveTask = null;
+        }
     }
 
-    void doSnepProtocol(NdefMessage msg) throws IOException {
+    boolean doSnepProtocol(NdefMessage msg) throws IOException {
         SnepClient snepClient = new SnepClient();
         try {
             snepClient.connect();
@@ -286,11 +346,13 @@ public class NdefP2pManager {
 
         try {
             snepClient.put(msg);
+            return true;
         } catch (IOException e) {
             // SNEP available but had errors, don't fall back to NPP.
         } finally {
             snepClient.close();
         }
+        return false;
     }
 
     /**
