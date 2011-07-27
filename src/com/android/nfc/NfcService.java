@@ -1189,20 +1189,19 @@ public class NfcService extends Application implements DeviceHostListener {
         @Override
         public boolean isNdef(int nativeHandle) throws RemoteException {
             TagEndpoint tag = null;
-            boolean isSuccess = false;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
-                return isSuccess;
+                return false;
             }
 
             /* find the tag in the hmap */
             tag = (TagEndpoint) findObject(nativeHandle);
             int[] ndefInfo = new int[2];
-            if (tag != null) {
-                isSuccess = tag.checkNdef(ndefInfo);
+            if (tag == null) {
+                return false;
             }
-            return isSuccess;
+            return tag.checkNdef(ndefInfo);
         }
 
         @Override
@@ -2116,7 +2115,6 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     final class NfcServiceHandler extends Handler {
-
         @Override
         public void handleMessage(Message msg) {
            switch (msg.what) {
@@ -2151,12 +2149,10 @@ public class NfcService extends Application implements DeviceHostListener {
                    tag.startPresenceChecking();
                    dispatchTagEndpoint(tag, ndefMsgs);
                } else {
-                   // No ndef found or connect failed, just try to reconnect and dispatch
                    if (tag.reconnect()) {
                        tag.startPresenceChecking();
                        dispatchTagEndpoint(tag, null);
                    } else {
-                       Log.w(TAG, "Failed to connect to tag");
                        tag.disconnect();
                    }
                }

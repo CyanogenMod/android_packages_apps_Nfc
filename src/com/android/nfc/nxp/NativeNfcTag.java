@@ -37,6 +37,8 @@ import android.util.Log;
 public class NativeNfcTag implements TagEndpoint {
     static final boolean DBG = false;
 
+    static final int STATUS_CODE_TARGET_LOST = 146;
+
     private int[] mTechList;
     private int[] mTechHandles;
     private int[] mTechLibNfcTypes;
@@ -131,13 +133,12 @@ public class NativeNfcTag implements TagEndpoint {
         }
     }
 
-    private native boolean doConnect(int handle);
-    @Override
-    public synchronized boolean connect(int technology) {
+    private native int doConnect(int handle);
+    public synchronized int connectWithStatus(int technology) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean isSuccess = false;
+        int status = -1;
         for (int i = 0; i < mTechList.length; i++) {
             if (mTechList[i] == technology) {
                 // Get the handle and connect, if not already connected
@@ -150,12 +151,12 @@ public class NativeNfcTag implements TagEndpoint {
                     //    switching to that.
                     if (mConnectedHandle == -1) {
                         // Not connected yet
-                        isSuccess = doConnect(mTechHandles[i]);
+                        status = doConnect(mTechHandles[i]);
                     } else {
                         // Connect to a tech with a different handle
-                        isSuccess = reconnect(mTechHandles[i]);
+                        status = reconnectWithStatus(mTechHandles[i]);
                     }
-                    if (isSuccess) {
+                    if (status == 0) {
                         mConnectedHandle = mTechHandles[i];
                         mConnectedTechIndex = i;
                     }
@@ -168,19 +169,19 @@ public class NativeNfcTag implements TagEndpoint {
                     //    allowed.
                     if ((technology == TagTechnology.NDEF) ||
                             (technology == TagTechnology.NDEF_FORMATABLE)) {
-                        isSuccess = true;
+                        status = 0;
                     } else {
                         if ((technology != TagTechnology.ISO_DEP) &&
                             (hasTechOnHandle(TagTechnology.ISO_DEP, mTechHandles[i]))) {
                             // Don't allow to connect a -4 tag at a different level
                             // than IsoDep, as this is not supported by
                             // libNFC.
-                            isSuccess = false;
+                            status = -1;
                         } else {
-                            isSuccess = true;
+                            status = 0;
                         }
                     }
-                    if (isSuccess) {
+                    if (status == 0) {
                         mConnectedTechIndex = i;
                         // Handle was already identical
                     }
@@ -191,7 +192,11 @@ public class NativeNfcTag implements TagEndpoint {
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return isSuccess;
+        return status;
+    }
+    @Override
+    public synchronized boolean connect(int technology) {
+        return connectWithStatus(technology) == 0;
     }
 
     @Override
@@ -211,7 +216,6 @@ public class NativeNfcTag implements TagEndpoint {
         // of our knowledge.
         return mIsPresent;
     }
-
     native boolean doDisconnect();
     @Override
     public synchronized boolean disconnect() {
@@ -237,29 +241,32 @@ public class NativeNfcTag implements TagEndpoint {
         return result;
     }
 
-    native boolean doReconnect();
+    native int doReconnect();
+    public synchronized int reconnectWithStatus() {
+        if (mWatchdog != null) {
+            mWatchdog.pause();
+        }
+        int status = doReconnect();
+        if (mWatchdog != null) {
+            mWatchdog.doResume();
+        }
+        return status;
+    }
     @Override
     public synchronized boolean reconnect() {
-        if (mWatchdog != null) {
-            mWatchdog.pause();
-        }
-        boolean result = doReconnect();
-        if (mWatchdog != null) {
-            mWatchdog.doResume();
-        }
-        return result;
+        return reconnectWithStatus() == 0;
     }
 
-    native boolean doHandleReconnect(int handle);
-    public synchronized boolean reconnect(int handle) {
+    native int doHandleReconnect(int handle);
+    public synchronized int reconnectWithStatus(int handle) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doHandleReconnect(handle);
+        int status = doHandleReconnect(handle);
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return result;
+        return status;
     }
 
     private native byte[] doTransceive(byte[] data, boolean raw, int[] returnCode);
@@ -275,17 +282,20 @@ public class NativeNfcTag implements TagEndpoint {
         return result;
     }
 
-    private native boolean doCheckNdef(int[] ndefinfo);
-    @Override
-    public synchronized boolean checkNdef(int[] ndefinfo) {
+    private native int doCheckNdef(int[] ndefinfo);
+    private synchronized int checkNdefWithStatus(int[] ndefinfo) {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doCheckNdef(ndefinfo);
+        int status = doCheckNdef(ndefinfo);
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
-        return result;
+        return status;
+    }
+    @Override
+    public synchronized boolean checkNdef(int[] ndefinfo) {
+        return checkNdefWithStatus(ndefinfo) == 0;
     }
 
     private native byte[] doRead();
@@ -391,10 +401,6 @@ public class NativeNfcTag implements TagEndpoint {
     @Override
     public int[] getTechList() {
         return mTechList;
-    }
-
-    private int[] getHandleList() {
-        return mTechHandles;
     }
 
     private int getConnectedHandle() {
@@ -683,75 +689,86 @@ public class NativeNfcTag implements TagEndpoint {
     public NdefMessage[] findAndReadNdef() {
         // Try to find NDEF on any of the technologies.
         int[] technologies = getTechList();
-        int[] handles = getHandleList();
-        int techIndex = 0;
-        int lastHandleScanned = 0;
-        boolean ndefFoundAndConnected = false;
+        int[] handles = mTechHandles;
         NdefMessage[] ndefMsgs = null;
         boolean foundFormattable = false;
         int formattableHandle = 0;
         int formattableLibNfcType = 0;
+        int status;
 
-        while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
-            if (handles[techIndex] != lastHandleScanned) {
-                // We haven't seen this handle yet, connect and checkndef
-                if (connect(technologies[techIndex])) {
-                    // Check if this type is NDEF formatable
-                    if (!foundFormattable) {
-                        if (isNdefFormatable()) {
-                            foundFormattable = true;
-                            formattableHandle = getConnectedHandle();
-                            formattableLibNfcType = getConnectedLibNfcType();
-                            // We'll only add formattable tech if no ndef is
-                            // found - this is because libNFC refuses to format
-                            // an already NDEF formatted tag.
-                        }
-                        reconnect();
-                    } // else, already found formattable technology
-
-                    int[] ndefinfo = new int[2];
-                    if (checkNdef(ndefinfo)) {
-                        ndefFoundAndConnected = true;
-                        boolean generateEmptyNdef = false;
-
-                        int supportedNdefLength = ndefinfo[0];
-                        int cardState = ndefinfo[1];
-                        byte[] buff = readNdef();
-                        if (buff != null) {
-                            ndefMsgs = new NdefMessage[1];
-                            try {
-                                ndefMsgs[0] = new NdefMessage(buff);
-                                addNdefTechnology(ndefMsgs[0],
-                                        getConnectedHandle(),
-                                        getConnectedLibNfcType(),
-                                        getConnectedTechnology(),
-                                        supportedNdefLength, cardState);
-                                reconnect();
-                            } catch (FormatException e) {
-                               // Create an intent anyway, without NDEF messages
-                               generateEmptyNdef = true;
-                            }
-                        } else {
-                            generateEmptyNdef = true;
-                        }
-
-                        if (generateEmptyNdef) {
-                            ndefMsgs = new NdefMessage[] { };
-                            addNdefTechnology(null,
-                                    getConnectedHandle(),
-                                    getConnectedLibNfcType(),
-                                    getConnectedTechnology(),
-                                    supportedNdefLength, cardState);
-                            reconnect();
-                        }
-                    } // else, no NDEF on this tech, continue loop
-                } else {
-                    // Connect failed, tag maybe lost. Try next handle
-                    // anyway.
+        for (int techIndex = 0; techIndex < technologies.length; techIndex++) {
+            // have we seen this handle before?
+            for (int i = 0; i < techIndex; i++) {
+                if (handles[i] == handles[techIndex]) {
+                    continue;  // don't check duplicate handles
                 }
             }
-            lastHandleScanned = handles[techIndex];
-            techIndex++;
+
+            status = connectWithStatus(technologies[techIndex]);
+            if (status != 0) {
+                Log.d(TAG, "Connect Failed - status = "+ status);
+                if (status == STATUS_CODE_TARGET_LOST) {
+                    break;
+                }
+                continue;  // try next handle
+            }
+            // Check if this type is NDEF formatable
+            if (!foundFormattable) {
+                if (isNdefFormatable()) {
+                    foundFormattable = true;
+                    formattableHandle = getConnectedHandle();
+                    formattableLibNfcType = getConnectedLibNfcType();
+                    // We'll only add formattable tech if no ndef is
+                    // found - this is because libNFC refuses to format
+                    // an already NDEF formatted tag.
+                }
+                reconnect();
+            }
+
+            int[] ndefinfo = new int[2];
+            status = checkNdefWithStatus(ndefinfo);
+            if (status != 0) {
+                Log.d(TAG, "Check NDEF Failed - status = " + status);
+                if (status == STATUS_CODE_TARGET_LOST) {
+                    break;
+                }
+                continue;  // try next handle
+            }
+
+            // found our NDEF handle
+            boolean generateEmptyNdef = false;
+
+            int supportedNdefLength = ndefinfo[0];
+            int cardState = ndefinfo[1];
+            byte[] buff = readNdef();
+            if (buff != null) {
+                ndefMsgs = new NdefMessage[1];
+                try {
+                    ndefMsgs[0] = new NdefMessage(buff);
+                    addNdefTechnology(ndefMsgs[0],
+                            getConnectedHandle(),
+                            getConnectedLibNfcType(),
+                            getConnectedTechnology(),
+                            supportedNdefLength, cardState);
+                    reconnect();
+                } catch (FormatException e) {
+                   // Create an intent anyway, without NDEF messages
+                   generateEmptyNdef = true;
+                }
+            } else {
+                generateEmptyNdef = true;
+            }
+
+            if (generateEmptyNdef) {
+                ndefMsgs = new NdefMessage[] { };
+                addNdefTechnology(null,
+                        getConnectedHandle(),
+                        getConnectedLibNfcType(),
+                        getConnectedTechnology(),
+                        supportedNdefLength, cardState);
+                reconnect();
+            }
+            break;
         }
 
         if (ndefMsgs == null && foundFormattable) {
