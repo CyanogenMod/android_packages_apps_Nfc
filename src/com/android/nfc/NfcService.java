@@ -30,6 +30,8 @@ import com.android.nfc3.R;
 
 import android.app.Application;
 import android.app.KeyguardManager;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -68,6 +70,7 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.provider.Settings;
 import android.util.Log;
 
 import java.io.DataInputStream;
@@ -111,6 +114,9 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
     private static final boolean ZEROCLICK_ON_DEFAULT = true;
 
     private static final String PREF_FIRST_BOOT = "first_boot";
+    private static final String PREF_FIRST_SHARE = "first_share";
+
+    private static final int NOTIFICATION_FIRST_SHARE = 0;
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
@@ -178,6 +184,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
+    private NotificationManager mNotificationManager;
     NdefP2pManager mP2pManager;
     int mStartSound;
     int mEndSound;
@@ -315,6 +322,9 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme("package");
 
+        mNotificationManager = (NotificationManager) this.getSystemService(
+                Context.NOTIFICATION_SERVICE);
+
         registerReceiver(mReceiver, filter);
 
         Thread t = new Thread() {
@@ -328,6 +338,20 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             }
         };
         t.start();
+    }
+
+    private void onFirstShare() {
+        Intent intent = new Intent(Settings.ACTION_NFCSHARING_SETTINGS);
+        PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification notification = new Notification.Builder(mContext)
+                .setContentTitle(mContext.getString(R.string.first_share_title))
+                .setContentText(mContext.getString(R.string.first_share_text))
+                .setContentIntent(pi)
+                .setSmallIcon(R.drawable.stat_sys_nfc)
+                .setAutoCancel(true)
+                .getNotification();
+        mNotificationManager.notify(NOTIFICATION_FIRST_SHARE, notification);
     }
 
     private void playSound(int sound) {
@@ -349,6 +373,14 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         if (mP2pStarted) {
             playSound(mEndSound);
             mP2pStarted = false;
+
+            // If first time, throw up a notification
+            if (mPrefs.getBoolean(PREF_FIRST_SHARE, true)) {
+                Log.i(TAG, "First NFC share");
+                mPrefsEditor.putBoolean(PREF_FIRST_SHARE, false);
+                mPrefsEditor.apply();
+                onFirstShare();
+            }
         }
     }
 
