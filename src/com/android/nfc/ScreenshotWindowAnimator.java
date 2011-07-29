@@ -168,7 +168,14 @@ public class ScreenshotWindowAnimator implements AnimatorUpdateListener, Handler
             dims[0] = Math.abs(dims[0]);
             dims[1] = Math.abs(dims[1]);
         }
+
         mScreenBitmap = Surface.screenshot((int) dims[0], (int) dims[1]);
+        // Bail if we couldn't take the screenshot
+        if (mScreenBitmap == null) {
+            Log.e(TAG, "couldn't get screenshot");
+            return;
+        }
+
         if (requiresRotation) {
             // Rotate the screenshot to the current orientation
             Bitmap ss = Bitmap.createBitmap(mDisplayMetrics.widthPixels,
@@ -179,12 +186,6 @@ public class ScreenshotWindowAnimator implements AnimatorUpdateListener, Handler
             c.translate(-dims[0] / 2, -dims[1] / 2);
             c.drawBitmap(mScreenBitmap, 0, 0, null);
             mScreenBitmap = ss;
-        }
-
-        // Bail if we couldn't take the screenshot
-        if (mScreenBitmap == null) {
-            Log.e(TAG, "couldn't get screenshot");
-            return;
         }
 
         // Start the post-screenshot animation
