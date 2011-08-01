@@ -96,7 +96,7 @@ public class NfcDispatcher {
         IntentFilter[] overrideFilters;
         PendingIntent overrideIntent;
         String[][] overrideTechLists;
-        boolean foregroundNdefPush = mP2pManager.getForegroundMessage() != null;
+        boolean foregroundNdefPush = mP2pManager.isForegroundPushEnabled();
         synchronized (this) {
             overrideFilters = mOverrideFilters;
             overrideIntent = mOverrideIntent;

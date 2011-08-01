@@ -168,9 +168,9 @@ public class NdefP2pManager {
         }
     }
 
-    public NdefMessage getForegroundMessage() {
+    public boolean isForegroundPushEnabled() {
         synchronized (this) {
-            return mForegroundMsg;
+            return mForegroundMsg != null || mCallback != null;
         }
     }
 
