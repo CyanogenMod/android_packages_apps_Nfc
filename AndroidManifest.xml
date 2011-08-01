@@ -41,7 +41,5 @@
             android:multiprocess="true"
         />
 
-        <receiver android:name="com.android.nfc.BluetoothMeProfileReceiver" />
-
     </application>
 </manifest>

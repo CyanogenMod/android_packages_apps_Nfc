@@ -2164,10 +2164,6 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         sendMessage(MSG_MOCK_NDEF, msg);
     }
 
-    public void sendMeProfile(NdefMessage target, NdefMessage profile) {
-        mP2pManager.sendMeProfile(target, profile);
-    }
-
     void sendMessage(int what, Object obj) {
         Message msg = mHandler.obtainMessage();
         msg.what = what;

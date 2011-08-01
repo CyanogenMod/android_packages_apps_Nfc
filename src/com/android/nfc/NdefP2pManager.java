@@ -42,18 +42,11 @@ import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.List;
 
 public class NdefP2pManager {
-    public static final String ANDROID_SNEP_SERVICE = "urn:nfc:xsn:android.com:snep";
-
-    // Disable Large-ndef-over-BT while we stabilize me-over-BT   (old value 5*1024)
-    static final int MAX_SNEP_SIZE_BYTES = Integer.MAX_VALUE;
-
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
-    static final int ANDROIDSNEP_SAP = 0x11;
 
     static final String TAG = "P2PManager";
     static final boolean DBG = true;
@@ -61,13 +54,12 @@ public class NdefP2pManager {
     final ScreenshotWindowAnimator mScreenshot;
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
-    final SnepServer mAndroidSnepServer;
-    final BluetoothDropbox mBluetoothDropbox;
     final ActivityManager mActivityManager;
     final PackageManager mPackageManager;
     final Context mContext;
     final P2pStatusListener mListener;
 
+    // only used on UI Thread
     P2pTask mActiveTask;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
@@ -81,9 +73,6 @@ public class NdefP2pManager {
     public NdefP2pManager(Context context, P2pStatusListener listener) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
-        mAndroidSnepServer = new SnepServer(ANDROID_SNEP_SERVICE, ANDROIDSNEP_SAP,
-                mAndroidSnepCallback);
-        mBluetoothDropbox = new BluetoothDropbox(context);
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
@@ -94,28 +83,13 @@ public class NdefP2pManager {
     public void enableNdefServer() {
         // Default
         mDefaultSnepServer.start();
-        // Custom
-        mAndroidSnepServer.start();
         // Legacy
         mNdefPushServer.start();
-        // Out-of-band
-        // TODO: Hack to make sure Bluetooth is available
-        new Thread() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(10000);
-                } catch (InterruptedException e) {}
-                mBluetoothDropbox.start();
-            };
-        }.start();
     }
 
     public void disableNdefServer() {
         mDefaultSnepServer.stop();
-        mAndroidSnepServer.stop();
         mNdefPushServer.stop();
-        mBluetoothDropbox.stop();
     }
 
     public boolean setForegroundMessage(NdefMessage msg) {
@@ -158,15 +132,6 @@ public class NdefP2pManager {
         }
 
         return ndefMsg;
-    }
-
-    public void sendMeProfile(NdefMessage target, NdefMessage profile) {
-        try {
-            mBluetoothDropbox.sendContent(target, profile);
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to send me profile via BT dropbox");
-            if (DBG) Log.e(TAG, "error:", e);
-        }
     }
 
     public boolean isForegroundPushEnabled() {
@@ -217,17 +182,15 @@ public class NdefP2pManager {
             }
         }
 
+        if (mActiveTask != null) {
+            mActiveTask.cancel(true);
+        }
         mActiveTask = new P2pTask(foregroundMsg);
         mActiveTask.execute();
     }
 
     void llcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
-
-        // Call error here since a previous call to onP2pEnd() will have played the success
-        // sound and this will be ignored. If no one has called that and the LLCP link
-        // is broken we want to play the error sound.
-        mListener.onP2pError();
 
         if (mActiveTask != null) {
             mActiveTask.cancel(true);
@@ -252,22 +215,13 @@ public class NdefP2pManager {
 
         @Override
         public Void doInBackground(Void... args) {
-            //TODO: call getDropboxTarget() here for large NDEF transfer
-            NdefMessage dropboxTarget = null;
             try {
                 if (mMessage != null) {
-                    if (dropboxTarget != null &&
-                            mMessage.toByteArray().length > MAX_SNEP_SIZE_BYTES) {
-                        if (DBG) Log.d(TAG, "Sending large ndef to dropbox");
-                        mBluetoothDropbox.sendContent(dropboxTarget, mMessage);
-                        // TODO set mSuccess
-                    } else {
-                        if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                        mSuccess = doSnepProtocol(mMessage);
-                    }
+                    if (DBG) Log.d(TAG, "Sending ndef via SNEP");
+                    mSuccess = doSnepProtocol(mMessage);
                 }
             } catch (IOException e) {
-                if (DBG) Log.d(TAG, "Failed to connect over SNEP, trying NPP");
+                Log.d(TAG, "Failed to connect over SNEP, trying NPP");
 
                 if (isCancelled()) {
                     return null;
@@ -277,7 +231,7 @@ public class NdefP2pManager {
             }
 
             INdefPushCallback callback;
-            synchronized (this) {
+            synchronized (NdefP2pManager.this) {
                 callback = mCallback;
             }
 
@@ -293,21 +247,6 @@ public class NdefP2pManager {
                 return null;
             }
 
-            // Me profile
-            dropboxTarget = getDropboxTarget();
-            NdefMessage me = getMeProfile();
-            if (dropboxTarget != null && me != null) {
-                if (DBG) Log.d(TAG, "Sending me profile");
-                try {
-                    if (isCancelled()) {
-                        return null;
-                    }
-                    mBluetoothDropbox.handleOutboundMeProfile(dropboxTarget, me);
-                } catch (IOException e) {
-                    if (DBG) Log.d(TAG, "Failed to send me profile");
-                }
-            }
-
             return null;
         }
 
@@ -315,7 +254,12 @@ public class NdefP2pManager {
         public void onCancelled() {
             if (mMessage != null) {
                 mScreenshot.stop();
+                // Call error here since a previous call to onP2pEnd() will have played the success
+                // sound and this will be ignored. If no one has called that and the LLCP link
+                // is broken we want to play the error sound.
+                mListener.onP2pError();
             }
+            mActiveTask = null;
         }
 
         @Override
@@ -355,34 +299,6 @@ public class NdefP2pManager {
         return false;
     }
 
-    /**
-     * Retrieves the remote dropbox address, and grants the remote device access
-     * to our local dropbox for a short period of time.
-     * @return
-     */
-    NdefMessage getDropboxTarget() {
-        NdefRecord key = new NdefRecord(NdefRecord.TNF_EXTERNAL_TYPE,
-                BluetoothDropbox.MIME_TYPE.getBytes(), new byte[0], new byte[0]);
-        NdefMessage request = new NdefMessage(new NdefRecord[] { key });
-        SnepClient client = new SnepClient(ANDROID_SNEP_SERVICE);
-        try {
-            client.connect();
-            SnepMessage response = client.get(request);
-            if (response.getField() == SnepMessage.RESPONSE_SUCCESS) {
-                NdefMessage remoteDropboxAddress = response.getNdefMessage();
-                mBluetoothDropbox.grantAccess(remoteDropboxAddress);
-                return remoteDropboxAddress;
-            } else {
-                Log.w(TAG, "Error sending content to dropbox.");
-            }
-        } catch (IOException e) {
-            if (DBG) Log.w(TAG, "IOException during bluetooth dropbox");
-        } finally {
-            client.close();
-        }
-        return null;
-    }
-
     final SnepServer.Callback mDefaultSnepCallback = new SnepServer.Callback() {
         @Override
         public SnepMessage doPut(NdefMessage msg) {
@@ -394,35 +310,6 @@ public class NdefP2pManager {
         public SnepMessage doGet(int acceptableLength, NdefMessage msg) {
             if (DBG) Log.d(TAG, "GET not supported.");
             return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
-        }
-    };
-
-    final SnepServer.Callback mAndroidSnepCallback = new SnepServer.Callback() {
-        @Override
-        public SnepMessage doPut(NdefMessage msg) {
-            return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
-        }
-
-        @Override
-        public SnepMessage doGet(int acceptableLength, NdefMessage msg) {
-            if (msg.getRecords().length == 0) {
-                return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
-            }
-
-            NdefRecord key = msg.getRecords()[0];
-            if (key.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE &&
-                    Arrays.equals(BluetoothDropbox.MIME_TYPE.getBytes(), key.getType())) {
-
-                NdefMessage dropboxAddress = mBluetoothDropbox.getDropboxAddressNdef();
-                if (dropboxAddress != null) {
-                    if (DBG) Log.d(TAG, "responding with dropbox invitation");
-                    return SnepMessage.getSuccessResponse(dropboxAddress);
-                } else {
-                    if (DBG) Log.d(TAG, "denying dropbox");
-                    return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
-                }
-            }
-            return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
         }
     };
 }
