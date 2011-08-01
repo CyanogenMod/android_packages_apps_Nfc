@@ -512,7 +512,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                 throw new IllegalArgumentException();
             }
             if (mP2pManager.setForegroundMessage(msg)) {
-                Log.e(TAG, "Replacing active NDEF push message");
+                Log.w(TAG, "Replacing active NDEF push message");
             }
         }
 
@@ -524,7 +524,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                 throw new IllegalArgumentException();
             }
             if (mP2pManager.setForegroundCallback(callback)) {
-                Log.e(TAG, "Replacing active NDEF push message");
+                Log.w(TAG, "Replacing active NDEF push message");
             }
         }
 
@@ -534,7 +534,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             boolean hadMsg = mP2pManager.setForegroundMessage(null);
             boolean hadCallback = mP2pManager.setForegroundCallback(null);
             if (!hadMsg || !hadCallback) {
-                Log.e(TAG, "No active foreground NDEF push message");
+                Log.w(TAG, "No active foreground NDEF push message");
             }
         }
 

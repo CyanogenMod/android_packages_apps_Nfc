@@ -31,7 +31,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.nfc.INdefPushCallback;
-import android.nfc.INfcAdapter;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.os.AsyncTask;
@@ -48,23 +47,25 @@ import java.util.List;
 
 public class NdefP2pManager {
     public static final String ANDROID_SNEP_SERVICE = "urn:nfc:xsn:android.com:snep";
+
     // Disable Large-ndef-over-BT while we stabilize me-over-BT   (old value 5*1024)
-    private static final int MAX_SNEP_SIZE_BYTES = Integer.MAX_VALUE;
+    static final int MAX_SNEP_SIZE_BYTES = Integer.MAX_VALUE;
 
     // TODO dynamically assign SAP values
-    private static final int NDEFPUSH_SAP = 0x10;
-    private static final int ANDROIDSNEP_SAP = 0x11;
+    static final int NDEFPUSH_SAP = 0x10;
+    static final int ANDROIDSNEP_SAP = 0x11;
 
-    private static final String TAG = "P2PManager";
-    private static final boolean DBG = true;
+    static final String TAG = "P2PManager";
+    static final boolean DBG = true;
+
     final ScreenshotWindowAnimator mScreenshot;
-    private final NdefPushServer mNdefPushServer;
-    private final SnepServer mDefaultSnepServer;
-    private final SnepServer mAndroidSnepServer;
+    final NdefPushServer mNdefPushServer;
+    final SnepServer mDefaultSnepServer;
+    final SnepServer mAndroidSnepServer;
     final BluetoothDropbox mBluetoothDropbox;
-    private final ActivityManager mActivityManager;
-    private final PackageManager mPackageManager;
-    private final Context mContext;
+    final ActivityManager mActivityManager;
+    final PackageManager mPackageManager;
+    final Context mContext;
     final P2pStatusListener mListener;
 
     P2pTask mActiveTask;
@@ -174,7 +175,7 @@ public class NdefP2pManager {
         }
     }
 
-    /*package*/ void llcpActivated() {
+    void llcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
         mListener.onP2pBegin();
@@ -220,7 +221,7 @@ public class NdefP2pManager {
         mActiveTask.execute();
     }
 
-    /*package*/ void llcpDeactivated() {
+    void llcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
 
         // Call error here since a previous call to onP2pEnd() will have played the success
@@ -235,9 +236,8 @@ public class NdefP2pManager {
     }
 
     final class P2pTask extends AsyncTask<Void, Void, Void> {
-        final private NdefMessage mMessage;
-
-        private boolean mSuccess = false;
+        final NdefMessage mMessage;
+        boolean mSuccess = false;
 
         public P2pTask(NdefMessage msg) {
             mMessage = msg;
@@ -383,7 +383,7 @@ public class NdefP2pManager {
         return null;
     }
 
-    private final SnepServer.Callback mDefaultSnepCallback = new SnepServer.Callback() {
+    final SnepServer.Callback mDefaultSnepCallback = new SnepServer.Callback() {
         @Override
         public SnepMessage doPut(NdefMessage msg) {
             NfcService.getInstance().sendMockNdefTag(msg);
@@ -397,7 +397,7 @@ public class NdefP2pManager {
         }
     };
 
-    private final SnepServer.Callback mAndroidSnepCallback = new SnepServer.Callback() {
+    final SnepServer.Callback mAndroidSnepCallback = new SnepServer.Callback() {
         @Override
         public SnepMessage doPut(NdefMessage msg) {
             return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
