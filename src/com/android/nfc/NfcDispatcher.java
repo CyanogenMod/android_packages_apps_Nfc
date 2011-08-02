@@ -49,7 +49,6 @@ import java.util.List;
  * Dispatch of NFC events to start activities
  */
 public class NfcDispatcher {
-    public static final byte[] RTD_ANDROID_APP = "android.com:pkg".getBytes();
     private static final boolean DBG = NfcService.DBG;
     private static final String TAG = NfcService.TAG;
 
@@ -57,6 +56,8 @@ public class NfcDispatcher {
     private final NdefP2pManager mP2pManager;
     private final IActivityManager mIActivityManager;
     private final RegisteredComponentCache mTechListFilters;
+
+    private PackageManager mPackageManager;
 
     // Locked on this
     private PendingIntent mOverrideIntent;
@@ -69,6 +70,7 @@ public class NfcDispatcher {
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
+        mPackageManager = context.getPackageManager();
     }
 
     public synchronized void disableForegroundDispatch() {
@@ -194,13 +196,12 @@ public class NfcDispatcher {
             // Standard tech dispatch path
             ArrayList<ResolveInfo> matches = new ArrayList<ResolveInfo>();
             ArrayList<ComponentInfo> registered = mTechListFilters.getComponents();
-            PackageManager pm = mContext.getPackageManager();
 
             // Check each registered activity to see if it matches
             for (ComponentInfo info : registered) {
                 // Don't allow wild card matching
                 if (filterMatch(tagTechs, info.techs) &&
-                        isComponentEnabled(pm, info.resolveInfo)) {
+                        isComponentEnabled(mPackageManager, info.resolveInfo)) {
                     // Add the activity as a match if it's not already in the list
                     if (!matches.contains(info.resolveInfo)) {
                         matches.add(info.resolveInfo);
@@ -252,6 +253,28 @@ public class NfcDispatcher {
         }
     }
 
+    /* Starts the package main activity if it's already installed, or takes you to its
+     * market page if not.
+     * returns whether an activity was started.
+     */
+    private boolean startActivityOrMarket(String packageName) {
+        Intent intent = mPackageManager.getLaunchIntentForPackage(packageName);
+        try {
+            if (intent != null) {
+                mContext.startActivity(intent);
+                return true;
+            } else {
+                // Find the package in Market:
+                Intent market = getAppSearchIntent(packageName);
+                market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(market);
+                return true;
+            }
+        } catch (ActivityNotFoundException e) {
+            return false;
+        }
+    }
+
     private boolean startDispatchActivity(Intent intent, PendingIntent overrideIntent,
             IntentFilter[] overrideFilters, String[][] overrideTechLists, NdefRecord[] records)
             throws CanceledException {
@@ -288,7 +311,7 @@ public class NfcDispatcher {
                 String firstPackage = null;
                 for (NdefRecord record : records) {
                     if (record.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE) {
-                        if (Arrays.equals(record.getType(), RTD_ANDROID_APP)) {
+                        if (Arrays.equals(record.getType(), NdefRecord.RTD_ANDROID_APP)) {
                             String pkg = new String(record.getPayload(), Charsets.US_ASCII);
                             if (firstPackage == null) {
                                 firstPackage = pkg;
@@ -305,31 +328,11 @@ public class NfcDispatcher {
                 }
                 if (firstPackage != null) {
                     // Found an Android package, but could not handle ndef intent.
-                    // If the application is installed, call its main activity.
-                    Intent main = new Intent(Intent.ACTION_MAIN);
-                    main.addCategory(Intent.CATEGORY_LAUNCHER);
-                    main.setPackage(firstPackage);
-                    main.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    // Use default main:
-                    try {
-                        mContext.startActivity(main);
-                        return true;
-                    } catch (ActivityNotFoundException e) {
-                    }
-                    // Use first available main:
-                    List<ResolveInfo> info =
-                            mContext.getPackageManager().queryIntentActivities(main, 0);
-                    if (info.size() > 0) {
-                        ActivityInfo launchInfo = info.get(0).activityInfo;
-                        main.setClassName(launchInfo.packageName, launchInfo.name);
-                        mContext.startActivity(main);
+                    // If the application is installed, call its main activity,
+                    // or otherwise go to Market.
+                    if (startActivityOrMarket(firstPackage)) {
                         return true;
                     }
-                    // Find in Market:
-                    Intent market = getAppSearchIntent(firstPackage);
-                    market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    mContext.startActivity(market);
-                    return true;
                 }
             }
             try {
