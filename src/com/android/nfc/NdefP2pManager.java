@@ -253,7 +253,7 @@ public class NdefP2pManager {
         @Override
         public void onCancelled() {
             if (mMessage != null) {
-                mScreenshot.stop();
+                mScreenshot.complete(mSuccess);
                 // Call error here since a previous call to onP2pEnd() will have played the success
                 // sound and this will be ignored. If no one has called that and the LLCP link
                 // is broken we want to play the error sound.
@@ -266,7 +266,7 @@ public class NdefP2pManager {
         public void onPostExecute(Void result) {
             // Make sure to stop the screenshot animation
             if (mMessage != null) {
-                mScreenshot.stop();
+                mScreenshot.complete(mSuccess);
             }
 
             // Play the end sound if successful
