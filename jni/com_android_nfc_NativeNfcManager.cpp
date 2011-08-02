@@ -1982,7 +1982,7 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
     TRACE("phLibNfc_SE_SetMode()");
     /* Set SE mode - Virtual */
     REENTRANCE_LOCK();
-    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeVirtualVolatile, nfc_jni_se_set_mode_callback,
             (void *)&cb_data);
     REENTRANCE_UNLOCK();
     if (ret != NFCSTATUS_PENDING) {
@@ -2020,9 +2020,9 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
     TRACE("****** Deselect Secure Element ******");
 
     TRACE("phLibNfc_SE_SetMode()");
-    /* Set SE mode - Off */
+    /* Set SE mode - Default */
     REENTRANCE_LOCK();
-    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeOff,
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeDefault,
            nfc_jni_se_set_mode_callback, (void *)&cb_data);
     REENTRANCE_UNLOCK();
        
