@@ -23,6 +23,8 @@ import com.android.nfc.nxp.NativeLlcpSocket;
 import android.nfc.NdefMessage;
 import android.os.Bundle;
 
+import java.io.IOException;
+
 public interface DeviceHost {
     public interface DeviceHostListener {
         public void onRemoteEndpointDiscovered(TagEndpoint tag);
@@ -120,6 +122,34 @@ public interface DeviceHost {
         public byte[] getGeneralBytes();
     }
 
+    public interface LlcpSocket {
+        public void connectToSap(int sap) throws IOException;
+
+        public void connectToService(String serviceName) throws IOException;
+
+        public void close() throws IOException;
+
+        public void send(byte[] data) throws IOException;
+
+        public int receive(byte[] recvBuff) throws IOException;
+
+        public int getRemoteMiu();
+
+        public int getRemoteRw();
+
+        public int getLocalSap();
+
+        public int getLocalMiu();
+
+        public int getLocalRw();
+    }
+
+    public interface LlcpServerSocket {
+        public LlcpSocket accept() throws IOException, LlcpException;
+
+        public void close() throws IOException;
+    }
+
     public boolean initialize();
 
     public boolean deinitialize();
@@ -136,13 +166,11 @@ public interface DeviceHost {
 
     public int doGetLastError();
 
-    public NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
+    public LlcpServerSocket createLlcpServerSocket(int nSap, String sn, int miu,
+            int rw, int linearBufferLength) throws LlcpException;
 
-    public NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,
-            int rw, int linearBufferLength);
-
-    public NativeLlcpSocket doCreateLlcpSocket(int sap, int miu, int rw,
-            int linearBufferLength);
+    public LlcpSocket createLlcpSocket(int sap, int miu, int rw,
+            int linearBufferLength) throws LlcpException;
 
     public boolean doCheckLlcp();
 
@@ -153,4 +181,6 @@ public interface DeviceHost {
     public boolean setTimeout(int technology, int timeout);
 
     public int getTimeout(int technology);
+
+    public void doAbort();
 }

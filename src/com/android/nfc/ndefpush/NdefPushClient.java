@@ -16,12 +16,12 @@
 
 package com.android.nfc.ndefpush;
 
+import com.android.nfc.DeviceHost.LlcpSocket;
+import com.android.nfc.LlcpException;
+import com.android.nfc.NfcService;
+
 import android.nfc.NdefMessage;
 import android.util.Log;
-
-import com.android.internal.nfc.LlcpException;
-import com.android.internal.nfc.LlcpSocket;
-import com.android.nfc.NfcService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,9 +52,9 @@ public class NdefPushClient {
                 throw new IOException("Could not connect to socket.");
             }
             if (DBG) Log.d(TAG, "about to connect to service " + NdefPushServer.SERVICE_NAME);
-            sock.connect(NdefPushServer.SERVICE_NAME);
+            sock.connectToService(NdefPushServer.SERVICE_NAME);
 
-            remoteMiu = sock.getRemoteSocketMiu();
+            remoteMiu = sock.getRemoteMiu();
             if (DBG) Log.d(TAG, "about to send a " + buffer.length + " byte message");
             while (offset < buffer.length) {
                 int length = Math.min(buffer.length - offset, remoteMiu);

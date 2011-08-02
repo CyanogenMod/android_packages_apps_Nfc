@@ -17,15 +17,20 @@
 package com.android.nfc.nxp;
 
 import com.android.nfc.DeviceHost;
+import com.android.nfc.LlcpException;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
+import android.nfc.ErrorCodes;
+import android.util.Log;
 
 /**
  * Native interface to the NFC Manager functions
  */
 public class NativeNfcManager implements DeviceHost {
+    private static final String TAG = "NativeNfcManager";
+
     static {
         System.loadLibrary("nfc_jni");
     }
@@ -40,6 +45,7 @@ public class NativeNfcManager implements DeviceHost {
 
     public NativeNfcManager(Context context, DeviceHostListener listener) {
         mListener = listener;
+        initializeNativeStructure();
     }
 
     public native boolean initializeNativeStructure();
@@ -68,16 +74,55 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native int doGetLastError();
 
-    @Override
-    public native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
+    private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 
-    @Override
-    public native NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,
+    private native NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,
             int rw, int linearBufferLength);
-
     @Override
-    public native NativeLlcpSocket doCreateLlcpSocket(int sap, int miu, int rw,
+    public LlcpServerSocket createLlcpServerSocket(int nSap, String sn, int miu,
+            int rw, int linearBufferLength) throws LlcpException {
+        LlcpServerSocket socket = doCreateLlcpServiceSocket(nSap, sn, miu, rw, linearBufferLength);
+        if (socket != null) {
+            return socket;
+        } else {
+            /* Get Error Status */
+            int error = doGetLastError();
+
+            Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(error));
+
+            switch (error) {
+                case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                    throw new LlcpException(error);
+                default:
+                    throw new LlcpException(ErrorCodes.ERROR_SOCKET_CREATION);
+            }
+        }
+    }
+
+    private native NativeLlcpSocket doCreateLlcpSocket(int sap, int miu, int rw,
             int linearBufferLength);
+    @Override
+    public LlcpSocket createLlcpSocket(int sap, int miu, int rw,
+            int linearBufferLength) throws LlcpException {
+        LlcpSocket socket = doCreateLlcpSocket(sap, miu, rw, linearBufferLength);
+        if (socket != null) {
+            return socket;
+        } else {
+            /* Get Error Status */
+            int error = doGetLastError();
+
+            Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(error));
+
+            switch (error) {
+                case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                    throw new LlcpException(error);
+                default:
+                    throw new LlcpException(ErrorCodes.ERROR_SOCKET_CREATION);
+            }
+        }
+    }
 
     @Override
     public native boolean doCheckLlcp();

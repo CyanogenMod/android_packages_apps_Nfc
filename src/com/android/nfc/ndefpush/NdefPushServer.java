@@ -16,9 +16,9 @@
 
 package com.android.nfc.ndefpush;
 
-import com.android.internal.nfc.LlcpException;
-import com.android.internal.nfc.LlcpServiceSocket;
-import com.android.internal.nfc.LlcpSocket;
+import com.android.nfc.DeviceHost.LlcpServerSocket;
+import com.android.nfc.DeviceHost.LlcpSocket;
+import com.android.nfc.LlcpException;
 import com.android.nfc.NfcService;
 
 import android.nfc.FormatException;
@@ -30,14 +30,15 @@ import java.io.IOException;
 
 /**
  * A simple server that accepts NDEF messages pushed to it over an LLCP connection. Those messages
- * are typically set on the client side by using {@link NfcAdapter#setLocalNdefMessage}.
+ * are typically set on the client side by using {@link NfcAdapter#enableForegroundNdefPush}.
  */
 public class NdefPushServer {
     private static final String TAG = "NdefPushServer";
     private static final boolean DBG = true;
 
     private static final int MIU = 248;
-    private static int mSap;
+
+    int mSap;
 
     static final String SERVICE_NAME = "com.android.npp";
 
@@ -109,20 +110,20 @@ public class NdefPushServer {
     /** Server class, used to listen for incoming connection request */
     class ServerThread extends Thread {
         boolean mRunning = true;
-        LlcpServiceSocket mServerSocket;
+        LlcpServerSocket mServerSocket;
 
         @Override
         public void run() {
             while (mRunning) {
                 if (DBG) Log.d(TAG, "about create LLCP service socket");
-                mServerSocket = mService.createLlcpServiceSocket(mSap, SERVICE_NAME,
-                        MIU, 1, 1024);
-                if (mServerSocket == null) {
-                    if (DBG) Log.d(TAG, "failed to create LLCP service socket");
-                    return;
-                }
-                if (DBG) Log.d(TAG, "created LLCP service socket");
                 try {
+                    mServerSocket = mService.createLlcpServerSocket(mSap, SERVICE_NAME,
+                            MIU, 1, 1024);
+                    if (mServerSocket == null) {
+                        if (DBG) Log.d(TAG, "failed to create LLCP service socket");
+                        return;
+                    }
+                    if (DBG) Log.d(TAG, "created LLCP service socket");
                     while (mRunning) {
                         if (DBG) Log.d(TAG, "about to accept");
                         LlcpSocket communicationSocket = mServerSocket.accept();
@@ -139,7 +140,11 @@ public class NdefPushServer {
                 } finally {
                     if (mServerSocket != null) {
                         if (DBG) Log.d(TAG, "about to close");
-                        mServerSocket.close();
+                        try {
+                            mServerSocket.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
                         mServerSocket = null;
                     }
                 }
@@ -149,7 +154,11 @@ public class NdefPushServer {
         public void shutdown() {
             mRunning = false;
             if (mServerSocket != null) {
-                mServerSocket.close();
+                try {
+                    mServerSocket.close();
+                } catch (IOException e) {
+                    // ignore
+                }
                 mServerSocket = null;
             }
         }
