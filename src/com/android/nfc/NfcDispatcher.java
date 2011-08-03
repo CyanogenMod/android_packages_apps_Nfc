@@ -96,7 +96,6 @@ public class NfcDispatcher {
         IntentFilter[] overrideFilters;
         PendingIntent overrideIntent;
         String[][] overrideTechLists;
-        boolean foregroundNdefPush = mP2pManager.isForegroundPushEnabled();
         synchronized (this) {
             overrideFilters = mOverrideFilters;
             overrideIntent = mOverrideIntent;
@@ -123,21 +122,13 @@ public class NfcDispatcher {
             }
         }
 
-        // If there is not foreground NDEF push setup try a normal dispatch.
-        //
-        // This is avoided when disabled in the NDEF push case to avoid the situation where each
-        // user has a different app in the foreground, causing each to launch itself on the
-        // remote device and the apps swapping which is in the foreground on each phone.
-        if (!foregroundNdefPush) {
-            try {
-                return dispatchTagInternal(tag, msgs, null, null, null);
-            } catch (CanceledException e) {
-                Log.e(TAG, "CanceledException unexpected here", e);
-                return false;
-            }
+        // Try normal dispatch.
+        try {
+            return dispatchTagInternal(tag, msgs, null, null, null);
+        } catch (CanceledException e) {
+            Log.e(TAG, "CanceledException unexpected here", e);
+            return false;
         }
-
-        return false;
     }
 
     private Intent buildTagIntent(Tag tag, NdefMessage[] msgs, String action) {

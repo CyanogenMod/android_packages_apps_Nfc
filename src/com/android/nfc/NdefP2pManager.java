@@ -134,12 +134,6 @@ public class NdefP2pManager {
         return ndefMsg;
     }
 
-    public boolean isForegroundPushEnabled() {
-        synchronized (this) {
-            return mForegroundMsg != null || mCallback != null;
-        }
-    }
-
     void llcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
