@@ -22,6 +22,7 @@ import com.android.nfc.LlcpException;
 import com.android.nfc.NfcService;
 
 import android.nfc.FormatException;
+import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.util.Log;
 
@@ -44,11 +45,18 @@ public class NdefPushServer {
 
     NfcService mService = NfcService.getInstance();
 
+    final Callback mCallback;
+
     /** Protected by 'this', null when stopped, non-null when running */
     ServerThread mServerThread = null;
 
-    public NdefPushServer(final int sap) {
+    public interface Callback {
+        void onMessageReceived(NdefMessage msg);
+    }
+
+    public NdefPushServer(final int sap, Callback callback) {
         mSap = sap;
+        mCallback = callback;
     }
 
     /** Connection class, used to handle incoming connections */
@@ -92,7 +100,7 @@ public class NdefPushServer {
                 if (DBG) Log.d(TAG, "got message " + msg.toString());
 
                 // Send the intent for the fake tag
-                mService.sendMockNdefTag(msg.getImmediate());
+                mCallback.onMessageReceived(msg.getImmediate());
             } catch (FormatException e) {
                 Log.e(TAG, "badly formatted NDEF message, ignoring", e);
             } finally {

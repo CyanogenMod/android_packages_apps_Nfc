@@ -34,6 +34,8 @@ import android.nfc.INdefPushCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Message;
 import android.os.RemoteException;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Profile;
@@ -44,9 +46,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-public class NdefP2pManager {
+public class NdefP2pManager implements Handler.Callback {
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
+
+    static final int RECEIVE_TIMEOUT_MS = 250;
+
+    static final int STATE_WAITING = 0;
+    static final int STATE_SUCCESS = 1;
+    static final int STATE_FAILURE = 2;
+
+    static final int MSG_RECEIVE_SUCCESS = 0;
+    static final int MSG_TIMEOUT = 1;
 
     static final String TAG = "P2PManager";
     static final boolean DBG = true;
@@ -59,8 +70,12 @@ public class NdefP2pManager {
     final Context mContext;
     final P2pStatusListener mListener;
 
-    // only used on UI Thread
-    P2pTask mActiveTask;
+    // Used only from the UI thread
+    PushTask mPushTask;
+    Handler mHandler;
+    int mSendState;
+    int mReceiveState;
+    boolean mAnimating;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
@@ -71,13 +86,17 @@ public class NdefP2pManager {
     INdefPushCallback mCallback;
 
     public NdefP2pManager(Context context, P2pStatusListener listener) {
-        mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP);
+        mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
         mScreenshot = new ScreenshotWindowAnimator(context);
         mListener = listener;
+        mAnimating = false;
+        mHandler = new Handler(this);
+        mSendState = STATE_WAITING;
+        mReceiveState = STATE_WAITING;
     }
 
     public void enableNdefServer() {
@@ -137,7 +156,8 @@ public class NdefP2pManager {
     void llcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
-        mListener.onP2pBegin();
+        mSendState = STATE_WAITING;
+        mReceiveState = STATE_WAITING;
 
         NdefMessage foregroundMsg;
         synchronized (this) {
@@ -176,35 +196,59 @@ public class NdefP2pManager {
             }
         }
 
-        if (mActiveTask != null) {
-            mActiveTask.cancel(true);
+        if (mPushTask != null) {
+            mPushTask.cancel(true);
         }
-        mActiveTask = new P2pTask(foregroundMsg);
-        mActiveTask.execute();
+        mPushTask = new PushTask(foregroundMsg);
+
+        // Start rendering the animation if we have something to send,
+        // otherwise just sound.
+        if (foregroundMsg != null) {
+            mScreenshot.start();
+            mAnimating = true;
+        }
+        mListener.onP2pBegin();
+        mPushTask.execute();
     }
 
     void llcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
+        if (mPushTask != null) {
+            mPushTask.cancel(true);
+            mPushTask = null;
+        }
 
-        if (mActiveTask != null) {
-            mActiveTask.cancel(true);
-            mActiveTask = null;
+        finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
+    }
+
+    /**
+     * To be called whenever we have successfully sent an NdefMessage
+     * over SNEP or NPP.
+     * Must be called from the UI thread.
+     */
+    void onSendComplete(boolean success) {
+        mSendState = success ? STATE_SUCCESS : STATE_FAILURE;
+        if (mReceiveState != STATE_WAITING) {
+            finish(success, mReceiveState == STATE_SUCCESS);
+        } else {
+            mHandler.sendEmptyMessageDelayed(MSG_TIMEOUT, RECEIVE_TIMEOUT_MS);
         }
     }
 
-    final class P2pTask extends AsyncTask<Void, Void, Void> {
+    /**
+     * To be called whenever we have successfully received an NdefMessage
+     * over SNEP or NPP.
+     * May be called from any thread.
+     */
+    void onReceiveComplete() {
+        mHandler.sendEmptyMessage(MSG_RECEIVE_SUCCESS);
+    }
+
+    final class PushTask extends AsyncTask<Void, Void, Void> {
         final NdefMessage mMessage;
-        boolean mSuccess = false;
-
-        public P2pTask(NdefMessage msg) {
+        boolean mSendSuccess = false;
+        public PushTask(NdefMessage msg) {
             mMessage = msg;
-        }
-
-        @Override
-        public void onPreExecute() {
-            if (mMessage != null) {
-                mScreenshot.start();
-            }
         }
 
         @Override
@@ -212,7 +256,7 @@ public class NdefP2pManager {
             try {
                 if (mMessage != null) {
                     if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                    mSuccess = doSnepProtocol(mMessage);
+                    mSendSuccess = doSnepProtocol(mMessage);
                 }
             } catch (IOException e) {
                 Log.d(TAG, "Failed to connect over SNEP, trying NPP");
@@ -221,7 +265,7 @@ public class NdefP2pManager {
                     return null;
                 }
 
-                mSuccess = new NdefPushClient().push(mMessage);
+                mSendSuccess = new NdefPushClient().push(mMessage);
             }
 
             INdefPushCallback callback;
@@ -237,38 +281,19 @@ public class NdefP2pManager {
                 }
             }
 
-            if (isCancelled()) {
-                return null;
-            }
-
             return null;
         }
 
         @Override
         public void onCancelled() {
-            if (mMessage != null) {
-                mScreenshot.complete(mSuccess);
-                // Call error here since a previous call to onP2pEnd() will have played the success
-                // sound and this will be ignored. If no one has called that and the LLCP link
-                // is broken we want to play the error sound.
-                mListener.onP2pError();
-            }
-            mActiveTask = null;
+            onSendComplete(mSendSuccess);
+            mPushTask = null;
         }
 
         @Override
         public void onPostExecute(Void result) {
-            // Make sure to stop the screenshot animation
-            if (mMessage != null) {
-                mScreenshot.complete(mSuccess);
-            }
-
-            // Play the end sound if successful
-            if (mMessage != null && mSuccess) {
-                mListener.onP2pEnd();
-            }
-
-            mActiveTask = null;
+            onSendComplete(mSendSuccess);
+            mPushTask = null;
         }
     }
 
@@ -293,9 +318,18 @@ public class NdefP2pManager {
         return false;
     }
 
+    final NdefPushServer.Callback mNppCallback = new NdefPushServer.Callback() {
+        @Override
+        public void onMessageReceived(NdefMessage msg) {
+            onReceiveComplete();
+            NfcService.getInstance().sendMockNdefTag(msg);
+        }
+    };
+
     final SnepServer.Callback mDefaultSnepCallback = new SnepServer.Callback() {
         @Override
         public SnepMessage doPut(NdefMessage msg) {
+            onReceiveComplete();
             NfcService.getInstance().sendMockNdefTag(msg);
             return SnepMessage.getMessage(SnepMessage.RESPONSE_SUCCESS);
         }
@@ -306,4 +340,55 @@ public class NdefP2pManager {
             return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
         }
     };
+
+    /* Finish up the animation, if running, and play ending sounds.
+     * Must be called on the UI thread.
+     */
+    private void finish(boolean sendSuccess, boolean receiveSuccess) {
+        if (sendSuccess && receiveSuccess) {
+            if (mAnimating) {
+                mScreenshot.finishWithSendReceive();
+            }
+            mListener.onP2pEnd();
+        } else if (sendSuccess) {
+            if (mAnimating) {
+                mScreenshot.finishWithSend();
+            }
+            mListener.onP2pEnd();
+        } else if (receiveSuccess) {
+            // TODO tricky case - sending failed, but we did receive something
+            // see if we can come up with a different animation for that.
+            if (mAnimating) {
+                mScreenshot.finishWithFailure();
+            }
+            mListener.onP2pEnd();
+
+        } else {
+            if (mAnimating) {
+                mScreenshot.finishWithFailure();
+            }
+            mListener.onP2pError();
+        }
+        // Remove all queued messages - until we start again
+        mHandler.removeMessages(MSG_TIMEOUT);
+        mHandler.removeMessages(MSG_RECEIVE_SUCCESS);
+
+        mAnimating = false;
+    }
+
+    @Override
+    public boolean handleMessage(Message msg) {
+        switch (msg.what) {
+        case MSG_RECEIVE_SUCCESS:
+            mReceiveState = STATE_SUCCESS;
+            if (mSendState != STATE_WAITING) {
+                finish(mSendState == STATE_SUCCESS, true);
+            } // else will wait for send to complete
+            break;
+        case MSG_TIMEOUT:
+            finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
+            break;
+        }
+        return true;
+    }
 }

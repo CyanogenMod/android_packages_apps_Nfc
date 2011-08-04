@@ -19,6 +19,7 @@ package com.android.nfc;
 import com.android.nfc3.R;
 
 import android.animation.Animator;
+import android.animation.Animator.AnimatorListener;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
@@ -56,12 +57,20 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     private static final String TAG = "ScreenshotWindowAnimator";
 
     private static final float INITIAL_SCREENSHOT_SCALE = 0.7f;
-    private static final float FINAL_SCREENSHOT_SCALE = 0.3f;
+    private static final float FINAL_SCREENSHOT_SCALE = 0.0f;
 
     private static final int MSG_START_ANIMATION = 1;
-    private static final int MSG_START_SUCCESS_ANIMATION = 2;
-    private static final int MSG_START_FAIL_ANIMATION = 3;
-    private static final int MSG_STOP_ANIMATIONS = 4;
+    private static final int MSG_START_SEND_ANIMATION = 2;
+    private static final int MSG_START_SEND_RECV_ANIMATION = 3;
+    private static final int MSG_START_FAIL_ANIMATION = 4;
+    private static final int MSG_STOP_ANIMATIONS = 5;
+
+    private static final int RESULT_WAITING = 0;
+    private static final int RESULT_FAILURE = 1;
+    private static final int RESULT_SEND = 2;
+    private static final int RESULT_SEND_RECV = 3;
+
+    private static int mResult;
 
     Context mContext;
     LayoutInflater mLayoutInflater;
@@ -79,19 +88,30 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     StartAnimationListener mStartListener;
     EndAnimationListener mEndListener;
 
-    AnimatorSet mSuccessAnimatorSet;
-
+    // Start animator, always played
     ValueAnimator mStartAnimator;
+
+    // Send only animation
+    AnimatorSet mSendRecvAnimatorSet;
     ValueAnimator mScaleDownAnimator;
     ValueAnimator mScaleUpAnimator;
-    ValueAnimator mFailureAnimator;
 
-    // Down animation
+    // Send/receive animation
+    ValueAnimator mFadeToBlackAnimator;
+
+    // Failure animation
+    AnimatorSet mFailureAnimatorSet;
+    ValueAnimator mCenterToLeftAnimator;
+    ValueAnimator mLeftToRightAnimator;
+    ValueAnimator mRightToCenterAnimator;
+
+    ValueAnimator mFailureAnimator;
+    // Down interpolators
     DecelerateInterpolator mScaleDownInterpolator;
     DecelerateInterpolator mAlphaDownInterpolator;
     DecelerateInterpolator mOffsetInterpolator;
 
-    // Up animation
+    // Up interpolators
     AccelerateInterpolator mScaleUpInterpolator;
     AccelerateInterpolator mAlphaUpInterpolator;
     AccelerateInterpolator mCloneScaleDownInterpolator;
@@ -102,7 +122,6 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     // TODO state var could clean this up a lot.
     boolean mAttached = false;
     boolean mWaitingForResult = true;
-    boolean mSuccess = false;
     boolean mStartAnimDone = false;
     boolean mEndRequested = false;
 
@@ -122,7 +141,7 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
             } else {
                 mStartAnimDone = true;
                 if (!mWaitingForResult) { // Result already in
-                    endAnimation(mSuccess);
+                    playEndAnimation(mResult);
                 } //  else, wait for it
             }
         }
@@ -138,54 +157,67 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         }
     }
 
-    void endAnimation(boolean success) {
-        mHandler.sendEmptyMessage(success ? MSG_START_SUCCESS_ANIMATION :
-                MSG_START_FAIL_ANIMATION);
+    void playEndAnimation(int result) {
+        switch (result) {
+            case RESULT_SEND:
+                mHandler.sendEmptyMessage(MSG_START_SEND_ANIMATION);
+                break;
+            case RESULT_SEND_RECV:
+                mHandler.sendEmptyMessage(MSG_START_SEND_RECV_ANIMATION);
+                break;
+            case RESULT_FAILURE:
+                mHandler.sendEmptyMessage(MSG_START_FAIL_ANIMATION);
+                break;
+        }
     }
 
+    ValueAnimator getFloatAnimation(int duration, AnimatorUpdateListener updateListener,
+            AnimatorListener listener) {
+        ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
+        anim.setInterpolator(null);
+        anim.setDuration(duration);
+        if (updateListener != null) {
+            anim.addUpdateListener(updateListener);
+        }
+        if (listener != null) {
+            anim.addListener(listener);
+        }
+
+        return anim;
+    }
     void createAnimators() {
         mStartListener = new StartAnimationListener();
         mEndListener = new EndAnimationListener();
 
-        // Create the starting scale down animation
-        ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
-        anim.setInterpolator(null); // Linear time interpolation
-        anim.setDuration(500); // 500 ms to scale down
-        anim.addUpdateListener(this);
-        anim.addListener(mStartListener);
-        mStartAnimator = anim;
+        mStartAnimator = getFloatAnimation(500, this, mStartListener);
+        mFadeToBlackAnimator = getFloatAnimation(500, this, mEndListener);
 
-        // Create the cloned scale down animation
-        // (First part of animation when successfully sending)
-        anim = ValueAnimator.ofFloat(0f, 1f);
-        anim.setInterpolator(null);
-        anim.setDuration(500);
-        anim.addUpdateListener(this);
-        mScaleDownAnimator = anim;
-
-        // Create the scale up animation
-        // (Second part of animation when successfully sending)
-        anim = ValueAnimator.ofFloat(0f, 1f);
-        anim.setInterpolator(null);
-        anim.setDuration(500);
-        anim.addUpdateListener(this);
-        mScaleUpAnimator = anim;
-
+        mScaleDownAnimator = getFloatAnimation(500, this, null);
+        mScaleUpAnimator = getFloatAnimation(500, this, null);
         // Combine the two in a set
-        mSuccessAnimatorSet = new AnimatorSet();
+        mSendRecvAnimatorSet = new AnimatorSet();
         List<Animator> animList = new ArrayList<Animator>();
         animList.add(mScaleDownAnimator);
         animList.add(mScaleUpAnimator);
-        mSuccessAnimatorSet.playSequentially(animList);
-        mSuccessAnimatorSet.addListener(mEndListener);
+        mSendRecvAnimatorSet.playSequentially(animList);
+        mSendRecvAnimatorSet.addListener(mEndListener);
 
-        // Create the failure animator
-        anim = ValueAnimator.ofFloat(0f, 1f);
-        anim.setInterpolator(null);
-        anim.setDuration(500);
-        anim.addUpdateListener(this);
-        anim.addListener(mEndListener);
-        mFailureAnimator = anim;
+        mCenterToLeftAnimator = getFloatAnimation(80, this, null);
+        mLeftToRightAnimator = getFloatAnimation(80, this, null);
+        mLeftToRightAnimator.setRepeatCount(4);
+        mLeftToRightAnimator.setRepeatMode(ValueAnimator.REVERSE);
+        mRightToCenterAnimator = getFloatAnimation(80, this, null);
+        mFailureAnimator = getFloatAnimation(500, this, null);
+
+        // Combine them into a set
+        mFailureAnimatorSet = new AnimatorSet();
+        animList.clear();
+        animList.add(mCenterToLeftAnimator);
+        animList.add(mLeftToRightAnimator);
+        animList.add(mRightToCenterAnimator);
+        animList.add(mFailureAnimator);
+        mFailureAnimatorSet.playSequentially(animList);
+        mFailureAnimatorSet.addListener(mEndListener);
 
         mScaleDownInterpolator = new DecelerateInterpolator(1.5f);
         mAlphaDownInterpolator = new DecelerateInterpolator(1f);
@@ -314,7 +346,7 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         endAnimations();
 
         // At this point no anims are running, no need to sync these
-        mSuccess = false;
+        mResult = RESULT_WAITING;
         mWaitingForResult = true;
         mStartAnimDone = false;
         mEndRequested = false;
@@ -332,25 +364,47 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         if (mStartAnimator != null) {
             mStartAnimator.end();
         }
-        if (mSuccessAnimatorSet != null) {
-            mSuccessAnimatorSet.end();
+        if (mSendRecvAnimatorSet != null) {
+            mSendRecvAnimatorSet.end();
         }
-        if (mFailureAnimator != null) {
-            mFailureAnimator.end();
+        if (mFadeToBlackAnimator != null) {
+            mFadeToBlackAnimator.end();
+        }
+        if (mFailureAnimatorSet != null) {
+            mFailureAnimatorSet.end();
         }
     }
 
-    /**
-     * Finalizes the running animation with either a success or a failure
-     * animation.
-     * Must be called from the UI thread.
-     */
-    public void complete(boolean result) {
-        mSuccess = result;
+    private void postResult(int result) {
+        mResult = result;
         mWaitingForResult = false;
         if (mStartAnimDone) {
-            endAnimation(result);
-        } // else will show result anim when start anim is done
+            playEndAnimation(mResult);
+        } // else end animation will play when the start anim is done
+    }
+
+    /**
+     * Finalizes the running animation with a failure animation.
+     * Must be called from the UI thread.
+     */
+    public void finishWithFailure() {
+        postResult(RESULT_FAILURE);
+    }
+
+    /**
+     * Finalizes the running animation with the send/recv animation.
+     * Must be called from the UI thread.
+     */
+    public void finishWithSendReceive() {
+        postResult(RESULT_SEND_RECV);
+    }
+
+    /**
+     * Finalizes the running animation with the send-only animation.
+     * Must be called from the UI thread.
+     */
+    public void finishWithSend() {
+        postResult(RESULT_SEND);
     }
 
     /**
@@ -374,9 +428,14 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     }
 
     private void onSuccessCloneAnimationUpdate(ValueAnimator animation) {
-        // Clone the screenshot, split the two and scale them down further
+        // Clone the screenshot
         if (mClonedView.getVisibility() != View.VISIBLE) {
+            // Scale clone to same size
+            mClonedView.setScaleX(mScreenshotView.getScaleX());
+            mClonedView.setScaleY(mScreenshotView.getScaleY());
             mClonedView.setVisibility(View.VISIBLE);
+
+            mScreenshotView.setAlpha(0.5f);
         }
 
         float t = ((Float) animation.getAnimatedValue()).floatValue();
@@ -384,18 +443,10 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         float scaleT = INITIAL_SCREENSHOT_SCALE - (scale *
                 (INITIAL_SCREENSHOT_SCALE - FINAL_SCREENSHOT_SCALE));
 
-        float cloneAlpha = mAlphaDownInterpolator.getInterpolation(t) * 0.5f;
-
-        float offset = mOffsetInterpolator.getInterpolation(t);
-        mScreenshotView.setScaleX(scaleT);
-        mScreenshotView.setScaleY(scaleT);
+        float cloneAlpha = mAlphaDownInterpolator.getInterpolation(t) * 0.4f;
 
         mClonedView.setScaleX(scaleT);
         mClonedView.setScaleY(scaleT);
-        mClonedView.setAlpha(cloneAlpha);
-
-        mScreenshotView.setX((int) (offset * mScreenshotWidth / 4));
-        mClonedView.setX((int) (offset * -mScreenshotWidth / 4));
     }
 
     private void onSuccessUpUpdate(ValueAnimator animation) {
@@ -403,27 +454,37 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         // scale the clone down to zero.
         float t = ((Float) animation.getAnimatedValue()).floatValue();
         float scale = mScaleDownInterpolator.getInterpolation(t);
-        float scaleT = FINAL_SCREENSHOT_SCALE +
-                (scale * (1.0f - FINAL_SCREENSHOT_SCALE));
-        float scaleClone = FINAL_SCREENSHOT_SCALE -
-                (scale * FINAL_SCREENSHOT_SCALE);
-
-        float cloneAlpha = 0.5f + 0.5f * mAlphaDownInterpolator.getInterpolation(t);
-
+        float scaleT = INITIAL_SCREENSHOT_SCALE +
+                (scale * (1.0f - INITIAL_SCREENSHOT_SCALE));
+        float alpha = 0.5f + (0.5f * mAlphaDownInterpolator.getInterpolation(t));
         mScreenshotView.setScaleX(scaleT);
         mScreenshotView.setScaleY(scaleT);
+        mScreenshotView.setAlpha(alpha);
+    }
 
-        mClonedView.setScaleX(scaleClone);
-        mClonedView.setScaleY(scaleClone);
-        mClonedView.setAlpha(cloneAlpha);
+    private void onCenterToLeftUpdate(ValueAnimator animation) {
+        // scale the clone down to zero.
+        float t = ((Float) animation.getAnimatedValue()).floatValue();
+        float scale = mScaleDownInterpolator.getInterpolation(t);
 
-        float offset = 1 - mOffsetInterpolator.getInterpolation(t);
-        mScreenshotView.setX((int) (offset * mScreenshotWidth / 4));
+        mScreenshotView.setX(scale * -mScreenshotWidth / 4);
+    }
+
+    private void onLeftToRightUpdate(ValueAnimator animation) {
+        float t = ((Float) animation.getAnimatedValue()).floatValue();
+
+        mScreenshotView.setX(-mScreenshotWidth / 4 +
+                t * mScreenshotWidth / 2);
+    }
+
+    private void onRightToCenterUpdate(ValueAnimator animation) {
+        float t = ((Float) animation.getAnimatedValue()).floatValue();
+        float scale = mScaleDownInterpolator.getInterpolation(t);
+        mScreenshotView.setX((1 - scale) * mScreenshotWidth / 4);
     }
 
     private void onFailureUpdate(ValueAnimator animation) {
         // Scale back from initial scale to normal scale
-        // TODO add some shaking
         float t = ((Float) animation.getAnimatedValue()).floatValue();
         float scale = mScaleDownInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE + (scale *
@@ -432,6 +493,15 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         mScreenshotView.setScaleX(scaleT);
         mScreenshotView.setScaleY(scaleT);
 
+    }
+
+    private void onFadeToBlackUpdate(ValueAnimator animation) {
+        float t = ((Float) animation.getAnimatedValue()).floatValue();
+        float scale = mScaleDownInterpolator.getInterpolation(t);
+        float scaleT = INITIAL_SCREENSHOT_SCALE - (INITIAL_SCREENSHOT_SCALE * scale);
+
+        mScreenshotView.setScaleX(scaleT);
+        mScreenshotView.setScaleY(scaleT);
     }
 
     @Override
@@ -444,6 +514,16 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
             onSuccessUpUpdate(animation);
         } else if (animation == mFailureAnimator) {
             onFailureUpdate(animation);
+        } else if (animation == mFadeToBlackAnimator) {
+            onFadeToBlackUpdate(animation);
+        } else if (animation == mCenterToLeftAnimator) {
+            onCenterToLeftUpdate(animation);
+        } else if (animation == mLeftToRightAnimator) {
+            onLeftToRightUpdate(animation);
+        } else if (animation == mRightToCenterAnimator) {
+            onRightToCenterUpdate(animation);
+        } else if (animation == mFailureAnimator) {
+            onFailureUpdate(animation);
         }
     }
 
@@ -454,12 +534,16 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
                 mStartAnimator.start();
                 break;
             }
-            case MSG_START_SUCCESS_ANIMATION: {
-                mSuccessAnimatorSet.start();
+            case MSG_START_SEND_ANIMATION: {
+                mSendRecvAnimatorSet.start();
+                break;
+            }
+            case MSG_START_SEND_RECV_ANIMATION: {
+                mFadeToBlackAnimator.start();
                 break;
             }
             case MSG_START_FAIL_ANIMATION: {
-                mFailureAnimator.start();
+                mFailureAnimatorSet.start();
                 break;
             }
             case MSG_STOP_ANIMATIONS: {
