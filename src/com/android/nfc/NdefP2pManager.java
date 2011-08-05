@@ -184,9 +184,10 @@ public class NdefP2pManager implements Handler.Callback {
                 try {
                     ApplicationInfo appInfo = mPackageManager.getApplicationInfo(pkg, 0);
                     if (0 == (appInfo.flags & ApplicationInfo.FLAG_SYSTEM)) {
-                        NdefRecord appRecord = NdefRecord.createUri(
+                        NdefRecord appUri = NdefRecord.createUri(
                                 Uri.parse("http://market.android.com/search?q=pname:" + pkg));
-                        foregroundMsg = new NdefMessage(new NdefRecord[] { appRecord });
+                        NdefRecord appRecord = NdefRecord.createApplicationRecord(pkg);
+                        foregroundMsg = new NdefMessage(new NdefRecord[] { appUri, appRecord });
                     }
                 } catch (NameNotFoundException e) {
                     Log.e(TAG, "Bad package returned from ActivityManager: " + pkg);
