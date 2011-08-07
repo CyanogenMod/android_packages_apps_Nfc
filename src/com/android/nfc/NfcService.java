@@ -304,7 +304,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
 
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
         mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-        mScreenUnlocked = !mKeyguard.isKeyguardLocked() && !mKeyguard.isKeyguardSecure();
+        mScreenUnlocked = pm.isScreenOn() && !mKeyguard.isKeyguardLocked();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
