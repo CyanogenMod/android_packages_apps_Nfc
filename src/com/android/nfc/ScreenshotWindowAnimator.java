@@ -36,6 +36,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
@@ -53,7 +54,8 @@ import java.util.List;
  *   - what do we say in the Toast? Which icon do we get if the user uses another
  *     type of gallery?
  */
-public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdateListener {
+public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdateListener,
+        View.OnTouchListener {
     private static final String TAG = "ScreenshotWindowAnimator";
 
     private static final float INITIAL_SCREENSHOT_SCALE = 0.7f;
@@ -125,7 +127,15 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     boolean mStartAnimDone = false;
     boolean mEndRequested = false;
 
-    Handler mHandler;
+    final Handler mHandler;
+    final Callback mCallback;
+
+    /* Interface to be used whenever the user confirms
+     * the send action.
+     */
+    interface Callback {
+        public void onConfirmSend();
+    }
 
     class StartAnimationListener extends AnimatorListenerAdapter {
         @Override
@@ -212,9 +222,12 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         // Combine them into a set
         mFailureAnimatorSet = new AnimatorSet();
         animList.clear();
+
+        /*
         animList.add(mCenterToLeftAnimator);
         animList.add(mLeftToRightAnimator);
         animList.add(mRightToCenterAnimator);
+        */
         animList.add(mFailureAnimator);
         mFailureAnimatorSet.playSequentially(animList);
         mFailureAnimatorSet.addListener(mEndListener);
@@ -232,8 +245,9 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
     /**
      * @param context everything needs a context :(
      */
-    public ScreenshotWindowAnimator(Context context) {
+    public ScreenshotWindowAnimator(Context context, Callback callback) {
         mContext = context;
+        mCallback = callback;
         mHandler = new Handler(this);
         mLayoutInflater = (LayoutInflater)
                 context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -257,10 +271,12 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
          */
 
         // Setup the window that we are going to use
+        // TODO Figure out how to do OnTouch using TYPE_SYSTEM_OVERLAY
+        // and re-add TYPE_SYSTEM_OVERLAY to layout params below.
         mWindowLayoutParams =
                 new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0,
-                WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+                0,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
                     | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                     | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED_SYSTEM
@@ -271,6 +287,12 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         mWindowLayoutParams.setTitle("ScreenshotAnimation");
         mWindowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         mDisplay = mWindowManager.getDefaultDisplay();
+
+        mScreenshotView.setOnTouchListener(this);
+        mClonedView.setOnTouchListener(this);
+
+
+
     }
 
     /**
@@ -297,6 +319,10 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         // We need to orient the screenshot correctly (and the Surface api seems to
         // take screenshots
         // only in the natural orientation of the device :!)
+
+        // Make sure any existing animations are ended
+        endAnimations();
+
         mDisplay.getRealMetrics(mDisplayMetrics);
         float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
@@ -342,9 +368,6 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
 
         mScreenshotWidth = mScreenBitmap.getWidth();
 
-        // Make sure any existing animations are ended
-        endAnimations();
-
         // At this point no anims are running, no need to sync these
         mResult = RESULT_WAITING;
         mWaitingForResult = true;
@@ -372,6 +395,11 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         }
         if (mFailureAnimatorSet != null) {
             mFailureAnimatorSet.end();
+        }
+
+        if (mAttached) {
+            mWindowManager.removeView(mScreenshotLayout);
+            mAttached = false;
         }
     }
 
@@ -413,7 +441,7 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
      * Must be called from the UI thread.
      */
     public void stop() {
-        mHandler.sendEmptyMessage(MSG_STOP_ANIMATIONS);
+        endAnimations();
     }
 
     private void onStartAnimationUpdate(ValueAnimator animation) {
@@ -442,8 +470,6 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
         float scale = mScaleDownInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE - (scale *
                 (INITIAL_SCREENSHOT_SCALE - FINAL_SCREENSHOT_SCALE));
-
-        float cloneAlpha = mAlphaDownInterpolator.getInterpolation(t) * 0.4f;
 
         mClonedView.setScaleX(scaleT);
         mClonedView.setScaleY(scaleT);
@@ -551,6 +577,12 @@ public class ScreenshotWindowAnimator implements Handler.Callback, AnimatorUpdat
                 break;
             }
         }
+        return true;
+    }
+
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        mCallback.onConfirmSend();
         return true;
     }
 }

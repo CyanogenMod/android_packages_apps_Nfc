@@ -29,5 +29,5 @@
 
     <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_nfc_enabled">NFC enabled.</string>
-
+    <string name="touch">Tap to share!</string>
 </resources>

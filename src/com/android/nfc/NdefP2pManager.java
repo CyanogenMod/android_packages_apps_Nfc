@@ -37,16 +37,19 @@ import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.Vibrator;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Profile;
 import android.util.Log;
+import android.view.OrientationEventListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-public class NdefP2pManager implements Handler.Callback {
+public class NdefP2pManager implements Handler.Callback,
+        ScreenshotWindowAnimator.Callback {
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
@@ -59,6 +62,7 @@ public class NdefP2pManager implements Handler.Callback {
     static final int MSG_RECEIVE_SUCCESS = 0;
     static final int MSG_TIMEOUT = 1;
 
+    static final long[] mVibPattern = {0, 100, 100, 150, 100, 250, 100, 10000};
     static final String TAG = "P2PManager";
     static final boolean DBG = true;
 
@@ -70,20 +74,27 @@ public class NdefP2pManager implements Handler.Callback {
     final Context mContext;
     final P2pStatusListener mListener;
 
+    final Vibrator mVibrator;
+
     // Used only from the UI thread
     PushTask mPushTask;
     Handler mHandler;
     int mSendState;
     int mReceiveState;
     boolean mAnimating;
+    boolean mSendStarted;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
             build();
 
+    NdefMessage mPushMsg;
+
     /** Locked on NdefP2pManager.class */
     NdefMessage mForegroundMsg;
     INdefPushCallback mCallback;
+
+    OrientationEventListener mOrientationListener;
 
     public NdefP2pManager(Context context, P2pStatusListener listener) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
@@ -91,12 +102,24 @@ public class NdefP2pManager implements Handler.Callback {
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
-        mScreenshot = new ScreenshotWindowAnimator(context);
+        mScreenshot = new ScreenshotWindowAnimator(context, this);
         mListener = listener;
         mAnimating = false;
         mHandler = new Handler(this);
         mSendState = STATE_WAITING;
         mReceiveState = STATE_WAITING;
+        mVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        mSendStarted = false;
+
+        mOrientationListener = new OrientationEventListener(context) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                if (mAnimating &&  (orientation > 50 && orientation < 310)) {
+                    onConfirmSend();
+                }
+            }
+        };
+
     }
 
     public void enableNdefServer() {
@@ -156,8 +179,11 @@ public class NdefP2pManager implements Handler.Callback {
     void llcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
+        mOrientationListener.enable();
+        mVibrator.vibrate(mVibPattern, 6);
         mSendState = STATE_WAITING;
         mReceiveState = STATE_WAITING;
+        mHandler.removeMessages(MSG_TIMEOUT);
 
         NdefMessage foregroundMsg;
         synchronized (this) {
@@ -197,29 +223,30 @@ public class NdefP2pManager implements Handler.Callback {
             }
         }
 
-        if (mPushTask != null) {
-            mPushTask.cancel(true);
-        }
-        mPushTask = new PushTask(foregroundMsg);
-
-        // Start rendering the animation if we have something to send,
-        // otherwise just sound.
-        if (foregroundMsg != null) {
+        // If an animation is still running, we don't restart it to avoid
+        // nasty effects if at the edge of RF field.
+        if (foregroundMsg != null && !mAnimating) {
+            mScreenshot.stop();
             mScreenshot.start();
             mAnimating = true;
+            mSendStarted = false;
+            mListener.onP2pBegin();
         }
-        mListener.onP2pBegin();
-        mPushTask.execute();
+
+        mPushMsg = foregroundMsg;
     }
 
     void llcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
+        mOrientationListener.disable();
+        mVibrator.cancel();
         if (mPushTask != null) {
             mPushTask.cancel(true);
             mPushTask = null;
         }
-
-        finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
+        // Don't cancel the animation immediately - retain it
+        // up to one second.
+        mHandler.sendEmptyMessageDelayed(MSG_TIMEOUT, 1000);
     }
 
     /**
@@ -229,11 +256,7 @@ public class NdefP2pManager implements Handler.Callback {
      */
     void onSendComplete(boolean success) {
         mSendState = success ? STATE_SUCCESS : STATE_FAILURE;
-        if (mReceiveState != STATE_WAITING) {
-            finish(success, mReceiveState == STATE_SUCCESS);
-        } else {
-            mHandler.sendEmptyMessageDelayed(MSG_TIMEOUT, RECEIVE_TIMEOUT_MS);
-        }
+        finish(success, mReceiveState == STATE_SUCCESS);
     }
 
     /**
@@ -346,24 +369,18 @@ public class NdefP2pManager implements Handler.Callback {
      * Must be called on the UI thread.
      */
     private void finish(boolean sendSuccess, boolean receiveSuccess) {
-        if (sendSuccess && receiveSuccess) {
+
+        if (mSendStarted && sendSuccess) {
             if (mAnimating) {
                 mScreenshot.finishWithSendReceive();
             }
             mListener.onP2pEnd();
-        } else if (sendSuccess) {
-            if (mAnimating) {
-                mScreenshot.finishWithSend();
-            }
-            mListener.onP2pEnd();
-        } else if (receiveSuccess) {
-            // TODO tricky case - sending failed, but we did receive something
-            // see if we can come up with a different animation for that.
+        }
+        else if (mSendStarted && !sendSuccess) {
             if (mAnimating) {
                 mScreenshot.finishWithFailure();
             }
-            mListener.onP2pEnd();
-
+            mListener.onP2pError();
         } else {
             if (mAnimating) {
                 mScreenshot.finishWithFailure();
@@ -374,6 +391,7 @@ public class NdefP2pManager implements Handler.Callback {
         mHandler.removeMessages(MSG_TIMEOUT);
         mHandler.removeMessages(MSG_RECEIVE_SUCCESS);
 
+        mVibrator.cancel();
         mAnimating = false;
     }
 
@@ -382,14 +400,24 @@ public class NdefP2pManager implements Handler.Callback {
         switch (msg.what) {
         case MSG_RECEIVE_SUCCESS:
             mReceiveState = STATE_SUCCESS;
-            if (mSendState != STATE_WAITING) {
-                finish(mSendState == STATE_SUCCESS, true);
-            } // else will wait for send to complete
             break;
         case MSG_TIMEOUT:
             finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
             break;
         }
         return true;
+    }
+
+    @Override
+    public void onConfirmSend() {
+        if (!mSendStarted) {
+            // Start sending
+            if (mPushTask != null) {
+                mPushTask.cancel(true);
+            }
+            mSendStarted = true;
+            mPushTask = new PushTask(mPushMsg);
+            mPushTask.execute();
+        }
     }
 }
