@@ -44,12 +44,13 @@ import android.util.Log;
 import android.view.OrientationEventListener;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.util.List;
 
-public class NdefP2pManager implements Handler.Callback,
-        ScreenshotWindowAnimator.Callback {
+public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimator.Callback {
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
@@ -61,6 +62,8 @@ public class NdefP2pManager implements Handler.Callback,
 
     static final int MSG_RECEIVE_SUCCESS = 0;
     static final int MSG_TIMEOUT = 1;
+    static final int MSG_ENABLE = 2;
+    static final int MSG_DISABLE = 3;
 
     static final long[] mVibPattern = {0, 100, 100, 150, 100, 250, 100, 10000};
     static final String TAG = "P2PManager";
@@ -73,7 +76,6 @@ public class NdefP2pManager implements Handler.Callback,
     final PackageManager mPackageManager;
     final Context mContext;
     final P2pStatusListener mListener;
-
     final Vibrator mVibrator;
 
     // Used only from the UI thread
@@ -83,6 +85,7 @@ public class NdefP2pManager implements Handler.Callback,
     int mReceiveState;
     boolean mAnimating;
     boolean mSendStarted;
+    boolean mIsP2pEnabled;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
@@ -90,7 +93,7 @@ public class NdefP2pManager implements Handler.Callback,
 
     NdefMessage mPushMsg;
 
-    /** Locked on NdefP2pManager.class */
+    // Locked on NdefP2pManager.this
     NdefMessage mForegroundMsg;
     INdefPushCallback mCallback;
 
@@ -110,6 +113,7 @@ public class NdefP2pManager implements Handler.Callback,
         mReceiveState = STATE_WAITING;
         mVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         mSendStarted = false;
+        mIsP2pEnabled = false;
 
         mOrientationListener = new OrientationEventListener(context) {
             @Override
@@ -119,21 +123,33 @@ public class NdefP2pManager implements Handler.Callback,
                 }
             }
         };
-
     }
 
-    public void enableNdefServer() {
-        // Default
-        mDefaultSnepServer.start();
-        // Legacy
-        mNdefPushServer.start();
+    /**
+     * Enable P2P features (both send and receive).
+     * May be called from any thread.
+     */
+    public void enableP2p() {
+        // Handle this on the UI thread, so that we can more easily handle
+        // serialization if there is an LLCP link in progress
+        mHandler.sendEmptyMessage(MSG_ENABLE);
     }
 
-    public void disableNdefServer() {
-        mDefaultSnepServer.stop();
-        mNdefPushServer.stop();
+    /**
+     * Disable P2P features (both send and receive).
+     * May be called from any thread.
+     */
+    public void disableP2p() {
+        // Handle this on the UI thread, so that we can more easily handle
+        // serialization if there is an LLCP link in progress
+        mHandler.sendEmptyMessage(MSG_DISABLE);
     }
 
+    /**
+     * Set static foreground message. May be called from any thread.
+     * Allow the message to be set even if P2P is disabled,
+     * so that it is ready to go if P2P is enabled.
+     */
     public boolean setForegroundMessage(NdefMessage msg) {
         synchronized (this) {
             boolean set = mForegroundMsg != null;
@@ -142,6 +158,11 @@ public class NdefP2pManager implements Handler.Callback,
         }
     }
 
+    /**
+     * Set callback for NDEF message. May be called from any thread.
+     * Allow the callback to be set even if P2P is disabled,
+     * so that it is ready to go if P2P is enabled.
+     */
     public boolean setForegroundCallback(INdefPushCallback callback) {
         synchronized (this) {
             boolean set = mCallback != null;
@@ -150,34 +171,16 @@ public class NdefP2pManager implements Handler.Callback,
         }
     }
 
-    public NdefMessage getMeProfile() {
-        NdefMessage ndefMsg = null;
-        ContentResolver resolver = mContext.getContentResolver();
-        ByteArrayOutputStream ndefBytes = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int r;
-        try {
-            InputStream vcardInputStream = resolver.openInputStream(mProfileUri);
-            while ((r = vcardInputStream.read(buffer)) > 0) {
-                ndefBytes.write(buffer, 0, r);
-            }
-            if (ndefBytes.size() > 0) {
-                NdefRecord vcardRecord = new NdefRecord(NdefRecord.TNF_MIME_MEDIA,
-                        "text/x-vCard".getBytes(), new byte[] {},
-                        ndefBytes.toByteArray());
-                ndefMsg = new NdefMessage(new NdefRecord[] {vcardRecord});
-            } else {
-                Log.w(TAG, "Me profile vcard size is empty.");
-            }
-        } catch (IOException e) {
-            Log.w(TAG, "IOException on creating me profile.");
-        }
-
-        return ndefMsg;
-    }
-
-    void llcpActivated() {
+    /**
+     * Must be called on UI thread.
+     */
+    public void onLlcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
+
+        if (!mIsP2pEnabled) {
+            if (DBG) Log.d(TAG, "P2P disabled, ignoring");
+            return;
+        }
 
         mOrientationListener.enable();
         mVibrator.vibrate(mVibPattern, 6);
@@ -236,8 +239,12 @@ public class NdefP2pManager implements Handler.Callback,
         mPushMsg = foregroundMsg;
     }
 
-    void llcpDeactivated() {
+    /**
+     * Must be called on UI Thread.
+     */
+    public void onLlcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
+
         mOrientationListener.disable();
         mVibrator.cancel();
         if (mPushTask != null) {
@@ -365,10 +372,11 @@ public class NdefP2pManager implements Handler.Callback,
         }
     };
 
-    /* Finish up the animation, if running, and play ending sounds.
+    /**
+     * Finish up the animation, if running, and play ending sounds.
      * Must be called on the UI thread.
      */
-    private void finish(boolean sendSuccess, boolean receiveSuccess) {
+    void finish(boolean sendSuccess, boolean receiveSuccess) {
 
         if (mSendStarted && sendSuccess) {
             if (mAnimating) {
@@ -398,12 +406,28 @@ public class NdefP2pManager implements Handler.Callback,
     @Override
     public boolean handleMessage(Message msg) {
         switch (msg.what) {
-        case MSG_RECEIVE_SUCCESS:
-            mReceiveState = STATE_SUCCESS;
-            break;
-        case MSG_TIMEOUT:
-            finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
-            break;
+            case MSG_RECEIVE_SUCCESS:
+                mReceiveState = STATE_SUCCESS;
+                break;
+            case MSG_TIMEOUT:
+                finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
+                break;
+            case MSG_DISABLE:
+                if (!mIsP2pEnabled) {
+                    break;
+                }
+                mIsP2pEnabled = false;
+                mDefaultSnepServer.stop();
+                mNdefPushServer.stop();
+                break;
+            case MSG_ENABLE:
+                if (mIsP2pEnabled) {
+                    break;
+                }
+                mIsP2pEnabled = true;
+                mDefaultSnepServer.start();
+                mNdefPushServer.start();
+                break;
         }
         return true;
     }
@@ -418,6 +442,14 @@ public class NdefP2pManager implements Handler.Callback,
             mSendStarted = true;
             mPushTask = new PushTask(mPushMsg);
             mPushTask.execute();
+        }
+    }
+
+    void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        synchronized (this) {
+            pw.println("mIsP2pEnabled=" + mIsP2pEnabled);
+            pw.println("mForegroundMsg=" + mForegroundMsg);
+            pw.println("mCallback=" + mCallback);
         }
     }
 }
