@@ -266,4 +266,10 @@ public final class SnepServer {
             }
         }
     }
+
+    public boolean isRunning() {
+        synchronized (SnepServer.this) {
+            return mServerRunning;
+        }
+    }
 }

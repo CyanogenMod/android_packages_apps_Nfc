@@ -41,6 +41,13 @@
             android:excludeFromRecents="true"
             android:multiprocess="true"
         />
+        <activity android:name="com.android.nfc.P2pAnimationActivity"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:hardwareAccelerated="true"
+            android:configChanges="orientation"
+        />
 
     </application>
 </manifest>
