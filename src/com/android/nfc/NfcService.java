@@ -290,6 +290,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
 
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
+        mExtrasService = new NfcAdapterExtrasService();
 
         Log.i(TAG, "Starting NFC service");
 
@@ -504,7 +505,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             boolean tempEnable = mState == NfcAdapter.STATE_OFF;
             if (tempEnable) {
                 if (!enableInternal()) {
-                    Log.w(TAG, "Could not enable NFC to wipe Secure Element");
+                    Log.w(TAG, "Could not enable NFC to wipe NFC-EE");
                     return;
                 }
             }
@@ -521,7 +522,11 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
 
             for (byte[] cmd : apdus) {
-                mSecureElement.doTransceive(handle, cmd);
+                byte[] resp = mSecureElement.doTransceive(handle, cmd);
+                if (resp == null) {
+                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
+                    break;
+                }
             }
 
             mDeviceHost.resetTimeouts();
