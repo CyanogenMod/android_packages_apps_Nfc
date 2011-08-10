@@ -24,8 +24,8 @@ import com.android.nfc.snep.SnepServer;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningTaskInfo;
-import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -43,14 +43,12 @@ import android.provider.ContactsContract.Profile;
 import android.util.Log;
 import android.view.OrientationEventListener;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.util.List;
 
-public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimator.Callback {
+public class NdefP2pManager implements Handler.Callback, P2pAnimationActivity.Callback {
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
@@ -65,11 +63,10 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
     static final int MSG_ENABLE = 2;
     static final int MSG_DISABLE = 3;
 
-    static final long[] mVibPattern = {0, 100, 100, 150, 100, 250, 100, 10000};
+    static final long[] mVibPattern = {0, 100, 10000};
     static final String TAG = "P2PManager";
     static final boolean DBG = true;
 
-    final ScreenshotWindowAnimator mScreenshot;
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
     final ActivityManager mActivityManager;
@@ -86,6 +83,13 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
     boolean mAnimating;
     boolean mSendStarted;
     boolean mIsP2pEnabled;
+
+    // Variables below may be read/written from both the UI thread and the
+    // thread calling onOrientationChanged. Synchronized on this.
+    boolean mNeedStartOrientation;
+
+    // Variables below are modified only on the thread calling onOrientationChanged
+    int mStartOrientation;
 
     final static Uri mProfileUri = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
@@ -105,7 +109,6 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
-        mScreenshot = new ScreenshotWindowAnimator(context, this);
         mListener = listener;
         mAnimating = false;
         mHandler = new Handler(this);
@@ -118,11 +121,20 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
         mOrientationListener = new OrientationEventListener(context) {
             @Override
             public void onOrientationChanged(int orientation) {
-                if (mAnimating &&  (orientation > 50 && orientation < 310)) {
-                    onConfirmSend();
+                synchronized (this) {
+                    if (mNeedStartOrientation) {
+                        mStartOrientation = orientation;
+                        mNeedStartOrientation = false;
+                    }
+                }
+                int diff = ((((mStartOrientation - orientation) % 360) + 540) % 360) - 180;
+                if (mAnimating && Math.abs(diff) > 35) {
+                    onSendConfirmed();
+                    // TODO give visual clue
                 }
             }
         };
+
     }
 
     /**
@@ -177,15 +189,18 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
     public void onLlcpActivated() {
         if (DBG) Log.d(TAG, "LLCP connection up and running");
 
+        mVibrator.vibrate(mVibPattern, -1);
+        mSendState = STATE_WAITING;
+        mReceiveState = STATE_WAITING;
+
         if (!mIsP2pEnabled) {
             if (DBG) Log.d(TAG, "P2P disabled, ignoring");
             return;
         }
 
-        mOrientationListener.enable();
-        mVibrator.vibrate(mVibPattern, 6);
-        mSendState = STATE_WAITING;
-        mReceiveState = STATE_WAITING;
+        // If the LLCP link came up again, remove any pending timeout
+        // messages that will cancel the animation - we may still
+        // complete it now.
         mHandler.removeMessages(MSG_TIMEOUT);
 
         NdefMessage foregroundMsg;
@@ -229,14 +244,24 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
         // If an animation is still running, we don't restart it to avoid
         // nasty effects if at the edge of RF field.
         if (foregroundMsg != null && !mAnimating) {
-            mScreenshot.stop();
-            mScreenshot.start();
+            // Start listening for orientation changes
+            synchronized (NdefP2pManager.this) {
+                mNeedStartOrientation = true;
+                mOrientationListener.enable();
+            }
+            mPushMsg = foregroundMsg;
+            // Create a screenshot
+            P2pAnimationActivity.makeScreenshot(mContext);
+            P2pAnimationActivity.setCallback(this);
+            // Start the animation activity
+            Intent animIntent = new Intent();
+            animIntent.setClass(mContext, P2pAnimationActivity.class);
+            animIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(animIntent);
             mAnimating = true;
             mSendStarted = false;
             mListener.onP2pBegin();
         }
-
-        mPushMsg = foregroundMsg;
     }
 
     /**
@@ -244,8 +269,6 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
      */
     public void onLlcpDeactivated() {
         if (DBG) Log.d(TAG, "LLCP deactivated.");
-
-        mOrientationListener.disable();
         mVibrator.cancel();
         if (mPushTask != null) {
             mPushTask.cancel(true);
@@ -380,20 +403,20 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
 
         if (mSendStarted && sendSuccess) {
             if (mAnimating) {
-                mScreenshot.finishWithSendReceive();
+                P2pAnimationActivity.finishWithSend();
             }
             mListener.onP2pEnd();
-        }
-        else if (mSendStarted && !sendSuccess) {
+        } else if (receiveSuccess){
             if (mAnimating) {
-                mScreenshot.finishWithFailure();
+                P2pAnimationActivity.finishWithReceive();
             }
-            mListener.onP2pError();
+            mListener.onP2pEnd();
         } else {
             if (mAnimating) {
-                mScreenshot.finishWithFailure();
+                P2pAnimationActivity.finishWithFailure();
             }
             mListener.onP2pError();
+
         }
         // Remove all queued messages - until we start again
         mHandler.removeMessages(MSG_TIMEOUT);
@@ -401,6 +424,7 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
 
         mVibrator.cancel();
         mAnimating = false;
+        mOrientationListener.disable();
     }
 
     @Override
@@ -408,6 +432,7 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
         switch (msg.what) {
             case MSG_RECEIVE_SUCCESS:
                 mReceiveState = STATE_SUCCESS;
+                finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
                 break;
             case MSG_TIMEOUT:
                 finish(mSendState == STATE_SUCCESS, mReceiveState == STATE_SUCCESS);
@@ -417,23 +442,27 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
                     break;
                 }
                 mIsP2pEnabled = false;
-                mDefaultSnepServer.stop();
-                mNdefPushServer.stop();
+                // Don't disable our p2p servers here - we still want to be able
+                // to receive data
                 break;
             case MSG_ENABLE:
                 if (mIsP2pEnabled) {
                     break;
                 }
+                if (!mDefaultSnepServer.isRunning()) {
+                    mDefaultSnepServer.start();
+                }
+                if (!mNdefPushServer.isRunning()) {
+                    mNdefPushServer.start();
+                }
                 mIsP2pEnabled = true;
-                mDefaultSnepServer.start();
-                mNdefPushServer.start();
                 break;
         }
         return true;
     }
 
     @Override
-    public void onConfirmSend() {
+    public void onSendConfirmed() {
         if (!mSendStarted) {
             // Start sending
             if (mPushTask != null) {
@@ -442,6 +471,8 @@ public class NdefP2pManager implements Handler.Callback, ScreenshotWindowAnimato
             mSendStarted = true;
             mPushTask = new PushTask(mPushMsg);
             mPushTask.execute();
+
+            mVibrator.vibrate(mVibPattern, -1);
         }
     }
 
