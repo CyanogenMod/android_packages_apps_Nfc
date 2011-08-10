@@ -435,6 +435,9 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                     executeEeWipe();
                     break;
             }
+
+            // Restore default AsyncTask priority
+            Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
             return null;
         }
 
