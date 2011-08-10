@@ -60,6 +60,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.provider.Settings;
@@ -401,6 +402,15 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                             mState);
                     return null;
             }
+
+            /* AsyncTask sets this thread to THREAD_PRIORITY_BACKGROUND,
+             * override with the default. THREAD_PRIORITY_BACKGROUND causes
+             * us to service software I2C too slow for firmware download
+             * with the NXP PN544.
+             * TODO: move this to the DAL I2C layer in libnfc-nxp, since this
+             * problem only occurs on I2C platforms using PN544
+             */
+            Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
 
             switch (params[0].intValue()) {
                 case TASK_ENABLE:
