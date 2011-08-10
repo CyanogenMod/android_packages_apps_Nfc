@@ -127,8 +127,22 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
       
       if(status == NFCSTATUS_MULTIPLE_PROTOCOLS)
       {	
+         bool foundHandle = false;
          TRACE("Multiple Protocol supported\n");
-         secureElementHandle = psRemoteDevList[1].hTargetDev;         
+         for (i=0; i<uNofRemoteDev; i++) {
+             // Always open the phNfc_eISO14443_A_PICC protocol
+             TRACE("Protocol %d handle=%x type=%d", i, psRemoteDevList[i].hTargetDev,
+                     psRemoteDevList[i].psRemoteDevInfo->RemDevType);
+             if (psRemoteDevList[i].psRemoteDevInfo->RemDevType == phNfc_eISO14443_A_PICC) {
+                 secureElementHandle = psRemoteDevList[i].hTargetDev;
+                 foundHandle = true;
+             }
+         }
+         if (!foundHandle) {
+             LOGE("Could not find ISO-DEP secure element");
+             status = NFCSTATUS_FAILED;
+             goto clean_and_return;
+         }
       }
       else
       {
@@ -158,7 +172,8 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
       // so make sure to delete the local refernce to the tech list.
       e->DeleteLocalRef(techList);
    }
-         
+
+clean_and_return:
    pContextData->status = status;
    sem_post(&pContextData->sem);
 }
