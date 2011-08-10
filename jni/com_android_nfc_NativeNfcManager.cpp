@@ -2049,6 +2049,7 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
 static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
 {
    NFCSTATUS ret;
+   bool freeData = false;
    jboolean result = JNI_FALSE;
    struct nfc_jni_native_data *nat;
    struct nfc_jni_callback_data  *cb_data;
@@ -2056,7 +2057,11 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
 
    CONCURRENCY_LOCK();
 
-   /* Memory allocation for cb_data */
+   /* Memory allocation for cb_data
+    * This is on the heap because it is used by libnfc
+    * even after this call has succesfully finished. It is only freed
+    * upon link closure in nfc_jni_llcp_linkStatus_callback.
+    */
    cb_data = (struct nfc_jni_callback_data*) malloc (sizeof(nfc_jni_callback_data));
 
    /* Retrieve native structure address */
@@ -2081,7 +2086,7 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
    if(ret != NFCSTATUS_PENDING && ret != NFCSTATUS_SUCCESS)
    {
       LOGE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      free(cb_data);
+      freeData = true;
       goto clean_and_return;
    }
    TRACE("phLibNfc_Llcp_CheckLlcp() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -2100,6 +2105,9 @@ static jboolean com_android_nfc_NfcManager_doCheckLlcp(JNIEnv *e, jobject o)
 
 clean_and_return:
    nfc_cb_data_deinit(cb_data);
+   if (freeData) {
+       free(cb_data);
+   }
    CONCURRENCY_UNLOCK();
    return result;
 }
