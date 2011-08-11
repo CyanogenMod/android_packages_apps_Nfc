@@ -64,6 +64,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private static final int STATE_RECEIVE_SUCCESS = 3;
     private static final int STATE_FAILURE = 4;
 
+    private static final int ARROW_START_ROTATION = 20;
+    private static final int ARROW_FINISH_ROTATION = -50;
+    private static final int DURATION_MS = 1400;
+
     Context mContext;
     LayoutInflater mLayoutInflater;
     View mScreenshotLayout;
@@ -173,7 +177,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
 
         mStartAnimator = getFloatAnimation(500, this, mStartListener);
-        mArrowStarsAnimator = getFloatAnimation(3000, this, null);
+        mArrowStarsAnimator = getFloatAnimation(DURATION_MS, this, null);
         mArrowStarsAnimator.setRepeatCount(ValueAnimator.INFINITE);
 
         //mArrowAnimator.setStartDelay(250);
@@ -396,11 +400,14 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     }
 
     private void onArrowStarsAnimationUpdate(ValueAnimator animation) {
+
         float t = ((Float) animation.getAnimatedValue()).floatValue();
         float offset = mDecelerateInterpolator.getInterpolation(t);
 
-        mBottomArrow.setRotation(-30 * offset);
-        mTopArrow.setRotation(- 30 * offset);
+        int rotation = (int) ((double)ARROW_START_ROTATION * (1.0 - offset) +
+                    (double) ARROW_FINISH_ROTATION * offset);
+        mBottomArrow.setRotation(rotation);
+        mTopArrow.setRotation(rotation);
 
         float scale = 1.0f + (0.5f * offset);
         mStars.setScaleX(scale);
