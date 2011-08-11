@@ -18,14 +18,48 @@
     android:layout_height="match_parent"
     android:background="#FF000000"
 >
-    <TextView android:id="@+id/calltoaction"
-        android:layout_width="fill_parent"
+    <ImageView android:id="@+id/stars"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/touch"
-        android:paddingTop="20dip"
-        android:textSize="50px"
-        android:gravity="center"
+        android:adjustViewBounds="true"
+        android:src="@drawable/p2p_bg"
     />
+    <RelativeLayout android:layout_width="match_parent"
+        android:layout_height="match_parent"
+    >
+        <ImageView android:id="@+id/rotatetop"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:adjustViewBounds="true"
+	        android:src="@drawable/ic_rotate_arrow_top"
+	        android:layout_alignParentRight="true"
+	        android:layout_marginTop="60dip"
+	        android:layout_marginRight="15dip"
+	        android:transformPivotX="0.0px"
+	        android:transformPivotY="100.0px"
+	    />
+	    <ImageView android:id="@+id/rotatebottom"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:adjustViewBounds="true"
+	        android:src="@drawable/ic_rotate_arrow"
+	        android:layout_alignParentBottom="true"
+	        android:layout_marginBottom="60dip"
+	        android:layout_marginLeft="15dip"
+	        android:transformPivotX="100.0px"
+	        android:transformPivotY="0.0px"
+	    />
+	    <TextView android:id="@+id/calltoaction"
+		    android:layout_width="fill_parent"
+		    android:layout_height="wrap_content"
+		    android:text="@string/touch"
+		    android:textSize="35px"
+		    android:layout_alignParentBottom="true"
+		    android:paddingBottom="30dip"
+		    android:gravity="center"
+	    />
+    </RelativeLayout>
+
     <ImageView android:id="@+id/clone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -36,4 +70,5 @@
         android:layout_height="wrap_content"
         android:adjustViewBounds="true"
     />
+
 </FrameLayout>

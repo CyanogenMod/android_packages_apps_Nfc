@@ -146,6 +146,7 @@ public class P2pEventManager implements P2pEventListener {
         if (!result) {
             playSound(mErrorSound);
         } else {
+            playSound(mEndSound);
             checkFirstShare();
         }
         finish(result, false);
@@ -153,6 +154,7 @@ public class P2pEventManager implements P2pEventListener {
 
     @Override
     public void onP2pReceiveComplete() {
+        mRotationDetector.cancel();
         finish(false, true);
     }
 

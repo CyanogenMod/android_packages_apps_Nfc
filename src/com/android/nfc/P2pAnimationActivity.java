@@ -34,6 +34,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -50,26 +51,27 @@ import java.util.List;
 
 public class P2pAnimationActivity extends Activity implements Handler.Callback,
         AnimatorUpdateListener, View.OnTouchListener  {
-    private static final float INITIAL_SCREENSHOT_SCALE = 0.7f;
+    private static final float INITIAL_SCREENSHOT_SCALE = 0.6f;
     private static final float FINAL_SCREENSHOT_SCALE = 0.0f;
 
-    private static final int MSG_RESULT_FAILURE = 4;
-    private static final int MSG_RESULT_SEND = 5;
-    private static final int MSG_RESULT_RECEIVE = 6;
+    private static final int MSG_RESULT_FAILURE = 1;
+    private static final int MSG_RESULT_SEND = 2;
+    private static final int MSG_RESULT_RECEIVE = 3;
 
-
-    private static final int RESULT_WAITING = 0;
-    private static final int RESULT_FAILURE = 1;
-    private static final int RESULT_SEND = 2;
-    private static final int RESULT_RECV = 3;
-
-    private static int mResult;
+    private static final int STATE_WAITING = 0;
+    private static final int STATE_START_ANIM_DONE = 1;
+    private static final int STATE_SEND_SUCCESS = 2;
+    private static final int STATE_RECEIVE_SUCCESS = 3;
+    private static final int STATE_FAILURE = 4;
 
     Context mContext;
     LayoutInflater mLayoutInflater;
     View mScreenshotLayout;
     ImageView mScreenshotView;
     ImageView mClonedView;
+    ImageView mBottomArrow;
+    ImageView mTopArrow;
+    ImageView mStars;
     TextView mShareText;
 
     int mScreenshotWidth;
@@ -78,7 +80,9 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     EndAnimationListener mEndListener;
 
     // Start animator, always played
+    AnimatorSet mStartAnimatorSet;
     ValueAnimator mStartAnimator;
+    ValueAnimator mArrowStarsAnimator;
 
     // Send only animation
     AnimatorSet mSendAnimatorSet;
@@ -91,25 +95,17 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     // Failure animation
     ValueAnimator mFailureAnimator;
 
-    // Down interpolators
-    DecelerateInterpolator mScaleDownInterpolator;
-    DecelerateInterpolator mAlphaDownInterpolator;
-    DecelerateInterpolator mOffsetInterpolator;
+    DecelerateInterpolator mDecelerateInterpolator;
+    AccelerateInterpolator mAccelerateInterpolator;
 
-    // Up interpolators
-    AccelerateInterpolator mScaleUpInterpolator;
-    AccelerateInterpolator mAlphaUpInterpolator;
-    AccelerateInterpolator mCloneScaleDownInterpolator;
-
-
-    // These are all read/written on the UI thread, so no
+    // Variables below are all read/written on the UI thread, so no
     // need to synchronize these.
-    // TODO state var could clean this up a lot.
-    boolean mWaitingForResult = true;
-    boolean mStartAnimDone = false;
-    boolean mEndRequested = false;
+    static int mAnimationState;
     static Bitmap sScreenBitmap;
     static P2pEventListener.Callback sCallback;
+
+    // sHandler is initialized in onCreate() and can be read from
+    // multiple threads - synchronized on P2pAnimationActivity.class
     static Handler sHandler;
 
     // These are initialized by calls to the static method createScreenshot()
@@ -123,14 +119,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         @Override
         // Note that this will be called on the UI thread!
         public void onAnimationEnd(Animator animation) {
-            if (mEndRequested) {
-                // Ended on request, don't start follow-up anim
-                // and get rid of the view
+            if (mAnimationState != STATE_WAITING) { // Result already in
+                playEndAnimation();
             } else {
-                mStartAnimDone = true;
-                if (!mWaitingForResult) { // Result already in
-                    playEndAnimation(mResult);
-                } //  else, wait for it
+                mAnimationState = STATE_START_ANIM_DONE;
             }
         }
     }
@@ -142,15 +134,19 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         }
     }
 
-    void playEndAnimation(int result) {
-        switch (result) {
-            case RESULT_SEND:
+    void playEndAnimation() {
+        mTopArrow.setVisibility(View.GONE);
+        mBottomArrow.setVisibility(View.GONE);
+        mShareText.setVisibility(View.GONE);
+        mArrowStarsAnimator.cancel();
+        switch (mAnimationState) {
+            case STATE_SEND_SUCCESS:
                 mSendAnimatorSet.start();
                 break;
-            case RESULT_RECV:
+            case STATE_RECEIVE_SUCCESS:
                 mReceiveAnimator.start();
                 break;
-            case RESULT_FAILURE:
+            default:
                 mFailureAnimator.start();
                 break;
         }
@@ -175,13 +171,24 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         mStartListener = new StartAnimationListener();
         mEndListener = new EndAnimationListener();
 
+
         mStartAnimator = getFloatAnimation(500, this, mStartListener);
+        mArrowStarsAnimator = getFloatAnimation(3000, this, null);
+        mArrowStarsAnimator.setRepeatCount(ValueAnimator.INFINITE);
+
+        //mArrowAnimator.setStartDelay(250);
+        mStartAnimatorSet = new AnimatorSet();
+        List<Animator> animList = new ArrayList<Animator>();
+        animList.add(mStartAnimator);
+        animList.add(mArrowStarsAnimator);
+        mStartAnimatorSet.playSequentially(animList);
+
 
         mScaleDownAnimator = getFloatAnimation(500, this, null);
         mScaleUpAnimator = getFloatAnimation(500, this, null);
         // Combine the two in a set
         mSendAnimatorSet = new AnimatorSet();
-        List<Animator> animList = new ArrayList<Animator>();
+        animList = new ArrayList<Animator>();
         animList.add(mScaleDownAnimator);
         animList.add(mScaleUpAnimator);
         mSendAnimatorSet.playSequentially(animList);
@@ -190,30 +197,36 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         mFailureAnimator = getFloatAnimation(500, this, mEndListener);
         mReceiveAnimator = getFloatAnimation(200, this, mEndListener);
 
-        mScaleDownInterpolator = new DecelerateInterpolator(1.5f);
-        mAlphaDownInterpolator = new DecelerateInterpolator(1f);
-        mOffsetInterpolator = new DecelerateInterpolator(1.5f);
-
-        mScaleUpInterpolator = new AccelerateInterpolator(1.5f);
-        mAlphaUpInterpolator = new AccelerateInterpolator(1.5f);
-        mCloneScaleDownInterpolator = new AccelerateInterpolator(1.0f);
-
+        mDecelerateInterpolator = new DecelerateInterpolator(1.5f);
+        mAccelerateInterpolator = new AccelerateInterpolator(1.5f);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        sHandler = new Handler(this);
+        synchronized(P2pAnimationActivity.class) {
+            // Note that we will always need to allocate a new handler,
+            // since the handler is bound a specific activity instance
+            // which will be destroyed and recreated
+            sHandler = new Handler(this);
+        }
 
         // Inflate the screenshot layout
         mLayoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
+
+        mBottomArrow = (ImageView) mScreenshotLayout.findViewById(R.id.rotatebottom);
+        mTopArrow = (ImageView) mScreenshotLayout.findViewById(R.id.rotatetop);
+        mStars = (ImageView) mScreenshotLayout.findViewById(R.id.stars);
+
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
-        mClonedView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
-        mShareText = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
         mScreenshotView.setOnTouchListener(this);
+
+        mClonedView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
         mClonedView.setOnTouchListener(this);
+
+        mShareText = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
 
         setContentView(mScreenshotLayout);
 
@@ -243,6 +256,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     protected void onPause() {
         super.onPause();
 
+        mStars.setVisibility(View.GONE);
         if (mStartAnimator != null) {
             mStartAnimator.end();
         }
@@ -255,6 +269,9 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         if (mFailureAnimator != null) {
             mFailureAnimator.end();
         }
+        if (mStartAnimatorSet != null) {
+            mStartAnimatorSet.end();
+        }
     }
 
     /**
@@ -264,20 +281,18 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      */
     public void startAnimating() {
         // At this point no anims are running, no need to sync these
-        mResult = RESULT_WAITING;
-        mWaitingForResult = true;
-        mStartAnimDone = false;
-        mEndRequested = false;
-
-        mStartAnimator.start();
+        mAnimationState = STATE_WAITING;
+        mStartAnimatorSet.start();
     }
 
     /**
      * Finalizes the running animation with a failure animation.
      */
     public static void finishWithFailure() {
-        if (sHandler != null) {
-            sHandler.sendEmptyMessage(MSG_RESULT_FAILURE);
+        synchronized (P2pAnimationActivity.class) {
+            if (sHandler != null) {
+                sHandler.sendEmptyMessage(MSG_RESULT_FAILURE);
+            }
         }
    }
 
@@ -285,8 +300,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * Finalizes the running animation with the send animation.
      */
     public static void finishWithSend() {
-        if (sHandler != null) {
-            sHandler.sendEmptyMessage(MSG_RESULT_SEND);
+        synchronized (P2pAnimationActivity.class) {
+            if (sHandler != null) {
+                sHandler.sendEmptyMessage(MSG_RESULT_SEND);
+            }
         }
     }
 
@@ -294,8 +311,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * Finalizes the running animation with the received animation.
      */
     public static void finishWithReceive() {
-        if (sHandler != null) {
-            sHandler.sendEmptyMessage(MSG_RESULT_RECEIVE);
+        synchronized (P2pAnimationActivity.class) {
+            if (sHandler != null) {
+                sHandler.sendEmptyMessage(MSG_RESULT_RECEIVE);
+            }
         }
     }
 
@@ -315,7 +334,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private void onStartAnimationUpdate(ValueAnimator animation) {
         // Just scale the screenshot down
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float scale = mScaleDownInterpolator.getInterpolation(t);
+        float scale = mDecelerateInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE + (1f - scale) *
                 (1 - INITIAL_SCREENSHOT_SCALE);
 
@@ -335,7 +354,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         }
 
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float scale = mScaleDownInterpolator.getInterpolation(t);
+        float scale = mDecelerateInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE - (scale *
                 (INITIAL_SCREENSHOT_SCALE - FINAL_SCREENSHOT_SCALE));
 
@@ -347,10 +366,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         // Scale the screenshot all the way back to the front,
         // scale the clone down to zero.
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float scale = mScaleDownInterpolator.getInterpolation(t);
+        float scale = mDecelerateInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE +
                 (scale * (1.0f - INITIAL_SCREENSHOT_SCALE));
-        float alpha = 0.5f + (0.5f * mAlphaDownInterpolator.getInterpolation(t));
+        float alpha = 0.5f + (0.5f * mAccelerateInterpolator.getInterpolation(t));
         mScreenshotView.setScaleX(scaleT);
         mScreenshotView.setScaleY(scaleT);
         mScreenshotView.setAlpha(alpha);
@@ -359,7 +378,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private void onFailureUpdate(ValueAnimator animation) {
         // Scale back from initial scale to normal scale
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float scale = mScaleDownInterpolator.getInterpolation(t);
+        float scale = mDecelerateInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE + (scale *
                 (1.0f - INITIAL_SCREENSHOT_SCALE));
 
@@ -370,21 +389,34 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
     private void onReceiveUpdate(ValueAnimator animation) {
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float offset = mScaleDownInterpolator.getInterpolation(t);
+        float offset = mDecelerateInterpolator.getInterpolation(t);
 
         mScreenshotView.setX(offset * mScreenshotWidth);
         mShareText.setX(offset * mScreenshotWidth);
     }
+
+    private void onArrowStarsAnimationUpdate(ValueAnimator animation) {
+        float t = ((Float) animation.getAnimatedValue()).floatValue();
+        float offset = mDecelerateInterpolator.getInterpolation(t);
+
+        mBottomArrow.setRotation(-30 * offset);
+        mTopArrow.setRotation(- 30 * offset);
+
+        float scale = 1.0f + (0.5f * offset);
+        mStars.setScaleX(scale);
+        mStars.setScaleY(scale);
+    }
+
     @Override
     public void onAnimationUpdate(ValueAnimator animation) {
         if (animation == mStartAnimator) {
             onStartAnimationUpdate(animation);
+        } else if (animation == mArrowStarsAnimator) {
+            onArrowStarsAnimationUpdate(animation);
         } else if (animation == mScaleDownAnimator) {
             onSuccessCloneAnimationUpdate(animation);
         } else if (animation == mScaleUpAnimator) {
             onSuccessUpUpdate(animation);
-        } else if (animation == mFailureAnimator) {
-            onFailureUpdate(animation);
         } else if (animation == mFailureAnimator) {
             onFailureUpdate(animation);
         } else if (animation == mReceiveAnimator) {
@@ -394,24 +426,29 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
     @Override
     public boolean handleMessage(Message msg) {
-        mWaitingForResult = false;
+        int oldState = mAnimationState;
         switch (msg.what) {
             case MSG_RESULT_FAILURE: {
-                mResult = RESULT_FAILURE;
+                mAnimationState = STATE_FAILURE;
                 break;
             }
             case MSG_RESULT_SEND: {
-                mResult = RESULT_SEND;
+                mAnimationState = STATE_SEND_SUCCESS;
                 break;
             }
             case MSG_RESULT_RECEIVE: {
-                mResult = RESULT_RECV;
+                mAnimationState = STATE_RECEIVE_SUCCESS;
                 break;
             }
         }
 
-        if (mStartAnimDone) {
-            playEndAnimation(mResult);
+        if (oldState == STATE_START_ANIM_DONE) {
+            // Start animaton was already completed, play
+            // ending animation now.
+            playEndAnimation();
+        } else {
+            // The ending animation will be played whenever the
+            // start animation is finished.
         }
         return true;
     }
