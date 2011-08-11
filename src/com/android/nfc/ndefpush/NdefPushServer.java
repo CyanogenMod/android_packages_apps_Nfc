@@ -193,10 +193,4 @@ public class NdefPushServer {
             }
         }
     }
-
-    public boolean isRunning() {
-        synchronized (this) {
-            return (mServerThread != null);
-        }
-    }
 }

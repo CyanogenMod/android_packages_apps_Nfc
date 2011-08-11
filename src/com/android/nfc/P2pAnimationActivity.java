@@ -108,9 +108,9 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     boolean mWaitingForResult = true;
     boolean mStartAnimDone = false;
     boolean mEndRequested = false;
-    static Bitmap mScreenBitmap;
-    static Callback mCallback;
-    static Handler mHandler;
+    static Bitmap sScreenBitmap;
+    static P2pEventListener.Callback sCallback;
+    static Handler sHandler;
 
     // These are initialized by calls to the static method createScreenshot()
     // and are synchronized on P2pAnimationActivity.class
@@ -118,15 +118,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     static DisplayMetrics mDisplayMetrics;
     static Matrix mDisplayMatrix;
     static WindowManager mWindowManager;
-
-
-
-    /* Interface to be used whenever the user confirms
-     * the send action.
-     */
-    interface Callback {
-        public void onSendConfirmed();
-    }
 
     class StartAnimationListener extends AnimatorListenerAdapter {
         @Override
@@ -213,7 +204,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mHandler = new Handler(this);
+        sHandler = new Handler(this);
 
         // Inflate the screenshot layout
         mLayoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -238,11 +229,11 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     protected void onResume() {
         super.onResume();
 
-        if (mScreenBitmap != null) {
-            mClonedView.setImageBitmap(mScreenBitmap);
+        if (sScreenBitmap != null) {
+            mClonedView.setImageBitmap(sScreenBitmap);
             mClonedView.setVisibility(View.GONE);
-            mScreenshotView.setImageBitmap(mScreenBitmap);
-            mScreenshotWidth = mScreenBitmap.getWidth();
+            mScreenshotView.setImageBitmap(sScreenBitmap);
+            mScreenshotWidth = sScreenBitmap.getWidth();
 
             startAnimating();
         }
@@ -285,8 +276,8 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * Finalizes the running animation with a failure animation.
      */
     public static void finishWithFailure() {
-        if (mHandler != null) {
-            mHandler.sendEmptyMessage(MSG_RESULT_FAILURE);
+        if (sHandler != null) {
+            sHandler.sendEmptyMessage(MSG_RESULT_FAILURE);
         }
    }
 
@@ -294,8 +285,8 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * Finalizes the running animation with the send animation.
      */
     public static void finishWithSend() {
-        if (mHandler != null) {
-            mHandler.sendEmptyMessage(MSG_RESULT_SEND);
+        if (sHandler != null) {
+            sHandler.sendEmptyMessage(MSG_RESULT_SEND);
         }
     }
 
@@ -303,8 +294,8 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * Finalizes the running animation with the received animation.
      */
     public static void finishWithReceive() {
-        if (mHandler != null) {
-            mHandler.sendEmptyMessage(MSG_RESULT_RECEIVE);
+        if (sHandler != null) {
+            sHandler.sendEmptyMessage(MSG_RESULT_RECEIVE);
         }
     }
 
@@ -314,11 +305,11 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
      * @param screenshot to be animated
      */
     public static void makeScreenshot(Context context) {
-        mScreenBitmap = createScreenshot(context);
+        sScreenBitmap = createScreenshot(context);
     }
 
-    public static void setCallback(Callback callback) {
-        mCallback = callback;
+    public static void setCallback(P2pEventListener.Callback callback) {
+        sCallback = callback;
     }
 
     private void onStartAnimationUpdate(ValueAnimator animation) {
@@ -427,8 +418,8 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (mCallback != null) {
-            mCallback.onSendConfirmed();
+        if (sCallback != null) {
+            sCallback.onP2pSendConfirmed();
         }
         return true;
     }

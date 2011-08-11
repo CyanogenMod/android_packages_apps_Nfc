@@ -27,8 +27,6 @@ import com.android.nfc3.R;
 
 import android.app.Application;
 import android.app.KeyguardManager;
-import android.app.Notification;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -74,13 +72,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 
-interface P2pStatusListener {
-    void onP2pBegin();
-    void onP2pEnd();
-    void onP2pError();
-}
-
-public class NfcService extends Application implements DeviceHostListener, P2pStatusListener {
+public class NfcService extends Application implements DeviceHostListener {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
     static final boolean DBG = true;
@@ -95,7 +87,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
     private static final String NFCEE_ADMIN_PERM = "com.android.nfc.permission.NFCEE_ADMIN";
     private static final String NFCEE_ADMIN_PERM_ERROR = "NFCEE_ADMIN permission required";
 
-    /*package*/ static final String PREF = "NfcServicePrefs";
+    public static final String PREF = "NfcServicePrefs";
 
     private static final String PREF_NFC_ON = "nfc_on";
     private static final boolean NFC_ON_DEFAULT = true;
@@ -103,9 +95,6 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
     private static final boolean ZEROCLICK_ON_DEFAULT = true;
 
     private static final String PREF_FIRST_BOOT = "first_boot";
-    private static final String PREF_FIRST_SHARE = "first_share";
-
-    private static final int NOTIFICATION_FIRST_SHARE = 0;
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
@@ -189,12 +178,11 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mWakeLock;
-    private NotificationManager mNotificationManager;
-    NdefP2pManager mP2pManager;
     int mStartSound;
     int mEndSound;
     int mErrorSound;
     SoundPool mSoundPool; // playback synchronized on this
+    P2pLinkManager mP2pLinkManager;
     TagService mNfcTagService;
     NfcAdapterService mNfcAdapter;
     NfcAdapterExtrasService mExtrasService;
@@ -305,8 +293,8 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         mContext = this;
         mDeviceHost = new NativeNfcManager(this, this);
 
-        mP2pManager = new NdefP2pManager(this, this);
-        mNfcDispatcher = new NfcDispatcher(this, mP2pManager);
+        mP2pLinkManager = new P2pLinkManager(mContext);
+        mNfcDispatcher = new NfcDispatcher(this, mP2pLinkManager);
 
         mSecureElement = new NativeNfcSecureElement();
         mEeRoutingState = ROUTE_OFF;
@@ -336,9 +324,6 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme("package");
-
-        mNotificationManager = (NotificationManager) this.getSystemService(
-                Context.NOTIFICATION_SERVICE);
 
         registerReceiver(mReceiver, filter);
 
@@ -461,9 +446,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             synchronized(NfcService.this) {
                 mObjectMap.clear();
 
-                if (mIsZeroClickRequested) {
-                    mP2pManager.enableP2p();
-                }
+                mP2pLinkManager.enableDisable(mIsZeroClickRequested, true);
                 updateState(NfcAdapter.STATE_ON);
             }
 
@@ -490,7 +473,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             WatchDogThread watchDog = new WatchDogThread();
             watchDog.start();
 
-            mP2pManager.disableP2p();
+            mP2pLinkManager.enableDisable(false, false);
 
             // Stop watchdog if tag present
             // A convenient way to stop the watchdog properly consists of
@@ -571,55 +554,9 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
         }
     }
 
-    private void onFirstShare() {
-        Intent intent = new Intent(Settings.ACTION_NFCSHARING_SETTINGS);
-        PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification notification = new Notification.Builder(mContext)
-                .setContentTitle(mContext.getString(R.string.first_share_title))
-                .setContentText(mContext.getString(R.string.first_share_text))
-                .setContentIntent(pi)
-                .setSmallIcon(R.drawable.stat_sys_nfc)
-                .setAutoCancel(true)
-                .getNotification();
-        mNotificationManager.notify(NOTIFICATION_FIRST_SHARE, notification);
-    }
-
-    private void playSound(int sound) {
+    void playSound(int sound) {
         synchronized (this) {
             mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
-        }
-    }
-
-    @Override
-    public void onP2pBegin() {
-        if (!mP2pStarted) {
-            playSound(mStartSound);
-            mP2pStarted = true;
-        }
-    }
-
-    @Override
-    public void onP2pEnd() {
-        if (mP2pStarted) {
-            playSound(mEndSound);
-            mP2pStarted = false;
-
-            // If first time, throw up a notification
-            if (mPrefs.getBoolean(PREF_FIRST_SHARE, true)) {
-                Log.i(TAG, "First NFC share");
-                mPrefsEditor.putBoolean(PREF_FIRST_SHARE, false);
-                mPrefsEditor.apply();
-                onFirstShare();
-            }
-        }
-    }
-
-    @Override
-    public void onP2pError() {
-        if (mP2pStarted) {
-            playSound(mErrorSound);
-            mP2pStarted = false;
         }
     }
 
@@ -674,7 +611,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                 mPrefsEditor.apply();
                 mIsZeroClickRequested = true;
                 if (isNfcEnabled()) {
-                    mP2pManager.enableP2p();
+                    mP2pLinkManager.enableDisable(true, true);
                 }
             }
             return true;
@@ -692,7 +629,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                 mPrefsEditor.apply();
                 mIsZeroClickRequested = false;
                 if (isNfcEnabled()) {
-                    mP2pManager.disableP2p();
+                    mP2pLinkManager.enableDisable(false, true);
                 }
             }
             return true;
@@ -744,9 +681,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             if (activity == null || msg == null) {
                 throw new IllegalArgumentException();
             }
-            if (mP2pManager.setForegroundMessage(msg)) {
-                Log.w(TAG, "Replacing active NDEF push message");
-            }
+            mP2pLinkManager.setNdefToSend(msg, null);
         }
 
         @Override
@@ -756,19 +691,13 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             if (activity == null || callback == null) {
                 throw new IllegalArgumentException();
             }
-            if (mP2pManager.setForegroundCallback(callback)) {
-                Log.w(TAG, "Replacing active NDEF push message");
-            }
+            mP2pLinkManager.setNdefToSend(null, callback);
         }
 
         @Override
         public void disableForegroundNdefPush(ComponentName activity) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            boolean hadMsg = mP2pManager.setForegroundMessage(null);
-            boolean hadCallback = mP2pManager.setForegroundCallback(null);
-            if (!hadMsg || !hadCallback) {
-                Log.w(TAG, "No active foreground NDEF push message");
-            }
+            mP2pLinkManager.setNdefToSend(null, null);
         }
 
         @Override
@@ -1459,7 +1388,9 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                     boolean delivered = mNfcDispatcher.dispatchTag(tag,
                             new NdefMessage[] { ndefMsg });
                     if (delivered) {
-                        onP2pEnd();
+                        playSound(mEndSound);
+                    } else {
+                        playSound(mErrorSound);
                     }
                     break;
                 }
@@ -1557,7 +1488,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                         device.disconnect();  // restarts polling loop
                     }
 
-                    mP2pManager.onLlcpDeactivated();
+                    mP2pLinkManager.onLlcpDeactivated();
                     break;
 
                 case MSG_TARGET_DESELECTED:
@@ -1607,7 +1538,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                                 // Register P2P device
                                 mObjectMap.put(device.getHandle(), device);
                             }
-                            mP2pManager.onLlcpActivated();
+                            mP2pLinkManager.onLlcpActivated();
                             return true;
                         } else {
                             /* should not happen */
@@ -1637,7 +1568,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
                             // Register P2P device
                             mObjectMap.put(device.getHandle(), device);
                         }
-                        mP2pManager.onLlcpActivated();
+                        mP2pLinkManager.onLlcpActivated();
                         return true;
                     }
                 } else {
@@ -1797,7 +1728,7 @@ public class NfcService extends Application implements DeviceHostListener, P2pSt
             pw.println("mIsScreenUnlocked=" + mIsScreenUnlocked);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
-            mP2pManager.dump(fd, pw, args);
+            mP2pLinkManager.dump(fd, pw, args);
         }
     }
 }

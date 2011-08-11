@@ -53,7 +53,7 @@ public class NfcDispatcher {
     private static final String TAG = NfcService.TAG;
 
     private final Context mContext;
-    private final NdefP2pManager mP2pManager;
+    private final P2pLinkManager mP2pManager;
     private final IActivityManager mIActivityManager;
     private final RegisteredComponentCache mTechListFilters;
 
@@ -64,7 +64,7 @@ public class NfcDispatcher {
     private IntentFilter[] mOverrideFilters;
     private String[][] mOverrideTechLists;
 
-    public NfcDispatcher(Context context, NdefP2pManager p2pManager) {
+    public NfcDispatcher(Context context, P2pLinkManager p2pManager) {
         mContext = context;
         mP2pManager = p2pManager;
         mIActivityManager = ActivityManagerNative.getDefault();
