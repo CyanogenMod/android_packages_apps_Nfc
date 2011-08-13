@@ -22,11 +22,15 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.view.OrientationEventListener;
+import android.util.Log;
 
 import com.android.nfc3.R;
 
@@ -42,6 +46,9 @@ public class P2pEventManager implements P2pEventListener {
 
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
 
+    public static final boolean TILT_ENABLED = true;
+    public static final boolean TAP_ENABLED = true;
+
     final Context mContext;
     final P2pEventListener.Callback mCallback;
     final SharedPreferences mPrefs;
@@ -50,56 +57,83 @@ public class P2pEventManager implements P2pEventListener {
     final int mErrorSound;
     final SoundPool mSoundPool; // playback synchronized on this
     final Vibrator mVibrator;
-    final RotationDetector mRotationDetector;
+    final TiltDetector mTiltDetector;
     final NotificationManager mNotificationManager;
 
-    boolean mAnimating;
+    // only used on UI thread
     boolean mPrefsFirstShare;
+    boolean mAnimating;
 
-    class RotationDetector extends OrientationEventListener {
-        static final int THRESHOLD_DEGREES = 35;
-        int mStartOrientation;
-        boolean mRotateDetectionEnabled;
+    /** Detect if the screen is facing up or down */
+    class TiltDetector implements SensorEventListener {
+        /**
+         * Percent tilt required before triggering detection.
+         * 100 indicates the device must be exactly face-down.
+         */
+        static final int THRESHOLD_PERCENT = 75;
+        final SensorManager mSensorManager;
+        final Sensor mSensor;
 
-        public RotationDetector(Context context) {
-            super(context);
+        // Only used on UI thread
+        boolean mSensorEnabled;
+        boolean mTriggerEnabled;
+        float mLastValue;
+
+        public TiltDetector(Context context) {
+            mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+            mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+            mSensorEnabled = false;
+            mTriggerEnabled = false;
+            mLastValue = Float.MIN_VALUE;
         }
-        public void start() {
-            synchronized (RotationDetector.this) {
-                mRotateDetectionEnabled = true;
-                mStartOrientation = -1;
-                super.enable();
+        public void enable() {
+            if (mSensorEnabled) {
+                return;
             }
+            mSensorEnabled = true;
+            mLastValue = Float.MIN_VALUE;
+            mSensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_UI);
         }
-        public void cancel() {
-            synchronized (RotationDetector.this) {
-                mRotateDetectionEnabled = false;
-                super.disable();
+        public boolean enableTrigger() {
+            if (!mSensorEnabled || mTriggerEnabled) {
+                return false;
             }
+            mTriggerEnabled = true;
+            return checkTrigger();
+        }
+        public void disable() {
+            if (!mSensorEnabled) {
+                return;
+            }
+            mSensorManager.unregisterListener(this, mSensor);
+            mSensorEnabled = false;
+            mTriggerEnabled = false;
+        }
+        boolean checkTrigger() {
+            if (!mTriggerEnabled ||
+                    100.0 * mLastValue / SensorManager.GRAVITY_EARTH < THRESHOLD_PERCENT) {
+                return false;
+            }
+            disable();
+            mVibrator.vibrate(VIBRATION_PATTERN, -1);
+            mCallback.onP2pSendConfirmed();
+            return true;
         }
         @Override
-        public void onOrientationChanged(int orientation) {
-            synchronized (RotationDetector.this) {
-                if (!mRotateDetectionEnabled) {
-                    return;
-                }
-                if (mStartOrientation < 0) {
-                    mStartOrientation = orientation;
-                }
-                int diff = Math.abs(mStartOrientation - orientation);
-                if (diff > THRESHOLD_DEGREES && diff < (360-THRESHOLD_DEGREES)) {
-                    cancel();
-                    mVibrator.vibrate(VIBRATION_PATTERN, -1);
-                    mCallback.onP2pSendConfirmed();
-                }
-            }
+        public void onSensorChanged(SensorEvent event) {
+            // always called on UI thread
+            mLastValue = event.values[2];
+            if (DBG) Log.d(TAG, "z=" + mLastValue);
+            checkTrigger();
         }
-    }
+        @Override
+        public void onAccuracyChanged(Sensor arg0, int arg1) { }
+    };
 
     public P2pEventManager(Context context, P2pEventListener.Callback callback) {
         mContext = context;
         mCallback = callback;
-        mRotationDetector = new RotationDetector(mContext);
+        mTiltDetector = new TiltDetector(mContext);
         mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
         mStartSound = mSoundPool.load(mContext, R.raw.start, 1);
         mEndSound = mSoundPool.load(mContext, R.raw.end, 1);
@@ -119,52 +153,58 @@ public class P2pEventManager implements P2pEventListener {
             mPrefsFirstShare = false;
         }
 
+        P2pAnimationActivity.setCallback(mCallback);
         mAnimating = false;
     }
 
     @Override
     public void onP2pInRange() {
+        if (TILT_ENABLED) {
+            mTiltDetector.enable();
+        }
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        playSound(mStartSound);
+        P2pAnimationActivity.makeScreenshot(mContext);
     }
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        mRotationDetector.start();
-        P2pAnimationActivity.makeScreenshot(mContext);
-        P2pAnimationActivity.setCallback(mCallback);
+        if (TILT_ENABLED && mTiltDetector.enableTrigger()) {
+            return;
+        }
+
         mAnimating = true;
         // Start the animation activity
         Intent animIntent = new Intent();
         animIntent.setClass(mContext, P2pAnimationActivity.class);
         animIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NEW_TASK);
         mContext.startActivity(animIntent);
+        playSound(mStartSound);
     }
 
     @Override
-    public void onP2pSendComplete(boolean result) {
-        if (!result) {
-            playSound(mErrorSound);
-        } else {
-            playSound(mEndSound);
-            checkFirstShare();
-        }
-        finish(result, false);
+    public void onP2pSendComplete() {
+        playSound(mEndSound);
+        checkFirstShare();
+        finish(true, false);
     }
 
     @Override
     public void onP2pReceiveComplete() {
-        mRotationDetector.cancel();
+        if (TILT_ENABLED) {
+            mTiltDetector.disable();
+        }
         finish(false, true);
     }
 
     @Override
     public void onP2pOutOfRange() {
-        mRotationDetector.cancel();
+        if (TILT_ENABLED) {
+            mTiltDetector.disable();
+        }
         if (mAnimating) {
-            finish(false, false);
             playSound(mErrorSound);
         }
+        finish(false, false);
     }
 
     /**
@@ -172,18 +212,15 @@ public class P2pEventManager implements P2pEventListener {
      * Must be called on the UI thread.
      */
     void finish(boolean sendSuccess, boolean receiveSuccess) {
+        if (!mAnimating) {
+            return;
+        }
         if (sendSuccess) {
-            if (mAnimating) {
-                P2pAnimationActivity.finishWithSend();
-            }
+            P2pAnimationActivity.finishWithSend();
         } else if (receiveSuccess) {
-            if (mAnimating) {
-                P2pAnimationActivity.finishWithReceive();
-            }
+            P2pAnimationActivity.finishWithReceive();
         } else {
-            if (mAnimating) {
-                P2pAnimationActivity.finishWithFailure();
-            }
+            P2pAnimationActivity.finishWithFailure();
         }
         mAnimating = false;
     }

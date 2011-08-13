@@ -73,8 +73,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     View mScreenshotLayout;
     ImageView mScreenshotView;
     ImageView mClonedView;
-    ImageView mBottomArrow;
-    ImageView mTopArrow;
     ImageView mStars;
     TextView mShareText;
 
@@ -139,8 +137,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     }
 
     void playEndAnimation() {
-        mTopArrow.setVisibility(View.GONE);
-        mBottomArrow.setVisibility(View.GONE);
         mShareText.setVisibility(View.GONE);
         mArrowStarsAnimator.cancel();
         switch (mAnimationState) {
@@ -220,8 +216,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         mLayoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
 
-        mBottomArrow = (ImageView) mScreenshotLayout.findViewById(R.id.rotatebottom);
-        mTopArrow = (ImageView) mScreenshotLayout.findViewById(R.id.rotatetop);
         mStars = (ImageView) mScreenshotLayout.findViewById(R.id.stars);
 
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
@@ -406,8 +400,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
         int rotation = (int) ((double)ARROW_START_ROTATION * (1.0 - offset) +
                     (double) ARROW_FINISH_ROTATION * offset);
-        mBottomArrow.setRotation(rotation);
-        mTopArrow.setRotation(rotation);
 
         float scale = 1.0f + (0.5f * offset);
         mStars.setScaleX(scale);
@@ -462,7 +454,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (sCallback != null) {
+        if (sCallback != null && P2pEventManager.TAP_ENABLED) {
             sCallback.onP2pSendConfirmed();
         }
         return true;

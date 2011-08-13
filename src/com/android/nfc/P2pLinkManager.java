@@ -65,9 +65,9 @@ interface P2pEventListener {
     public void onP2pSendConfirmationRequested();
 
     /**
-     * Called when the send is complete, with the result.
+     * Called to indicate a send was successful.
      */
-    public void onP2pSendComplete(boolean result);
+    public void onP2pSendComplete();
 
     /**
      * Called to indicate a receive was successful.
@@ -96,7 +96,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
-    static final int LINK_DEBOUNCE_MS = 1000;
+    static final int LINK_DEBOUNCE_MS = 750;
 
     static final int STATE_WAITING = 0;
     static final int STATE_SUCCESS = 1;
@@ -289,9 +289,9 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
          }
      }
 
-    void onSendComplete(boolean result) {
+    void onSendComplete() {
         // Make callbacks on UI thread
-        mHandler.obtainMessage(MSG_SEND_COMPLETE, new Boolean(result)).sendToTarget();
+        mHandler.sendEmptyMessage(MSG_SEND_COMPLETE);
     }
 
     void sendNdefMessage() {
@@ -318,7 +318,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             synchronized (P2pLinkManager.this) {
                 if (mLinkState != LINK_STATE_UP || mSendState != SEND_STATE_SENDING) {
-                    onSendComplete(false);
                     return null;
                 }
                 m = mMessageToSend;
@@ -331,13 +330,15 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 Log.i(TAG, "Failed to connect over SNEP, trying NPP");
 
                 if (isCancelled()) {
-                    onSendComplete(false);
                     return null;
                 }
 
                 result = new NdefPushClient().push(m);
             }
-            onSendComplete(result);
+            if (DBG) Log.d(TAG, "SendTask result=" + result);
+            if (result) {
+                onSendComplete();
+            }
             return null;
         }
     }
@@ -421,7 +422,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 }
                 break;
             case MSG_SEND_COMPLETE:
-                boolean result = (Boolean) msg.obj;
                 synchronized (P2pLinkManager.this) {
                     mSendTask = null;
 
@@ -430,7 +430,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     }
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
                     if (DBG) Log.d(TAG, "onP2pSendComplete()");
-                    mEventListener.onP2pSendComplete(result);
+                    mEventListener.onP2pSendComplete();
                     if (mCallbackNdef != null) {
                         try {
                             mCallbackNdef.onMessagePushed();
