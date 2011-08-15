@@ -208,7 +208,7 @@ public class P2pEventManager implements P2pEventListener {
     }
 
     /**
-     * Finish up the animation, if running, and play ending sounds.
+     * Finish up the animation, if running.
      * Must be called on the UI thread.
      */
     void finish(boolean sendSuccess, boolean receiveSuccess) {

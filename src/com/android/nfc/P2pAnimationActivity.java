@@ -34,7 +34,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -64,8 +63,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private static final int STATE_RECEIVE_SUCCESS = 3;
     private static final int STATE_FAILURE = 4;
 
-    private static final int ARROW_START_ROTATION = 20;
-    private static final int ARROW_FINISH_ROTATION = -50;
     private static final int DURATION_MS = 1400;
 
     Context mContext;
@@ -176,7 +173,6 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         mArrowStarsAnimator = getFloatAnimation(DURATION_MS, this, null);
         mArrowStarsAnimator.setRepeatCount(ValueAnimator.INFINITE);
 
-        //mArrowAnimator.setStartDelay(250);
         mStartAnimatorSet = new AnimatorSet();
         List<Animator> animList = new ArrayList<Animator>();
         animList.add(mStartAnimator);
@@ -229,6 +225,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         setContentView(mScreenshotLayout);
 
         createAnimators();
+
     }
 
     @Override
@@ -239,6 +236,10 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     @Override
     protected void onResume() {
         super.onResume();
+
+        // Lock rotation
+        final int orientation = getResources().getConfiguration().orientation;
+        setRequestedOrientation(orientation);
 
         if (sScreenBitmap != null) {
             mClonedView.setImageBitmap(sScreenBitmap);
@@ -332,6 +333,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private void onStartAnimationUpdate(ValueAnimator animation) {
         // Just scale the screenshot down
         float t = ((Float) animation.getAnimatedValue()).floatValue();
+
         float scale = mDecelerateInterpolator.getInterpolation(t);
         float scaleT = INITIAL_SCREENSHOT_SCALE + (1f - scale) *
                 (1 - INITIAL_SCREENSHOT_SCALE);
@@ -396,12 +398,8 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private void onArrowStarsAnimationUpdate(ValueAnimator animation) {
 
         float t = ((Float) animation.getAnimatedValue()).floatValue();
-        float offset = mDecelerateInterpolator.getInterpolation(t);
 
-        int rotation = (int) ((double)ARROW_START_ROTATION * (1.0 - offset) +
-                    (double) ARROW_FINISH_ROTATION * offset);
-
-        float scale = 1.0f + (0.5f * offset);
+        float scale = 1.0f + (0.5f * t);
         mStars.setScaleX(scale);
         mStars.setScaleY(scale);
     }
