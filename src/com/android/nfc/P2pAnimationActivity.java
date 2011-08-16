@@ -130,6 +130,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
         @Override
         public void onAnimationEnd(Animator animation) {
             finish();
+            overridePendingTransition(0, 0);
         }
     }
 
@@ -345,11 +346,7 @@ public class P2pAnimationActivity extends Activity implements Handler.Callback,
     private void onSuccessCloneAnimationUpdate(ValueAnimator animation) {
         // Clone the screenshot
         if (mClonedView.getVisibility() != View.VISIBLE) {
-            // Scale clone to same size
-            mClonedView.setScaleX(mScreenshotView.getScaleX());
-            mClonedView.setScaleY(mScreenshotView.getScaleY());
             mClonedView.setVisibility(View.VISIBLE);
-
             mScreenshotView.setAlpha(0.5f);
         }
 
