@@ -71,15 +71,15 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
          */
         static final int THRESHOLD_PERCENT = 75;
         /**
-          * Alpha (smoothing) factor of the low-pass filter.
-          * Decreasing helps latency in case the device is already
-          * tilted from the beginning, but makes the filter more sensitive
-          * to large changes.
-          */
+         * Alpha (smoothing) factor of the low-pass filter.
+         * Decreasing helps latency in case the device is already
+         * tilted from the beginning, but makes the filter more sensitive
+         * to large changes.
+         */
         static final float LPF_ALPHA = 0.9f;
         /**
-          * Mininum number of samples to take before acting on them.
-          */
+         * Mininum number of samples to take before acting on them.
+         */
         static final int MINIMUM_SAMPLES = 10;
         final SensorManager mSensorManager;
         final Sensor mSensor;
@@ -116,21 +116,23 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             if (!mSensorEnabled) {
                 return;
             }
-            final float z = LPF_ALPHA * mLastValue + (1 - LPF_ALPHA) * event.values[2];
-            final boolean triggered = 100.0 * z / SensorManager.GRAVITY_EARTH > THRESHOLD_PERCENT;
-            mNumSamples++;
-            if (DBG) Log.d(TAG, "z=" + z + (triggered ? " TRIGGERED" : ""));
-            if (mNumSamples == MINIMUM_SAMPLES) {
-                if (!triggered) {
-                    // Received first value, and you're holding it wrong
-                    mHoldingItWrongUi.show(mContext);
-                }
+            if (mNumSamples == 0) {
+                mLastValue = event.values[2];
+            } else {
+                // low-pass filter to get a better estimate of gravity
+                mLastValue = LPF_ALPHA * mLastValue + (1 - LPF_ALPHA) * event.values[2];
             }
-            if (triggered && mNumSamples >= MINIMUM_SAMPLES) {
+            final boolean triggered = 100.0 * mLastValue / SensorManager.GRAVITY_EARTH > THRESHOLD_PERCENT;
+            mNumSamples++;
+            if (DBG) Log.d(TAG, "z=" + mLastValue + (triggered ? " TRIGGERED" : ""));
+            if (mNumSamples == MINIMUM_SAMPLES && !triggered) {
+                // you're holding it wrong
+                mHoldingItWrongUi.show(mContext);
+            }
+            if (mNumSamples >= MINIMUM_SAMPLES && triggered) {
                 disable();
                 onSendConfirmed();
             }
-            mLastValue = z;
             return;
         }
         @Override

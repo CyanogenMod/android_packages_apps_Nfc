@@ -22,7 +22,7 @@
     <string name="outbound_me_profile_text">Tap to give this person your contact info</string>
 
     <!-- A notification description string telling the user he has shared something over NFC [CHAR-LIMIT=64] -->
-    <string name="first_share_title">You just tapped to share!</string>
+    <string name="first_share_title">You just dropped to share!</string>
 
     <!-- A notification action string telling the user to tap to learn more about sharing over NFC [CHAR-LIMIT=64] -->
     <string name="first_share_text">Tap to learn more or disable this feature.</string>
