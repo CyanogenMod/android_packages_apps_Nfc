@@ -70,12 +70,24 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
          * 100 indicates the device must be exactly face-down.
          */
         static final int THRESHOLD_PERCENT = 75;
+        /**
+          * Alpha (smoothing) factor of the low-pass filter.
+          * Decreasing helps latency in case the device is already
+          * tilted from the beginning, but makes the filter more sensitive
+          * to large changes.
+          */
+        static final float LPF_ALPHA = 0.9f;
+        /**
+          * Mininum number of samples to take before acting on them.
+          */
+        static final int MINIMUM_SAMPLES = 10;
         final SensorManager mSensorManager;
         final Sensor mSensor;
 
         // Only used on UI thread
         boolean mSensorEnabled;
         float mLastValue;
+        int mNumSamples;
 
         public TiltDetector(Context context) {
             mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -87,8 +99,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
                 return;
             }
             mSensorEnabled = true;
-            mLastValue = Float.MIN_VALUE;
-            mSensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_UI);
+            mLastValue = 0;
+            mNumSamples = 0;
+            mSensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_FASTEST);
         }
         public void disable() {
             if (!mSensorEnabled) {
@@ -103,19 +116,21 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             if (!mSensorEnabled) {
                 return;
             }
-            final float z = event.values[2];
+            final float z = LPF_ALPHA * mLastValue + (1 - LPF_ALPHA) * event.values[2];
             final boolean triggered = 100.0 * z / SensorManager.GRAVITY_EARTH > THRESHOLD_PERCENT;
-            //TODO: apply a low pass filter so we get something closer to real gravity
+            mNumSamples++;
             if (DBG) Log.d(TAG, "z=" + z + (triggered ? " TRIGGERED" : ""));
-            if (mLastValue == Float.MIN_VALUE && !triggered) {
-                // Received first value, and you're holding it wrong
-                mHoldingItWrongUi.show(mContext);
+            if (mNumSamples == MINIMUM_SAMPLES) {
+                if (!triggered) {
+                    // Received first value, and you're holding it wrong
+                    mHoldingItWrongUi.show(mContext);
+                }
             }
-            mLastValue = z;
-            if (triggered) {
+            if (triggered && mNumSamples >= MINIMUM_SAMPLES) {
                 disable();
                 onSendConfirmed();
             }
+            mLastValue = z;
             return;
         }
         @Override
