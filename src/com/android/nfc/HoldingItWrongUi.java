@@ -19,14 +19,17 @@ package com.android.nfc;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.drawable.AnimationDrawable;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 
 import com.android.nfc3.R;
 
 public class HoldingItWrongUi implements DialogInterface.OnDismissListener {
 
     AlertDialog mDialog;
+    ImageView mImageView;
 
     /** Must call from UI thread */
     public void show(Context context) {
@@ -36,6 +39,10 @@ public class HoldingItWrongUi implements DialogInterface.OnDismissListener {
 
         View v = View.inflate(context, R.layout.holding_it_wrong, null);
 
+        mImageView = (ImageView) v.findViewById(R.id.image);
+        mImageView.setBackgroundResource(R.drawable.sharetap_anim);
+
+
         AlertDialog.Builder b = new AlertDialog.Builder(context);
         b.setCancelable(false);
         b.setView(v);
@@ -44,6 +51,13 @@ public class HoldingItWrongUi implements DialogInterface.OnDismissListener {
         d.setOnDismissListener(this);
         d.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
         d.show();
+        mImageView.post(new Runnable() {
+            @Override
+            public void run() {
+                AnimationDrawable anim = (AnimationDrawable) mImageView.getBackground();
+                anim.start();
+            }
+        });
         mDialog = d;
     }
 
