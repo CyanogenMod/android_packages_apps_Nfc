@@ -37,7 +37,7 @@ import com.android.nfc3.R;
 /**
  * Manages vibration, sound and animation for P2P events.
  */
-public class P2pEventManager implements P2pEventListener {
+public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     static final String TAG = "NfcP2pEventManager";
     static final boolean DBG = true;
 
@@ -45,9 +45,6 @@ public class P2pEventManager implements P2pEventListener {
     static final int NOTIFICATION_FIRST_SHARE = 0;
 
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
-
-    public static final boolean TILT_ENABLED = true;
-    public static final boolean TAP_ENABLED = true;
 
     final Context mContext;
     final P2pEventListener.Callback mCallback;
@@ -59,10 +56,12 @@ public class P2pEventManager implements P2pEventListener {
     final Vibrator mVibrator;
     final TiltDetector mTiltDetector;
     final NotificationManager mNotificationManager;
+    final HoldingItWrongUi mHoldingItWrongUi;
+    final SendUi mSendUi;
 
     // only used on UI thread
     boolean mPrefsFirstShare;
-    boolean mAnimating;
+    boolean mSending;
 
     /** Detect if the screen is facing up or down */
     class TiltDetector implements SensorEventListener {
@@ -76,15 +75,12 @@ public class P2pEventManager implements P2pEventListener {
 
         // Only used on UI thread
         boolean mSensorEnabled;
-        boolean mTriggerEnabled;
         float mLastValue;
 
         public TiltDetector(Context context) {
             mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-            mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+            mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             mSensorEnabled = false;
-            mTriggerEnabled = false;
-            mLastValue = Float.MIN_VALUE;
         }
         public void enable() {
             if (mSensorEnabled) {
@@ -94,37 +90,33 @@ public class P2pEventManager implements P2pEventListener {
             mLastValue = Float.MIN_VALUE;
             mSensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_UI);
         }
-        public boolean enableTrigger() {
-            if (!mSensorEnabled || mTriggerEnabled) {
-                return false;
-            }
-            mTriggerEnabled = true;
-            return checkTrigger();
-        }
         public void disable() {
             if (!mSensorEnabled) {
                 return;
             }
             mSensorManager.unregisterListener(this, mSensor);
             mSensorEnabled = false;
-            mTriggerEnabled = false;
-        }
-        boolean checkTrigger() {
-            if (!mTriggerEnabled ||
-                    100.0 * mLastValue / SensorManager.GRAVITY_EARTH < THRESHOLD_PERCENT) {
-                return false;
-            }
-            disable();
-            mVibrator.vibrate(VIBRATION_PATTERN, -1);
-            mCallback.onP2pSendConfirmed();
-            return true;
         }
         @Override
         public void onSensorChanged(SensorEvent event) {
             // always called on UI thread
-            mLastValue = event.values[2];
-            if (DBG) Log.d(TAG, "z=" + mLastValue);
-            checkTrigger();
+            if (!mSensorEnabled) {
+                return;
+            }
+            final float z = event.values[2];
+            final boolean triggered = 100.0 * z / SensorManager.GRAVITY_EARTH > THRESHOLD_PERCENT;
+            //TODO: apply a low pass filter so we get something closer to real gravity
+            if (DBG) Log.d(TAG, "z=" + z + (triggered ? " TRIGGERED" : ""));
+            if (mLastValue == Float.MIN_VALUE && !triggered) {
+                // Received first value, and you're holding it wrong
+                mHoldingItWrongUi.show(mContext);
+            }
+            mLastValue = z;
+            if (triggered) {
+                disable();
+                onSendConfirmed();
+            }
+            return;
         }
         @Override
         public void onAccuracyChanged(Sensor arg0, int arg1) { }
@@ -153,105 +145,86 @@ public class P2pEventManager implements P2pEventListener {
             mPrefsFirstShare = false;
         }
 
-        P2pAnimationActivity.setCallback(mCallback);
-        mAnimating = false;
+        mSending = false;
+        mHoldingItWrongUi = new HoldingItWrongUi();
+        mSendUi = new SendUi(context, this);
     }
 
     @Override
     public void onP2pInRange() {
-        if (TILT_ENABLED) {
-            mTiltDetector.enable();
-        }
-        mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        P2pAnimationActivity.makeScreenshot(mContext);
+        mSendUi.takeScreenshot();
     }
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        if (TILT_ENABLED && mTiltDetector.enableTrigger()) {
-            return;
-        }
-
-        mAnimating = true;
-        // Start the animation activity
-        Intent animIntent = new Intent();
-        animIntent.setClass(mContext, P2pAnimationActivity.class);
-        animIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NEW_TASK);
-        mContext.startActivity(animIntent);
-        playSound(mStartSound);
+        mTiltDetector.enable();
     }
 
     @Override
     public void onP2pSendComplete() {
-        playSound(mEndSound);
         checkFirstShare();
-        finish(true, false);
+        playSound(mEndSound);
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        mSendUi.showPostSend();
+        mSending = false;
     }
 
     @Override
     public void onP2pReceiveComplete() {
-        if (TILT_ENABLED) {
-            mTiltDetector.disable();
-        }
-        finish(false, true);
+        mHoldingItWrongUi.dismiss();
+        mTiltDetector.disable();
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        playSound(mEndSound);
     }
 
     @Override
     public void onP2pOutOfRange() {
-        if (TILT_ENABLED) {
-            mTiltDetector.disable();
-        }
-        if (mAnimating) {
+        mHoldingItWrongUi.dismiss();
+        mTiltDetector.disable();
+        if (mSending) {
             playSound(mErrorSound);
+            mSendUi.dismiss();
+            mSending = false;
         }
-        finish(false, false);
+        mSendUi.releaseScreenshot();
     }
 
-    /**
-     * Finish up the animation, if running.
-     * Must be called on the UI thread.
-     */
-    void finish(boolean sendSuccess, boolean receiveSuccess) {
-        if (!mAnimating) {
-            return;
-        }
-        if (sendSuccess) {
-            P2pAnimationActivity.finishWithSend();
-        } else if (receiveSuccess) {
-            P2pAnimationActivity.finishWithReceive();
-        } else {
-            P2pAnimationActivity.finishWithFailure();
-        }
-        mAnimating = false;
+    void onSendConfirmed() {
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        playSound(mStartSound);
+        mHoldingItWrongUi.dismiss();
+        mSending = true;
+        mSendUi.showPreSend();
     }
 
-    /** If first time, display up a notification */
+    @Override
+    public void onPreFinished() {
+        mCallback.onP2pSendConfirmed();
+    }
+
+    /** If first time, display a notification */
     void checkFirstShare() {
-        synchronized (this) {
-            if (mPrefsFirstShare) {
-                mPrefsFirstShare = false;
-                SharedPreferences.Editor editor = mPrefs.edit();
-                editor.putBoolean(PREF_FIRST_SHARE, false);
-                editor.apply();
+        if (mPrefsFirstShare) {
+            mPrefsFirstShare = false;
+            SharedPreferences.Editor editor = mPrefs.edit();
+            editor.putBoolean(PREF_FIRST_SHARE, false);
+            editor.apply();
 
-                Intent intent = new Intent(Settings.ACTION_NFCSHARING_SETTINGS);
-                PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT);
-                Notification notification = new Notification.Builder(mContext)
-                        .setContentTitle(mContext.getString(R.string.first_share_title))
-                        .setContentText(mContext.getString(R.string.first_share_text))
-                        .setContentIntent(pi)
-                        .setSmallIcon(R.drawable.stat_sys_nfc)
-                        .setAutoCancel(true)
-                        .getNotification();
-                mNotificationManager.notify(NOTIFICATION_FIRST_SHARE, notification);
-            }
+            Intent intent = new Intent(Settings.ACTION_NFCSHARING_SETTINGS);
+            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT);
+            Notification notification = new Notification.Builder(mContext)
+                    .setContentTitle(mContext.getString(R.string.first_share_title))
+                    .setContentText(mContext.getString(R.string.first_share_text))
+                    .setContentIntent(pi)
+                    .setSmallIcon(R.drawable.stat_sys_nfc)
+                    .setAutoCancel(true)
+                    .getNotification();
+            mNotificationManager.notify(NOTIFICATION_FIRST_SHARE, notification);
         }
     }
 
     void playSound(int sound) {
-        synchronized (this) {
-            mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
-        }
+        mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 }
