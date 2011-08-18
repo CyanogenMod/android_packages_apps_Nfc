@@ -332,14 +332,13 @@ reinit:
     }
     else
     {
-        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
+        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, FW Update Info = %d",
               caps.psDevCapabilities.hal_version,
               caps.psDevCapabilities.fw_version,
               caps.psDevCapabilities.hw_version,
               caps.psDevCapabilities.model_id,
               caps.psDevCapabilities.hci_version,
               caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1],
-              caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-2],
               caps.psDevCapabilities.firmware_update_info);
     }
 
@@ -538,6 +537,28 @@ force_download:
          LOGD("phLibNfc_SE_GetSecureElementList(): SMX detected, handle=%p", (void*)SE_List[i].hSecureElement);
       } else if (SE_List[i].eSE_Type == phLibNfc_SE_Type_UICC) {
          LOGD("phLibNfc_SE_GetSecureElementList(): UICC detected, handle=%p", (void*)SE_List[i].hSecureElement);
+      }
+
+      /* Set SE mode - Off */
+      REENTRANCE_LOCK();
+      status = phLibNfc_SE_SetMode(SE_List[i].hSecureElement,
+            phLibNfc_SE_ActModeOff, nfc_jni_se_set_mode_callback,
+            (void *)&cb_data);
+      REENTRANCE_UNLOCK();
+      if (status != NFCSTATUS_PENDING)
+      {
+         LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status,
+               nfc_jni_get_status_name(status));
+         goto clean_and_return;
+      }
+      LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status,
+            nfc_jni_get_status_name(status));
+
+      /* Wait for callback response */
+      if(sem_wait(&cb_data.sem))
+      {
+         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+         goto clean_and_return;
       }
    }
 
@@ -1961,7 +1982,7 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
     TRACE("phLibNfc_SE_SetMode()");
     /* Set SE mode - Virtual */
     REENTRANCE_LOCK();
-    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeVirtualVolatile, nfc_jni_se_set_mode_callback,
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeVirtual, nfc_jni_se_set_mode_callback,
             (void *)&cb_data);
     REENTRANCE_UNLOCK();
     if (ret != NFCSTATUS_PENDING) {
@@ -2001,10 +2022,10 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
     TRACE("phLibNfc_SE_SetMode()");
     /* Set SE mode - Off */
     REENTRANCE_LOCK();
-    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeDefault,
+    ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeOff,
            nfc_jni_se_set_mode_callback, (void *)&cb_data);
     REENTRANCE_UNLOCK();
-
+       
     TRACE("phLibNfc_SE_SetMode returned 0x%02x", ret);
     if (ret != NFCSTATUS_PENDING) {
         LOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
