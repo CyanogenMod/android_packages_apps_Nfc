@@ -16,10 +16,6 @@
 
 package com.android.nfc;
 
-import com.android.nfc.nxp.NativeLlcpConnectionlessSocket;
-import com.android.nfc.nxp.NativeLlcpServiceSocket;
-import com.android.nfc.nxp.NativeLlcpSocket;
-
 import android.nfc.NdefMessage;
 import android.os.Bundle;
 
