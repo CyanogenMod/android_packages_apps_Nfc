@@ -54,95 +54,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     final int mErrorSound;
     final SoundPool mSoundPool; // playback synchronized on this
     final Vibrator mVibrator;
-    final TiltDetector mTiltDetector;
     final NotificationManager mNotificationManager;
-    final HoldingItWrongUi mHoldingItWrongUi;
     final SendUi mSendUi;
 
     // only used on UI thread
     boolean mPrefsFirstShare;
     boolean mSending;
 
-    /** Detect if the screen is facing up or down */
-    class TiltDetector implements SensorEventListener {
-        /**
-         * Percent tilt required before triggering detection.
-         * 100 indicates the device must be exactly face-down.
-         */
-        static final int THRESHOLD_PERCENT = 75;
-        /**
-         * Alpha (smoothing) factor of the low-pass filter.
-         * Decreasing helps latency in case the device is already
-         * tilted from the beginning, but makes the filter more sensitive
-         * to large changes.
-         */
-        static final float LPF_ALPHA = 0.9f;
-        /**
-         * Mininum number of samples to take before acting on them.
-         */
-        static final int MINIMUM_SAMPLES = 10;
-        final SensorManager mSensorManager;
-        final Sensor mSensor;
-
-        // Only used on UI thread
-        boolean mSensorEnabled;
-        float mLastValue;
-        int mNumSamples;
-
-        public TiltDetector(Context context) {
-            mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-            mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            mSensorEnabled = false;
-        }
-        public void enable() {
-            if (mSensorEnabled) {
-                return;
-            }
-            mSensorEnabled = true;
-            mLastValue = 0;
-            mNumSamples = 0;
-            mSensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_FASTEST);
-        }
-        public void disable() {
-            if (!mSensorEnabled) {
-                return;
-            }
-            mSensorManager.unregisterListener(this, mSensor);
-            mSensorEnabled = false;
-        }
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            // always called on UI thread
-            if (!mSensorEnabled) {
-                return;
-            }
-            if (mNumSamples == 0) {
-                mLastValue = event.values[2];
-            } else {
-                // low-pass filter to get a better estimate of gravity
-                mLastValue = LPF_ALPHA * mLastValue + (1 - LPF_ALPHA) * event.values[2];
-            }
-            final boolean triggered = 100.0 * mLastValue / SensorManager.GRAVITY_EARTH > THRESHOLD_PERCENT;
-            mNumSamples++;
-            if (DBG) Log.d(TAG, "z=" + mLastValue + (triggered ? " TRIGGERED" : ""));
-            if (mNumSamples == MINIMUM_SAMPLES && !triggered) {
-                // you're holding it wrong
-                mHoldingItWrongUi.show(mContext);
-            }
-            if (mNumSamples >= MINIMUM_SAMPLES && triggered) {
-                disable();
-                onSendConfirmed();
-            }
-            return;
-        }
-        @Override
-        public void onAccuracyChanged(Sensor arg0, int arg1) { }
-    };
-
     public P2pEventManager(Context context, P2pEventListener.Callback callback) {
         mContext = context;
         mCallback = callback;
-        mTiltDetector = new TiltDetector(mContext);
         mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
         mStartSound = mSoundPool.load(mContext, R.raw.start, 1);
         mEndSound = mSoundPool.load(mContext, R.raw.end, 1);
@@ -163,7 +84,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         }
 
         mSending = false;
-        mHoldingItWrongUi = new HoldingItWrongUi();
         mSendUi = new SendUi(context, this);
     }
 
@@ -174,7 +94,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        mTiltDetector.enable();
+        mSendUi.showPreSend();
     }
 
     @Override
@@ -188,34 +108,23 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pReceiveComplete() {
-        mHoldingItWrongUi.dismiss();
-        mTiltDetector.disable();
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
     }
 
     @Override
     public void onP2pOutOfRange() {
-        mHoldingItWrongUi.dismiss();
-        mTiltDetector.disable();
         if (mSending) {
             playSound(mErrorSound);
-            mSendUi.dismiss();
             mSending = false;
         }
+        mSendUi.dismiss();
         mSendUi.releaseScreenshot();
     }
 
-    void onSendConfirmed() {
-        mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        playSound(mStartSound);
-        mHoldingItWrongUi.dismiss();
-        mSending = true;
-        mSendUi.showPreSend();
-    }
-
     @Override
-    public void onPreFinished() {
+    public void onSendConfirmed() {
+        mSending = true;
         mCallback.onP2pSendConfirmed();
     }
 

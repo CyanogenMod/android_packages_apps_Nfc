@@ -30,22 +30,24 @@ import android.os.Binder;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageView;
 
+import android.util.Log;
 /**
  * All methods must be called on UI thread
  */
-public class SendUi implements Animator.AnimatorListener {
+public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
     static final float[] PRE_SCREENSHOT_SCALE = {1.0f, 0.6f};
     static final int PRE_DURATION_MS = 50;
 
     static final float[] POST_SCREENSHOT_SCALE = {0.6f, 0.0f};
-    static final int POST_DURATION_MS = 200;
+    static final int POST_DURATION_MS = 600;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -65,7 +67,7 @@ public class SendUi implements Animator.AnimatorListener {
     boolean mAttached;
 
     interface Callback {
-        public void onPreFinished();
+        public void onSendConfirmed();
     }
 
     public SendUi(Context context, Callback callback) {
@@ -81,6 +83,7 @@ public class SendUi implements Animator.AnimatorListener {
                 context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
+        mScreenshotView.setOnTouchListener(this);
         mScreenshotLayout.setFocusable(true);
 
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -89,8 +92,8 @@ public class SendUi implements Animator.AnimatorListener {
                 | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                 | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED_SYSTEM
                 | WindowManager.LayoutParams.FLAG_KEEP_SURFACE_WHILE_ANIMATING
-                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                | WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+//                | WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.token = new Binder();
 
@@ -120,6 +123,7 @@ public class SendUi implements Animator.AnimatorListener {
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
+        Log.e("npelly", "1");
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotLayout.requestFocus();
         mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
@@ -217,9 +221,7 @@ public class SendUi implements Animator.AnimatorListener {
 
     @Override
     public void onAnimationEnd(Animator animation) {
-        if (animation == mPreAnimator) {
-            mCallback.onPreFinished();
-        } else if (animation == mPostAnimator) {
+        if (animation == mPostAnimator) {
             dismiss();
         }
     }
@@ -229,4 +231,14 @@ public class SendUi implements Animator.AnimatorListener {
 
     @Override
     public void onAnimationRepeat(Animator animation) {  }
+
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        if (!mAttached) {
+            return false;
+        }
+        mPreAnimator.end();
+        mCallback.onSendConfirmed();
+        return true;
+    }
 }
