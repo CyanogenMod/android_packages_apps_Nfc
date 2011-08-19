@@ -890,13 +890,21 @@ public class NfcService extends Application implements DeviceHostListener {
             /* find the tag in the hmap */
             tag = (TagEndpoint) findObject(nativeHandle);
             if (tag != null) {
+                // Check if length is within limits
+                if (data.length > getMaxTransceiveLength(tag.getConnectedTechnology())) {
+                    return new TransceiveResult(TransceiveResult.RESULT_EXCEEDED_LENGTH, null);
+                }
                 int[] targetLost = new int[1];
                 response = tag.transceive(data, raw, targetLost);
-                TransceiveResult transResult = new TransceiveResult(
-                        (response != null) ? true : false,
-                        (targetLost[0] == 1) ? true : false,
-                        response);
-                return transResult;
+                int result;
+                if (response != null) {
+                    result = TransceiveResult.RESULT_SUCCESS;
+                } else if (targetLost[0] == 1) {
+                    result = TransceiveResult.RESULT_TAGLOST;
+                } else {
+                    result = TransceiveResult.RESULT_FAILURE;
+                }
+                return new TransceiveResult(result, response);
             }
             return null;
         }
@@ -1069,6 +1077,20 @@ public class NfcService extends Application implements DeviceHostListener {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
             mDeviceHost.resetTimeouts();
+        }
+
+        @Override
+        public boolean canMakeReadOnly(int ndefType) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            return mDeviceHost.canMakeReadOnly(ndefType);
+        }
+
+        @Override
+        public int getMaxTransceiveLength(int tech) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
+            return mDeviceHost.getMaxTransceiveLength(tech);
         }
     };
 

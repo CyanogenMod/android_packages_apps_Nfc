@@ -415,7 +415,8 @@ public class NativeNfcTag implements TagEndpoint {
         }
     }
 
-    private int getConnectedTechnology() {
+    @Override
+    public int getConnectedTechnology() {
         if (mConnectedTechIndex != -1 && mConnectedTechIndex < mTechList.length) {
             return mTechList[mConnectedTechIndex];
         } else {

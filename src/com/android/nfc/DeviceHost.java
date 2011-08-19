@@ -80,6 +80,8 @@ public interface DeviceHost {
         boolean formatNdef(byte[] key);
         boolean isNdefFormatable();
         boolean makeReadOnly();
+
+        int getConnectedTechnology();
     }
 
     public interface NfceeEndpoint {
@@ -179,4 +181,9 @@ public interface DeviceHost {
     public int getTimeout(int technology);
 
     public void doAbort();
+
+    boolean canMakeReadOnly(int technology);
+
+    int getMaxTransceiveLength(int technology);
+
 }

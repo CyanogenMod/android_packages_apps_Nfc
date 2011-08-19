@@ -23,6 +23,8 @@ import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
 import android.nfc.ErrorCodes;
+import android.nfc.tech.Ndef;
+import android.nfc.tech.TagTechnology;
 import android.util.Log;
 
 /**
@@ -149,6 +151,38 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public int getTimeout(int tech) {
         return doGetTimeout(tech);
+    }
+
+
+    @Override
+    public boolean canMakeReadOnly(int ndefType) {
+        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2);
+    }
+
+    @Override
+    public int getMaxTransceiveLength(int technology) {
+        switch (technology) {
+            case (TagTechnology.NFC_A):
+            case (TagTechnology.MIFARE_CLASSIC):
+            case (TagTechnology.MIFARE_ULTRALIGHT):
+                return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
+            case (TagTechnology.NFC_B):
+                return 0; // PN544 does not support transceive of raw NfcB
+            case (TagTechnology.NFC_V):
+                return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
+            case (TagTechnology.ISO_DEP):
+                /* The maximum length of a normal IsoDep frame consists of:
+                 * CLA, INS, P1, P2, LC, LE + 255 payload bytes = 261 bytes
+                 * such a frame is supported. Extended length frames however
+                 * are not supported.
+                 */
+                return 261; // Will be automatically split in two frames on the RF layer
+            case (TagTechnology.NFC_F):
+                return 252; // PN544 RF buffer = 255 bytes, subtract one for SoD, two for CRC
+            default:
+                return 0;
+        }
+
     }
 
     /**
