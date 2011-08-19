@@ -311,7 +311,7 @@ static jint com_android_nfc_NativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jby
    phLibNfc_Handle hLlcpSocket;
    phNfc_sData_t sReceiveBuffer = {NULL, 0};
    struct nfc_jni_callback_data cb_data;
-   jint result = 0;
+   jint result = -1;
    
    /* Retrieve handles */
    hRemoteDevice = nfc_jni_get_p2p_device_handle(e,o);

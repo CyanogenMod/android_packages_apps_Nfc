@@ -67,7 +67,11 @@ public class NativeLlcpSocket implements DeviceHost.LlcpSocket {
     private native int doReceive(byte[] recvBuff);
     @Override
     public int receive(byte[] recvBuff) throws IOException {
-        return doReceive(recvBuff);
+        int receiveLength = doReceive(recvBuff);
+        if (receiveLength == -1) {
+            throw new IOException();
+        }
+        return receiveLength;
     }
 
     private native int doGetRemoteSocketMiu();
