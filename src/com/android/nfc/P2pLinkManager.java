@@ -96,7 +96,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
-    static final int LINK_DEBOUNCE_MS = 500;
+    static final int LINK_DEBOUNCE_MS = 750;
 
     static final int MSG_DEBOUNCE_TIMEOUT = 1;
     static final int MSG_RECEIVE_COMPLETE = 2;

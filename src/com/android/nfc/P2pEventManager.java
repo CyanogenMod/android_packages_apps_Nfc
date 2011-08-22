@@ -22,16 +22,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.util.Log;
-
 import com.android.nfc3.R;
 
 /**
@@ -89,6 +83,8 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pInRange() {
+        playSound(mStartSound);
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.takeScreenshot();
     }
 
@@ -110,6 +106,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     public void onP2pReceiveComplete() {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
+        mSendUi.finish();
     }
 
     @Override
@@ -119,13 +116,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             mSending = false;
         }
         mSendUi.dismiss();
-        mSendUi.releaseScreenshot();
     }
 
     @Override
     public void onSendConfirmed() {
+        if (!mSending) {
+            mSendUi.showStartSend();
+            mCallback.onP2pSendConfirmed();
+        }
         mSending = true;
-        mCallback.onP2pSendConfirmed();
+
     }
 
     /** If first time, display a notification */

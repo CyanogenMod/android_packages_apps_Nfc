@@ -19,9 +19,12 @@ package com.android.nfc;
 import com.android.nfc3.R;
 
 import android.animation.Animator;
+import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
@@ -35,19 +38,26 @@ import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 
-import android.util.Log;
 /**
  * All methods must be called on UI thread
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
-    static final float[] PRE_SCREENSHOT_SCALE = {1.0f, 0.6f};
-    static final int PRE_DURATION_MS = 50;
+    static final float INTERMEDIATE_SCALE = 0.6f;
 
-    static final float[] POST_SCREENSHOT_SCALE = {0.6f, 0.0f};
-    static final int POST_DURATION_MS = 600;
+    static final float[] PRE_SCREENSHOT_SCALE = {1.0f, INTERMEDIATE_SCALE};
+    static final int PRE_DURATION_MS = 300;
+
+    static final float[] CLONE_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.0f};
+    static final int SLOW_CLONE_DURATION_MS = 3000; // Stretch out sending over 3s
+    static final int FAST_CLONE_DURATION_MS = 200;
+
+    static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
+    static final int SCALE_UP_DURATION_MS = 300;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -59,9 +69,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     final LayoutInflater mLayoutInflater;
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
+    final ImageView mCloneView;
     final Callback mCallback;
     final ObjectAnimator mPreAnimator;
-    final ObjectAnimator mPostAnimator;
+    final ObjectAnimator mSlowCloneAnimator;
+    final ObjectAnimator mFastCloneAnimator;
+    final ObjectAnimator mScaleUpAnimator;
+    final AnimatorSet mSuccessAnimatorSet;
 
     Bitmap mScreenshotBitmap;
     boolean mAttached;
@@ -83,8 +97,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
                 context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
-        mScreenshotView.setOnTouchListener(this);
         mScreenshotLayout.setFocusable(true);
+
+        mCloneView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
 
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0, 0,
@@ -100,16 +115,29 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         PropertyValuesHolder preX = PropertyValuesHolder.ofFloat("scaleX", PRE_SCREENSHOT_SCALE);
         PropertyValuesHolder preY = PropertyValuesHolder.ofFloat("scaleY", PRE_SCREENSHOT_SCALE);
         mPreAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, preX, preY);
-        mPreAnimator.setInterpolator(null);  // linear
+        mPreAnimator.setInterpolator(new DecelerateInterpolator());
         mPreAnimator.setDuration(PRE_DURATION_MS);
         mPreAnimator.addListener(this);
 
-        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", POST_SCREENSHOT_SCALE);
-        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", POST_SCREENSHOT_SCALE);
-        mPostAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
-        mPostAnimator.setInterpolator(null);  // linear
-        mPostAnimator.setDuration(POST_DURATION_MS);
-        mPostAnimator.addListener(this);
+        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", CLONE_SCREENSHOT_SCALE);
+        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", CLONE_SCREENSHOT_SCALE);
+        mSlowCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
+        mSlowCloneAnimator.setInterpolator(null); // linear
+        mSlowCloneAnimator.setDuration(SLOW_CLONE_DURATION_MS);
+
+        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
+        mFastCloneAnimator.setInterpolator(null); // linear
+        mFastCloneAnimator.setDuration(FAST_CLONE_DURATION_MS);
+
+        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
+        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
+        mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY);
+        mScaleUpAnimator.setInterpolator(new AccelerateInterpolator());
+        mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
+        mScaleUpAnimator.addListener(this);
+
+        mSuccessAnimatorSet = new AnimatorSet();
+        mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mScaleUpAnimator);
 
         mAttached = false;
     }
@@ -118,21 +146,62 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mScreenshotBitmap = createScreenshot();
     }
 
-    /** Show pre-send animation, calls onPreFinished() when complete */
+    /** Show pre-send animation */
     public void showPreSend() {
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
-        Log.e("npelly", "1");
+        mScreenshotView.setOnTouchListener(this);
+
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotLayout.requestFocus();
+
+        mCloneView.setImageBitmap(mScreenshotBitmap);
+        mCloneView.setVisibility(View.GONE);
+        mCloneView.setScaleX(INTERMEDIATE_SCALE);
+        mCloneView.setScaleY(INTERMEDIATE_SCALE);
+
+        mScreenshotView.setAlpha(1.0f);
+
+        // Lock the orientation.
+        // The orientation from the configuration does not specify whether
+        // the orientation is reverse or not (ie landscape or reverse landscape).
+        // So we have to use SENSOR_LANDSCAPE or SENSOR_PORTRAIT to make sure
+        // we lock in portrait / landscape and have the sensor determine
+        // which way is up.
+        int orientation = mContext.getResources().getConfiguration().orientation;
+
+        switch (orientation) {
+            case Configuration.ORIENTATION_LANDSCAPE:
+                mWindowLayoutParams.screenOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+                break;
+            case Configuration.ORIENTATION_PORTRAIT:
+                mWindowLayoutParams.screenOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+                break;
+            default:
+                mWindowLayoutParams.screenOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+                break;
+        }
+
         mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
         mAttached = true;
         mPreAnimator.start();
+    }
 
-        //TODO: Lock rotation
-//        final int orientation = getResources().getConfiguration().orientation;
-//        setRequestedOrientation(orientation);
+    /** Show starting send animation */
+    public void showStartSend() {
+        if (!mAttached) {
+            return;
+        }
+
+        mScreenshotView.setAlpha(0.6f);
+        mCloneView.setScaleX(INTERMEDIATE_SCALE);
+        mCloneView.setScaleY(INTERMEDIATE_SCALE);
+        mCloneView.setVisibility(View.VISIBLE);
+        mSlowCloneAnimator.start();
     }
 
     /** Show post-send animation */
@@ -140,15 +209,39 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         if (!mAttached) {
             return;
         }
-        mPostAnimator.start();
+
+        mSlowCloneAnimator.cancel();
+
+        // Modify the fast clone parameters to match the current scale
+        float currentScale = mCloneView.getScaleX();
+        currentScale = mCloneView.getScaleX();
+
+        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", new float[] {currentScale, 0.0f});
+        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", new float[] {currentScale, 0.0f});
+        mFastCloneAnimator.setValues(postX, postY);
+
+        mSuccessAnimatorSet.start();
     }
+
+    /** Return to initial state */
+    public void finish() {
+        if (!mAttached) {
+            return;
+        }
+
+        mScaleUpAnimator.start();
+    }
+
 
     public void dismiss() {
         if (!mAttached) {
             return;
         }
         mPreAnimator.cancel();
-        mPostAnimator.cancel();
+        mSlowCloneAnimator.cancel();
+        mFastCloneAnimator.cancel();
+        mSuccessAnimatorSet.cancel();
+        mScaleUpAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
         mAttached = false;
         releaseScreenshot();
@@ -221,7 +314,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
     @Override
     public void onAnimationEnd(Animator animation) {
-        if (animation == mPostAnimator) {
+        if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet) {
             dismiss();
         }
     }
@@ -237,6 +330,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         if (!mAttached) {
             return false;
         }
+        // Ignore future touches
+        mScreenshotView.setOnTouchListener(null);
+
         mPreAnimator.end();
         mCallback.onSendConfirmed();
         return true;
