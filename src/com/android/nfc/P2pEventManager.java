@@ -24,6 +24,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.media.SoundPool;
+import android.os.Handler;
+import android.os.Message;
 import android.os.Vibrator;
 import android.provider.Settings;
 import com.android.nfc3.R;
@@ -31,11 +33,17 @@ import com.android.nfc3.R;
 /**
  * Manages vibration, sound and animation for P2P events.
  */
-public class P2pEventManager implements P2pEventListener, SendUi.Callback {
+public class P2pEventManager implements P2pEventListener, SendUi.Callback,
+        Handler.Callback {
     static final String TAG = "NfcP2pEventManager";
     static final boolean DBG = true;
 
+    static final int HINT_TIMEOUT = 3000; // How long to wait before showing hint
+    static final int MSG_HINT_TIMEOUT = 0;
+    static final int NUM_FAILURES_UNTIL_HINT = 3; // How many failures before showing hint
+
     static final String PREF_FIRST_SHARE = "first_share";
+    static final String PREF_SHOW_HINT = "show_hint";
     static final int NOTIFICATION_FIRST_SHARE = 0;
 
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
@@ -50,10 +58,15 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     final Vibrator mVibrator;
     final NotificationManager mNotificationManager;
     final SendUi mSendUi;
+    final Handler mHandler;
 
     // only used on UI thread
     boolean mPrefsFirstShare;
     boolean mSending;
+    boolean mPrefsShowHint; // Show a hint until the user gets it right
+    int mNothingSharedCount; // Amount of times device entered range but didn't share
+    boolean mNdefSent;
+    boolean mNdefReceived;
 
     public P2pEventManager(Context context, P2pEventListener.Callback callback) {
         mContext = context;
@@ -66,16 +79,20 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
 
-        SharedPreferences prefs = mContext.getSharedPreferences(NfcService.PREF,
-                Context.MODE_PRIVATE);
-        if (prefs.getBoolean(PREF_FIRST_SHARE, true)) {
-            mPrefs = prefs;
+        mPrefs = mContext.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
+        if (mPrefs.getBoolean(PREF_FIRST_SHARE, true)) {
             mPrefsFirstShare = true;
         } else {
-            // don't need to check pref again
-            mPrefs = null;
             mPrefsFirstShare = false;
         }
+
+        if (mPrefs.getBoolean(PREF_SHOW_HINT, true)) {
+            mPrefsShowHint = true;
+        } else {
+            mPrefsShowHint = false;
+        }
+        mNothingSharedCount = 0;
+        mHandler = new Handler(this);
 
         mSending = false;
         mSendUi = new SendUi(context, this);
@@ -84,13 +101,20 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     @Override
     public void onP2pInRange() {
         playSound(mStartSound);
+        mNdefSent = false;
+        mNdefReceived = false;
+
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.takeScreenshot();
     }
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        mSendUi.showPreSend();
+        mSendUi.showPreSend(mPrefsShowHint);
+        if (!mPrefsShowHint) {
+            // Show the hint after a timeout
+            mHandler.sendEmptyMessageDelayed(MSG_HINT_TIMEOUT, HINT_TIMEOUT);
+        }
     }
 
     @Override
@@ -99,14 +123,19 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         playSound(mEndSound);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.showPostSend();
+        showHintNextTime(false);
+        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         mSending = false;
+        mNdefSent = true;
     }
 
     @Override
     public void onP2pReceiveComplete() {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
+        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         mSendUi.finish();
+        mNdefReceived = true;
     }
 
     @Override
@@ -115,6 +144,14 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             playSound(mErrorSound);
             mSending = false;
         }
+        if (!mNdefSent && !mNdefReceived) {
+            if (mNothingSharedCount++ >= NUM_FAILURES_UNTIL_HINT) {
+                showHintNextTime(true);
+            }
+        } else {
+            mNothingSharedCount = 0;
+        }
+        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         mSendUi.dismiss();
     }
 
@@ -126,6 +163,13 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         }
         mSending = true;
 
+    }
+
+    void showHintNextTime(boolean show) {
+        mPrefsShowHint = show;
+        SharedPreferences.Editor editor = mPrefs.edit();
+        editor.putBoolean(PREF_SHOW_HINT, show);
+        editor.apply();
     }
 
     /** If first time, display a notification */
@@ -152,5 +196,15 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     void playSound(int sound) {
         mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+    }
+
+    @Override
+    public boolean handleMessage(Message msg) {
+        if (msg.what == MSG_HINT_TIMEOUT) {
+            mSendUi.fadeInHint();
+            return true;
+        } else {
+            return false;
+        }
     }
 }

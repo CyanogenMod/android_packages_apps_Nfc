@@ -41,6 +41,7 @@ import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 /**
  * All methods must be called on UI thread
@@ -59,6 +60,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
     static final int SCALE_UP_DURATION_MS = 300;
 
+    static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
+    static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
+
     // all members are only used on UI thread
     final WindowManager mWindowManager;
     final Context mContext;
@@ -70,11 +74,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
     final ImageView mCloneView;
+    final TextView mTextHint;
     final Callback mCallback;
     final ObjectAnimator mPreAnimator;
     final ObjectAnimator mSlowCloneAnimator;
     final ObjectAnimator mFastCloneAnimator;
     final ObjectAnimator mScaleUpAnimator;
+    final ObjectAnimator mHintAnimator;
     final AnimatorSet mSuccessAnimatorSet;
 
     Bitmap mScreenshotBitmap;
@@ -101,6 +107,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
         mCloneView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
 
+        mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0, 0,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -136,6 +143,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
         mScaleUpAnimator.addListener(this);
 
+        PropertyValuesHolder alphaUp = PropertyValuesHolder.ofFloat("alpha", TEXT_HINT_ALPHA_RANGE);
+        mHintAnimator = ObjectAnimator.ofPropertyValuesHolder(mTextHint, alphaUp);
+        mHintAnimator.setInterpolator(null);
+        mHintAnimator.setDuration(TEXT_HINT_ALPHA_DURATION_MS);
+
         mSuccessAnimatorSet = new AnimatorSet();
         mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mScaleUpAnimator);
 
@@ -146,8 +158,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mScreenshotBitmap = createScreenshot();
     }
 
+    /** Fades in the textual hint */
+    public void fadeInHint() {
+        mTextHint.setAlpha(0.0f);
+        mTextHint.setVisibility(View.VISIBLE);
+        mHintAnimator.start();
+    }
+
     /** Show pre-send animation */
-    public void showPreSend() {
+    public void showPreSend(boolean showHint) {
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
@@ -162,6 +181,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mCloneView.setScaleY(INTERMEDIATE_SCALE);
 
         mScreenshotView.setAlpha(1.0f);
+
+        mTextHint.setVisibility(showHint ? View.VISIBLE : View.GONE);
+        mTextHint.setAlpha(1.0f);
 
         // Lock the orientation.
         // The orientation from the configuration does not specify whether
@@ -211,7 +233,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         }
 
         mSlowCloneAnimator.cancel();
-
+        mTextHint.setVisibility(View.GONE);
         // Modify the fast clone parameters to match the current scale
         float currentScale = mCloneView.getScaleX();
         currentScale = mCloneView.getScaleX();
@@ -228,7 +250,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         if (!mAttached) {
             return;
         }
-
+        mTextHint.setVisibility(View.GONE);
         mScaleUpAnimator.start();
     }
 

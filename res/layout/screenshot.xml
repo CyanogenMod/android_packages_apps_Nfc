@@ -24,6 +24,20 @@
         android:adjustViewBounds="true"
         android:src="@drawable/p2p_bg"
     />
+    <RelativeLayout android:layout_width="match_parent"
+        android:layout_height="match_parent"
+    >
+        <TextView android:id="@+id/calltoaction"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/touch"
+            android:gravity="center"
+            android:layout_alignParentTop="true"
+            android:textSize="22sp"
+            android:paddingTop="50dip"
+            android:visibility="gone"
+        />
+    </RelativeLayout>
     <ImageView android:id="@+id/screenshot"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
