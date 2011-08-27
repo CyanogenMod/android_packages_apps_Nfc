@@ -73,16 +73,9 @@ public class NfcDispatcher {
         mPackageManager = context.getPackageManager();
     }
 
-    public synchronized void disableForegroundDispatch() {
-        if (DBG) Log.d(TAG, "Disable Foreground Dispatch");
-        mOverrideIntent = null;
-        mOverrideFilters = null;
-        mOverrideTechLists = null;
-    }
-
-    public synchronized void enableForegroundDispatch(PendingIntent intent,
+    public synchronized void setForegroundDispatch(PendingIntent intent,
             IntentFilter[] filters, String[][] techLists) {
-        if (DBG) Log.d(TAG, "Enable Foreground Dispatch");
+        if (DBG) Log.d(TAG, "Set Foreground Dispatch");
         mOverrideIntent = intent;
         mOverrideFilters = filters;
         mOverrideTechLists = techLists;

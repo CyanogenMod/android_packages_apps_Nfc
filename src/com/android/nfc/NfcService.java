@@ -91,8 +91,8 @@ public class NfcService extends Application implements DeviceHostListener {
 
     private static final String PREF_NFC_ON = "nfc_on";
     private static final boolean NFC_ON_DEFAULT = true;
-    private static final String PREF_ZEROCLICK_ON = "zeroclick_on";
-    private static final boolean ZEROCLICK_ON_DEFAULT = true;
+    private static final String PREF_NDEF_PUSH_ON = "ndef_push_on";
+    private static final boolean NDEF_PUSH_ON_DEFAULT = true;
 
     private static final String PREF_FIRST_BOOT = "first_boot";
 
@@ -165,7 +165,7 @@ public class NfcService extends Application implements DeviceHostListener {
     private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     private HashSet<String> mSePackages = new HashSet<String>();
     private boolean mIsScreenUnlocked;
-    private boolean mIsZeroClickRequested;
+    private boolean mIsNdefPushEnabled;
 
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
@@ -303,7 +303,7 @@ public class NfcService extends Application implements DeviceHostListener {
         mPrefsEditor = mPrefs.edit();
 
         mState = NfcAdapter.STATE_OFF;
-        mIsZeroClickRequested = mPrefs.getBoolean(PREF_ZEROCLICK_ON, ZEROCLICK_ON_DEFAULT);
+        mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
@@ -446,7 +446,7 @@ public class NfcService extends Application implements DeviceHostListener {
             synchronized(NfcService.this) {
                 mObjectMap.clear();
 
-                mP2pLinkManager.enableDisable(mIsZeroClickRequested, true);
+                mP2pLinkManager.enableDisable(mIsNdefPushEnabled, true);
                 updateState(NfcAdapter.STATE_ON);
             }
 
@@ -482,7 +482,7 @@ public class NfcService extends Application implements DeviceHostListener {
             applyRouting();
             maybeDisconnectTarget();
 
-            mNfcDispatcher.disableForegroundDispatch();
+            mNfcDispatcher.setForegroundDispatch(null, null, null);
 
             boolean result = mDeviceHost.deinitialize();
             if (DBG) Log.d(TAG, "mDeviceHost.deinitialize() = " + result);
@@ -593,23 +593,23 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public boolean isZeroClickEnabled() throws RemoteException {
+        public boolean isNdefPushEnabled() throws RemoteException {
             synchronized (NfcService.this) {
-                return mIsZeroClickRequested;
+                return mIsNdefPushEnabled;
             }
         }
 
         @Override
-        public boolean enableZeroClick() throws RemoteException {
+        public boolean enableNdefPush() throws RemoteException {
             NfcService.enforceAdminPerm(mContext);
             synchronized(NfcService.this) {
-                if (mIsZeroClickRequested) {
+                if (mIsNdefPushEnabled) {
                     return true;
                 }
-                Log.i(TAG, "enabling 0-click");
-                mPrefsEditor.putBoolean(PREF_ZEROCLICK_ON, true);
+                Log.i(TAG, "enabling NDEF Push");
+                mPrefsEditor.putBoolean(PREF_NDEF_PUSH_ON, true);
                 mPrefsEditor.apply();
-                mIsZeroClickRequested = true;
+                mIsNdefPushEnabled = true;
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(true, true);
                 }
@@ -618,16 +618,16 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public boolean disableZeroClick() throws RemoteException {
+        public boolean disableNdefPush() throws RemoteException {
             NfcService.enforceAdminPerm(mContext);
             synchronized(NfcService.this) {
-                if (!mIsZeroClickRequested) {
+                if (!mIsNdefPushEnabled) {
                     return true;
                 }
-                Log.i(TAG, "disabling 0-click");
-                mPrefsEditor.putBoolean(PREF_ZEROCLICK_ON, false);
+                Log.i(TAG, "disabling NDEF Push");
+                mPrefsEditor.putBoolean(PREF_NDEF_PUSH_ON, false);
                 mPrefsEditor.apply();
-                mIsZeroClickRequested = false;
+                mIsNdefPushEnabled = false;
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(false, true);
                 }
@@ -636,14 +636,14 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public void enableForegroundDispatch(ComponentName activity, PendingIntent intent,
+        public void setForegroundDispatch(PendingIntent intent,
                 IntentFilter[] filters, TechListParcel techListsParcel) {
-            // Permission check
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
-            // Argument validation
-            if (activity == null || intent == null) {
-                throw new IllegalArgumentException();
+            // Short-cut the disable path
+            if (intent == null && filters == null && techListsParcel == null) {
+                mNfcDispatcher.setForegroundDispatch(null, null, null);
+                return;
             }
 
             // Validate the IntentFilters
@@ -665,39 +665,13 @@ public class NfcService extends Application implements DeviceHostListener {
                 techLists = techListsParcel.getTechLists();
             }
 
-            mNfcDispatcher.enableForegroundDispatch(intent, filters, techLists);
+            mNfcDispatcher.setForegroundDispatch(intent, filters, techLists);
         }
 
         @Override
-        public void disableForegroundDispatch(ComponentName activity) {
+        public void setForegroundNdefPush(NdefMessage msg, INdefPushCallback callback) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
-            mNfcDispatcher.disableForegroundDispatch();
-        }
-
-        @Override
-        public void enableForegroundNdefPush(ComponentName activity, NdefMessage msg) {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            if (activity == null || msg == null) {
-                throw new IllegalArgumentException();
-            }
-            mP2pLinkManager.setNdefToSend(msg, null);
-        }
-
-        @Override
-        public void enableForegroundNdefPushWithCallback(ComponentName activity,
-                INdefPushCallback callback) {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            if (activity == null || callback == null) {
-                throw new IllegalArgumentException();
-            }
-            mP2pLinkManager.setNdefToSend(null, callback);
-        }
-
-        @Override
-        public void disableForegroundNdefPush(ComponentName activity) {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            mP2pLinkManager.setNdefToSend(null, null);
+            mP2pLinkManager.setNdefToSend(msg, callback);
         }
 
         @Override
@@ -1746,7 +1720,7 @@ public class NfcService extends Application implements DeviceHostListener {
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (this) {
             pw.println("mState=" + stateToString(mState));
-            pw.println("mIsZeroClickRequested=" + mIsZeroClickRequested);
+            pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
             pw.println("mIsScreenUnlocked=" + mIsScreenUnlocked);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);

@@ -230,7 +230,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             if (callback != null) {
                 try {
-                    messageToSend = callback.onConnect();
+                    messageToSend = callback.createMessage();
                 } catch (RemoteException e) {
                     // Ignore
                 }
@@ -429,7 +429,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mEventListener.onP2pSendComplete();
                     if (mCallbackNdef != null) {
                         try {
-                            mCallbackNdef.onMessagePushed();
+                            mCallbackNdef.onNdefPushComplete();
                         } catch (RemoteException e) { }
                     }
                     mSendTask = null;
