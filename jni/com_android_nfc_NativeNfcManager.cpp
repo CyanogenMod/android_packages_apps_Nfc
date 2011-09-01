@@ -26,7 +26,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       29
+#define EEDATA_SETTINGS_NUMBER       30
 
 static phLibNfc_sConfig_t   gDrvCfg;
 void   *gHWRef;
@@ -109,8 +109,10 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	,{0x00, 0x98, 0x7D, 0x02}
 	,{0x00, 0x98, 0x7E, 0x00}
 
-     // Enable CEA detection mechanism
+    // Enable CEA detection mechanism
     ,{0x00, 0x9F, 0xC8, 0x01}
+    // Set NFC-F poll RC=0x00
+    ,{0x00, 0x9F, 0x9A, 0x00}
 };
 
 /* Internal functions declaration */
