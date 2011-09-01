@@ -33,8 +33,7 @@ import com.android.nfc3.R;
 /**
  * Manages vibration, sound and animation for P2P events.
  */
-public class P2pEventManager implements P2pEventListener, SendUi.Callback,
-        Handler.Callback {
+public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handler.Callback {
     static final String TAG = "NfcP2pEventManager";
     static final boolean DBG = true;
 
@@ -134,7 +133,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback,
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
         mHandler.removeMessages(MSG_HINT_TIMEOUT);
-        mSendUi.finish();
+        mSendUi.finish(SendUi.FINISH_SLIDE_OUT);
         mNdefReceived = true;
     }
 
@@ -152,7 +151,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback,
             mNothingSharedCount = 0;
         }
         mHandler.removeMessages(MSG_HINT_TIMEOUT);
-        mSendUi.dismiss();
+        mSendUi.finish(SendUi.FINISH_SCALE_UP);
     }
 
     @Override
@@ -200,7 +199,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback,
 
     @Override
     public boolean handleMessage(Message msg) {
-        if (msg.what == MSG_HINT_TIMEOUT) {
+        if (msg.what == MSG_HINT_TIMEOUT && !mSending) {
             mSendUi.fadeInHint();
             return true;
         } else {

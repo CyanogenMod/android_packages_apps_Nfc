@@ -22,6 +22,8 @@ import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
+import android.app.ActivityManager;
+import android.app.StatusBarManager;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -31,6 +33,7 @@ import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.os.Binder;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -38,6 +41,7 @@ import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
@@ -47,6 +51,7 @@ import android.widget.TextView;
  * All methods must be called on UI thread
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
+    private static final String LOG_TAG = "SendUI";
 
     static final float INTERMEDIATE_SCALE = 0.6f;
 
@@ -60,8 +65,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
     static final int SCALE_UP_DURATION_MS = 300;
 
+    static final int SLIDE_OUT_DURATION_MS = 300;
+
     static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
+
+    static final int FINISH_SCALE_UP = 0;
+    static final int FINISH_SLIDE_OUT = 1;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -71,6 +81,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     final Matrix mDisplayMatrix;
     final WindowManager.LayoutParams mWindowLayoutParams;
     final LayoutInflater mLayoutInflater;
+    final StatusBarManager mStatusBarManager;
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
     final ImageView mCloneView;
@@ -82,8 +93,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     final ObjectAnimator mScaleUpAnimator;
     final ObjectAnimator mHintAnimator;
     final AnimatorSet mSuccessAnimatorSet;
+    final boolean mHardwareAccelerated;
 
     Bitmap mScreenshotBitmap;
+    ObjectAnimator mSlideoutAnimator;
+
     boolean mAttached;
 
     interface Callback {
@@ -97,6 +111,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mDisplayMetrics = new DisplayMetrics();
         mDisplayMatrix = new Matrix();
         mWindowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        mStatusBarManager = (StatusBarManager) context.getSystemService(Context.STATUS_BAR_SERVICE);
+
         mDisplay = mWindowManager.getDefaultDisplay();
 
         mLayoutInflater = (LayoutInflater)
@@ -108,14 +124,22 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mCloneView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
 
         mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
+
+        // We're only allowed to use hardware acceleration if
+        // isHighEndGfx() returns true - otherwise, we're too limited
+        // on resources to do it.
+        mHardwareAccelerated = ActivityManager.isHighEndGfx(mDisplay);
+        int hwAccelerationFlags = mHardwareAccelerated ?
+                (WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                 | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED_SYSTEM) : 0;
+
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 0, 0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 0,
+                WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
-                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED_SYSTEM
+                | hwAccelerationFlags
                 | WindowManager.LayoutParams.FLAG_KEEP_SURFACE_WHILE_ANIMATING
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-//                | WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.token = new Binder();
 
@@ -139,7 +163,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
         PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
         mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY);
-        mScaleUpAnimator.setInterpolator(new AccelerateInterpolator());
+        mScaleUpAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
         mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
         mScaleUpAnimator.addListener(this);
 
@@ -171,8 +195,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
             return;
         }
         mScreenshotView.setOnTouchListener(this);
-
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
+        mScreenshotView.setTranslationX(0f);
+        mScreenshotView.setAlpha(1.0f);
         mScreenshotLayout.requestFocus();
 
         mCloneView.setImageBitmap(mScreenshotBitmap);
@@ -180,7 +205,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mCloneView.setScaleX(INTERMEDIATE_SCALE);
         mCloneView.setScaleY(INTERMEDIATE_SCALE);
 
-        mScreenshotView.setAlpha(1.0f);
 
         mTextHint.setVisibility(showHint ? View.VISIBLE : View.GONE);
         mTextHint.setAlpha(1.0f);
@@ -209,6 +233,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         }
 
         mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
+        // Disable statusbar pull-down
+        mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
+
         mAttached = true;
         mPreAnimator.start();
     }
@@ -218,8 +245,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         if (!mAttached) {
             return;
         }
-
-        mScreenshotView.setAlpha(0.6f);
+        mScreenshotView.setAlpha(0.7f);
         mCloneView.setScaleX(INTERMEDIATE_SCALE);
         mCloneView.setScaleY(INTERMEDIATE_SCALE);
         mCloneView.setVisibility(View.VISIBLE);
@@ -246,14 +272,23 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     }
 
     /** Return to initial state */
-    public void finish() {
+    public void finish(int finishMode) {
         if (!mAttached) {
             return;
         }
         mTextHint.setVisibility(View.GONE);
-        mScaleUpAnimator.start();
+        if (finishMode == FINISH_SLIDE_OUT) {
+            PropertyValuesHolder slideX = PropertyValuesHolder.ofFloat("translationX",
+                    new float[]{0.0f, mScreenshotView.getWidth()});
+            mSlideoutAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, slideX);
+            mSlideoutAnimator.setInterpolator(new AccelerateInterpolator());
+            mSlideoutAnimator.setDuration(SLIDE_OUT_DURATION_MS);
+            mSlideoutAnimator.addListener(this);
+            mSlideoutAnimator.start();
+        } else {
+            mScaleUpAnimator.start();
+        }
     }
-
 
     public void dismiss() {
         if (!mAttached) {
@@ -265,6 +300,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mSuccessAnimatorSet.cancel();
         mScaleUpAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
+        mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
         mAttached = false;
         releaseScreenshot();
     }
@@ -296,7 +332,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     Bitmap createScreenshot() {
         // We need to orient the screenshot correctly (and the Surface api seems to
         // take screenshots only in the natural orientation of the device :!)
+
         mDisplay.getRealMetrics(mDisplayMetrics);
+
         float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
         boolean requiresRotation = (degrees > 0);
@@ -336,7 +374,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
     @Override
     public void onAnimationEnd(Animator animation) {
-        if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet) {
+        if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet ||
+            animation == mSlideoutAnimator) {
             dismiss();
         }
     }
