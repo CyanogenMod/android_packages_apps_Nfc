@@ -70,6 +70,7 @@ import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -89,6 +90,7 @@ public class NfcService extends Application {
 
     private static final String MY_TAG_FILE_NAME = "mytag";
     private static final String SE_RESET_SCRIPT_FILE_NAME = "/system/etc/se-reset-script";
+    private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/system/lib/libpn544_fw.so";
 
     static {
         System.loadLibrary("nfc_jni");
@@ -188,6 +190,9 @@ public class NfcService extends Application {
 
     private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
     private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
+
+    private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
+    private static final long FIRMWARE_MODTIME_DEFAULT = -1;
 
     /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
@@ -355,9 +360,14 @@ public class NfcService extends Application {
         Thread t = new Thread() {
             @Override
             public void run() {
+                Log.d(TAG,"checking on firmware download");
                 boolean nfc_on = mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT);
                 if (nfc_on) {
+                    Log.d(TAG,"NFC is on. Doing normal stuff");
                     _enable(false, true);
+                } else {
+                    Log.d(TAG,"NFC is off.  Checking firmware version");
+                    _maybeUpdateFirmware();
                 }
                 resetSeOnFirstBoot();
             }
@@ -1995,6 +2005,48 @@ public class NfcService extends Application {
 
         watchDog.cancel();
         return isSuccess;
+    }
+
+    // Check that the NFC controller firmware is up to date.  This
+    // ensures that firmware updates are applied in a timely fashion,
+    // and makes it much less likely that the user will have to wait
+    // for a firmware download when they enable NFC in the settings
+    // app.  Firmware download can take some time, so this should be
+    // run in a separate thread.
+    private void _maybeUpdateFirmware() {
+        // check the timestamp of the firmware file
+        File firmwareFile;
+        int nbRetry = 0;
+        try {
+            firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME);
+        } catch(NullPointerException npe) {
+            Log.e(TAG,"path to firmware file was null");
+            return;
+        }
+
+        long modtime = firmwareFile.lastModified();
+
+        long prev_fw_modtime = mPrefs.getLong(PREF_FIRMWARE_MODTIME, FIRMWARE_MODTIME_DEFAULT);
+        Log.d(TAG,"prev modtime: " + prev_fw_modtime);
+        Log.d(TAG,"new modtime: " + modtime);
+        if (prev_fw_modtime == modtime) {
+            return;
+        }
+
+        // FW download.
+        while(nbRetry < 5) {
+            Log.d(TAG,"Perform Download");
+            if(mManager.doDownload()) {
+                Log.d(TAG,"Download Success");
+                // Now that we've finished updating the firmware, save the new modtime.
+                mPrefsEditor.putLong(PREF_FIRMWARE_MODTIME, modtime);
+                mPrefsEditor.apply();
+                break;
+            } else {
+                Log.d(TAG,"Download Failed");
+                nbRetry++;
+            }
+        }
     }
 
     private class WatchDogThread extends Thread {
