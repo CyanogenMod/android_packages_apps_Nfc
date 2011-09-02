@@ -18,12 +18,6 @@
     android:layout_height="match_parent"
     android:background="#FF000000"
 >
-    <ImageView android:id="@+id/stars"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:adjustViewBounds="true"
-        android:src="@drawable/p2p_bg"
-    />
     <RelativeLayout android:layout_width="match_parent"
         android:layout_height="match_parent"
     >
@@ -33,9 +27,11 @@
             android:text="@string/touch"
             android:gravity="center"
             android:layout_alignParentTop="true"
-            android:textSize="22sp"
-            android:paddingTop="50dip"
+            android:textSize="18sp"
+            android:paddingTop="40dip"
             android:visibility="gone"
+            android:background="@null"
+            android:textColor="?android:attr/textColorPrimary"
         />
     </RelativeLayout>
     <ImageView android:id="@+id/screenshot"
