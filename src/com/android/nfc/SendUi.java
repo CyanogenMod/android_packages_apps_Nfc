@@ -31,6 +31,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
+import android.graphics.SurfaceTexture;
 import android.os.Binder;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -38,6 +39,7 @@ import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -50,7 +52,8 @@ import android.widget.TextView;
 /**
  * All methods must be called on UI thread
  */
-public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
+public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
+        TextureView.SurfaceTextureListener {
     private static final String LOG_TAG = "SendUI";
 
     static final float INTERMEDIATE_SCALE = 0.6f;
@@ -59,7 +62,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     static final int PRE_DURATION_MS = 300;
 
     static final float[] CLONE_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.0f};
-    static final int SLOW_CLONE_DURATION_MS = 3000; // Stretch out sending over 3s
+    static final int SLOW_SEND_DURATION_MS = 3000; // Stretch out sending over 3s
     static final int FAST_CLONE_DURATION_MS = 200;
 
     static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
@@ -69,6 +72,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
     static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
+
+    static final float[] BACKGROUND_SCALE_RANGE = {1.0f, 2.0f};
+    static final int BACKGROUND_SCALE_DURATION_MS = 5000;
 
     static final int FINISH_SCALE_UP = 0;
     static final int FINISH_SLIDE_OUT = 1;
@@ -85,18 +91,22 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
     final ImageView mCloneView;
+    final ImageView mBackgroundImage;
+    final TextureView mTextureView;
     final TextView mTextHint;
     final Callback mCallback;
     final ObjectAnimator mPreAnimator;
-    final ObjectAnimator mSlowCloneAnimator;
+    final ObjectAnimator mSlowSendAnimator;
     final ObjectAnimator mFastCloneAnimator;
     final ObjectAnimator mScaleUpAnimator;
     final ObjectAnimator mHintAnimator;
     final AnimatorSet mSuccessAnimatorSet;
+    final ObjectAnimator mBackgroundAnimator;
     final boolean mHardwareAccelerated;
 
     Bitmap mScreenshotBitmap;
     ObjectAnimator mSlideoutAnimator;
+    FireflyRenderThread mFireflyRenderThread;
 
     boolean mAttached;
 
@@ -125,12 +135,21 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
         mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
 
+        mTextureView = (TextureView) mScreenshotLayout.findViewById(R.id.fireflies);
+        mTextureView.setSurfaceTextureListener(this);
+
+        mBackgroundImage = (ImageView) mScreenshotLayout.findViewById(R.id.back);
         // We're only allowed to use hardware acceleration if
         // isHighEndGfx() returns true - otherwise, we're too limited
         // on resources to do it.
         mHardwareAccelerated = ActivityManager.isHighEndGfx(mDisplay);
         int hwAccelerationFlags = mHardwareAccelerated ?
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED : 0;
+
+        if (!mHardwareAccelerated) {
+            // Only show background in case we're not hw-accelerated
+            mBackgroundImage.setVisibility(View.VISIBLE);
+        }
 
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0,
@@ -151,9 +170,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", CLONE_SCREENSHOT_SCALE);
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", CLONE_SCREENSHOT_SCALE);
-        mSlowCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
-        mSlowCloneAnimator.setInterpolator(null); // linear
-        mSlowCloneAnimator.setDuration(SLOW_CLONE_DURATION_MS);
+        mSlowSendAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
+        mSlowSendAnimator.setInterpolator(null); // linear
+        mSlowSendAnimator.setDuration(SLOW_SEND_DURATION_MS);
 
         mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
         mFastCloneAnimator.setInterpolator(null); // linear
@@ -173,6 +192,12 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
 
         mSuccessAnimatorSet = new AnimatorSet();
         mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mScaleUpAnimator);
+
+        scaleUpX = PropertyValuesHolder.ofFloat("scaleX", BACKGROUND_SCALE_RANGE);
+        scaleUpY = PropertyValuesHolder.ofFloat("scaleY", BACKGROUND_SCALE_RANGE);
+        mBackgroundAnimator = ObjectAnimator.ofPropertyValuesHolder(mBackgroundImage, scaleUpX, scaleUpY);
+        mBackgroundAnimator.setInterpolator(new DecelerateInterpolator(2.0f));
+        mBackgroundAnimator.setDuration(BACKGROUND_SCALE_DURATION_MS);
 
         mAttached = false;
     }
@@ -204,7 +229,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mCloneView.setScaleX(INTERMEDIATE_SCALE);
         mCloneView.setScaleY(INTERMEDIATE_SCALE);
 
-
         mTextHint.setVisibility(showHint ? View.VISIBLE : View.GONE);
         mTextHint.setAlpha(1.0f);
 
@@ -231,12 +255,23 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
                 break;
         }
 
+        // Reset scale up parameters
+        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
+                SCALE_UP_SCREENSHOT_SCALE);
+        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
+                SCALE_UP_SCREENSHOT_SCALE);
+        mScaleUpAnimator.setValues(scaleUpX, scaleUpY);
+
         mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
         // Disable statusbar pull-down
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
         mAttached = true;
         mPreAnimator.start();
+
+        if (!mHardwareAccelerated) {
+            mBackgroundAnimator.start();
+        }
     }
 
     /** Show starting send animation */
@@ -244,11 +279,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         if (!mAttached) {
             return;
         }
-        mScreenshotView.setAlpha(0.7f);
-        mCloneView.setScaleX(INTERMEDIATE_SCALE);
-        mCloneView.setScaleY(INTERMEDIATE_SCALE);
-        mCloneView.setVisibility(View.VISIBLE);
-        mSlowCloneAnimator.start();
+        mSlowSendAnimator.start();
     }
 
     /** Show post-send animation */
@@ -257,15 +288,33 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
             return;
         }
 
-        mSlowCloneAnimator.cancel();
+        mSlowSendAnimator.cancel();
         mTextHint.setVisibility(View.GONE);
-        // Modify the fast clone parameters to match the current scale
-        float currentScale = mCloneView.getScaleX();
-        currentScale = mCloneView.getScaleX();
 
-        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", new float[] {currentScale, 0.0f});
-        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", new float[] {currentScale, 0.0f});
+        float currentScale = mScreenshotView.getScaleX();
+        mScreenshotView.setAlpha(0.7f);
+
+        // Make the clone visible for scaling to the background
+        mCloneView.setScaleX(currentScale);
+        mCloneView.setScaleY(currentScale);
+        mCloneView.setVisibility(View.VISIBLE);
+
+        // Modify the fast clone parameters to match the current scale
+        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
+                new float[] {currentScale, 0.0f});
+        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
+                new float[] {currentScale, 0.0f});
         mFastCloneAnimator.setValues(postX, postY);
+        // Modify the scale up parameters to match the current scale
+        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
+               new float[] {currentScale, 1.0f});
+        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
+               new float[] {currentScale, 1.0f});
+        mScaleUpAnimator.setValues(scaleUpX, scaleUpY);
+
+        if (mFireflyRenderThread != null) {
+            mFireflyRenderThread.fadeOut();
+        }
 
         mSuccessAnimatorSet.start();
     }
@@ -294,7 +343,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
             return;
         }
         mPreAnimator.cancel();
-        mSlowCloneAnimator.cancel();
+        mSlowSendAnimator.cancel();
         mFastCloneAnimator.cancel();
         mSuccessAnimatorSet.cancel();
         mScaleUpAnimator.cancel();
@@ -396,5 +445,36 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         mPreAnimator.end();
         mCallback.onSendConfirmed();
         return true;
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        if (mHardwareAccelerated) {
+            mFireflyRenderThread = new FireflyRenderThread(mContext, surface, width, height);
+            mFireflyRenderThread.start();
+        }
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+        // Since we've disabled orientation changes, we can safely ignore this
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        if (mFireflyRenderThread != null) {
+            mFireflyRenderThread.finish();
+            try {
+                mFireflyRenderThread.join();
+            } catch (InterruptedException e) {
+                Log.e(LOG_TAG, "Couldn't wait for FireflyRenderThread.");
+            }
+            mFireflyRenderThread = null;
+        }
+        return true;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
     }
 }
