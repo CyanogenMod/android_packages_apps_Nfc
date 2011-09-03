@@ -130,8 +130,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener {
         // on resources to do it.
         mHardwareAccelerated = ActivityManager.isHighEndGfx(mDisplay);
         int hwAccelerationFlags = mHardwareAccelerated ?
-                (WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-                 | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED_SYSTEM) : 0;
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED : 0;
 
         mWindowLayoutParams = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0,
