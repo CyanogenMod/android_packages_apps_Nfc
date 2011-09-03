@@ -133,7 +133,14 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
         mHandler.removeMessages(MSG_HINT_TIMEOUT);
-        mSendUi.finish(SendUi.FINISH_SLIDE_OUT);
+        // TODO we still don't have a nice receive solution
+        // The sanest solution right now is just to scale back up what we had
+        // and start the new activity. It is not perfect, but at least it is
+        // consistent behavior. All other variants involve making the old
+        // activity screenshot disappear, and then removing the animation
+        // window hoping the new activity has started by then. This just goes
+        // wrong too often and can looks weird.
+        mSendUi.finish(SendUi.FINISH_SCALE_UP);
         mNdefReceived = true;
     }
 
