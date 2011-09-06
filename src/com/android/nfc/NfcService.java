@@ -1419,7 +1419,7 @@ public class NfcService extends Application implements DeviceHostListener {
                     aidIntent.setAction(ACTION_AID_SELECTED);
                     aidIntent.putExtra(EXTRA_AID, aid);
                     if (DBG) Log.d(TAG, "Broadcasting " + ACTION_AID_SELECTED);
-                    mContext.sendBroadcast(aidIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(aidIntent);
                     break;
 
                 case MSG_SE_EMV_CARD_REMOVAL:
@@ -1428,7 +1428,7 @@ public class NfcService extends Application implements DeviceHostListener {
                     Intent cardRemovalIntent = new Intent();
                     cardRemovalIntent.setAction(ACTION_EMV_CARD_REMOVAL);
                     if (DBG) Log.d(TAG, "Broadcasting " + ACTION_EMV_CARD_REMOVAL);
-                    mContext.sendBroadcast(cardRemovalIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(cardRemovalIntent);
                     break;
 
                 case MSG_SE_APDU_RECEIVED:
@@ -1441,7 +1441,7 @@ public class NfcService extends Application implements DeviceHostListener {
                         apduReceivedIntent.putExtra(EXTRA_APDU_BYTES, apduBytes);
                     }
                     if (DBG) Log.d(TAG, "Broadcasting " + ACTION_APDU_RECEIVED);
-                    mContext.sendBroadcast(apduReceivedIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(apduReceivedIntent);
                     break;
 
                 case MSG_SE_MIFARE_ACCESS:
@@ -1456,7 +1456,7 @@ public class NfcService extends Application implements DeviceHostListener {
                         mifareAccessIntent.putExtra(EXTRA_MIFARE_BLOCK, mifareBlock);
                     }
                     if (DBG) Log.d(TAG, "Broadcasting " + ACTION_MIFARE_ACCESS_DETECTED);
-                    mContext.sendBroadcast(mifareAccessIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(mifareAccessIntent);
                     break;
 
                 case MSG_LLCP_LINK_ACTIVATION:
@@ -1500,7 +1500,7 @@ public class NfcService extends Application implements DeviceHostListener {
                     if (DBG) Log.d(TAG, "SE FIELD ACTIVATED");
                     Intent eventFieldOnIntent = new Intent();
                     eventFieldOnIntent.setAction(ACTION_RF_FIELD_ON_DETECTED);
-                    mContext.sendBroadcast(eventFieldOnIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(eventFieldOnIntent);
                     break;
                 }
 
@@ -1508,7 +1508,7 @@ public class NfcService extends Application implements DeviceHostListener {
                     if (DBG) Log.d(TAG, "SE FIELD DEACTIVATED");
                     Intent eventFieldOffIntent = new Intent();
                     eventFieldOffIntent.setAction(ACTION_RF_FIELD_OFF_DETECTED);
-                    mContext.sendBroadcast(eventFieldOffIntent, NFCEE_ADMIN_PERM);
+                    sendSeBroadcast(eventFieldOffIntent);
                     break;
                 }
 
@@ -1516,6 +1516,11 @@ public class NfcService extends Application implements DeviceHostListener {
                     Log.e(TAG, "Unknown message received");
                     break;
             }
+        }
+
+        private void sendSeBroadcast(Intent intent) {
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            mContext.sendBroadcast(intent, NFCEE_ADMIN_PERM);
         }
 
         private boolean llcpActivated(NfcDepEndpoint device) {
