@@ -104,6 +104,8 @@ public class NativeNfcManager {
         doSetIsoDepTimeout(timeout);
     }
 
+    public native boolean doDownload();
+
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
