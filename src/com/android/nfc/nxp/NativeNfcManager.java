@@ -18,20 +18,31 @@ package com.android.nfc.nxp;
 
 import com.android.nfc.DeviceHost;
 import com.android.nfc.LlcpException;
+import com.android.nfc.NfcService;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.nfc.ErrorCodes;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
+
+import java.io.File;
 
 /**
  * Native interface to the NFC Manager functions
  */
 public class NativeNfcManager implements DeviceHost {
     private static final String TAG = "NativeNfcManager";
+
+    private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/vendor/firmware/libpn544_fw.so";
+
+    private static final String PREF = "NxpDeviceHost";
+
+    private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
+    private static final long FIRMWARE_MODTIME_DEFAULT = -1;
 
     static {
         System.loadLibrary("nfc_jni");
@@ -44,13 +55,61 @@ public class NativeNfcManager implements DeviceHost {
     private int mNative;
 
     private final DeviceHostListener mListener;
+    private final Context mContext;
 
     public NativeNfcManager(Context context, DeviceHostListener listener) {
         mListener = listener;
         initializeNativeStructure();
+        mContext = context;
     }
 
     public native boolean initializeNativeStructure();
+
+    private native boolean doDownload();
+
+    @Override
+    public void checkFirmware() {
+        // Check that the NFC controller firmware is up to date.  This
+        // ensures that firmware updates are applied in a timely fashion,
+        // and makes it much less likely that the user will have to wait
+        // for a firmware download when they enable NFC in the settings
+        // app.  Firmware download can take some time, so this should be
+        // run in a separate thread.
+
+        // check the timestamp of the firmware file
+        File firmwareFile;
+        int nbRetry = 0;
+        try {
+            firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME);
+        } catch(NullPointerException npe) {
+            Log.e(TAG,"path to firmware file was null");
+            return;
+        }
+
+        long modtime = firmwareFile.lastModified();
+
+        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        long prev_fw_modtime = prefs.getLong(PREF_FIRMWARE_MODTIME, FIRMWARE_MODTIME_DEFAULT);
+        Log.d(TAG,"prev modtime: " + prev_fw_modtime);
+        Log.d(TAG,"new modtime: " + modtime);
+        if (prev_fw_modtime == modtime) {
+            return;
+        }
+
+        // FW download.
+        while(nbRetry < 5) {
+            Log.d(TAG,"Perform Download");
+            if(doDownload()) {
+                Log.d(TAG,"Download Success");
+                // Now that we've finished updating the firmware, save the new modtime.
+                prefs.edit().putLong(PREF_FIRMWARE_MODTIME, modtime).apply();
+                break;
+            } else {
+                Log.d(TAG,"Download Failed");
+                nbRetry++;
+            }
+        }
+    }
 
     @Override
     public native boolean initialize();
