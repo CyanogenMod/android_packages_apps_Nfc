@@ -21,12 +21,6 @@
     <!-- A notification action string prompting the user to share their contact details over NFC [CHAR-LIMIT=64] -->
     <string name="outbound_me_profile_text">Tap to give this person your contact info</string>
 
-    <!-- A notification description string telling the user he has shared something over NFC [CHAR-LIMIT=64] -->
-    <string name="first_share_title">You just dropped to share!</string>
-
-    <!-- A notification action string telling the user to tap to learn more about sharing over NFC [CHAR-LIMIT=64] -->
-    <string name="first_share_text">Tap to learn more or disable this feature.</string>
-
     <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_nfc_enabled">NFC enabled.</string>
     <string name="touch">Touch to send</string>

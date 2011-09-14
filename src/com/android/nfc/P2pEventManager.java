@@ -16,18 +16,14 @@
 
 package com.android.nfc;
 
-import android.app.Notification;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
-import android.provider.Settings;
 import com.android.nfc3.R;
 
 /**
@@ -41,9 +37,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
     static final int MSG_HINT_TIMEOUT = 0;
     static final int NUM_FAILURES_UNTIL_HINT = 3; // How many failures before showing hint
 
-    static final String PREF_FIRST_SHARE = "first_share";
     static final String PREF_SHOW_HINT = "show_hint";
-    static final int NOTIFICATION_FIRST_SHARE = 0;
 
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
 
@@ -60,7 +54,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
     final Handler mHandler;
 
     // only used on UI thread
-    boolean mPrefsFirstShare;
     boolean mSending;
     boolean mPrefsShowHint; // Show a hint until the user gets it right
     int mNothingSharedCount; // Amount of times device entered range but didn't share
@@ -79,12 +72,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
                 Context.NOTIFICATION_SERVICE);
 
         mPrefs = mContext.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
-        if (mPrefs.getBoolean(PREF_FIRST_SHARE, true)) {
-            mPrefsFirstShare = true;
-        } else {
-            mPrefsFirstShare = false;
-        }
-
         if (mPrefs.getBoolean(PREF_SHOW_HINT, true)) {
             mPrefsShowHint = true;
         } else {
@@ -118,7 +105,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
 
     @Override
     public void onP2pSendComplete() {
-        checkFirstShare();
         playSound(mEndSound);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.showPostSend();
@@ -176,28 +162,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
         SharedPreferences.Editor editor = mPrefs.edit();
         editor.putBoolean(PREF_SHOW_HINT, show);
         editor.apply();
-    }
-
-    /** If first time, display a notification */
-    void checkFirstShare() {
-        if (mPrefsFirstShare) {
-            mPrefsFirstShare = false;
-            SharedPreferences.Editor editor = mPrefs.edit();
-            editor.putBoolean(PREF_FIRST_SHARE, false);
-            editor.apply();
-
-            Intent intent = new Intent(Settings.ACTION_NFCSHARING_SETTINGS);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT);
-            Notification notification = new Notification.Builder(mContext)
-                    .setContentTitle(mContext.getString(R.string.first_share_title))
-                    .setContentText(mContext.getString(R.string.first_share_text))
-                    .setContentIntent(pi)
-                    .setSmallIcon(R.drawable.stat_sys_nfc)
-                    .setAutoCancel(true)
-                    .getNotification();
-            mNotificationManager.notify(NOTIFICATION_FIRST_SHARE, notification);
-        }
     }
 
     void playSound(int sound) {
