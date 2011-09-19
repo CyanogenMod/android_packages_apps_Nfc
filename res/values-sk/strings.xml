@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name">Nfc Služba</string>
+    <string name="nfcUserLabel">Nfc</string>
+    <string name="permlab_nfcAdmin">NFCEE administrácia</string>
+    <string name="permdesc_nfcAdmin">Umožniť správu NFC vykonávacieho zaridenia</string>
+</resources>
