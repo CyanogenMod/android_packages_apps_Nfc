@@ -23,37 +23,43 @@
         android:layout_height="wrap_content"
     />
     <ImageView android:id="@+id/back"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:adjustViewBounds="true"
         android:src="@drawable/back"
         android:scaleType="centerCrop"
         android:visibility="gone"
     />
-    <RelativeLayout android:layout_width="match_parent"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:orientation="vertical"
     >
         <TextView android:id="@+id/calltoaction"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="0dip"
+            android:layout_weight="1"
             android:text="@string/touch"
             android:gravity="center"
-            android:layout_alignParentTop="true"
-            android:textSize="18sp"
-            android:paddingTop="40dip"
+            android:textSize="28sp"
             android:visibility="gone"
             android:background="@null"
             android:textColor="?android:attr/textColorPrimary"
         />
-    </RelativeLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dip"
+            android:layout_weight="4"
+        />
+    </LinearLayout>
     <ImageView android:id="@+id/clone"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:adjustViewBounds="true"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
     />
     <ImageView android:id="@+id/screenshot"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:adjustViewBounds="true"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
     />
 </FrameLayout>
