@@ -29,21 +29,14 @@ import com.android.nfc3.R;
 /**
  * Manages vibration, sound and animation for P2P events.
  */
-public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handler.Callback {
+public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     static final String TAG = "NfcP2pEventManager";
     static final boolean DBG = true;
-
-    static final int HINT_TIMEOUT = 3000; // How long to wait before showing hint
-    static final int MSG_HINT_TIMEOUT = 0;
-    static final int NUM_FAILURES_UNTIL_HINT = 3; // How many failures before showing hint
-
-    static final String PREF_SHOW_HINT = "show_hint";
 
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
 
     final Context mContext;
     final P2pEventListener.Callback mCallback;
-    final SharedPreferences mPrefs;
     final int mStartSound;
     final int mEndSound;
     final int mErrorSound;
@@ -51,12 +44,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
     final Vibrator mVibrator;
     final NotificationManager mNotificationManager;
     final SendUi mSendUi;
-    final Handler mHandler;
 
     // only used on UI thread
     boolean mSending;
-    boolean mPrefsShowHint; // Show a hint until the user gets it right
-    int mNothingSharedCount; // Amount of times device entered range but didn't share
     boolean mNdefSent;
     boolean mNdefReceived;
 
@@ -70,15 +60,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
         mVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
-
-        mPrefs = mContext.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
-        if (mPrefs.getBoolean(PREF_SHOW_HINT, true)) {
-            mPrefsShowHint = true;
-        } else {
-            mPrefsShowHint = false;
-        }
-        mNothingSharedCount = 0;
-        mHandler = new Handler(this);
 
         mSending = false;
         mSendUi = new SendUi(context, this);
@@ -96,11 +77,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        mSendUi.showPreSend(mPrefsShowHint);
-        if (!mPrefsShowHint) {
-            // Show the hint after a timeout
-            mHandler.sendEmptyMessageDelayed(MSG_HINT_TIMEOUT, HINT_TIMEOUT);
-        }
+        mSendUi.showPreSend();
     }
 
     @Override
@@ -108,8 +85,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
         playSound(mEndSound);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.showPostSend();
-        showHintNextTime(false);
-        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         mSending = false;
         mNdefSent = true;
     }
@@ -118,7 +93,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
     public void onP2pReceiveComplete() {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         playSound(mEndSound);
-        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         // TODO we still don't have a nice receive solution
         // The sanest solution right now is just to scale back up what we had
         // and start the new activity. It is not perfect, but at least it is
@@ -136,14 +110,6 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
             playSound(mErrorSound);
             mSending = false;
         }
-        if (!mNdefSent && !mNdefReceived) {
-            if (mNothingSharedCount++ >= NUM_FAILURES_UNTIL_HINT) {
-                showHintNextTime(true);
-            }
-        } else {
-            mNothingSharedCount = 0;
-        }
-        mHandler.removeMessages(MSG_HINT_TIMEOUT);
         mSendUi.finish(SendUi.FINISH_SCALE_UP);
     }
 
@@ -157,24 +123,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback, Handl
 
     }
 
-    void showHintNextTime(boolean show) {
-        mPrefsShowHint = show;
-        SharedPreferences.Editor editor = mPrefs.edit();
-        editor.putBoolean(PREF_SHOW_HINT, show);
-        editor.apply();
-    }
-
     void playSound(int sound) {
         mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
-    }
-
-    @Override
-    public boolean handleMessage(Message msg) {
-        if (msg.what == MSG_HINT_TIMEOUT && !mSending) {
-            mSendUi.fadeInHint();
-            return true;
-        } else {
-            return false;
-        }
     }
 }
