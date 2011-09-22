@@ -208,6 +208,8 @@ public class FireflyRenderThread extends Thread {
             firefly.reset();
         }
 
+        mStartTime = System.currentTimeMillis();
+
         while (!mFinished) {
             long timeElapsedMs = System.currentTimeMillis() - mStartTime;
             mStartTime = System.currentTimeMillis();
@@ -336,7 +338,7 @@ public class FireflyRenderThread extends Thread {
         float mScale;
         float mAlpha;
         boolean mScalingDown;
-        int mTimeRemaining;
+        long mTimeRemaining;
 
         public Firefly() {
             reset();
@@ -349,7 +351,7 @@ public class FireflyRenderThread extends Thread {
             mY = (float) (Math.random() * mDisplayHeight);
             mAngle = randomVal * 360f;
             mScalingDown = (randomVal > 0.5f) ? true : false;
-            mTimeRemaining = (int) (randomVal * STEADY_INTERVAL_MS);
+            mTimeRemaining = (long) (randomVal * STEADY_INTERVAL_MS);
             mAlpha = 1;
         }
 
