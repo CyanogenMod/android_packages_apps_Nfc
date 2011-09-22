@@ -4,10 +4,11 @@
     <string name="nfcUserLabel">Nfc</string>
     
     <!-- The label for the NFC admin permission -->
-    <string name="permlab_nfcAdmin">NFCEE administration</string>
+    <string name="permlab_nfcAdmin">control Near Field Communication secure hardware</string>
 
     <!-- The description for the NFC admin permission -->
-    <string name="permdesc_nfcAdmin">Allows control of NFC execution environment hardware</string>
+    <string name="permdesc_nfcAdmin">Allows this application to control the secure hardware used with Near Field Communication,
+      for example, to modify payment credentials.</string>
 
     <!-- A notification description string informing the user that contact details were received over NFC [CHAR-LIMIT=64] -->
     <string name="inbound_me_profile_title">Contact received over NFC</string>
