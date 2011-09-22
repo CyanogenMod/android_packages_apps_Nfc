@@ -206,15 +206,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotBitmap = createScreenshot();
     }
 
-    /** Fades in the textual hint */
-    public void fadeInHint() {
-        mTextHint.setAlpha(0.0f);
-        mTextHint.setVisibility(View.VISIBLE);
-        mHintAnimator.start();
-    }
-
     /** Show pre-send animation */
-    public void showPreSend(boolean showHint) {
+    public void showPreSend() {
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
@@ -229,8 +222,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mCloneView.setScaleX(INTERMEDIATE_SCALE);
         mCloneView.setScaleY(INTERMEDIATE_SCALE);
 
-        mTextHint.setVisibility(showHint ? View.VISIBLE : View.GONE);
-        mTextHint.setAlpha(1.0f);
+        mTextHint.setAlpha(0.0f);
+        mTextHint.setVisibility(View.VISIBLE);
+        mHintAnimator.start();
 
         // Lock the orientation.
         // The orientation from the configuration does not specify whether
