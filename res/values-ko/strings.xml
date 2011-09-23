@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name" msgid="78565911793142902">"NFC 서비스"</string>
+    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
+    <string name="permlab_nfcAdmin" msgid="6264334718448581436">"NFCEE 관리"</string>
+    <string name="permdesc_nfcAdmin" msgid="4972114893255488598">"NFC 실행 환경 하드웨어 제어 수행"</string>
+    <string name="inbound_me_profile_title" msgid="6146013785225412693">"NFC를 통해 받은 연락처"</string>
+    <string name="inbound_me_profile_text" msgid="1409138030064787748">"이 사람을 연락처에 추가하려면 탭하세요."</string>
+    <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC 통신 완료"</string>
+    <string name="outbound_me_profile_text" msgid="7431318734941861000">"내 연락처 정보를 이 사람에게 제공하려면 탭하세요."</string>
+    <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC 사용"</string>
+    <!-- no translation found for touch (4727218133711188355) -->
+    <skip />
+</resources>
