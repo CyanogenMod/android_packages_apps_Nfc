@@ -1646,7 +1646,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 // Only enable if the screen is unlocked. If the screen is locked
                 // Intent.ACTION_USER_PRESENT will be broadcast when the screen is
                 // unlocked.
-                boolean enable = !mKeyguard.isKeyguardSecure() || !mKeyguard.isKeyguardLocked();
+                boolean enable = !mKeyguard.isKeyguardLocked();
 
                 // Perform discovery enable in thread to protect against ANR when the
                 // NFC stack wedges. This is *not* the correct way to fix this issue -
