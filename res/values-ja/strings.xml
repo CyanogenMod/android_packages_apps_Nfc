@@ -10,5 +10,5 @@
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFCの双方向処理が完了しました"</string>
     <string name="outbound_me_profile_text" msgid="7431318734941861000">"このユーザーに連絡先情報を提供するにはタップします"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFCは有効です。"</string>
-    <!-- outdated translation 9179039946081939638 -->     <string name="touch" msgid="4727218133711188355">"タップして送信"</string>
+    <string name="touch" msgid="4727218133711188355">"タップして赤外線通信"</string>
 </resources>

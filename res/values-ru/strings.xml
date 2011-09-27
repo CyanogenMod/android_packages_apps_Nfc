@@ -6,9 +6,9 @@
     <string name="permlab_nfcAdmin" msgid="6264334718448581436">"Администрирование NFCEE"</string>
     <string name="permdesc_nfcAdmin" msgid="4972114893255488598">"Позволяет управлять оборудованием среды выполнения NFC"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Данные контакта получены по NFC"</string>
-    <string name="inbound_me_profile_text" msgid="1409138030064787748">"Нажмите, чтобы добавить этого пользователя в контакты"</string>
+    <string name="inbound_me_profile_text" msgid="1409138030064787748">"Нажмите, чтобы добавить новый контакт"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Обмен данными по NFC завершен"</string>
-    <string name="outbound_me_profile_text" msgid="7431318734941861000">"Нажмите, чтобы передать пользователю свою контактные данные"</string>
-    <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC включена"</string>
+    <string name="outbound_me_profile_text" msgid="7431318734941861000">"Нажмите, чтобы передать свои контактные данные"</string>
+    <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"Слжба NFC включена"</string>
     <string name="touch" msgid="4727218133711188355">"Нажмите, чтобы передать данные"</string>
 </resources>

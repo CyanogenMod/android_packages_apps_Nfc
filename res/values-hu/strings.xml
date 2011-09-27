@@ -4,7 +4,7 @@
     <string name="app_name" msgid="78565911793142902">"NFC-szolgáltatás"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
     <string name="permlab_nfcAdmin" msgid="6264334718448581436">"NFCEE kezelése"</string>
-    <string name="permdesc_nfcAdmin" msgid="4972114893255488598">"Lehetővé teszi az NFC végrehajtási környezethardverének vezérlését"</string>
+    <string name="permdesc_nfcAdmin" msgid="4972114893255488598">"Lehetővé teszi az NFC végrehajtási környezet hardverének vezérlését"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"NFC-n kapott névjegy"</string>
     <string name="inbound_me_profile_text" msgid="1409138030064787748">"Érintse meg, ha hozzá szeretné adni ezt a személyt ismerősként"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Az NFC-kapcsolat befejeződött"</string>
