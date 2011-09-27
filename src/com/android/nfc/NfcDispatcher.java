@@ -293,13 +293,7 @@ public class NfcDispatcher {
                 return false;
             }
         } else {
-            try {
-                // If the current app called stopAppSwitches() then our startActivity()
-                // can be delayed for several seconds. This happens with the default home
-                // screen. As a system service we can override this behavior with
-                // resumeAppSwitches()
-                mIActivityManager.resumeAppSwitches();
-            } catch (RemoteException e) { }
+            resumeAppSwitches();
             if (records != null) {
                 String firstPackage = null;
                 for (NdefRecord record : records) {
@@ -335,6 +329,20 @@ public class NfcDispatcher {
                 return false;
             }
         }
+    }
+
+    /**
+     * Tells the ActivityManager to resume allowing app switches.
+     *
+     * If the current app called stopAppSwitches() then our startActivity() can
+     * be delayed for several seconds. This happens with the default home
+     * screen.  As a system service we can override this behavior with
+     * resumeAppSwitches().
+    */
+    void resumeAppSwitches() {
+        try {
+            mIActivityManager.resumeAppSwitches();
+        } catch (RemoteException e) { }
     }
 
     /** Returns true if the tech list filter matches the techs on the tag */
