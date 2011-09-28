@@ -1524,6 +1524,7 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         private void sendSeBroadcast(Intent intent) {
+            mNfcDispatcher.resumeAppSwitches();
             intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
             mContext.sendBroadcast(intent, NFCEE_ADMIN_PERM);
         }
