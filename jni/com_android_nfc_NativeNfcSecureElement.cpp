@@ -24,6 +24,7 @@ static phNfc_sRemoteDevInformation_t* SecureElementInfo;
 static int secureElementHandle;
 extern void                 *gHWRef;
 static int SecureElementTech;
+extern uint8_t device_connected_flag;
 
 namespace android {
 
@@ -204,6 +205,13 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    
    TRACE("Open Secure Element");
    
+   /* Check if NFC device is already connected to a tag or P2P peer */
+   if (device_connected_flag == 1)
+   {
+       LOGD("Unable to open SE connection, device already connected to a P2P peer or a Tag");
+       goto clean_and_return;
+   }
+
    /* Test if External RF field is detected */
    InParam.buffer = ExternalRFDetected;
    InParam.length = 3;
@@ -215,6 +223,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    if(ret!=NFCSTATUS_PENDING)
    {
       LOGE("IOCTL status error");
+      goto clean_and_return;
    }
 
    /* Wait for callback response */

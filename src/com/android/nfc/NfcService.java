@@ -70,6 +70,7 @@ import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -89,6 +90,7 @@ public class NfcService extends Application {
 
     private static final String MY_TAG_FILE_NAME = "mytag";
     private static final String SE_RESET_SCRIPT_FILE_NAME = "/system/etc/se-reset-script";
+    private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/system/lib/libpn544_fw.so";
 
     static {
         System.loadLibrary("nfc_jni");
@@ -189,6 +191,9 @@ public class NfcService extends Application {
     private static final String PREF_DISCOVERY_NFCIP = "discovery_nfcip";
     private static final boolean DISCOVERY_NFCIP_DEFAULT = true;
 
+    private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
+    private static final long FIRMWARE_MODTIME_DEFAULT = -1;
+
     /** NFC Reader Discovery mode for enableDiscovery() */
     private static final int DISCOVERY_MODE_READER = 0;
 
@@ -224,6 +229,8 @@ public class NfcService extends Application {
     static final int MSG_SE_APDU_RECEIVED = 10;
     static final int MSG_SE_EMV_CARD_REMOVAL = 11;
     static final int MSG_SE_MIFARE_ACCESS = 12;
+
+    static final int STATUS_CODE_TARGET_LOST = 146;
 
     // Copied from com.android.nfc_extras to avoid library dependency
     // Must keep in sync with com.android.nfc_extras
@@ -323,6 +330,7 @@ public class NfcService extends Application {
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
 
         mSecureElement = new NativeNfcSecureElement();
+        mEeRoutingState = ROUTE_OFF;
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -352,9 +360,14 @@ public class NfcService extends Application {
         Thread t = new Thread() {
             @Override
             public void run() {
+                Log.d(TAG,"checking on firmware download");
                 boolean nfc_on = mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT);
                 if (nfc_on) {
+                    Log.d(TAG,"NFC is on. Doing normal stuff");
                     _enable(false, true);
+                } else {
+                    Log.d(TAG,"NFC is off.  Checking firmware version");
+                    _maybeUpdateFirmware();
                 }
                 resetSeOnFirstBoot();
             }
@@ -1304,7 +1317,7 @@ public class NfcService extends Application {
             // Note that on most tags, all technologies are behind a single
             // handle. This means that the connect at the lower levels
             // will do nothing, as the tag is already connected to that handle.
-            if (tag.connect(technology)) {
+            if (tag.connect(technology) == 0) {
                 return ErrorCodes.SUCCESS;
             } else {
                 return ErrorCodes.ERROR_DISCONNECT;
@@ -1325,7 +1338,7 @@ public class NfcService extends Application {
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
             if (tag != null) {
-                if (tag.reconnect()) {
+                if (tag.reconnect() == 0) {
                     return ErrorCodes.SUCCESS;
                 } else {
                     return ErrorCodes.ERROR_DISCONNECT;
@@ -1391,20 +1404,19 @@ public class NfcService extends Application {
         @Override
         public boolean isNdef(int nativeHandle) throws RemoteException {
             NativeNfcTag tag = null;
-            boolean isSuccess = false;
 
             // Check if NFC is enabled
             if (!mIsNfcEnabled) {
-                return isSuccess;
+                return false;
             }
 
             /* find the tag in the hmap */
             tag = (NativeNfcTag) findObject(nativeHandle);
             int[] ndefInfo = new int[2];
-            if (tag != null) {
-                isSuccess = tag.checkNdef(ndefInfo);
+            if (tag == null) {
+                return false;
             }
-            return isSuccess;
+            return tag.checkNdef(ndefInfo) == 0;
         }
 
         @Override
@@ -1995,6 +2007,48 @@ public class NfcService extends Application {
         return isSuccess;
     }
 
+    // Check that the NFC controller firmware is up to date.  This
+    // ensures that firmware updates are applied in a timely fashion,
+    // and makes it much less likely that the user will have to wait
+    // for a firmware download when they enable NFC in the settings
+    // app.  Firmware download can take some time, so this should be
+    // run in a separate thread.
+    private void _maybeUpdateFirmware() {
+        // check the timestamp of the firmware file
+        File firmwareFile;
+        int nbRetry = 0;
+        try {
+            firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME);
+        } catch(NullPointerException npe) {
+            Log.e(TAG,"path to firmware file was null");
+            return;
+        }
+
+        long modtime = firmwareFile.lastModified();
+
+        long prev_fw_modtime = mPrefs.getLong(PREF_FIRMWARE_MODTIME, FIRMWARE_MODTIME_DEFAULT);
+        Log.d(TAG,"prev modtime: " + prev_fw_modtime);
+        Log.d(TAG,"new modtime: " + modtime);
+        if (prev_fw_modtime == modtime) {
+            return;
+        }
+
+        // FW download.
+        while(nbRetry < 5) {
+            Log.d(TAG,"Perform Download");
+            if(mManager.doDownload()) {
+                Log.d(TAG,"Download Success");
+                // Now that we've finished updating the firmware, save the new modtime.
+                mPrefsEditor.putLong(PREF_FIRMWARE_MODTIME, modtime);
+                mPrefsEditor.apply();
+                break;
+            } else {
+                Log.d(TAG,"Download Failed");
+                nbRetry++;
+            }
+        }
+    }
+
     private class WatchDogThread extends Thread {
         boolean mWatchDogCanceled = false;
         @Override
@@ -2359,15 +2413,19 @@ public class NfcService extends Application {
             int techIndex = 0;
             int lastHandleScanned = 0;
             boolean ndefFoundAndConnected = false;
+            boolean isTargetLost = false;
             NdefMessage[] ndefMsgs = null;
             boolean foundFormattable = false;
             int formattableHandle = 0;
             int formattableTechnology = 0;
+            int status;
 
-            while ((!ndefFoundAndConnected) && (techIndex < technologies.length)) {
+            while ((!ndefFoundAndConnected) && (techIndex < technologies.length) && (!isTargetLost))
+            {
                 if (handles[techIndex] != lastHandleScanned) {
                     // We haven't seen this handle yet, connect and checkndef
-                    if (nativeTag.connect(technologies[techIndex])) {
+                    status = nativeTag.connect(technologies[techIndex]);
+                    if (status == 0) {
                         // Check if this type is NDEF formatable
                         if (!foundFormattable) {
                             if (nativeTag.isNdefFormatable()) {
@@ -2382,7 +2440,8 @@ public class NfcService extends Application {
                         } // else, already found formattable technology
 
                         int[] ndefinfo = new int[2];
-                        if (nativeTag.checkNdef(ndefinfo)) {
+                        status = nativeTag.checkNdef(ndefinfo);
+                        if (status == 0) {
                             ndefFoundAndConnected = true;
                             boolean generateEmptyNdef = false;
 
@@ -2416,10 +2475,17 @@ public class NfcService extends Application {
                                        supportedNdefLength, cardState);
                                nativeTag.reconnect();
                            }
-                        } // else, no NDEF on this tech, continue loop
+                        } else { // else, no NDEF on this tech, continue loop
+                            Log.d(TAG, "Check NDEF Failed - status = "+ status);
+                            if (status == STATUS_CODE_TARGET_LOST) {
+                                isTargetLost = true;
+                            }
+                        }
                     } else {
-                        // Connect failed, tag maybe lost. Try next handle
-                        // anyway.
+                        Log.d(TAG, "Connect Failed - status = "+ status);
+                        if (status == STATUS_CODE_TARGET_LOST) {
+                            isTargetLost = true;
+                        }
                     }
                 }
                 lastHandleScanned = handles[techIndex];
@@ -2460,13 +2526,14 @@ public class NfcService extends Application {
                    dispatchNativeTag(nativeTag, ndefMsgs);
                } else {
                    // No ndef found or connect failed, just try to reconnect and dispatch
-                   if (nativeTag.reconnect()) {
-                       nativeTag.startPresenceChecking();
-                       dispatchNativeTag(nativeTag, null);
-                   } else {
-                       Log.w(TAG, "Failed to connect to tag");
-                       nativeTag.disconnect();
-                   }
+                   if (nativeTag.getLastStatusCode() != STATUS_CODE_TARGET_LOST) {
+                       if (nativeTag.reconnect() == 0) {
+                            nativeTag.startPresenceChecking();
+                            dispatchNativeTag(nativeTag, null);
+                       }
+                    } else {
+                        nativeTag.disconnect();
+                    }
                }
                break;
 

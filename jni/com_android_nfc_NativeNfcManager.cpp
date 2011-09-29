@@ -26,12 +26,15 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       28
+#define EEDATA_SETTINGS_NUMBER       29
 
 static phLibNfc_sConfig_t   gDrvCfg;
 void   *gHWRef;
 static phNfc_sData_t gInputParam;
 static phNfc_sData_t gOutputParam;
+
+uint8_t device_connected_flag;
+static bool driverConfigured = FALSE;
 
 static phLibNfc_Handle              hLlcpHandle;
 static NFCSTATUS                    lastErrorStatus = NFCSTATUS_FAILED;
@@ -106,6 +109,9 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	// Set NFCT ATQA
 	,{0x00, 0x98, 0x7D, 0x02}
 	,{0x00, 0x98, 0x7E, 0x00}
+
+     // Enable CEA detection mechanism
+    ,{0x00, 0x9F, 0xC8, 0x01}
 };
 
 /* Internal functions declaration */
@@ -281,11 +287,19 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
        goto clean_and_return;
     }
 
-    /* Download Status */
-    if(cb_data.status != NFCSTATUS_SUCCESS)
+    /* NOTE: we will get NFCSTATUS_FEATURE_NOT_SUPPORTED when we
+       try to download an old-style firmware on top of a new-style
+       firmware.  Hence, this is expected behavior, and not an
+       error condition. */
+    if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_FEATURE_NOT_SUPPORTED)
     {
         status = cb_data.status;
         goto clean_and_return;
+    }
+
+    if(cb_data.status == NFCSTATUS_FEATURE_NOT_SUPPORTED)
+    {
+        LOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
     }
 
 reinit:
@@ -327,13 +341,14 @@ reinit:
     }
     else
     {
-        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, FW Update Info = %d",
+        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
               caps.psDevCapabilities.hal_version,
               caps.psDevCapabilities.fw_version,
               caps.psDevCapabilities.hw_version,
               caps.psDevCapabilities.model_id,
               caps.psDevCapabilities.hci_version,
               caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-1],
+              caps.psDevCapabilities.full_version[NXP_FULL_VERSION_LEN-2],
               caps.psDevCapabilities.firmware_update_info);
     }
 
@@ -345,20 +360,83 @@ clean_and_return:
    return status;
 }
 
+static int nfc_jni_configure_driver(struct nfc_jni_native_data *nat)
+{
+    char value[PROPERTY_VALUE_MAX];
+    int result = FALSE;
+    NFCSTATUS status;
+
+    /* ====== CONFIGURE DRIVER ======= */
+    /* Configure hardware link */
+    gDrvCfg.nClientId = phDal4Nfc_msgget(0, 0600);
+
+    property_get("ro.nfc.port", value, "unknown");
+    gDrvCfg.nLinkType = parseLinkType(value);
+
+    TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x, 0x%08x)", gDrvCfg.nClientId, gDrvCfg.nLinkType);
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_ConfigureDriver(&gDrvCfg, &gHWRef);
+    REENTRANCE_UNLOCK();
+    if(status == NFCSTATUS_ALREADY_INITIALISED) {
+           LOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    }
+    else if(status != NFCSTATUS_SUCCESS)
+    {
+        LOGE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto clean_and_return;
+    }
+    TRACE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+    if(pthread_create(&(nat->thread), NULL, nfc_jni_client_thread, nat) != 0)
+    {
+        LOGE("pthread_create failed");
+        goto clean_and_return;
+    }
+
+    driverConfigured = TRUE;
+
+clean_and_return:
+    return result;
+}
+
+static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data *nat)
+{
+    int result = FALSE;
+    NFCSTATUS status;
+
+    /* Unconfigure driver */
+    TRACE("phLibNfc_Mgt_UnConfigureDriver()");
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_UnConfigureDriver(gHWRef);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_SUCCESS)
+    {
+        LOGE("phLibNfc_Mgt_UnConfigureDriver() returned error 0x%04x[%s] -- this should never happen", status, nfc_jni_get_status_name( status));
+    }
+    else
+    {
+       LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+       result = TRUE;
+    }
+
+    driverConfigured = FALSE;
+
+    return result;
+}
+
 /* Initialization function */
 static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    struct timespec ts;
    uint8_t resp[16];
    NFCSTATUS status;
    phLibNfc_StackCapabilities_t caps;
-   char value[PROPERTY_VALUE_MAX];
-   int result = FALSE;
    phLibNfc_SE_List_t SE_List[PHLIBNFC_MAXNO_OF_SE];
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index = 0, SmartMX_detected = 0;
    phLibNfc_Llcp_sLinkParameters_t LlcpConfigInfo;
    struct nfc_jni_callback_data cb_data;
    uint8_t firmware_status;
    uint8_t update = TRUE;
+   int result = JNI_FALSE;
 
    LOGD("Start Initialization\n");
 
@@ -368,36 +446,16 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       goto clean_and_return;
    }
 
+   /* Reset device connected handle */
+   device_connected_flag = 0;
+
    /* Reset stored handle */
    storedHandle = 0;
 
-   /* Configure hardware link */
-   gDrvCfg.nClientId = phDal4Nfc_msgget(0, 0600);
-
-   property_get("ro.nfc.port", value, "unknown");
-   gDrvCfg.nLinkType = parseLinkType(value);
-
-   /* ====== CONFIGURE DRIVER ======= */
-
-   TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x, 0x%08x)", gDrvCfg.nClientId, gDrvCfg.nLinkType);
-   REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_ConfigureDriver(&gDrvCfg, &gHWRef);
-   REENTRANCE_UNLOCK();
-   if(status == NFCSTATUS_ALREADY_INITIALISED) {
-      LOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
-   else if(status != NFCSTATUS_SUCCESS)
+   /* Initialize Driver */
+   if(!driverConfigured)
    {
-      LOGE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-      goto clean_and_return;
-   }
-   TRACE("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-
-   if(pthread_create(&(nat->thread), NULL, nfc_jni_client_thread,
-         nat) != 0)
-   {
-      LOGE("pthread_create failed");
-      goto clean_and_return;
+       nfc_jni_configure_driver(nat);
    }
 
    /* ====== INITIALIZE ======= */
@@ -464,6 +522,7 @@ force_download:
                break;
            }
            LOGW("Firmware update FAILED");
+           update = FALSE;
        }
        if(i>=3)
        {
@@ -659,6 +718,9 @@ void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat)
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
 
+   /* Reset device connected flag */
+   device_connected_flag = 0;
+
    /* Restart Polling loop */
    TRACE("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
@@ -843,12 +905,15 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
                                                                                   sLinkParams.miu,
                                                                                   sLinkParams.option,
                                                                                   sLinkParams.wks);
+           device_connected_flag = 1;
       }
    }
    else if(eLinkStatus == phFriNfc_LlcpMac_eLinkDeactivated)
    {
       LOGI("LLCP Link deactivated");
       free(pContextData);
+      /* Reset device connected flag */
+      device_connected_flag = 0;
 
       /* Reset incoming socket list */
       while (!LIST_EMPTY(&pMonitor->incoming_socket_head))
@@ -986,7 +1051,10 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
    {
       LOG_CALLBACK("nfc_jni_Discovery_notification_callback", status);
       TRACE("Discovered %d tags", uNofRemoteDev);
-      
+
+      /* Reset device connected flag */
+      device_connected_flag = 1;
+
       if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
           || (psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
@@ -1410,6 +1478,9 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
 
+   /* Reset device connected flag */
+   device_connected_flag = 0;
+
 #if 0
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
@@ -1510,7 +1581,7 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    }
 
    discovery_cfg.PollDevInfo.PollEnabled = 0;
-   discovery_cfg.Duration = 0xffffffff;
+   discovery_cfg.Duration = 300000; /* in ms */
    /*discovery_cfg.NfcIP_Mode = phNfc_eInvalidP2PMode;*/
    discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
@@ -1709,11 +1780,11 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       LOGD("Native Structure initialization failed");
       return FALSE;   
    }
-
-   TRACE("****** Init Native Structure OK ******"); 
+   TRACE("****** Init Native Structure OK ******");
    return TRUE;
+
 }
- 
+
 /* Init/Deinit method */
 static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 {
@@ -1752,17 +1823,20 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 {
    struct timespec ts;
    NFCSTATUS status;
+   int result = JNI_FALSE;
    struct nfc_jni_native_data *nat;
    int bStackReset = FALSE;
    struct nfc_jni_callback_data cb_data;
 
+   CONCURRENCY_LOCK();
+
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
+   nat = nfc_jni_get_nat(e, o);
 
    /* Clear previous configuration */
    memset(&nat->discovery_cfg, 0, sizeof(phLibNfc_sADD_Cfg_t));
    memset(&nat->registry_info, 0, sizeof(phLibNfc_Registry_Info_t));
-   
+
    /* Create the local semaphore */
    if (nfc_cb_data_init(&cb_data, NULL))
    {
@@ -1812,21 +1886,11 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
       emergency_recovery(nat);
    }
 
-   /* Unconfigure driver */
-   TRACE("phLibNfc_Mgt_UnConfigureDriver()");
-   REENTRANCE_LOCK();
-   status = phLibNfc_Mgt_UnConfigureDriver(gHWRef);
-   REENTRANCE_UNLOCK();
-   if(status != NFCSTATUS_SUCCESS)
-   {
-      LOGE("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
-   else
-   {
-      LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-   }
+   result = nfc_jni_unconfigure_driver(nat);
 
    TRACE("NFC Deinitialized");
+
+   CONCURRENCY_UNLOCK();
 
    return TRUE;
 }
@@ -2449,14 +2513,123 @@ static void com_android_nfc_NfcManager_doAbort(JNIEnv *e, jobject o)
     emergency_recovery(NULL);
 }
 
+static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
+{
+    char* firmware_version;
+    jboolean result = FALSE;
+    int load_result;
+    int unconfigure_status;
+    bool drive_state = FALSE;
+    uint8_t OutputBuffer[1];
+    uint8_t InputBuffer[1];
+    struct timespec ts;
+    NFCSTATUS status = NFCSTATUS_FAILED;
+    struct nfc_jni_callback_data cb_data;
+    struct nfc_jni_native_data *nat = NULL;
+    char value[PROPERTY_VALUE_MAX];
+
+    /* Create the local semaphore */
+    if (!nfc_cb_data_init(&cb_data, NULL))
+    {
+       result = FALSE;
+       goto clean_and_return;
+    }
+
+    /* Retrieve native structure address */
+    nat = nfc_jni_get_nat(e, o);
+
+    CONCURRENCY_LOCK();
+
+    /* Initialize Driver */
+    if(!driverConfigured)
+    {
+        result = nfc_jni_configure_driver(nat);
+        drive_state = TRUE;
+    }
+
+    TRACE("com_android_nfc_NfcManager_doDownload()");
+
+    TRACE("Go in Download Mode");
+    phLibNfc_Download_Mode();
+
+    TRACE("Load new Firmware Image");
+    load_result = phLibNfc_Load_Firmware_Image();
+    if(load_result != 0)
+    {
+        TRACE("Load new Firmware Image - status = %d",load_result);
+        result = FALSE;
+        goto clean_and_return;
+    }
+
+    // Download
+    gInputParam.buffer  = InputBuffer;
+    gInputParam.length  = 0x01;
+    gOutputParam.buffer = OutputBuffer;
+    gOutputParam.length = 0x01;
+
+    LOGD("Download new Firmware");
+    REENTRANCE_LOCK();
+    status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_FW_DOWNLOAD, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
+    REENTRANCE_UNLOCK();
+    if(status != NFCSTATUS_PENDING)
+    {
+        LOGE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        result = FALSE;
+        goto clean_and_return;
+    }
+    TRACE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+    /* Wait for callback response */
+    if(sem_wait(&cb_data.sem))
+    {
+       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       result = FALSE;
+       goto clean_and_return;
+    }
+
+    /* NOTE: we will get NFCSTATUS_FEATURE_NOT_SUPPORTED when we
+       try to download an old-style firmware on top of a new-style
+       firmware.  Hence, this is expected behavior, and not an
+       error condition. */
+    if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_FEATURE_NOT_SUPPORTED)
+    {
+        TRACE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        result = FALSE;
+        goto clean_and_return;
+    }
+
+    if(cb_data.status == NFCSTATUS_FEATURE_NOT_SUPPORTED)
+    {
+        LOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
+    }
+
+    /*Download is successful*/
+    result = TRUE;
+
+clean_and_return:
+    TRACE("phLibNfc_HW_Reset()");
+    phLibNfc_HW_Reset();
+    /* Deinitialize Driver */
+    if(drive_state)
+    {
+        result = nfc_jni_unconfigure_driver(nat);
+    }
+    CONCURRENCY_UNLOCK();
+    nfc_cb_data_deinit(&cb_data);
+    return result;
+}
+
 /*
  * JNI registration.
  */
 static JNINativeMethod gMethods[] =
 {
+   {"doDownload", "()Z",
+        (void *)com_android_nfc_NfcManager_doDownload},
+
    {"initializeNativeStructure", "()Z",
       (void *)com_android_nfc_NfcManager_init_native_struc},
-      
+
    {"initialize", "()Z",
       (void *)com_android_nfc_NfcManager_initialize},
  
