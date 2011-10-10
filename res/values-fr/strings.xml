@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="app_name" msgid="78565911793142902">"NFC Service"</string>
+    <string name="app_name" msgid="78565911793142902">"Service NFC"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
     <string name="permlab_nfcAdmin" msgid="5329590200504457455">"contrôler le matériel sécurisé utilisé avec la technologie NFC"</string>
     <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"Permet à cette application de contrôler le matériel sécurisé utilisé avec la technologie NFC (communication en champ proche) afin de modifier des informations de paiement, par exemple."</string>

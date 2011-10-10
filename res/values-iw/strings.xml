@@ -3,8 +3,8 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"שירות Nfc"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <!-- outdated translation 6264334718448581436 -->     <string name="permlab_nfcAdmin" msgid="5329590200504457455">"ניהול NFCEE"</string>
-    <!-- outdated translation 4972114893255488598 -->     <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"מאפשר שליטה בחומרה של סביבת הביצוע של NFC"</string>
+    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"שליטה בחומרה מאובטחת מסוג תקשורת מטווח קצר"</string>
+    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"מאפשר ליישום זה לשלוט בחומרה מאובטחת שנעשה בה שימוש באמצעות תקשורת מטווח קצר, לדוגמה, כדי לשנות את אישורי התשלום."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"איש הקשר התקבל באמצעות NFC"</string>
     <string name="inbound_me_profile_text" msgid="1409138030064787748">"הקש כדי להוסיף אדם זה כאיש קשר"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"האינטראקציה עם NFC הושלמה"</string>
