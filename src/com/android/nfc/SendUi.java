@@ -59,21 +59,25 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final float INTERMEDIATE_SCALE = 0.6f;
 
     static final float[] PRE_SCREENSHOT_SCALE = {1.0f, INTERMEDIATE_SCALE};
-    static final int PRE_DURATION_MS = 300;
+    static final int PRE_DURATION_MS = 350;
 
-    static final float[] CLONE_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.0f};
-    static final int SLOW_SEND_DURATION_MS = 3000; // Stretch out sending over 3s
-    static final int FAST_CLONE_DURATION_MS = 200;
+    static final float[] CLONE_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.2f};
+    static final int SLOW_SEND_DURATION_MS = 8000; // Stretch out sending over 8s
+    static final int FAST_CLONE_DURATION_MS = 350;
 
     static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
     static final int SCALE_UP_DURATION_MS = 300;
+
+    static final int FADE_IN_DURATION_MS = 250;
+    static final int FADE_IN_START_DELAY_MS = 350;
 
     static final int SLIDE_OUT_DURATION_MS = 300;
 
     static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
+    static final int TEXT_HINT_ALPHA_START_DELAY_MS = 300;
 
-    static final float[] BACKGROUND_SCALE_RANGE = {1.0f, 2.0f};
+    static final float[] BACKGROUND_SCALE_RANGE = {2.0f, 1.0f};
     static final int BACKGROUND_SCALE_DURATION_MS = 5000;
 
     static final int FINISH_SCALE_UP = 0;
@@ -98,7 +102,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final ObjectAnimator mPreAnimator;
     final ObjectAnimator mSlowSendAnimator;
     final ObjectAnimator mFastCloneAnimator;
-    final ObjectAnimator mScaleUpAnimator;
+    final ObjectAnimator mFadeInAnimator;
     final ObjectAnimator mHintAnimator;
     final AnimatorSet mSuccessAnimatorSet;
     final ObjectAnimator mBackgroundAnimator;
@@ -106,6 +110,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     Bitmap mScreenshotBitmap;
     ObjectAnimator mSlideoutAnimator;
+    ObjectAnimator mScaleUpAnimator;
     FireflyRenderThread mFireflyRenderThread;
 
     boolean mAttached;
@@ -171,27 +176,35 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", CLONE_SCREENSHOT_SCALE);
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", CLONE_SCREENSHOT_SCALE);
         mSlowSendAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
-        mSlowSendAnimator.setInterpolator(null); // linear
+        mSlowSendAnimator.setInterpolator(new DecelerateInterpolator());
         mSlowSendAnimator.setDuration(SLOW_SEND_DURATION_MS);
 
         mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
-        mFastCloneAnimator.setInterpolator(null); // linear
+        mFastCloneAnimator.setInterpolator(new DecelerateInterpolator());
         mFastCloneAnimator.setDuration(FAST_CLONE_DURATION_MS);
 
         PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
         PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
         mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY);
-        mScaleUpAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        mScaleUpAnimator.setInterpolator(new DecelerateInterpolator());
         mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
         mScaleUpAnimator.addListener(this);
+
+        PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha", 1.0f);
+        mFadeInAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, fadeIn);
+        mFadeInAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        mFadeInAnimator.setDuration(FADE_IN_DURATION_MS);
+        mFadeInAnimator.setStartDelay(FADE_IN_START_DELAY_MS);
+        mFadeInAnimator.addListener(this);
 
         PropertyValuesHolder alphaUp = PropertyValuesHolder.ofFloat("alpha", TEXT_HINT_ALPHA_RANGE);
         mHintAnimator = ObjectAnimator.ofPropertyValuesHolder(mTextHint, alphaUp);
         mHintAnimator.setInterpolator(null);
         mHintAnimator.setDuration(TEXT_HINT_ALPHA_DURATION_MS);
+        mHintAnimator.setStartDelay(TEXT_HINT_ALPHA_START_DELAY_MS);
 
         mSuccessAnimatorSet = new AnimatorSet();
-        mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mScaleUpAnimator);
+        mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mFadeInAnimator);
 
         scaleUpX = PropertyValuesHolder.ofFloat("scaleX", BACKGROUND_SCALE_RANGE);
         scaleUpY = PropertyValuesHolder.ofFloat("scaleY", BACKGROUND_SCALE_RANGE);
@@ -249,13 +262,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 break;
         }
 
-        // Reset scale up parameters
-        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
-                SCALE_UP_SCREENSHOT_SCALE);
-        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
-                SCALE_UP_SCREENSHOT_SCALE);
-        mScaleUpAnimator.setValues(scaleUpX, scaleUpY);
-
         mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
         // Disable statusbar pull-down
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
@@ -286,7 +292,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mTextHint.setVisibility(View.GONE);
 
         float currentScale = mScreenshotView.getScaleX();
-        mScreenshotView.setAlpha(0.7f);
+        mScreenshotView.setAlpha(0.0f);
+        mScreenshotView.setScaleX(1.0f);
+        mScreenshotView.setScaleY(1.0f);
 
         // Make the clone visible for scaling to the background
         mCloneView.setScaleX(currentScale);
@@ -299,12 +307,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
                 new float[] {currentScale, 0.0f});
         mFastCloneAnimator.setValues(postX, postY);
-        // Modify the scale up parameters to match the current scale
-        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
-               new float[] {currentScale, 1.0f});
-        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
-               new float[] {currentScale, 1.0f});
-        mScaleUpAnimator.setValues(scaleUpX, scaleUpY);
+
+        // Modify the fadeIn parameters to match the current scale
+        PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha",
+               new float[] {0.0f, 1.0f});
+        mFadeInAnimator.setValues(fadeIn);
 
         if (mFireflyRenderThread != null) {
             mFireflyRenderThread.fadeOut();
@@ -328,6 +335,18 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mSlideoutAnimator.addListener(this);
             mSlideoutAnimator.start();
         } else {
+            float currentScale = mScreenshotView.getScaleX();
+            float currentAlpha = mScreenshotView.getAlpha();
+            PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
+                    new float[] {currentScale, 1.0f});
+            PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
+                    new float[] {currentScale, 1.0f});
+            PropertyValuesHolder scaleUpAlpha = PropertyValuesHolder.ofFloat("alpha",
+                    new float[] {currentAlpha, 1.0f});
+            mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY, scaleUpAlpha);
+            mScaleUpAnimator.setInterpolator(new DecelerateInterpolator());
+            mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
+            mScaleUpAnimator.addListener(this);
             mScaleUpAnimator.start();
         }
     }
@@ -417,7 +436,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onAnimationEnd(Animator animation) {
         if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet ||
-            animation == mSlideoutAnimator) {
+            animation == mSlideoutAnimator || animation == mFadeInAnimator) {
             dismiss();
         }
     }
