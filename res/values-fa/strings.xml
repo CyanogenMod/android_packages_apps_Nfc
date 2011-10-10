@@ -3,8 +3,8 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"سرویس Nfc"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"کنترل سخت‌افزار امن ارتباط نزدیک میدان"</string>
-    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"به این برنامه اجازه می‌دهد سخت افزار امن مورد استفاده ارتباطات نزدیک میدان را برای مثال جهت تصحیح اطلاعات کاربری پرداخت، کنترل کند."</string>
+    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"کنترل سخت‌افزار امن ارتباط میدان نزدیک"</string>
+    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"به این برنامه اجازه می‌دهد سخت افزار امن مورد استفاده ارتباطات میدان نزدیک را، برای مثال جهت تصحیح اطلاعات کاربری پرداخت، کنترل کند."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"مخاطب از طریق NFC دریافت شد"</string>
     <string name="inbound_me_profile_text" msgid="1409138030064787748">"برای افزودن این فرد بعنوان یک مخاطب، ضربه بزنید"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"تعامل NFC کامل شد"</string>
