@@ -50,8 +50,10 @@ public class FireflyRenderThread extends Thread {
     EGLSurface mEglSurface;
     GL10 mGL;
 
-    static final int NUM_FIREFLIES = 100;
-    static final int PIXELS_PER_SECOND = 50; // Speed of fireflies
+    static final int NUM_FIREFLIES = 200;
+
+    static final float NEAR_CLIPPING_PLANE = 50f;
+    static final float FAR_CLIPPING_PLANE = 100f;
 
     static final int[] sEglConfig = {
         EGL10.EGL_RED_SIZE, 8,
@@ -197,11 +199,14 @@ public class FireflyRenderThread extends Thread {
         // make adjustments for screen ratio
         mGL.glMatrixMode(GL10.GL_PROJECTION);
         mGL.glLoadIdentity();
-        mGL.glOrthof(0, mDisplayWidth, mDisplayHeight, 0, -1, 1);
+        mGL.glFrustumf(-mDisplayWidth, mDisplayWidth, mDisplayHeight, -mDisplayHeight, NEAR_CLIPPING_PLANE, FAR_CLIPPING_PLANE);
 
         // Switch back to modelview
         mGL.glMatrixMode(GL10.GL_MODELVIEW);
         mGL.glLoadIdentity();
+
+        mGL.glHint(GL10.GL_PERSPECTIVE_CORRECTION_HINT, GL10.GL_NICEST);
+        mGL.glDepthMask(true);
 
         // Reset firefly models
         for (Firefly firefly : mFireflies) {
@@ -220,9 +225,7 @@ public class FireflyRenderThread extends Thread {
             mGL.glLoadIdentity();
 
             mGL.glEnable(GL10.GL_TEXTURE_2D);
-
             mGL.glEnable(GL10.GL_BLEND);
-
             mGL.glBlendFunc(GL10.GL_SRC_ALPHA, GL10.GL_ONE);
 
             for (Firefly firefly : mFireflies) {
@@ -329,65 +332,37 @@ public class FireflyRenderThread extends Thread {
     }
 
     public class Firefly {
-        static final int STEADY_INTERVAL_MS = 1250; // Time fireflies continue in same direction
-        static final float MIN_SCALE = 0.5f; // The minimum amount fireflies are scaled to
+        static final float TEXTURE_HEIGHT = 30f; // TODO use measurement of texture size
+        static final float SPEED = .5f;
 
-        float mX;
-        float mY;
-        float mAngle;
+        float mX; // between -mDisplayHeight and mDisplayHeight
+        float mY; // between -mDisplayWidth and mDisplayWidth
+        float mZ; // between 0.0 (near) and 1.0 (far)
+        float mX0;
+        float mY0;
+        float mZ0;
+        float mT;
         float mScale;
         float mAlpha;
-        boolean mScalingDown;
-        long mTimeRemaining;
 
         public Firefly() {
             reset();
         }
 
         void reset() {
-            float randomVal = (float) Math.random();
-
-            mX = randomVal * mDisplayWidth;
-            mY = (float) (Math.random() * mDisplayHeight);
-            mAngle = randomVal * 360f;
-            mScalingDown = (randomVal > 0.5f) ? true : false;
-            mTimeRemaining = (long) (randomVal * STEADY_INTERVAL_MS);
-            mAlpha = 1;
+            mX0 = mX = (float) (Math.random() * mDisplayWidth) * 4 - 2 * mDisplayWidth;
+            mY0 = mY = (float) (Math.random() * mDisplayHeight) * 4 - 2 * mDisplayHeight;
+            mZ0 = mZ = (float) (Math.random()) * 2 - 1;
+            mT = 0f;
+            mScale = 1.5f;
+            mAlpha = 0f;
         }
 
         public void updatePositionAndScale(long timeElapsedMs) {
-            if (mFadeOut) {
-                // Diminish alpha and return
-                if (mAlpha > 0) {
-                    mAlpha -= timeElapsedMs * 0.003;
-                }
-                return;
-            }
-            mX += Math.cos(Math.toRadians(mAngle)) * timeElapsedMs / 1000 * PIXELS_PER_SECOND;
-            mY += Math.sin(Math.toRadians(mAngle)) * timeElapsedMs / 1000 * PIXELS_PER_SECOND;
-
-            mX %= mDisplayWidth;
-            if (mX < 0) {
-                mX += mDisplayWidth;
-            }
-            mY %= mDisplayHeight;
-            if (mY < 0) {
-                mY += mDisplayHeight;
-            }
-
-            if (mScalingDown) {
-                mScale = 1.0f - (((float)mTimeRemaining / STEADY_INTERVAL_MS) * MIN_SCALE);
-            } else {
-                mScale = MIN_SCALE + (((float)mTimeRemaining / STEADY_INTERVAL_MS) * MIN_SCALE);
-            }
-
-            mTimeRemaining -= timeElapsedMs;
-            if (mTimeRemaining < 0) {
-                // Update our angle, reverse our scaling
-                mAngle = (float) (Math.random() * 360f);
-                mScalingDown = !mScalingDown;
-                mTimeRemaining = STEADY_INTERVAL_MS;
-            }
+               mT += timeElapsedMs;
+               mZ = mZ0 + mT/1000f * SPEED;
+               mAlpha = 1f-mZ;
+               if(mZ > 1.0) reset();
         }
 
         public void draw() {
@@ -402,9 +377,13 @@ public class FireflyRenderThread extends Thread {
             mGL.glVertexPointer(3, GL10.GL_FLOAT, 0, mVertexBuffer);
             mGL.glTexCoordPointer(2, GL10.GL_FLOAT, 0, mTextureBuffer);
 
-            mGL.glTranslatef(mX, mY, 0);
-            mGL.glScalef(mScale, mScale, 0);
+            mGL.glTranslatef(mX, mY, -NEAR_CLIPPING_PLANE-mZ*(FAR_CLIPPING_PLANE-NEAR_CLIPPING_PLANE));
             mGL.glColor4f(1, 1, 1, mAlpha);
+
+            // scale around center
+            mGL.glTranslatef(TEXTURE_HEIGHT/2, TEXTURE_HEIGHT/2, 0);
+            mGL.glScalef(mScale, mScale, 0);
+            mGL.glTranslatef(-TEXTURE_HEIGHT/2, -TEXTURE_HEIGHT/2, 0);
 
             mGL.glDrawElements(GL10.GL_TRIANGLES, mIndices.length, GL10.GL_UNSIGNED_SHORT,
                     mIndexBuffer);
