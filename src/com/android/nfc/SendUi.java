@@ -94,7 +94,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final StatusBarManager mStatusBarManager;
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
-    final ImageView mCloneView;
     final ImageView mBackgroundImage;
     final TextureView mTextureView;
     final TextView mTextHint;
@@ -135,8 +134,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
         mScreenshotLayout.setFocusable(true);
-
-        mCloneView = (ImageView) mScreenshotLayout.findViewById(R.id.clone);
 
         mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
 
@@ -179,7 +176,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mSlowSendAnimator.setInterpolator(new DecelerateInterpolator());
         mSlowSendAnimator.setDuration(SLOW_SEND_DURATION_MS);
 
-        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mCloneView, postX, postY);
+        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
         mFastCloneAnimator.setInterpolator(new DecelerateInterpolator());
         mFastCloneAnimator.setDuration(FAST_CLONE_DURATION_MS);
 
@@ -221,6 +218,12 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     /** Show pre-send animation */
     public void showPreSend() {
+        // Update display metrics
+        mDisplay.getRealMetrics(mDisplayMetrics);
+
+        final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.status_bar_height);
+
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
@@ -228,12 +231,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotView.setTranslationX(0f);
         mScreenshotView.setAlpha(1.0f);
-        mScreenshotLayout.requestFocus();
+        mScreenshotView.setPadding(0, statusBarHeight, 0, 0);
 
-        mCloneView.setImageBitmap(mScreenshotBitmap);
-        mCloneView.setVisibility(View.GONE);
-        mCloneView.setScaleX(INTERMEDIATE_SCALE);
-        mCloneView.setScaleY(INTERMEDIATE_SCALE);
+        mScreenshotLayout.requestFocus();
 
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
@@ -291,15 +291,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mSlowSendAnimator.cancel();
         mTextHint.setVisibility(View.GONE);
 
-        float currentScale = mScreenshotView.getScaleX();
-        mScreenshotView.setAlpha(0.0f);
-        mScreenshotView.setScaleX(1.0f);
-        mScreenshotView.setScaleY(1.0f);
 
-        // Make the clone visible for scaling to the background
-        mCloneView.setScaleX(currentScale);
-        mCloneView.setScaleY(currentScale);
-        mCloneView.setVisibility(View.VISIBLE);
+        float currentScale = mScreenshotView.getScaleX();
 
         // Modify the fast clone parameters to match the current scale
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
@@ -387,8 +380,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     /**
      * Returns a screenshot of the current display contents.
-     * @param context Context.
-     * @return
      */
     Bitmap createScreenshot() {
         // We need to orient the screenshot correctly (and the Surface api seems to
@@ -398,6 +389,14 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
+        final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.status_bar_height);
+        // Navbar has different sizes, depending on orientation
+        final int navBarHeight = mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.navigation_bar_height);
+        final int navBarWidth = mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.navigation_bar_width);
+
         boolean requiresRotation = (degrees > 0);
         if (requiresRotation) {
             // Get the dimensions of the device in its native orientation
@@ -414,6 +413,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             return null;
         }
 
+
         if (requiresRotation) {
             // Rotate the screenshot to the current orientation
             Bitmap ss = Bitmap.createBitmap(mDisplayMetrics.widthPixels,
@@ -426,6 +426,24 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
             bitmap = ss;
         }
+
+        // TODO this is somewhat device-specific; need generic solution.
+        // Crop off the status bar and the nav bar
+        // Portrait: 0, statusBarHeight, width, height - status - nav
+        // Landscape: 0, statusBarHeight, width - navBar, height - status
+        int newLeft = 0;
+        int newTop = statusBarHeight;
+        int newWidth = bitmap.getWidth();
+        int newHeight = bitmap.getHeight();
+        if (bitmap.getWidth() < bitmap.getHeight()) {
+            // Portrait mode: status bar is at the top, navbar bottom, width unchanged
+            newHeight = bitmap.getHeight() - statusBarHeight - navBarHeight;
+        } else {
+            // Landscape mode: status bar is at the top, navbar right
+            newHeight = bitmap.getHeight() - statusBarHeight;
+            newWidth = bitmap.getWidth() - navBarWidth;
+        }
+        bitmap = Bitmap.createBitmap(bitmap, newLeft, newTop, newWidth, newHeight);
 
         return bitmap;
     }
