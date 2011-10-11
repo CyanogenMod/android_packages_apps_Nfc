@@ -85,8 +85,8 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	// Change RF Level Detector ANARFLDWU
 	,{0x00,0x99,0x23,0x00} // Default Value is 0x01
 
-	// Polling Loop Optimisation Detection  - 0x86 to enable - 0x00 to disable
-	,{0x00,0x9E,0x74,0x00} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
+	// Low-power polling
+	,{0x00,0x9E,0x74,0x80} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
 
 	// Polling Loop - Card Emulation Timeout
 	,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
