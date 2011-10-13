@@ -41,5 +41,10 @@
             android:excludeFromRecents="true"
             android:multiprocess="true"
         />
+        <activity android:name="com.android.nfc.NfcRootActivity"
+            android:theme="@*android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+        />
     </application>
 </manifest>

@@ -23,12 +23,10 @@ import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
-import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
@@ -53,7 +51,6 @@ public class NfcDispatcher {
     private static final String TAG = NfcService.TAG;
 
     private final Context mContext;
-    private final P2pLinkManager mP2pManager;
     private final IActivityManager mIActivityManager;
     private final RegisteredComponentCache mTechListFilters;
 
@@ -66,7 +63,6 @@ public class NfcDispatcher {
 
     public NfcDispatcher(Context context, P2pLinkManager p2pManager) {
         mContext = context;
-        mP2pManager = p2pManager;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
@@ -131,8 +127,30 @@ public class NfcDispatcher {
         intent.putExtra(NfcAdapter.EXTRA_TAG, tag);
         intent.putExtra(NfcAdapter.EXTRA_ID, tag.getId());
         intent.putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, msgs);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         return intent;
+    }
+
+    /** This method places the launched activity in a (single) NFC
+     *  root task. We use NfcRootActivity as the root of the task,
+     *  which launches the passed-in intent as soon as it's created.
+     */
+    private boolean startRootActivity(Intent intent) {
+        Intent rootIntent = new Intent(mContext, NfcRootActivity.class);
+        rootIntent.putExtra(NfcRootActivity.EXTRA_LAUNCH_INTENT, intent);
+        rootIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        // Ideally we'd have used startActivityForResult() to determine whether the
+        // NfcRootActivity was able to launch the intent, but startActivityForResult()
+        // is not available on Context. Instead, we query the PackageManager beforehand
+        // to determine if there is an Activity to handle this intent, and base the
+        // result of off that.
+        List<ResolveInfo> activities = mPackageManager.queryIntentActivities(intent, 0);
+        // Try to start the activity regardless of the result.
+        mContext.startActivity(rootIntent);
+        if (activities.size() > 0) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     // Dispatch to either an override pending intent or a standard startActivity()
@@ -207,25 +225,18 @@ public class NfcDispatcher {
                 intent = buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED);
                 ResolveInfo info = matches.get(0);
                 intent.setClassName(info.activityInfo.packageName, info.activityInfo.name);
-                try {
-                    mContext.startActivity(intent);
+                if (startRootActivity(intent)) {
                     return true;
-                } catch (ActivityNotFoundException e) {
-                    if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
                 }
             } else if (matches.size() > 1) {
                 // Multiple matches, show a custom activity chooser dialog
                 intent = new Intent(mContext, TechListChooserActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 intent.putExtra(Intent.EXTRA_INTENT,
                         buildTagIntent(tag, msgs, NfcAdapter.ACTION_TECH_DISCOVERED));
                 intent.putParcelableArrayListExtra(TechListChooserActivity.EXTRA_RESOLVE_INFOS,
                         matches);
-                try {
-                    mContext.startActivity(intent);
+                if (startRootActivity(intent)) {
                     return true;
-                } catch (ActivityNotFoundException e) {
-                    if (DBG) Log.w(TAG, "No activities for technology handling of " + intent);
                 }
             } else {
                 // No matches, move on
@@ -252,19 +263,12 @@ public class NfcDispatcher {
      */
     private boolean startActivityOrMarket(String packageName) {
         Intent intent = mPackageManager.getLaunchIntentForPackage(packageName);
-        try {
-            if (intent != null) {
-                mContext.startActivity(intent);
-                return true;
-            } else {
-                // Find the package in Market:
-                Intent market = getAppSearchIntent(packageName);
-                market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                mContext.startActivity(market);
-                return true;
-            }
-        } catch (ActivityNotFoundException e) {
-            return false;
+        if (intent != null) {
+            return (startRootActivity(intent));
+        } else {
+            // Find the package in Market:
+            Intent market = getAppSearchIntent(packageName);
+            return(startRootActivity(market));
         }
     }
 
@@ -304,11 +308,8 @@ public class NfcDispatcher {
                                 firstPackage = pkg;
                             }
                             intent.setPackage(pkg);
-                            try {
-                                mContext.startActivity(intent);
+                            if (startRootActivity(intent)) {
                                 return true;
-                            } catch (ActivityNotFoundException e) {
-                                // Continue; there may be another match.
                             }
                         }
                     }
@@ -322,12 +323,7 @@ public class NfcDispatcher {
                     }
                 }
             }
-            try {
-                mContext.startActivity(intent);
-                return true;
-            } catch (ActivityNotFoundException e) {
-                return false;
-            }
+            return(startRootActivity(intent));
         }
     }
 
