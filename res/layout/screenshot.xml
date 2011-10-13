@@ -52,11 +52,6 @@
             android:layout_weight="4"
         />
     </LinearLayout>
-    <ImageView android:id="@+id/clone"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-    />
     <ImageView android:id="@+id/screenshot"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

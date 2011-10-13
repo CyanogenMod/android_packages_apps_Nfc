@@ -338,8 +338,6 @@ public class FireflyRenderThread extends Thread {
         float mX; // between -mDisplayHeight and mDisplayHeight
         float mY; // between -mDisplayWidth and mDisplayWidth
         float mZ; // between 0.0 (near) and 1.0 (far)
-        float mX0;
-        float mY0;
         float mZ0;
         float mT;
         float mScale;
@@ -350,8 +348,8 @@ public class FireflyRenderThread extends Thread {
         }
 
         void reset() {
-            mX0 = mX = (float) (Math.random() * mDisplayWidth) * 4 - 2 * mDisplayWidth;
-            mY0 = mY = (float) (Math.random() * mDisplayHeight) * 4 - 2 * mDisplayHeight;
+            mX = (float) (Math.random() * mDisplayWidth) * 4 - 2 * mDisplayWidth;
+            mY = (float) (Math.random() * mDisplayHeight) * 4 - 2 * mDisplayHeight;
             mZ0 = mZ = (float) (Math.random()) * 2 - 1;
             mT = 0f;
             mScale = 1.5f;
