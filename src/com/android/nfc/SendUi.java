@@ -172,16 +172,22 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", CLONE_SCREENSHOT_SCALE);
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", CLONE_SCREENSHOT_SCALE);
+        PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
+                new float[]{1.0f, 0.0f});
+
         mSlowSendAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
         mSlowSendAnimator.setInterpolator(new DecelerateInterpolator());
         mSlowSendAnimator.setDuration(SLOW_SEND_DURATION_MS);
 
-        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
+        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX,
+                postY, alphaDown);
         mFastCloneAnimator.setInterpolator(new DecelerateInterpolator());
         mFastCloneAnimator.setDuration(FAST_CLONE_DURATION_MS);
+        mFastCloneAnimator.addListener(this);
 
         PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
         PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
+
         mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY);
         mScaleUpAnimator.setInterpolator(new DecelerateInterpolator());
         mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
@@ -299,7 +305,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 new float[] {currentScale, 0.0f});
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
                 new float[] {currentScale, 0.0f});
-        mFastCloneAnimator.setValues(postX, postY);
+        PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
+                new float[] {1.0f, 0.0f});
+        mFastCloneAnimator.setValues(postX, postY, alpha);
 
         // Modify the fadeIn parameters to match the current scale
         PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha",
@@ -456,6 +464,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet ||
             animation == mSlideoutAnimator || animation == mFadeInAnimator) {
             dismiss();
+        } else if (animation == mFastCloneAnimator) {
+            // After cloning is done and we've faded out, reset the scale to 1
+            // so we can fade it back in.
+            mScreenshotView.setScaleX(1.0f);
+            mScreenshotView.setScaleY(1.0f);
         }
     }
 

@@ -41,15 +41,15 @@
             android:layout_weight="1"
             android:text="@string/touch"
             android:gravity="center"
-            android:textSize="28sp"
+            android:textAppearance="?android:attr/textAppearanceLarge"
             android:visibility="gone"
             android:background="@null"
-            android:textColor="?android:attr/textColorPrimary"
+            android:textColor="@android:color/holo_blue_light"
         />
         <View
             android:layout_width="match_parent"
             android:layout_height="0dip"
-            android:layout_weight="4"
+            android:layout_weight="3"
         />
     </LinearLayout>
     <ImageView android:id="@+id/screenshot"
