@@ -1271,25 +1271,27 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     /** apply NFC discovery and EE routing */
-    private synchronized void applyRouting() {
-        if (!isNfcEnabled() || mOpenEe != null) {
-            return;
-        }
-        if (mIsScreenUnlocked) {
-            if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                Log.d(TAG, "NFC-EE routing ON");
-                mDeviceHost.doSelectSecureElement();
+    void applyRouting() {
+        synchronized (this) {
+            if (!isNfcEnabled() || mOpenEe != null) {
+                return;
+            }
+            if (mIsScreenUnlocked) {
+                if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
+                    Log.d(TAG, "NFC-EE routing ON");
+                    mDeviceHost.doSelectSecureElement();
+                } else {
+                    Log.d(TAG, "NFC-EE routing OFF");
+                    mDeviceHost.doDeselectSecureElement();
+                }
+                Log.d(TAG, "NFC-C polling ON");
+                mDeviceHost.enableDiscovery();
             } else {
                 Log.d(TAG, "NFC-EE routing OFF");
                 mDeviceHost.doDeselectSecureElement();
+                Log.d(TAG, "NFC-C polling OFF");
+                mDeviceHost.disableDiscovery();
             }
-            Log.d(TAG, "NFC-C polling ON");
-            mDeviceHost.enableDiscovery();
-        } else {
-            Log.d(TAG, "NFC-EE routing OFF");
-            mDeviceHost.doDeselectSecureElement();
-            Log.d(TAG, "NFC-C polling OFF");
-            mDeviceHost.disableDiscovery();
         }
     }
 
@@ -1621,8 +1623,25 @@ public class NfcService extends Application implements DeviceHostListener {
                 synchronized (NfcService.this) {
                     if (mIsScreenUnlocked) {
                         mIsScreenUnlocked = false;
-                        applyRouting();
+//                        applyRouting();
+                        /*
+                         * TODO undo this after the LLCP stack is fixed.
+                         * This is done locally here since the LLCP stack is still using
+                         * globals without holding any locks, and if we attempt to change
+                         * the NFCEE routing while the target is still connected (and it's
+                         * a P2P target) the async LLCP callbacks will crash since the routing
+                         * manipulation code is overwriting globals it relies on. This hack should
+                         * be removed when the LLCP stack is fixed.
+                         */
+                        Log.d(TAG, "NFC-C polling OFF");
+                        mDeviceHost.disableDiscovery();
                         maybeDisconnectTarget();
+                        if (mOpenEe == null) {
+                            Log.d(TAG, "NFC-EE routing OFF");
+                            mDeviceHost.doDeselectSecureElement();
+                        } else {
+                            Log.d(TAG, "Skipping request for NFC-EE routing OFF");
+                        }
                     } else {
                         if (DBG) Log.d(TAG, "Ignoring disable request");
                     }
