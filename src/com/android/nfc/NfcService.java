@@ -1633,14 +1633,12 @@ public class NfcService extends Application implements DeviceHostListener {
                          * manipulation code is overwriting globals it relies on. This hack should
                          * be removed when the LLCP stack is fixed.
                          */
-                        Log.d(TAG, "NFC-C polling OFF");
-                        mDeviceHost.disableDiscovery();
-                        maybeDisconnectTarget();
-                        if (mOpenEe == null) {
+                        if (isNfcEnabled() && mOpenEe == null) {
+                            Log.d(TAG, "NFC-C polling OFF");
+                            mDeviceHost.disableDiscovery();
+                            maybeDisconnectTarget();
                             Log.d(TAG, "NFC-EE routing OFF");
                             mDeviceHost.doDeselectSecureElement();
-                        } else {
-                            Log.d(TAG, "Skipping request for NFC-EE routing OFF");
                         }
                     } else {
                         if (DBG) Log.d(TAG, "Ignoring disable request");
