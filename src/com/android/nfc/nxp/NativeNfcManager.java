@@ -244,6 +244,12 @@ public class NativeNfcManager implements DeviceHost {
 
     }
 
+    private native String doDump();
+    @Override
+    public String dump() {
+        return doDump();
+    }
+
     /**
      * Notifies Ndef Message (TODO: rename into notifyTargetDiscovered)
      */
