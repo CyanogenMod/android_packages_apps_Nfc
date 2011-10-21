@@ -1762,6 +1762,7 @@ public class NfcService extends Application implements DeviceHostListener {
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
             mP2pLinkManager.dump(fd, pw, args);
+            pw.println(mDeviceHost.dump());
         }
     }
 }
