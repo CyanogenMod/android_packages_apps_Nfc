@@ -26,7 +26,9 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       30
+#define EEDATA_SETTINGS_NUMBER       32
+
+extern uint32_t libnfc_llc_error_count;
 
 static phLibNfc_sConfig_t   gDrvCfg;
 void   *gHWRef;
@@ -93,8 +95,11 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 	,{0x00,0x9F,0x36,0x60} // Default value 0x0411 = 50 ms ---> New Value : 0x1460 = 250 ms
 
 	//LLC Timer
-	,{0x00,0x9C,0x31,0x00} //
-	,{0x00,0x9C,0x32,0x00} // 
+	,{0x00,0x9C,0x31,0x00} // Guard host time-out in ms (MSB)
+	,{0x00,0x9C,0x32,0xC8} // Guard host time-out in ms (LSB)
+	,{0x00,0x9C,0x19,0x40} // Max RX retry (PN544=>host?)
+	,{0x00,0x9C,0x1A,0x40} // Max TX retry (PN544=>host?)
+
 	,{0x00,0x9C,0x0C,0x00} //
 	,{0x00,0x9C,0x0D,0x00} //
 	,{0x00,0x9C,0x12,0x00} //
@@ -2615,6 +2620,13 @@ clean_and_return:
     return result;
 }
 
+static jstring com_android_nfc_NfcManager_doDump(JNIEnv *e, jobject o)
+{
+    char buffer[100];
+    snprintf(buffer, sizeof(buffer), "libnfc llc error_count=%u", libnfc_llc_error_count);
+    return e->NewStringUTF(buffer);
+}
+
 /*
  * JNI registration.
  */
@@ -2676,6 +2688,9 @@ static JNINativeMethod gMethods[] =
 
    {"doAbort", "()V",
       (void *)com_android_nfc_NfcManager_doAbort},
+
+   {"doDump", "()Ljava/lang/String;",
+      (void *)com_android_nfc_NfcManager_doDump},
 };   
   
       

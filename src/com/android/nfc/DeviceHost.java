@@ -196,4 +196,6 @@ public interface DeviceHost {
     boolean canMakeReadOnly(int technology);
 
     int getMaxTransceiveLength(int technology);
+
+    String dump();
 }
