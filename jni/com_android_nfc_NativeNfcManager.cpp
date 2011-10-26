@@ -26,7 +26,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       32
+#define EEDATA_SETTINGS_NUMBER       33
 
 extern uint32_t libnfc_llc_error_count;
 
@@ -89,6 +89,7 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
 
 	// Low-power polling
 	,{0x00,0x9E,0x74,0x80} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
+	,{0x00,0x9F,0x28,0x10} // Default value for register 0x28 in FW 109.7
 
 	// Polling Loop - Card Emulation Timeout
 	,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
