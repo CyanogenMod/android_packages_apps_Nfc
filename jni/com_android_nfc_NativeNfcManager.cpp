@@ -26,7 +26,7 @@
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       33
+#define EEDATA_SETTINGS_NUMBER       34
 
 extern uint32_t libnfc_llc_error_count;
 
@@ -88,8 +88,11 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
     ,{0x00,0x99,0x23,0x00} // Default Value is 0x01
 
     // Low-power polling
-    ,{0x00,0x9E,0x74,0x80} // Default Value is 0x00, bits 0->2: sensitivity (0==maximal, 6==minimal), bits 3->6: RFU, bit 7: (0 -> disabled, 1 -> enabled)
-    ,{0x00,0x9F,0x28,0x10} // Number of measurements per low-power poll
+    ,{0x00,0x9E,0x74,0xC0} // Default Value is 0x00, bits 0->2: sensitivity (0==max, 6==min),
+                           // bit 3: RFU,
+                           // bits 4->6 hybrid low-power: # of low-power polls per regular poll
+                           // bit 7: (0 -> disabled, 1 -> enabled)
+    ,{0x00,0x9F,0x28,0x01} // bits 0->7: # of measurements per low-power poll
 
     // Polling Loop - Card Emulation Timeout
     ,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
@@ -120,6 +123,8 @@ uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
     ,{0x00, 0x9F, 0xC8, 0x01}
     // Set NFC-F poll RC=0x00
     ,{0x00, 0x9F, 0x9A, 0x00}
+    // Setting for EMD support for ISO 14443-4 Reader
+    ,{0x00,0x9F,0x09,0x00} // 0x00 - Disable EMD support, 0x01 - Enable EMD support
 };
 
 /* Internal functions declaration */
