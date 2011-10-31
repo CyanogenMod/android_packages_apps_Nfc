@@ -25,7 +25,6 @@ import com.android.nfc.snep.SnepServer;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -37,7 +36,6 @@ import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Profile;
 import android.util.Log;
@@ -45,8 +43,6 @@ import android.util.Log;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.charset.Charsets;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -138,8 +134,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     NdefMessage mStaticNdef;
     INdefPushCallback mCallbackNdef;
     SendTask mSendTask;
-    SharedPreferences mPrefs;
-    boolean mFirstBeam;
 
     public P2pLinkManager(Context context) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
@@ -153,8 +147,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         mSendState = SEND_STATE_NOTHING_TO_SEND;
         mIsSendEnabled = false;
         mIsReceiveEnabled = false;
-        mPrefs = context.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
-        mFirstBeam = mPrefs.getBoolean(NfcService.PREF_FIRST_BEAM, true);
      }
 
     /**
@@ -293,14 +285,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
          }
      }
 
-    void onSendComplete(NdefMessage msg, long elapsedRealtime) {
-        if (mFirstBeam) {
-            EventLogTags.writeNfcFirstShare();
-            mPrefs.edit().putBoolean(NfcService.PREF_FIRST_BEAM, false).apply();
-            mFirstBeam = false;
-        }
-        EventLogTags.writeNfcShare(getMessageSize(msg), getMessageTnf(msg), getMessageType(msg),
-                getMessageAarPresent(msg), (int) elapsedRealtime);
+    void onSendComplete() {
         // Make callbacks on UI thread
         mHandler.sendEmptyMessage(MSG_SEND_COMPLETE);
     }
@@ -334,7 +319,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 m = mMessageToSend;
             }
 
-            long time = SystemClock.elapsedRealtime();
             try {
                 if (DBG) Log.d(TAG, "Sending ndef via SNEP");
                 result = doSnepProtocol(m);
@@ -347,12 +331,9 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
                 result = new NdefPushClient().push(m);
             }
-            time = SystemClock.elapsedRealtime() - time;
-
-            if (DBG) Log.d(TAG, "SendTask result=" + result + ", time ms=" + time);
-
+            if (DBG) Log.d(TAG, "SendTask result=" + result);
             if (result) {
-                onSendComplete(m, time);
+                onSendComplete();
             }
             return null;
         }
@@ -401,8 +382,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     };
 
     void onReceiveComplete(NdefMessage msg) {
-        EventLogTags.writeNfcNdefReceived(getMessageSize(msg), getMessageTnf(msg),
-                getMessageType(msg), getMessageAarPresent(msg));
         // Make callbacks on UI thread
         mHandler.obtainMessage(MSG_RECEIVE_COMPLETE, msg).sendToTarget();
     }
@@ -414,11 +393,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 synchronized (this) {
                     if (mLinkState != LINK_STATE_DEBOUNCE) {
                         break;
-                    }
-                    if (mSendState == SEND_STATE_SENDING) {
-                        EventLogTags.writeNfcShareFail(getMessageSize(mMessageToSend),
-                                getMessageTnf(mMessageToSend), getMessageType(mMessageToSend),
-                                getMessageAarPresent(mMessageToSend));
                     }
                     if (DBG) Log.d(TAG, "Debounce timeout");
                     mLinkState = LINK_STATE_DOWN;
@@ -463,64 +437,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 break;
         }
         return true;
-    }
-
-    int getMessageSize(NdefMessage msg) {
-        if (msg != null) {
-            return msg.toByteArray().length;
-        } else {
-            return 0;
-        }
-    }
-
-    int getMessageTnf(NdefMessage msg) {
-        if (msg == null) {
-            return NdefRecord.TNF_EMPTY;
-        }
-        NdefRecord records[] = msg.getRecords();
-        if (records == null || records.length == 0) {
-            return NdefRecord.TNF_EMPTY;
-        }
-        return records[0].getTnf();
-    }
-
-    String getMessageType(NdefMessage msg) {
-        if (msg == null) {
-            return "null";
-        }
-        NdefRecord records[] = msg.getRecords();
-        if (records == null || records.length == 0) {
-            return "null";
-        }
-        NdefRecord record = records[0];
-        switch (record.getTnf()) {
-            case NdefRecord.TNF_ABSOLUTE_URI:
-                // The actual URI is in the type field, don't log it
-                return "uri";
-            case NdefRecord.TNF_EXTERNAL_TYPE:
-            case NdefRecord.TNF_MIME_MEDIA:
-            case NdefRecord.TNF_WELL_KNOWN:
-                return new String(record.getType(), Charsets.UTF_8);
-            default:
-                return "unknown";
-        }
-    }
-
-    int getMessageAarPresent(NdefMessage msg) {
-        if (msg == null) {
-            return 0;
-        }
-        NdefRecord records[] = msg.getRecords();
-        if (records == null) {
-            return 0;
-        }
-        for (NdefRecord record : records) {
-            if (record.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE &&
-                    Arrays.equals(NdefRecord.RTD_ANDROID_APP, record.getType())) {
-                return 1;
-            }
-        }
-        return 0;
     }
 
     @Override
