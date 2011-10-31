@@ -27,8 +27,8 @@
 
     <!--
     This declares that this app uses the instrumentation test runner targeting
-    the package of com.android.email.  To run the tests use the command:
-    "adb shell am instrument -w com.android.email.tests/android.test.InstrumentationTestRunner"
+    the package of com.android.nfc3.  To run the tests use the command:
+    "adb shell am instrument -w com.android.nfc.tests/android.test.InstrumentationTestRunner"
     -->
     <instrumentation android:name="android.test.InstrumentationTestRunner"
                      android:targetPackage="com.android.nfc3"
