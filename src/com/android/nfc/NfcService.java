@@ -601,7 +601,7 @@ public class NfcService extends Application implements DeviceHostListener {
         @Override
         public boolean isNdefPushEnabled() throws RemoteException {
             synchronized (NfcService.this) {
-                return mIsNdefPushEnabled;
+                return mState == NfcAdapter.STATE_ON && mIsNdefPushEnabled;
             }
         }
 
