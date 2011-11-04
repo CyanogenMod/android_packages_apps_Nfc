@@ -22,14 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
     />
-    <ImageView android:id="@+id/back"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:adjustViewBounds="true"
-        android:src="@drawable/back"
-        android:scaleType="centerCrop"
-        android:visibility="gone"
-    />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
