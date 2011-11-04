@@ -356,6 +356,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (!mAttached) {
             return;
         }
+        // Immediately set to false, to prevent .cancel() calls
+        // below from immediately calling into dismiss() again.
+        mAttached = false;
         mPreAnimator.cancel();
         mSlowSendAnimator.cancel();
         mFastCloneAnimator.cancel();
@@ -363,7 +366,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScaleUpAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
-        mAttached = false;
         releaseScreenshot();
     }
 
