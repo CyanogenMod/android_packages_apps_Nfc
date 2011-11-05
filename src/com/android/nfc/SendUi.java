@@ -396,16 +396,19 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // take screenshots only in the natural orientation of the device :!)
 
         mDisplay.getRealMetrics(mDisplayMetrics);
+        boolean hasNavBar =  mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_showNavigationBar);
 
         float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
         final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
+
         // Navbar has different sizes, depending on orientation
-        final int navBarHeight = mContext.getResources().getDimensionPixelSize(
-                                        com.android.internal.R.dimen.navigation_bar_height);
-        final int navBarWidth = mContext.getResources().getDimensionPixelSize(
-                                        com.android.internal.R.dimen.navigation_bar_width);
+        final int navBarHeight = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.navigation_bar_height) : 0;
+        final int navBarWidth = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.navigation_bar_width) : 0;
 
         boolean requiresRotation = (degrees > 0);
         if (requiresRotation) {
