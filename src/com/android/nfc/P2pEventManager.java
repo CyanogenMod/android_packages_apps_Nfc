@@ -110,7 +110,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             playSound(mErrorSound);
             mSending = false;
         }
-        mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        if (!mNdefSent && !mNdefReceived) {
+            mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        }
     }
 
     @Override
