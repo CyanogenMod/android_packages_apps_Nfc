@@ -21,12 +21,13 @@
 #include <stdio.h>
 #include <math.h>
 #include <sys/queue.h>
+#include <hardware/hardware.h>
+#include <hardware/nfc.h>
 
 #include "com_android_nfc.h"
 
 #define ERROR_BUFFER_TOO_SMALL       -12
 #define ERROR_INSUFFICIENT_RESOURCES -9
-#define EEDATA_SETTINGS_NUMBER       34
 
 extern uint32_t libnfc_llc_error_count;
 
@@ -61,72 +62,6 @@ phLibNfc_Handle     storedHandle = 0;
 
 struct nfc_jni_native_data *exported_nat = NULL;
 
-/* TODO: move product specific configuration such as this
- * antenna tuning into product specific configuration */
-uint8_t EEDATA_Settings[EEDATA_SETTINGS_NUMBER][4] = {
-	// DIFFERENTIAL_ANTENNA
-
-	// RF Settings
-    {0x00,0x9B,0xD1,0x0D} // Tx consumption higher than 0x0D (average 50mA)
-    ,{0x00,0x9B,0xD2,0x24} // GSP setting for this threshold
-    ,{0x00,0x9B,0xD3,0x0A} // Tx consumption higher than 0x0A (average 40mA)
-    ,{0x00,0x9B,0xD4,0x22} // GSP setting for this threshold
-    ,{0x00,0x9B,0xD5,0x08} // Tx consumption higher than 0x08 (average 30mA)
-    ,{0x00,0x9B,0xD6,0x1E} // GSP setting for this threshold
-    ,{0x00,0x9B,0xDD,0x1C} // GSP setting for this threshold
-    ,{0x00,0x9B,0x84,0x13} // ANACM2 setting
-    ,{0x00,0x99,0x81,0x7F} // ANAVMID setting PCD
-    ,{0x00,0x99,0x31,0x70} // ANAVMID setting PICC
-
-    // Enable PBTF
-    ,{0x00,0x98,0x00,0x3F} // SECURE_ELEMENT_CONFIGURATION - No Secure Element
-    ,{0x00,0x9F,0x09,0x00} // SWP_PBTF_RFU
-    ,{0x00,0x9F,0x0A,0x05} // SWP_PBTF_RFLD  --> RFLEVEL Detector for PBTF
-    ,{0x00,0x9E,0xD1,0xA1} //
-
-    // Change RF Level Detector ANARFLDWU
-    ,{0x00,0x99,0x23,0x00} // Default Value is 0x01
-
-    // Low-power polling
-    ,{0x00,0x9E,0x74,0xC0} // Default Value is 0x00, bits 0->2: sensitivity (0==max, 6==min),
-                           // bit 3: RFU,
-                           // bits 4->6 hybrid low-power: # of low-power polls per regular poll
-                           // bit 7: (0 -> disabled, 1 -> enabled)
-    ,{0x00,0x9F,0x28,0x01} // bits 0->7: # of measurements per low-power poll
-
-    // Polling Loop - Card Emulation Timeout
-    ,{0x00,0x9F,0x35,0x14} // Time for which PN544 stays in Card Emulation mode after leaving RF field
-    ,{0x00,0x9F,0x36,0x60} // Default value 0x0411 = 50 ms ---> New Value : 0x1460 = 250 ms
-
-    //LLC Timer
-    ,{0x00,0x9C,0x31,0x00} // Guard host time-out in ms (MSB)
-    ,{0x00,0x9C,0x32,0xC8} // Guard host time-out in ms (LSB)
-    ,{0x00,0x9C,0x19,0x40} // Max RX retry (PN544=>host?)
-    ,{0x00,0x9C,0x1A,0x40} // Max TX retry (PN544=>host?)
-
-    ,{0x00,0x9C,0x0C,0x00} //
-    ,{0x00,0x9C,0x0D,0x00} //
-    ,{0x00,0x9C,0x12,0x00} //
-    ,{0x00,0x9C,0x13,0x00} //
-
-    //WTX for LLCP communication
-    ,{0x00,0x98,0xA2,0x0E} // Max value: 14 (default value: 09)
-
-    //SE GPIO
-    ,{0x00, 0x98, 0x93, 0x40}
-
-    // Set NFCT ATQA
-    ,{0x00, 0x98, 0x7D, 0x02}
-    ,{0x00, 0x98, 0x7E, 0x00}
-
-    // Enable CEA detection mechanism
-    ,{0x00, 0x9F, 0xC8, 0x01}
-    // Set NFC-F poll RC=0x00
-    ,{0x00, 0x9F, 0x9A, 0x00}
-    // Setting for EMD support for ISO 14443-4 Reader
-    ,{0x00,0x9F,0x09,0x00} // 0x00 - Disable EMD support, 0x01 - Enable EMD support
-};
-
 /* Internal functions declaration */
 static void *nfc_jni_client_thread(void *arg);
 static void nfc_jni_init_callback(void *pContext, NFCSTATUS status);
@@ -136,48 +71,6 @@ static void nfc_jni_se_set_mode_callback(void *context,
    phLibNfc_Handle handle, NFCSTATUS status);
 static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat);
-
-static phLibNfc_eConfigLinkType parseLinkType(const char* link_name)
-{
-   struct link_name_entry {
-      phLibNfc_eConfigLinkType   value;
-      const char *               name;
-   };
-   const struct link_name_entry sLinkNameTable[] = {
-      {ENUM_LINK_TYPE_COM1, "COM1"},
-      {ENUM_LINK_TYPE_COM2, "COM2"},
-      {ENUM_LINK_TYPE_COM3, "COM3"},
-      {ENUM_LINK_TYPE_COM4, "COM4"},
-      {ENUM_LINK_TYPE_COM5, "COM5"},
-      {ENUM_LINK_TYPE_COM6, "COM6"},
-      {ENUM_LINK_TYPE_COM7, "COM7"},
-      {ENUM_LINK_TYPE_COM8, "COM8"},
-      {ENUM_LINK_TYPE_I2C,  "I2C"},
-      {ENUM_LINK_TYPE_USB,  "USB"},
-   };
-   phLibNfc_eConfigLinkType ret;
-   unsigned int i;
-
-   /* NOTE: ENUM_LINK_TYPE_NB corresponds to undefined link name  */
-
-   if (link_name == NULL)
-   {
-      return ENUM_LINK_TYPE_NB;
-   }
-
-   ret = ENUM_LINK_TYPE_NB;
-   for (i=0 ; i<sizeof(sLinkNameTable)/sizeof(link_name_entry) ; i++)
-   {
-      if (strcmp(sLinkNameTable[i].name, link_name) == 0)
-      {
-         ret = sLinkNameTable[i].value;
-         break;
-      }
-   }
-
-   return ret;
-}
-
 
 /*
  * Deferred callback called when client thread must be exited
@@ -383,10 +276,7 @@ static int nfc_jni_configure_driver(struct nfc_jni_native_data *nat)
     /* Configure hardware link */
     gDrvCfg.nClientId = phDal4Nfc_msgget(0, 0600);
 
-    property_get("ro.nfc.port", value, "unknown");
-    gDrvCfg.nLinkType = parseLinkType(value);
-
-    TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x, 0x%08x)", gDrvCfg.nClientId, gDrvCfg.nLinkType);
+    TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x, 0x%08x)", gDrvCfg.nClientId);
     REENTRANCE_LOCK();
     status = phLibNfc_Mgt_ConfigureDriver(&gDrvCfg, &gHWRef);
     REENTRANCE_UNLOCK();
@@ -450,13 +340,30 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    uint8_t firmware_status;
    uint8_t update = TRUE;
    int result = JNI_FALSE;
-
+   const hw_module_t* hw_module;
+   nfc_pn544_device_t* pn544_dev = NULL;
+   int ret = 0;
    LOGD("Start Initialization\n");
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
       goto clean_and_return;
+   }
+   /* Get EEPROM values and device port from product-specific settings */
+   ret = hw_get_module(NFC_HARDWARE_MODULE_ID, &hw_module);
+   if (ret) {
+      LOGE("hw_get_module() failed.");
+      goto clean_and_return;
+   }
+   ret = nfc_pn544_open(hw_module, &pn544_dev);
+   if (ret) {
+      LOGE("Could not open pn544 hw_module.");
+      goto clean_and_return;
+   }
+   if (pn544_dev->num_eeprom_settings == 0 || pn544_dev->eeprom_settings == NULL) {
+       LOGE("Could not load EEPROM settings");
+       goto clean_and_return;
    }
 
    /* Reset device connected handle */
@@ -552,13 +459,14 @@ force_download:
 
    // Update EEPROM settings
    TRACE("******  START EEPROM SETTINGS UPDATE ******");
-   for (i = 0; i < EEDATA_SETTINGS_NUMBER; i++)
+   for (i = 0; i < pn544_dev->num_eeprom_settings; i++)
    {
-      gInputParam.buffer = EEDATA_Settings[i];
+      gInputParam.buffer = &(pn544_dev->eeprom_settings[i*4]);
       gInputParam.length = 0x04;
       gOutputParam.buffer = resp;
 
       TRACE("> EEPROM SETTING: %d", i);
+
       REENTRANCE_LOCK();
       status = phLibNfc_Mgt_IoCtl(gHWRef, NFC_MEM_WRITE, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
       REENTRANCE_UNLOCK();
@@ -670,7 +578,9 @@ clean_and_return:
          kill_client(nat);
       }
    }
-
+   if (pn544_dev != NULL) {
+       nfc_pn544_close(pn544_dev);
+   }
    nfc_cb_data_deinit(&cb_data);
 
    return result;

@@ -24,7 +24,8 @@ LOCAL_SHARED_LIBRARIES := \
     libnativehelper \
     libcutils \
     libutils \
-    libnfc
+    libnfc \
+    libhardware
 
 #LOCAL_CFLAGS += -O0 -g
 
