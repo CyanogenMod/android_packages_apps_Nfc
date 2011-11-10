@@ -3,12 +3,12 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC-Dienst"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"Sichere Hardware für die Nahfeldkommunikation steuern"</string>
-    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"Ermöglicht dieser App die Steuerung der für die Nahfeldkommunikation verwendeten sicheren Hardware, beispielsweise, um Anmeldedaten für Zahlungen zu bearbeiten."</string>
+    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"Mit NFC sichere Hardware steuern"</string>
+    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Ermöglicht der App, die mit NFC verwendete sichere Hardware zu steuern, z. B. Zahlungsanmeldeinformationen zu ändern"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt per NFC erhalten"</string>
-    <string name="inbound_me_profile_text" msgid="1409138030064787748">"Zum Hinzufügen dieser Person als Kontakt tippen"</string>
+    <string name="inbound_me_profile_text" msgid="2342757196108092923">"Zum Hinzufügen dieser Person als Kontakt tippen"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-Interaktion abgeschlossen"</string>
-    <string name="outbound_me_profile_text" msgid="7431318734941861000">"Zum Weitergeben Ihrer Kontaktinformationen an diese Person tippen"</string>
+    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Zum Weitergeben Ihrer Kontaktinformationen an diese Person tippen"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC aktiviert"</string>
     <string name="touch" msgid="4727218133711188355">"Zum Beamen berühren"</string>
 </resources>

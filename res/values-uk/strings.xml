@@ -3,12 +3,12 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Служба NFC"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"контролювати захищене апаратне забезпечення Near Field Communication"</string>
-    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"Дозволяє цій програмі контролювати захищене апаратне забезпечення, яке використовується в технології Near Field Communication, наприклад, для зміни облікових даних для оплати."</string>
+    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"контролювати захищене апаратне забезпечення для NFC"</string>
+    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Дозволяє програмі контролювати захищене апаратне забезпечення, яке використовується для передавання даних через NFC, наприклад, для зміни облікових даних для платежів."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Контакт, отриманий через NFC"</string>
-    <string name="inbound_me_profile_text" msgid="1409138030064787748">"Торкніться, щоб додати цю особу як контакт"</string>
+    <string name="inbound_me_profile_text" msgid="2342757196108092923">"Торкніться, щоб додати цю особу як контакт."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Взаємодію через NFC закінчено"</string>
-    <string name="outbound_me_profile_text" msgid="7431318734941861000">"Торкніться, щоб надати цій особі свою контактну інформацію"</string>
+    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Торкніться, щоб надати цій особі свою контактну інформацію."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC увімкнено."</string>
     <string name="touch" msgid="4727218133711188355">"Торкніться, щоб передати дані"</string>
 </resources>
