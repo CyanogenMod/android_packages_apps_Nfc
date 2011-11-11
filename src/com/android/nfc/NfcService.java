@@ -119,6 +119,11 @@ public class NfcService extends Application implements DeviceHostListener {
     static final int ROUTE_OFF = 1;
     static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
 
+    // for use with playSound()
+    public static final int SOUND_START = 0;
+    public static final int SOUND_END = 1;
+    public static final int SOUND_ERROR = 2;
+
     public static final String ACTION_RF_FIELD_ON_DETECTED =
         "com.android.nfc_extras.action.RF_FIELD_ON_DETECTED";
     public static final String ACTION_RF_FIELD_OFF_DETECTED =
@@ -286,11 +291,6 @@ public class NfcService extends Application implements DeviceHostListener {
 
         sService = this;
 
-        mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
-        mStartSound = mSoundPool.load(this, R.raw.start, 1);
-        mEndSound = mSoundPool.load(this, R.raw.end, 1);
-        mErrorSound = mSoundPool.load(this, R.raw.error, 1);
-
         mContext = this;
         mDeviceHost = new NativeNfcManager(this, this);
 
@@ -329,6 +329,26 @@ public class NfcService extends Application implements DeviceHostListener {
         registerReceiver(mReceiver, filter);
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
+    }
+
+    void initSoundPool() {
+        synchronized(this) {
+            if (mSoundPool == null) {
+                mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
+                mStartSound = mSoundPool.load(this, R.raw.start, 1);
+                mEndSound = mSoundPool.load(this, R.raw.end, 1);
+                mErrorSound = mSoundPool.load(this, R.raw.error, 1);
+            }
+        }
+    }
+
+    void releaseSoundPool() {
+        synchronized(this) {
+            if (mSoundPool != null) {
+                mSoundPool.release();
+                mSoundPool = null;
+            }
+        }
     }
 
     void registerForAirplaneMode(IntentFilter filter) {
@@ -456,6 +476,8 @@ public class NfcService extends Application implements DeviceHostListener {
                 updateState(NfcAdapter.STATE_ON);
             }
 
+            initSoundPool();
+
             /* Start polling loop */
             applyRouting();
             return true;
@@ -496,6 +518,8 @@ public class NfcService extends Application implements DeviceHostListener {
             watchDog.cancel();
 
             updateState(NfcAdapter.STATE_OFF);
+
+            releaseSoundPool();
 
             return result;
         }
@@ -560,9 +584,23 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
-    void playSound(int sound) {
+    public void playSound(int sound) {
         synchronized (this) {
-            mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+            if (mSoundPool == null) {
+                Log.w(TAG, "Not playing sound when NFC is disabled");
+                return;
+            }
+            switch (sound) {
+                case SOUND_START:
+                    mSoundPool.play(mStartSound, 1.0f, 1.0f, 0, 0, 1.0f);
+                    break;
+                case SOUND_END:
+                    mSoundPool.play(mEndSound, 1.0f, 1.0f, 0, 0, 1.0f);
+                    break;
+                case SOUND_ERROR:
+                    mSoundPool.play(mErrorSound, 1.0f, 1.0f, 0, 0, 1.0f);
+                    break;
+            }
         }
     }
 
@@ -1392,9 +1430,9 @@ public class NfcService extends Application implements DeviceHostListener {
                     boolean delivered = mNfcDispatcher.dispatchTag(tag,
                             new NdefMessage[] { ndefMsg });
                     if (delivered) {
-                        playSound(mEndSound);
+                        playSound(SOUND_END);
                     } else {
-                        playSound(mErrorSound);
+                        playSound(SOUND_ERROR);
                     }
                     break;
                 }
@@ -1402,7 +1440,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
-                    playSound(mStartSound);
+                    playSound(SOUND_START);
                     NdefMessage[] ndefMsgs = tag.findAndReadNdef();
 
                     if (ndefMsgs != null) {
@@ -1414,7 +1452,7 @@ public class NfcService extends Application implements DeviceHostListener {
                             dispatchTagEndpoint(tag, null);
                         } else {
                             tag.disconnect();
-                            playSound(mErrorSound);
+                            playSound(SOUND_ERROR);
                         }
                     }
                     break;
@@ -1595,9 +1633,9 @@ public class NfcService extends Application implements DeviceHostListener {
             registerTagObject(tagEndpoint);
             if (!mNfcDispatcher.dispatchTag(tag, msgs)) {
                 unregisterObject(tagEndpoint.getHandle());
-                playSound(mErrorSound);
+                playSound(SOUND_ERROR);
             } else {
-                playSound(mEndSound);
+                playSound(SOUND_END);
             }
         }
     }
