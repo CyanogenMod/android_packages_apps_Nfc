@@ -19,11 +19,10 @@ package com.android.nfc;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.media.AudioManager;
-import android.media.SoundPool;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
+
 import com.android.nfc3.R;
 
 /**
@@ -36,11 +35,8 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     static final long[] VIBRATION_PATTERN = {0, 100, 10000};
 
     final Context mContext;
+    final NfcService mNfcService;
     final P2pEventListener.Callback mCallback;
-    final int mStartSound;
-    final int mEndSound;
-    final int mErrorSound;
-    final SoundPool mSoundPool; // playback synchronized on this
     final Vibrator mVibrator;
     final NotificationManager mNotificationManager;
     final SendUi mSendUi;
@@ -51,12 +47,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     boolean mNdefReceived;
 
     public P2pEventManager(Context context, P2pEventListener.Callback callback) {
+        mNfcService = NfcService.getInstance();
         mContext = context;
         mCallback = callback;
-        mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
-        mStartSound = mSoundPool.load(mContext, R.raw.start, 1);
-        mEndSound = mSoundPool.load(mContext, R.raw.end, 1);
-        mErrorSound = mSoundPool.load(mContext, R.raw.error, 1);
         mVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
@@ -67,7 +60,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pInRange() {
-        playSound(mStartSound);
+        mNfcService.playSound(NfcService.SOUND_START);
         mNdefSent = false;
         mNdefReceived = false;
 
@@ -82,7 +75,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pSendComplete() {
-        playSound(mEndSound);
+        mNfcService.playSound(NfcService.SOUND_END);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         mSendUi.showPostSend();
         mSending = false;
@@ -92,7 +85,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     @Override
     public void onP2pReceiveComplete() {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        playSound(mEndSound);
+        mNfcService.playSound(NfcService.SOUND_END);
         // TODO we still don't have a nice receive solution
         // The sanest solution right now is just to scale back up what we had
         // and start the new activity. It is not perfect, but at least it is
@@ -107,7 +100,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     @Override
     public void onP2pOutOfRange() {
         if (mSending) {
-            playSound(mErrorSound);
+            mNfcService.playSound(NfcService.SOUND_ERROR);
             mSending = false;
         }
         if (!mNdefSent && !mNdefReceived) {
@@ -123,9 +116,5 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         }
         mSending = true;
 
-    }
-
-    void playSound(int sound) {
-        mSoundPool.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 }
