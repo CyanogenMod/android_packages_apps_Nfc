@@ -23,7 +23,7 @@
     <permission android:name="com.android.nfc.permission.NFCEE_ADMIN"
         android:label="@string/permlab_nfcAdmin"
         android:description="@string/permdesc_nfcAdmin"
-        android:protectionLevel="signature"
+        android:protectionLevel="dangerous"
     />
 
     <application android:name="com.android.nfc.NfcService"
