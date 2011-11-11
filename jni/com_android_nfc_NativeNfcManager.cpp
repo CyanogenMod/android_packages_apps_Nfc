@@ -23,6 +23,7 @@
 #include <sys/queue.h>
 #include <hardware/hardware.h>
 #include <hardware/nfc.h>
+#include <cutils/properties.h>
 
 #include "com_android_nfc.h"
 
@@ -461,11 +462,27 @@ force_download:
    TRACE("******  START EEPROM SETTINGS UPDATE ******");
    for (i = 0; i < pn544_dev->num_eeprom_settings; i++)
    {
-      gInputParam.buffer = &(pn544_dev->eeprom_settings[i*4]);
+      char eeprom_property[PROPERTY_KEY_MAX];
+      char eeprom_value[PROPERTY_VALUE_MAX];
+      uint8_t* eeprom_base = &(pn544_dev->eeprom_settings[i*4]);
+      TRACE("> EEPROM SETTING: %d", i);
+
+      // Check for override of this EEPROM value in properties
+      snprintf(eeprom_property, sizeof(eeprom_property), "debug.nfc.eeprom.%02X%02X",
+              eeprom_base[1], eeprom_base[2]);
+      TRACE(">> Checking property: %s", eeprom_property);
+      if (property_get(eeprom_property, eeprom_value, "") == 2) {
+          int eeprom_value_num = (int)strtol(eeprom_value, (char**)NULL, 16);
+          LOGD(">> Override EEPROM addr 0x%02X%02X with value %02X",
+                  eeprom_base[1], eeprom_base[2], eeprom_value_num);
+          eeprom_base[3] = eeprom_value_num;
+      }
+
+      TRACE(">> Addr: 0x%02X%02X set to: 0x%02X", eeprom_base[1], eeprom_base[2],
+              eeprom_base[3]);
+      gInputParam.buffer = eeprom_base;
       gInputParam.length = 0x04;
       gOutputParam.buffer = resp;
-
-      TRACE("> EEPROM SETTING: %d", i);
 
       REENTRANCE_LOCK();
       status = phLibNfc_Mgt_IoCtl(gHWRef, NFC_MEM_WRITE, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
