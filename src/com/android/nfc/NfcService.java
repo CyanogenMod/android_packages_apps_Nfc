@@ -35,7 +35,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
@@ -71,22 +73,24 @@ import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class NfcService extends Application implements DeviceHostListener {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
-    static final boolean DBG = true;
+    static final boolean DBG = false;
     static final String TAG = "NfcService";
 
     public static final String SERVICE_NAME = "nfc";
 
+    /** Regular NFC permission */
     private static final String NFC_PERM = android.Manifest.permission.NFC;
     private static final String NFC_PERM_ERROR = "NFC permission required";
+
+    /** NFC ADMIN permission - only for system apps */
     private static final String ADMIN_PERM = android.Manifest.permission.WRITE_SECURE_SETTINGS;
     private static final String ADMIN_PERM_ERROR = "WRITE_SECURE_SETTINGS permission required";
-    private static final String NFCEE_ADMIN_PERM = "com.android.nfc.permission.NFCEE_ADMIN";
-    private static final String NFCEE_ADMIN_PERM_ERROR = "NFCEE_ADMIN permission required";
 
     public static final String PREF = "NfcServicePrefs";
 
@@ -194,6 +198,7 @@ public class NfcService extends Application implements DeviceHostListener {
     NfcAdapterExtrasService mExtrasService;
     boolean mIsAirplaneSensitive;
     boolean mIsAirplaneToggleable;
+    NfceeAccessControl mNfceeAccessControl;
 
     private NfcDispatcher mNfcDispatcher;
     private KeyguardManager mKeyguard;
@@ -201,16 +206,18 @@ public class NfcService extends Application implements DeviceHostListener {
     private static NfcService sService;
 
     public static void enforceAdminPerm(Context context) {
-        int admin = context.checkCallingOrSelfPermission(ADMIN_PERM);
-        int nfcee = context.checkCallingOrSelfPermission(NFCEE_ADMIN_PERM);
-        if (admin != PackageManager.PERMISSION_GRANTED
-                && nfcee != PackageManager.PERMISSION_GRANTED) {
-            throw new SecurityException(ADMIN_PERM_ERROR);
-        }
+        context.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
     }
 
-    public static void enforceNfceeAdminPerm(Context context) {
-        context.enforceCallingOrSelfPermission(NFCEE_ADMIN_PERM, NFCEE_ADMIN_PERM_ERROR);
+    public void enforceNfceeAdminPerm(String pkg) {
+        if (pkg == null) {
+            throw new SecurityException("caller must pass a package name");
+        }
+        mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+        if (!mNfceeAccessControl.check(Binder.getCallingUid(), pkg)) {
+            throw new SecurityException(NfceeAccessControl.NFCEE_ACCESS_PATH +
+                    " denies NFCEE access to " + pkg);
+        }
     }
 
     public static NfcService getInstance() {
@@ -299,6 +306,8 @@ public class NfcService extends Application implements DeviceHostListener {
 
         mSecureElement = new NativeNfcSecureElement();
         mEeRoutingState = ROUTE_OFF;
+
+        mNfceeAccessControl = new NfceeAccessControl(this);
 
         mPrefs = getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
@@ -725,8 +734,8 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public INfcAdapterExtras getNfcAdapterExtrasInterface() {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public INfcAdapterExtras getNfcAdapterExtrasInterface(String pkg) {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
             return mExtrasService;
         }
 
@@ -1150,8 +1159,8 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public Bundle open(IBinder b) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public Bundle open(String pkg, IBinder b) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
 
             Bundle result;
             try {
@@ -1194,8 +1203,10 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public Bundle close() throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public Bundle close(String pkg, IBinder b) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
+
+            b.unlinkToDeath(mOpenEe, 0);
 
             Bundle result;
             try {
@@ -1208,8 +1219,8 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public Bundle transceive(byte[] in) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public Bundle transceive(String pkg, byte[] in) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
 
             Bundle result;
             byte[] out;
@@ -1240,21 +1251,21 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public int getCardEmulationRoute() throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public int getCardEmulationRoute(String pkg) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
             return mEeRoutingState;
         }
 
         @Override
-        public void setCardEmulationRoute(int route) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public void setCardEmulationRoute(String pkg, int route) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
             mEeRoutingState = route;
             applyRouting();
         }
 
         @Override
-        public void authenticate(byte[] token) throws RemoteException {
-            NfcService.enforceNfceeAdminPerm(mContext);
+        public void authenticate(String pkg, byte[] token) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
         }
     };
 
@@ -1565,9 +1576,24 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         private void sendSeBroadcast(Intent intent) {
-            mNfcDispatcher.resumeAppSwitches();
+            PackageManager pm = getPackageManager();
             intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-            mContext.sendBroadcast(intent, NFCEE_ADMIN_PERM);
+
+            // Resume app switches so the receivers can start activites without delay
+            mNfcDispatcher.resumeAppSwitches();
+
+            // Find the matching receivers and check each one for access permissions
+            List<ResolveInfo> receivers = pm.queryBroadcastReceivers(intent, 0);
+            for (ResolveInfo receiver : receivers) {
+                ActivityInfo activityInfo = receiver.activityInfo;
+                if (activityInfo != null) {
+                    if (mNfceeAccessControl.check(activityInfo.applicationInfo)) {
+                        intent.setComponent(new ComponentName(receiver.activityInfo.packageName,
+                                receiver.activityInfo.name));
+                        mContext.sendBroadcast(intent);
+                    }
+                }
+            }
         }
 
         private boolean llcpActivated(NfcDepEndpoint device) {
@@ -1730,6 +1756,9 @@ public class NfcService extends Application implements DeviceHostListener {
                     Log.w(TAG, "failed to wipe NFC-EE");
                 }
             } else if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
+                // Clear the NFCEE access cache in case a UID gets recycled
+                mNfceeAccessControl.invalidateCache();
+
                 boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
                 if (dataRemoved) {
                     Uri data = intent.getData();
@@ -1800,7 +1829,9 @@ public class NfcService extends Application implements DeviceHostListener {
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
             mP2pLinkManager.dump(fd, pw, args);
+            mNfceeAccessControl.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
+
         }
     }
 }
