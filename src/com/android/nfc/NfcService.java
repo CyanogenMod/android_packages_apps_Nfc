@@ -1088,7 +1088,7 @@ public class NfcService extends Application implements DeviceHostListener {
         //TODO: This is incorrect behavior - the close should interrupt pending
         // operations. However this is not supported by current hardware.
 
-        synchronized(NfcService.this) {
+        synchronized (NfcService.this) {
             if (!isNfcEnabled()) {
                 throw new IOException("NFC adapter is disabled");
             }
@@ -1168,7 +1168,11 @@ public class NfcService extends Application implements DeviceHostListener {
         public Bundle close(String pkg, IBinder b) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
 
-            b.unlinkToDeath(mOpenEe, 0);
+            synchronized (this) {
+                if (mOpenEe != null) {
+                    b.unlinkToDeath(mOpenEe, 0);
+                }
+            }
 
             Bundle result;
             try {
@@ -1201,7 +1205,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 if (!isNfcEnabled()) {
                     throw new IOException("NFC is not enabled");
                 }
-                if (mOpenEe == null){
+                if (mOpenEe == null) {
                     throw new IOException("NFC EE is not open");
                 }
                 if (getCallingPid() != mOpenEe.pid) {
