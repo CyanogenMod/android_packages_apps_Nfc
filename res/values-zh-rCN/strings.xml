@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name">Nfc 服务</string>
+
+    <!-- The label for the NFC admin permission -->
+    <string name="permlab_nfcAdmin">NFCEE 管理</string>
+    <!-- The description for the NFC admin permission -->
+    <string name="permdesc_nfcAdmin">允许对NFC执行环境硬件的控制</string>
+</resources>
