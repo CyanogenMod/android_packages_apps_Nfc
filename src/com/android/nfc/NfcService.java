@@ -101,6 +101,8 @@ public class NfcService extends Application implements DeviceHostListener {
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
 
+    static final boolean PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE = true;
+
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
@@ -118,10 +120,19 @@ public class NfcService extends Application implements DeviceHostListener {
     static final int TASK_BOOT = 3;
     static final int TASK_EE_WIPE = 4;
 
+    // Screen state, used by mScreenState
+    static final int SCREEN_STATE_UNKNOWN = 0;
+    static final int SCREEN_STATE_OFF = 1;
+    static final int SCREEN_STATE_ON_LOCKED = 2;
+    static final int SCREEN_STATE_ON_UNLOCKED = 3;
+
     // Copied from com.android.nfc_extras to avoid library dependency
     // Must keep in sync with com.android.nfc_extras
     static final int ROUTE_OFF = 1;
     static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
+
+    /** minimum screen state that enables NFC polling (discovery) */
+    static final int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
 
     // for use with playSound()
     public static final int SOUND_START = 0;
@@ -172,10 +183,12 @@ public class NfcService extends Application implements DeviceHostListener {
     boolean mP2pStarted = false;
 
     // fields below are used in multiple threads and protected by synchronized(this)
-    private final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
-    private HashSet<String> mSePackages = new HashSet<String>();
-    private boolean mIsScreenUnlocked;
-    private boolean mIsNdefPushEnabled;
+    final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
+    HashSet<String> mSePackages = new HashSet<String>();
+    int mScreenState;
+    boolean mIsNdefPushEnabled;
+    boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
+    boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
 
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
@@ -201,6 +214,7 @@ public class NfcService extends Application implements DeviceHostListener {
     NfceeAccessControl mNfceeAccessControl;
 
     private NfcDispatcher mNfcDispatcher;
+    private PowerManager mPowerManager;
     private KeyguardManager mKeyguard;
 
     private static NfcService sService;
@@ -315,11 +329,11 @@ public class NfcService extends Application implements DeviceHostListener {
         mState = NfcAdapter.STATE_OFF;
         mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
 
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
+        mWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
         mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-        mIsScreenUnlocked = pm.isScreenOn() && !mKeyguard.isKeyguardLocked();
+        mScreenState = checkScreenState();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
@@ -374,6 +388,16 @@ public class NfcService extends Application implements DeviceHostListener {
 
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        }
+    }
+
+    int checkScreenState() {
+        if (!mPowerManager.isScreenOn()) {
+            return SCREEN_STATE_OFF;
+        } else if (mKeyguard.isKeyguardLocked()) {
+            return SCREEN_STATE_ON_LOCKED;
+        } else {
+            return SCREEN_STATE_ON_UNLOCKED;
         }
     }
 
@@ -488,7 +512,7 @@ public class NfcService extends Application implements DeviceHostListener {
             initSoundPool();
 
             /* Start polling loop */
-            applyRouting();
+            applyRouting(true);
             return true;
         }
 
@@ -516,7 +540,7 @@ public class NfcService extends Application implements DeviceHostListener {
             // A convenient way to stop the watchdog properly consists of
             // disconnecting the tag. The polling loop shall be stopped before
             // to avoid the tag being discovered again.
-            applyRouting();
+            applyRouting(true);
             maybeDisconnectTarget();
 
             mNfcDispatcher.setForegroundDispatch(null, null, null);
@@ -772,7 +796,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 return ErrorCodes.SUCCESS;
             }
             /* Restart polling loop for notification */
-            applyRouting();
+            applyRouting(true);
             return ErrorCodes.ERROR_DISCONNECT;
         }
 
@@ -1141,7 +1165,7 @@ public class NfcService extends Application implements DeviceHostListener {
             mSecureElement.doDisconnect(mOpenEe.handle);
             mOpenEe = null;
 
-            applyRouting();
+            applyRouting(true);
         }
     }
 
@@ -1264,7 +1288,7 @@ public class NfcService extends Application implements DeviceHostListener {
         public void setCardEmulationRoute(String pkg, int route) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
             mEeRoutingState = route;
-            applyRouting();
+            applyRouting(true);
         }
 
         @Override
@@ -1323,27 +1347,71 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
-    /** apply NFC discovery and EE routing */
-    void applyRouting() {
+    /**
+     * Read mScreenState and apply NFC-C polling and NFC-EE routing
+     */
+    void applyRouting(boolean force) {
         synchronized (this) {
             if (!isNfcEnabled() || mOpenEe != null) {
+                // PN544 cannot be reconfigured while EE is open
                 return;
             }
-            if (mIsScreenUnlocked) {
+
+            if (PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE && mScreenState == SCREEN_STATE_OFF) {
+                /* TODO undo this after the LLCP stack is fixed.
+                 * Use a different sequence when turning the screen off to
+                 * workaround race conditions in pn544 libnfc. The race occurs
+                 * when we change routing while there is a P2P target connect.
+                 * The async LLCP callback will crash since the routing code
+                 * is overwriting globals it relies on.
+                 */
+                if (POLLING_MODE > SCREEN_STATE_OFF) {
+                    if (force || mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C OFF, disconnect");
+                        mNfcPollingEnabled = false;
+                        mDeviceHost.disableDiscovery();
+                        maybeDisconnectTarget();
+                    }
+                }
                 if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                    Log.d(TAG, "NFC-EE routing ON");
+                    if (force || mNfceeRouteEnabled) {
+                        Log.d(TAG, "NFC-EE OFF");
+                        mNfceeRouteEnabled = false;
+                        mDeviceHost.doDeselectSecureElement();
+                    }
+                }
+                return;
+            }
+
+            // configure NFC-EE routing
+            if (mScreenState >= SCREEN_STATE_ON_LOCKED &&
+                    mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
+                if (force || !mNfceeRouteEnabled) {
+                    Log.d(TAG, "NFC-EE ON");
+                    mNfceeRouteEnabled = true;
                     mDeviceHost.doSelectSecureElement();
-                } else {
-                    Log.d(TAG, "NFC-EE routing OFF");
+                }
+            } else {
+                if (force ||  mNfceeRouteEnabled) {
+                    Log.d(TAG, "NFC-EE OFF");
+                    mNfceeRouteEnabled = false;
                     mDeviceHost.doDeselectSecureElement();
                 }
-                Log.d(TAG, "NFC-C polling ON");
-                mDeviceHost.enableDiscovery();
+            }
+
+            // configure NFC-C polling
+            if (mScreenState >= POLLING_MODE) {
+                if (force || !mNfcPollingEnabled) {
+                    Log.d(TAG, "NFC-C ON");
+                    mNfcPollingEnabled = true;
+                    mDeviceHost.enableDiscovery();
+                }
             } else {
-                Log.d(TAG, "NFC-EE routing OFF");
-                mDeviceHost.doDeselectSecureElement();
-                Log.d(TAG, "NFC-C polling OFF");
-                mDeviceHost.disableDiscovery();
+                if (force || mNfcPollingEnabled) {
+                    Log.d(TAG, "NFC-C OFF");
+                    mNfcPollingEnabled = false;
+                    mDeviceHost.disableDiscovery();
+                }
             }
         }
     }
@@ -1611,7 +1679,6 @@ public class NfcService extends Application implements DeviceHostListener {
                         /* Activate LLCP Link */
                         if (mDeviceHost.doActivateLlcp()) {
                             if (DBG) Log.d(TAG, "Initiator Activate LLCP OK");
-                            boolean isZeroClickOn;
                             synchronized (NfcService.this) {
                                 // Register P2P device
                                 mObjectMap.put(device.getHandle(), device);
@@ -1641,7 +1708,6 @@ public class NfcService extends Application implements DeviceHostListener {
                     /* Activate LLCP Link */
                     if (mDeviceHost.doActivateLlcp()) {
                         if (DBG) Log.d(TAG, "Target Activate LLCP OK");
-                        boolean isZeroClickOn;
                         synchronized (NfcService.this) {
                             // Register P2P device
                             mObjectMap.put(device.getHandle(), device);
@@ -1672,49 +1738,27 @@ public class NfcService extends Application implements DeviceHostListener {
 
     private NfcServiceHandler mHandler = new NfcServiceHandler();
 
-    class EnableDisableDiscoveryTask extends AsyncTask<Boolean, Void, Void> {
+    class ApplyRoutingTask extends AsyncTask<Integer, Void, Void> {
         @Override
-        protected Void doInBackground(Boolean... params) {
-            if (DBG) Log.d(TAG, "EnableDisableDiscoveryTask: enable = " + params[0]);
+        protected Void doInBackground(Integer... params) {
+            synchronized (NfcService.this) {
+                if (params == null || params.length != 1) {
+                    // force apply current routing
+                    applyRouting(true);
+                    return null;
+                }
+                mScreenState = params[0].intValue();
 
-            if (params != null && params.length > 0 && params[0]) {
-                synchronized (NfcService.this) {
-                    if (!mIsScreenUnlocked) {
-                        mIsScreenUnlocked = true;
-                        applyRouting();
-                    } else {
-                        if (DBG) Log.d(TAG, "Ignoring enable request");
-                    }
+                boolean needWakelock = mScreenState == SCREEN_STATE_OFF;
+                if (needWakelock) {
+                    mWakeLock.acquire();
                 }
-            } else {
-                mWakeLock.acquire();
-                synchronized (NfcService.this) {
-                    if (mIsScreenUnlocked) {
-                        mIsScreenUnlocked = false;
-//                        applyRouting();
-                        /*
-                         * TODO undo this after the LLCP stack is fixed.
-                         * This is done locally here since the LLCP stack is still using
-                         * globals without holding any locks, and if we attempt to change
-                         * the NFCEE routing while the target is still connected (and it's
-                         * a P2P target) the async LLCP callbacks will crash since the routing
-                         * manipulation code is overwriting globals it relies on. This hack should
-                         * be removed when the LLCP stack is fixed.
-                         */
-                        if (isNfcEnabled() && mOpenEe == null) {
-                            Log.d(TAG, "NFC-C polling OFF");
-                            mDeviceHost.disableDiscovery();
-                            maybeDisconnectTarget();
-                            Log.d(TAG, "NFC-EE routing OFF");
-                            mDeviceHost.doDeselectSecureElement();
-                        }
-                    } else {
-                        if (DBG) Log.d(TAG, "Ignoring disable request");
-                    }
+                applyRouting(false);
+                if (needWakelock) {
+                    mWakeLock.release();
                 }
-                mWakeLock.release();
+                return null;
             }
-            return null;
         }
     }
 
@@ -1724,31 +1768,22 @@ public class NfcService extends Application implements DeviceHostListener {
             String action = intent.getAction();
             if (action.equals(
                     NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
-                if (DBG) Log.d(TAG, "INERNAL_TARGET_DESELECTED_ACTION");
-
-                /* Restart polling loop for notification */
-                applyRouting();
-
-            } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
-                // Only enable if the screen is unlocked. If the screen is locked
-                // Intent.ACTION_USER_PRESENT will be broadcast when the screen is
-                // unlocked.
-                boolean enable = !mKeyguard.isKeyguardLocked();
-
-                // Perform discovery enable in thread to protect against ANR when the
-                // NFC stack wedges. This is *not* the correct way to fix this issue -
-                // configuration of the local NFC adapter should be very quick and should
-                // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(enable);
-            } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
-                // Perform discovery disable in thread to protect against ANR when the
-                // NFC stack wedges. This is *not* the correct way to fix this issue -
-                // configuration of the local NFC adapter should be very quick and should
-                // be safe on the main thread, and the NFC stack should not wedge.
-                new EnableDisableDiscoveryTask().execute(Boolean.FALSE);
-            } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
-                // The user has unlocked the screen. Enabled!
-                new EnableDisableDiscoveryTask().execute(Boolean.TRUE);
+                // Perform applyRouting() in AsyncTask to serialize blocking calls
+                new ApplyRoutingTask().execute();
+            } else if (action.equals(Intent.ACTION_SCREEN_ON)
+                    || action.equals(Intent.ACTION_SCREEN_OFF)
+                    || action.equals(Intent.ACTION_USER_PRESENT)) {
+                // Perform applyRouting() in AsyncTask to serialize blocking calls
+                int screenState = SCREEN_STATE_OFF;
+                if (action.equals(Intent.ACTION_SCREEN_OFF)) {
+                    screenState = SCREEN_STATE_OFF;
+                } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
+                    screenState = mKeyguard.isKeyguardLocked() ?
+                            SCREEN_STATE_ON_LOCKED : SCREEN_STATE_ON_UNLOCKED;
+                } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
+                    screenState = SCREEN_STATE_ON_UNLOCKED;
+                }
+                new ApplyRoutingTask().execute(Integer.valueOf(screenState));
             } else if (action.equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
                 EnableDisableTask eeWipeTask = new EnableDisableTask();
                 eeWipeTask.execute(TASK_EE_WIPE);
@@ -1801,7 +1836,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 Settings.System.AIRPLANE_MODE_ON, 0) == 1;
     }
 
-    /** for debugging only - no il8n */
+    /** for debugging only - no i18n */
     static String stateToString(int state) {
         switch (state) {
             case NfcAdapter.STATE_OFF:
@@ -1817,6 +1852,20 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
+    /** For debugging only - no i18n */
+    static String screenStateToString(int screenState) {
+        switch (screenState) {
+            case SCREEN_STATE_OFF:
+                return "OFF";
+            case SCREEN_STATE_ON_LOCKED:
+                return "ON_LOCKED";
+            case SCREEN_STATE_ON_UNLOCKED:
+                return "ON_UNLOCKED";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -1829,7 +1878,9 @@ public class NfcService extends Application implements DeviceHostListener {
         synchronized (this) {
             pw.println("mState=" + stateToString(mState));
             pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
-            pw.println("mIsScreenUnlocked=" + mIsScreenUnlocked);
+            pw.println("mScreenState=" + screenStateToString(mScreenState));
+            pw.println("mNfcPollingEnabled=" + mNfcPollingEnabled);
+            pw.println("mNfceeRouteEnabled=" + mNfceeRouteEnabled);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
             mP2pLinkManager.dump(fd, pw, args);
