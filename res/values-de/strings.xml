@@ -3,8 +3,6 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC-Dienst"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"Sichere Hardware für die Nahfeldkommunikation steuern"</string>
-    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"Ermöglicht dieser App die Steuerung der für die Nahfeldkommunikation verwendeten sicheren Hardware, beispielsweise, um Anmeldedaten für Zahlungen zu bearbeiten."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt per NFC erhalten"</string>
     <string name="inbound_me_profile_text" msgid="1409138030064787748">"Zum Hinzufügen dieser Person als Kontakt tippen"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-Interaktion abgeschlossen"</string>
