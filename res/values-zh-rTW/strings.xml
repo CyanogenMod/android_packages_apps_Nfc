@@ -3,8 +3,6 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC 服務"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="5329590200504457455">"控制近距離無線通訊 (NFC) 安全硬體"</string>
-    <string name="permdesc_nfcAdmin" msgid="1527271067096288484">"允許這個應用程式控制與「近距離無線通訊」(NFC) 搭配使用的安全硬體，例如可用來修改付款憑證。"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"已透過 NFC 收到聯絡人資訊"</string>
     <string name="inbound_me_profile_text" msgid="1409138030064787748">"輕按即可將這位使用者新增為聯絡人"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC 互動完成"</string>
