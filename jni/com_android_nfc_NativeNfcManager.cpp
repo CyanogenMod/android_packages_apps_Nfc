@@ -69,9 +69,15 @@ static void nfc_jni_init_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_deinit_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_se_set_mode_callback(void *context,
-   phLibNfc_Handle handle, NFCSTATUS status);
+        phLibNfc_Handle handle, NFCSTATUS status);
 static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat);
+static void nfc_jni_Discovery_notification_callback(void *pContext,
+        phLibNfc_RemoteDevList_t *psRemoteDevList,
+        uint8_t uNofRemoteDev, NFCSTATUS status);
+static void nfc_jni_transaction_callback(void *context,
+        phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
+        phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status);
 
 /*
  * Deferred callback called when client thread must be exited
@@ -328,6 +334,30 @@ static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data *nat)
     return result;
 }
 
+static short get_p2p_mode() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.nfc.NXP_NFCI_MODE", value, "");
+    if (value[0]) {
+        short mode;
+        mode = atoi(value);
+        LOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
+        return mode;
+    }
+    return phNfc_eP2P_ALL;  // default
+}
+
+static bool get_p2p_target_disable() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.nfc.TARGET_DISABLE", value, "");
+    if (value[0]) {
+        int mode;
+        mode = atoi(value);
+        LOGD("debug.nfc.TARGET_DISABLE = %d", mode);
+        return mode;
+    }
+    return FALSE;  // default
+}
+
 /* Initialization function */
 static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    struct timespec ts;
@@ -580,6 +610,44 @@ force_download:
       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
+
+   /* ===== DISCOVERY ==== */
+   nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
+   nat->discovery_cfg.Duration = 300000; /* in ms */
+   nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
+
+   TRACE("******  NFC Config Mode Reader ******");
+
+   /* Register for the reader mode */
+   REENTRANCE_LOCK();
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
+   REENTRANCE_UNLOCK();
+   if(ret != NFCSTATUS_SUCCESS)
+   {
+        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+   }
+   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
+      nat->registry_info.Jewel==TRUE?"J":"",
+      nat->registry_info.MifareUL==TRUE?"UL":"",
+      nat->registry_info.MifareStd==TRUE?"Mi":"",
+      nat->registry_info.Felica==TRUE?"F":"",
+      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
+      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
+      nat->registry_info.NFC==TRUE?"P2P":"",
+      nat->registry_info.ISO15693==TRUE?"R":"", ret);
+
+   /* Register for the card emulation mode */
+   REENTRANCE_LOCK();
+   ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
+   REENTRANCE_UNLOCK();
+   if(ret != NFCSTATUS_SUCCESS)
+   {
+        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+   }
+   TRACE("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
+
 
    /* ====== END ======= */
 
@@ -1362,31 +1430,6 @@ static void nfc_jni_se_set_mode_callback(void *pContext,
  * NFCManager methods
  */
 
-static short get_p2p_mode() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.nfc.NXP_NFCI_MODE", value, "");
-    if (value[0]) {
-        short mode;
-        mode = atoi(value);
-        LOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
-        return mode;
-    }
-    return phNfc_eP2P_ALL;  // default
-}
-
-static bool get_p2p_target_disable() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.nfc.TARGET_DISABLE", value, "");
-    if (value[0]) {
-        int mode;
-        mode = atoi(value);
-        LOGD("debug.nfc.TARGET_DISABLE = %d", mode);
-        return mode;
-    }
-    return FALSE;  // default
-}
-
-
 static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 {
    NFCSTATUS ret;
@@ -1402,42 +1445,6 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 
    /* Reset device connected flag */
    device_connected_flag = 0;
-
-   nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
-   nat->discovery_cfg.Duration = 300000; /* in ms */
-   nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
-
-   TRACE("******  NFC Config Mode Reader ******");
-      
-   /* Register for the reader mode */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
-        goto clean_and_return;
-   }
-   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
-      nat->registry_info.Jewel==TRUE?"J":"",
-      nat->registry_info.MifareUL==TRUE?"UL":"",
-      nat->registry_info.MifareStd==TRUE?"Mi":"",
-      nat->registry_info.Felica==TRUE?"F":"",
-      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
-      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
-      nat->registry_info.NFC==TRUE?"P2P":"",
-      nat->registry_info.ISO15693==TRUE?"R":"", ret);
-
-   /* Register for the card emulation mode */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
-        goto clean_and_return;
-   }
-   TRACE("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
 
    /* Start Polling loop */
    TRACE("******  Start NFC Discovery ******");
