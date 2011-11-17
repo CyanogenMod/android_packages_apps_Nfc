@@ -36,8 +36,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
@@ -1654,14 +1654,11 @@ public class NfcService extends Application implements DeviceHostListener {
             // Resume app switches so the receivers can start activites without delay
             mNfcDispatcher.resumeAppSwitches();
 
-            // Find the matching receivers and check each one for access permissions
-            List<ResolveInfo> receivers = pm.queryBroadcastReceivers(intent, 0);
-            for (ResolveInfo receiver : receivers) {
-                ActivityInfo activityInfo = receiver.activityInfo;
-                if (activityInfo != null) {
-                    if (mNfceeAccessControl.check(activityInfo.applicationInfo)) {
-                        intent.setComponent(new ComponentName(receiver.activityInfo.packageName,
-                                receiver.activityInfo.name));
+            List<PackageInfo> packages = pm.getInstalledPackages(0);
+            for (PackageInfo pkg : packages) {
+                if (pkg != null && pkg.applicationInfo != null) {
+                    if (mNfceeAccessControl.check(pkg.applicationInfo)) {
+                        intent.setPackage(pkg.packageName);
                         mContext.sendBroadcast(intent);
                     }
                 }
