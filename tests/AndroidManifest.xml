@@ -31,7 +31,7 @@
     "adb shell am instrument -w com.android.email.tests/android.test.InstrumentationTestRunner"
     -->
     <instrumentation android:name="android.test.InstrumentationTestRunner"
-                     android:targetPackage="com.android.nfc3"
+                     android:targetPackage="com.android.nfc"
                      android:label="Tests for Nfc."/>
 
 </manifest>
