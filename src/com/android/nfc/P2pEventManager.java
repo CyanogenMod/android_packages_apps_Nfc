@@ -23,8 +23,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
 
-import com.android.nfc3.R;
-
 /**
  * Manages vibration, sound and animation for P2P events.
  */
