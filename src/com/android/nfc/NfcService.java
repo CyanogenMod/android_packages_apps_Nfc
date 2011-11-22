@@ -23,7 +23,6 @@ import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.nxp.NativeNfcManager;
 import com.android.nfc.nxp.NativeNfcSecureElement;
-import com.android.nfc3.R;
 
 import android.app.Application;
 import android.app.KeyguardManager;
