@@ -16,8 +16,6 @@
 
 package com.android.nfc;
 
-import com.android.nfc3.R;
-
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
