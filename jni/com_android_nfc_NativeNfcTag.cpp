@@ -1065,76 +1065,50 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doIsNdefFormatable(JNIEnv *e,
-        jobject o, jint libNfcType, jbyteArray uidBytes,
-        jbyteArray pollBytes, jbyteArray actBytes)
+static jboolean com_android_nfc_NativeNfcTag_doIsIsoDepNdefFormatable(JNIEnv *e,
+        jobject o, jbyteArray pollBytes, jbyteArray actBytes)
 {
-    // Determine whether libnfc can format this type
+    // Determines whether this is a formatable IsoDep tag - currently only NXP DESFire
+    // is supported.
     jboolean result = JNI_FALSE;
 
-    switch (libNfcType) {
-        case phNfc_eISO14443_A_PICC:
-        case phNfc_eISO14443_4A_PICC:
-            // ISO14443-4A -> only if it's a DESfire!
-            // DESfire has one sak byte and 2 ATQA bytes
-            if (pollBytes != NULL && (e->GetArrayLength(pollBytes) >= 2) &&
-                    actBytes != NULL && (e->GetArrayLength(actBytes) >= 1)) {
-                jbyte* poll = e->GetByteArrayElements(pollBytes, NULL);
-                jbyte* act = e->GetByteArrayElements(actBytes, NULL);
-                if (act[0] == 0x20 && poll[1] == 0x03) {
-                    uint8_t cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
-                    // Identifies as DESfire, use get version cmd to be sure
-                    jbyteArray versionCmd = e->NewByteArray(5);
-                    e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
-                    jbyteArray respBytes = com_android_nfc_NativeNfcTag_doTransceive(e, o,
-                                versionCmd, JNI_TRUE, NULL);
-                    if (respBytes != NULL) {
-                        // Check whether the response matches a typical DESfire
-                        // response.
-                        // libNFC even does more advanced checking than we do
-                        // here, and will only format DESfire's with a certain
-                        // major/minor sw version and NXP as a manufacturer.
-                        // We don't want to do such checking here, to avoid
-                        // having to change code in multiple places.
-                        // A succesful (wrapped) DESFire getVersion command returns
-                        // 9 bytes, with byte 7 0x91 and byte 8 having status
-                        // code 0xAF (these values are fixed and well-known).
-                        int respLength = e->GetArrayLength(respBytes);
-                        jbyte* resp = e->GetByteArrayElements(respBytes, NULL);
-                        if (respLength == 9 && resp[7] == (jbyte)0x91 &&
-                                resp[8] == (jbyte)0xAF) {
-                            result = JNI_TRUE;
-                        }
-                        e->ReleaseByteArrayElements(respBytes, (jbyte *)resp, JNI_ABORT);
-                    }
-                }
-                e->ReleaseByteArrayElements(pollBytes, (jbyte *)poll, JNI_ABORT);
-                e->ReleaseByteArrayElements(actBytes, (jbyte *)act, JNI_ABORT);
-            }
-            break;
-        case phNfc_eMifare_PICC:
-            // We can always format Mifare Classic / UL
-            result = JNI_TRUE;
-            break;
-        case phNfc_eISO15693_PICC:
-            result = JNI_FALSE;
-            if (e->GetArrayLength(uidBytes) >= 8) {
-                jbyte* uid = e->GetByteArrayElements(uidBytes, NULL);
-                // Byte 5: tag code, supported [1..3]
-                // Byte 6: manufacturer ID, 0x04 == NXP
-                if ((uid[5] >= 1) && (uid[5] <= 3) &&
-                        (uid[6] == 0x04)) {
+    // DESfire has one sak byte and 2 ATQA bytes
+    if (pollBytes != NULL && (e->GetArrayLength(pollBytes) >= 2) &&
+            actBytes != NULL && (e->GetArrayLength(actBytes) >= 1)) {
+        jbyte* poll = e->GetByteArrayElements(pollBytes, NULL);
+        jbyte* act = e->GetByteArrayElements(actBytes, NULL);
+        if (act[0] == 0x20 && poll[1] == 0x03) {
+            uint8_t cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
+            // Identifies as DESfire, use get version cmd to be sure
+            jbyteArray versionCmd = e->NewByteArray(5);
+            e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
+            jbyteArray respBytes = com_android_nfc_NativeNfcTag_doTransceive(e, o,
+                        versionCmd, JNI_TRUE, NULL);
+            if (respBytes != NULL) {
+                // Check whether the response matches a typical DESfire
+                // response.
+                // libNFC even does more advanced checking than we do
+                // here, and will only format DESfire's with a certain
+                // major/minor sw version and NXP as a manufacturer.
+                // We don't want to do such checking here, to avoid
+                // having to change code in multiple places.
+                // A succesful (wrapped) DESFire getVersion command returns
+                // 9 bytes, with byte 7 0x91 and byte 8 having status
+                // code 0xAF (these values are fixed and well-known).
+                int respLength = e->GetArrayLength(respBytes);
+                jbyte* resp = e->GetByteArrayElements(respBytes, NULL);
+                if (respLength == 9 && resp[7] == (jbyte)0x91 &&
+                        resp[8] == (jbyte)0xAF) {
                     result = JNI_TRUE;
                 }
-                e->ReleaseByteArrayElements(uidBytes, (jbyte *)uid, JNI_ABORT);
+                e->ReleaseByteArrayElements(respBytes, (jbyte *)resp, JNI_ABORT);
             }
-            break;
-        default:
-            result = JNI_FALSE;
-            break;
+        }
+        e->ReleaseByteArrayElements(pollBytes, (jbyte *)poll, JNI_ABORT);
+        e->ReleaseByteArrayElements(actBytes, (jbyte *)act, JNI_ABORT);
     }
-    return result;
 
+    return result;
 }
 
 static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, jbyteArray key)
@@ -1259,8 +1233,8 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doWrite},
    {"doPresenceCheck", "()Z",
       (void *)com_android_nfc_NativeNfcTag_doPresenceCheck},
-   {"doIsNdefFormatable", "(I[B[B[B)Z",
-      (void *)com_android_nfc_NativeNfcTag_doIsNdefFormatable},
+   {"doIsIsoDepNdefFormatable", "([B[B)Z",
+      (void *)com_android_nfc_NativeNfcTag_doIsIsoDepNdefFormatable},
    {"doNdefFormat", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
    {"doMakeReadonly", "()Z",
