@@ -363,19 +363,31 @@ public class NativeNfcTag implements TagEndpoint {
         return result;
     }
 
-    native boolean doIsNdefFormatable(int libnfctype, byte[] uid, byte[] poll, byte[] act);
+    native boolean doIsIsoDepNdefFormatable(byte[] poll, byte[] act);
     @Override
     public synchronized boolean isNdefFormatable() {
-        // Call native code to determine at lower level if format
-        // is possible. It will need poll/activation time bytes for this.
-        int nfcaTechIndex = getTechIndex(TagTechnology.NFC_A);
-        int nfcvTechIndex = getTechIndex(TagTechnology.NFC_V);
-        if (nfcaTechIndex != -1) {
-            return doIsNdefFormatable(mTechLibNfcTypes[nfcaTechIndex], mUid,
-                    mTechPollBytes[nfcaTechIndex], mTechActBytes[nfcaTechIndex]);
-        } else if (nfcvTechIndex != -1) {
-            return doIsNdefFormatable(mTechLibNfcTypes[nfcvTechIndex], mUid,
-                    mTechPollBytes[nfcvTechIndex], mTechActBytes[nfcvTechIndex]);
+        if (hasTech(TagTechnology.MIFARE_CLASSIC) || hasTech(TagTechnology.MIFARE_ULTRALIGHT)) {
+            // These are always formatable
+            return true;
+        }
+        if (hasTech(TagTechnology.NFC_V)) {
+            // Currently libnfc only formats NXP NFC-V tags
+            if (mUid[5] >= 1 && mUid[5] <= 3 && mUid[6] == 0x04) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+        // For ISO-DEP, call native code to determine at lower level if format
+        // is possible. It will need NFC-A poll/activation time bytes for this.
+        if (hasTech(TagTechnology.ISO_DEP)) {
+            int nfcaTechIndex = getTechIndex(TagTechnology.NFC_A);
+            if (nfcaTechIndex != -1) {
+                return doIsIsoDepNdefFormatable(mTechPollBytes[nfcaTechIndex],
+                        mTechActBytes[nfcaTechIndex]);
+            } else {
+                return false;
+            }
         } else {
             // Formatting not supported by libNFC
             return false;
