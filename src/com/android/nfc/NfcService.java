@@ -596,7 +596,7 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         void updateState(int newState) {
-            synchronized (this) {
+            synchronized (NfcService.this) {
                 if (newState == mState) {
                     return;
                 }
@@ -1229,7 +1229,7 @@ public class NfcService extends Application implements DeviceHostListener {
         public Bundle close(String pkg, IBinder b) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
 
-            synchronized (this) {
+            synchronized (NfcService.this) {
                 if (mOpenEe != null) {
                     b.unlinkToDeath(mOpenEe, 0);
                 }
