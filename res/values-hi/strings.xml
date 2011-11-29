@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Nfc सेवा"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"NFC सुरक्षित हार्डवेयर नियंत्रित करें"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"एप्लिकेशन को NFC के साथ उपयोग किए गए सुरक्षित हार्डवेयर नियंत्रित करने देता है, उदाहरण के लिए, भुगतान क्रेडेंशियल संशोधित करने के लिए."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"NFC पर प्राप्त संपर्क"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"इस व्‍यक्ति को संपर्क के रूप में जोड़ने के लिए स्‍पर्श करें."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC सहभागिता पूर्ण"</string>

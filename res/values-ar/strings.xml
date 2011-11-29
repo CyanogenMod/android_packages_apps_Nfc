@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"خدمة NFC"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"التحكم في أجهزة أمان NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"للسماح للتطبيق بالتحكم في أجهزة الأمان المستخدمة مع NFC لتعديل بيانات اعتماد الدفع، على سبيل المثال."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"تم استلام جهة اتصال عبر NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"المس لإضافة هذا الشخص كجهة اتصال."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"اكتمل تفاعل NFC"</string>

@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Služba Nfc"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"ovládání zabezpečeného hardwaru NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Umožňuje této aplikaci ovládat zabezpečený hardware používaný s technologií NFC například za účelem úpravy pověření k platbám."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt přijatý prostřednictvím komunikace NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Klepnutím přidáte tuto osobu mezi kontakty"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Interakce NFC byla dokončena"</string>
