@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Nfc Service"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"kontroller sikker hardware for NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Tillader, at appen kan styre den sikre hardware, der anvendes med NFC (Near Field Communication), f.eks. til at ændre betalingsoplysninger."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt via NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Tryk for at tilføje denne person som kontaktperson."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-interaktion er komplet"</string>

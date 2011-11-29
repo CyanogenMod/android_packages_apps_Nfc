@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Nfc Service"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"upravljanje NFC sigurnim hardverom"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Aplikaciji omogućuje upravljanje sigurnim hardverom koji se upotrebljava s NFC-om, na primjer, za izmjenu vjerodajnica za plaćanje."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt primljen NFC-om"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Dodirnite kako biste ovu osobu dodali kao kontakt"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC interakcija dovršena"</string>

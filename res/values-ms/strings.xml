@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Perkhidmatan Nfc"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"kawal perkakasan selamat NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Membenarkan aplikasi untuk mengawal perkakasan selamat yang digunakan dengan NFC, sebagai contoh, untuk mengubah suai bukti kelayakan pembayaran."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kenalan diterima melalui NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Sentuh untuk menambah orang ini sebagai kenalan."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Interaksi NFC lengkap"</string>
