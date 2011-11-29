@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Υπηρεσία ΕΚΠ"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"ΕΚΠ"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"έλεγχος ασφαλούς συσκευής NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Επιτρέπει στην εφαρμογή να ελέγχει τις ασφαλείς συσκευές που χρησιμοποιούνται με την τεχνολογία NFC, για παράδειγμα, για την τροποποίηση των διαπιστευτηρίων πληρωμής."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Λήψη επαφής μέσω ΕΚΠ"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Αγγίξτε για να προσθέσετε αυτό το άτομο ως επαφή."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"Η αλληλεπίδραση ΕΚΠ ολοκληρώθηκε"</string>

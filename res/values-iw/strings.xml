@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"שירות Nfc"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"שלוט בחומרה מאובטחת של NFC"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"מאפשר ליישום לשלוט בחומרה המאובטחת שבשימוש עם NFC, לדוגמה, לשנות אישורי תשלום."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"איש הקשר התקבל באמצעות NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"גע כדי להוסיף משתמש זה כאיש קשר"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"האינטראקציה עם NFC הושלמה"</string>

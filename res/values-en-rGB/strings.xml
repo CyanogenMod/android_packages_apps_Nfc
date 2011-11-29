@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"Nfc Service"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"control NFC secure hardware"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"Allows the app to control the secure hardware used with NFC, for example, to modify payment credentials."</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Contact received over NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Touch to add this person as a contact."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC interaction complete"</string>

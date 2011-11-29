@@ -2,9 +2,6 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC 服務"</string>
-    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
-    <string name="permlab_nfcAdmin" msgid="4011121504965908781">"控制 NFC 安全硬體"</string>
-    <string name="permdesc_nfcAdmin" msgid="8601015094412039788">"允許應用程式控制與 NFC 搭配使用的安全硬體，例如可用來修改付款憑證。"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"已透過 NFC 收到聯絡人資訊"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"輕觸即可將這位使用者新增為聯絡人。"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC 互動完成"</string>
