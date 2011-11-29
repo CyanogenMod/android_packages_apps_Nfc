@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">Nfc Service</string>
+    <string name="nfcUserLabel">Nfc</string>
 
     <!-- A notification description string informing the user that contact details were received over NFC [CHAR-LIMIT=64] -->
     <string name="inbound_me_profile_title">Contact received over NFC</string>
