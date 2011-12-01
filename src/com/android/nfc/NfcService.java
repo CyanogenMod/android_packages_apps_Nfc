@@ -1144,7 +1144,7 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     };
 
-    private void _nfcEeClose(boolean checkPid, int callingPid) throws IOException {
+    void _nfcEeClose(int callingPid, IBinder binder) throws IOException {
         // Blocks until a pending open() or transceive() times out.
         //TODO: This is incorrect behavior - the close should interrupt pending
         // operations. However this is not supported by current hardware.
@@ -1156,10 +1156,14 @@ public class NfcService extends Application implements DeviceHostListener {
             if (mOpenEe == null) {
                 throw new IOException("NFC EE closed");
             }
-            if (checkPid && mOpenEe.pid != -1 && callingPid != mOpenEe.pid) {
+            if (callingPid != -1 && callingPid != mOpenEe.pid) {
                 throw new SecurityException("Wrong PID");
             }
+            if (mOpenEe.binder != binder) {
+                throw new SecurityException("Wrong binder handle");
+            }
 
+            binder.unlinkToDeath(mOpenEe, 0);
             mDeviceHost.resetTimeouts();
             mSecureElement.doDisconnect(mOpenEe.handle);
             mOpenEe = null;
@@ -1210,7 +1214,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
                 mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
 
-                mOpenEe = new OpenSecureElement(getCallingPid(), handle);
+                mOpenEe = new OpenSecureElement(getCallingPid(), handle, b);
                 try {
                     b.linkToDeath(mOpenEe, 0);
                 } catch (RemoteException e) {
@@ -1226,18 +1230,12 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public Bundle close(String pkg, IBinder b) throws RemoteException {
+        public Bundle close(String pkg, IBinder binder) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
-
-            synchronized (this) {
-                if (mOpenEe != null) {
-                    b.unlinkToDeath(mOpenEe, 0);
-                }
-            }
 
             Bundle result;
             try {
-                _nfcEeClose(true, getCallingPid());
+                _nfcEeClose(getCallingPid(), binder);
                 result = writeNoException();
             } catch (IOException e) {
                 result = writeIoException(e);
@@ -1299,20 +1297,32 @@ public class NfcService extends Application implements DeviceHostListener {
     /** resources kept while secure element is open */
     private class OpenSecureElement implements IBinder.DeathRecipient {
         public int pid;  // pid that opened SE
+        // binder handle used for DeathReceipient. Must keep
+        // a reference to this, otherwise it can get GC'd and
+        // the binder stub code might create a different BinderProxy
+        // for the same remote IBinder, causing mismatched
+        // link()/unlink()
+        public IBinder binder;
         public int handle; // low-level handle
-        public OpenSecureElement(int pid, int handle) {
+        public OpenSecureElement(int pid, int handle, IBinder binder) {
             this.pid = pid;
             this.handle = handle;
+            this.binder = binder;
         }
         @Override
         public void binderDied() {
             synchronized (NfcService.this) {
-                if (DBG) Log.d(TAG, "Tracked app " + pid + " died");
+                Log.i(TAG, "Tracked app " + pid + " died");
                 pid = -1;
                 try {
-                    _nfcEeClose(false, -1);
+                    _nfcEeClose(-1, binder);
                 } catch (IOException e) { /* already closed */ }
             }
+        }
+        @Override
+        public String toString() {
+            return new StringBuilder('@').append(Integer.toHexString(hashCode())).append("[pid=")
+                    .append(pid).append(" handle=").append(handle).append("]").toString();
         }
     }
 
@@ -1879,6 +1889,7 @@ public class NfcService extends Application implements DeviceHostListener {
             pw.println("mNfceeRouteEnabled=" + mNfceeRouteEnabled);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
+            pw.println("mOpenEe=" + mOpenEe);
             mP2pLinkManager.dump(fd, pw, args);
             mNfceeAccessControl.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
