@@ -616,34 +616,13 @@ force_download:
    nat->discovery_cfg.Duration = 300000; /* in ms */
    nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
 
-   TRACE("******  NFC Config Mode Reader ******");
-
-   /* Register for the reader mode */
-   REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
-        goto clean_and_return;
-   }
-   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
-      nat->registry_info.Jewel==TRUE?"J":"",
-      nat->registry_info.MifareUL==TRUE?"UL":"",
-      nat->registry_info.MifareStd==TRUE?"Mi":"",
-      nat->registry_info.Felica==TRUE?"F":"",
-      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
-      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
-      nat->registry_info.NFC==TRUE?"P2P":"",
-      nat->registry_info.ISO15693==TRUE?"R":"", ret);
-
    /* Register for the card emulation mode */
    REENTRANCE_LOCK();
    ret = phLibNfc_SE_NtfRegister(nfc_jni_transaction_callback,(void *)nat);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_SUCCESS)
    {
-        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        LOGD("phLibNfc_SE_NtfRegister returned 0x%02x",ret);
         goto clean_and_return;
    }
    TRACE("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
@@ -1445,6 +1424,28 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
 
    /* Reset device connected flag */
    device_connected_flag = 0;
+
+   /* Register callback for remote device notifications.
+    * Must re-register every time we turn on discovery, since other operations
+    * (such as opening the Secure Element) can change the remote device
+    * notification callback*/
+   REENTRANCE_LOCK();
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
+   REENTRANCE_UNLOCK();
+   if(ret != NFCSTATUS_SUCCESS)
+   {
+        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+   }
+   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
+      nat->registry_info.Jewel==TRUE?"J":"",
+      nat->registry_info.MifareUL==TRUE?"UL":"",
+      nat->registry_info.MifareStd==TRUE?"Mi":"",
+      nat->registry_info.Felica==TRUE?"F":"",
+      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
+      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
+      nat->registry_info.NFC==TRUE?"P2P":"",
+      nat->registry_info.ISO15693==TRUE?"R":"", ret);
 
    /* Start Polling loop */
    TRACE("******  Start NFC Discovery ******");
