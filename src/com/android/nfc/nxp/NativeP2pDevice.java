@@ -59,14 +59,17 @@ public class NativeP2pDevice implements NfcDepEndpoint {
         return doTransceive(data);
     }
 
+    @Override
     public int getHandle() {
         return mHandle;
     }
 
+    @Override
     public int getMode() {
         return mMode;
     }
 
+    @Override
     public byte[] getGeneralBytes() {
         return mGeneralBytes;
     }

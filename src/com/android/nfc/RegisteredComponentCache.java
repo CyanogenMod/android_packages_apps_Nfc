@@ -20,7 +20,6 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -188,7 +187,7 @@ public class RegisteredComponentCache {
             eventType = parser.next();
         }
 
-        ArrayList<String> items = new ArrayList();
+        ArrayList<String> items = new ArrayList<String>();
         String tagName;
         eventType = parser.next();
         do {

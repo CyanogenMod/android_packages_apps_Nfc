@@ -28,7 +28,7 @@ public class NativeLlcpConnectionlessSocket {
     private int mSap;
     private int mLinkMiu;
 
-    public NativeLlcpConnectionlessSocket(){ };
+    public NativeLlcpConnectionlessSocket() { }
 
     public native boolean doSendTo(int sap, byte[] data);
 

@@ -218,7 +218,7 @@ public class NfceeAccessControl {
                         Log.w(TAG, "mis-matched signer tag");
                         continue;
                     }
-                    mNfceeAccess.put(signature, (String[])packages.toArray(new String[0]));
+                    mNfceeAccess.put(signature, packages.toArray(new String[0]));
                     packages.clear();
                 } else if (event == XmlPullParser.START_TAG && "package".equals(tag)) {
                     if (signature == null) {

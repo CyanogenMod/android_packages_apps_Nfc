@@ -28,13 +28,11 @@ import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
@@ -773,7 +771,7 @@ public class NfcService extends Application implements DeviceHostListener {
         protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             NfcService.this.dump(fd, pw, args);
         }
-    };
+    }
 
     final class TagService extends INfcTag.Stub {
         @Override
@@ -1142,7 +1140,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
             return mDeviceHost.getMaxTransceiveLength(tech);
         }
-    };
+    }
 
     void _nfcEeClose(int callingPid, IBinder binder) throws IOException {
         // Blocks until a pending open() or transceive() times out.
@@ -1199,7 +1197,7 @@ public class NfcService extends Application implements DeviceHostListener {
             return result;
         }
 
-        private void _open(IBinder b) throws IOException, RemoteException {
+        private void _open(IBinder b) throws IOException {
             synchronized(NfcService.this) {
                 if (!isNfcEnabled()) {
                     throw new IOException("NFC adapter is disabled");
@@ -1259,7 +1257,7 @@ public class NfcService extends Application implements DeviceHostListener {
             return result;
         }
 
-        private byte[] _transceive(byte[] data) throws IOException, RemoteException {
+        private byte[] _transceive(byte[] data) throws IOException {
             synchronized(NfcService.this) {
                 if (!isNfcEnabled()) {
                     throw new IOException("NFC is not enabled");
@@ -1292,7 +1290,7 @@ public class NfcService extends Application implements DeviceHostListener {
         public void authenticate(String pkg, byte[] token) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
         }
-    };
+    }
 
     /** resources kept while secure element is open */
     private class OpenSecureElement implements IBinder.DeathRecipient {
@@ -1482,13 +1480,13 @@ public class NfcService extends Application implements DeviceHostListener {
 
     /** For use by code in this process */
     public LlcpSocket createLlcpSocket(int sap, int miu, int rw, int linearBufferLength)
-            throws IOException, LlcpException {
+            throws LlcpException {
         return mDeviceHost.createLlcpSocket(sap, miu, rw, linearBufferLength);
     }
 
     /** For use by code in this process */
     public LlcpServerSocket createLlcpServerSocket(int sap, String sn, int miu, int rw,
-            int linearBufferLength) throws IOException, LlcpException {
+            int linearBufferLength) throws LlcpException {
         return mDeviceHost.createLlcpServerSocket(sap, sn, miu, rw, linearBufferLength);
     }
 
