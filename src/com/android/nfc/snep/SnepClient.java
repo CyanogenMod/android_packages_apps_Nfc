@@ -137,12 +137,6 @@ public final class SnepClient {
             int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
             messenger = new SnepMessenger(true, socket, fragmentLength);
         } catch (LlcpException e) {
-            if (socket != null) {
-                try {
-                    socket.close();
-                } catch (IOException e2) {
-                }
-            }
             throw new IOException("Could not connect to socket");
         } catch (IOException e) {
             if (socket != null) {

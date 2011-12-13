@@ -18,7 +18,6 @@ package com.android.nfc.nxp;
 
 import com.android.nfc.DeviceHost;
 import com.android.nfc.LlcpException;
-import com.android.nfc.NfcService;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
@@ -198,6 +197,7 @@ public class NativeNfcManager implements DeviceHost {
         doResetTimeouts();
     }
 
+    @Override
     public native void doAbort();
 
     private native boolean doSetTimeout(int tech, int timeout);

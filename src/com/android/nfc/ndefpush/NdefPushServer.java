@@ -113,7 +113,7 @@ public class NdefPushServer {
             }
             if (DBG) Log.d(TAG, "finished connection thread");
         }
-    };
+    }
 
     /** Server class, used to listen for incoming connection request */
     class ServerThread extends Thread {
@@ -170,7 +170,7 @@ public class NdefPushServer {
                 mServerSocket = null;
             }
         }
-    };
+    }
 
     public void start() {
         synchronized (this) {

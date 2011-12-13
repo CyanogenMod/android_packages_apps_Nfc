@@ -18,9 +18,6 @@ package com.android.nfc;
 
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Handler;
-import android.os.Message;
 import android.os.Vibrator;
 
 /**
