@@ -18,6 +18,7 @@ package com.android.nfc;
 
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.os.Vibrator;
 
 /**
@@ -65,7 +66,15 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        mSendUi.showPreSend();
+        final int uiModeType = mContext.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_TYPE_MASK;
+        if (uiModeType == Configuration.UI_MODE_TYPE_APPLIANCE) {
+            // "Appliances" don't intrinsically have a way of confirming this, so we
+            // will just auto-confirm.
+            mCallback.onP2pSendConfirmed();
+        } else {
+            mSendUi.showPreSend();
+        }
     }
 
     @Override
