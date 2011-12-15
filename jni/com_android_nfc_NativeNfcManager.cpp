@@ -996,6 +996,21 @@ static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status)
     sem_post(&pContextData->sem);
 }
 
+static uint8_t find_preferred_target(phLibNfc_RemoteDevList_t *psRemoteDevList,
+        uint8_t uNoOfRemoteDev)
+{
+    // Always prefer p2p targets over other targets. Otherwise, select the first target
+    // reported.
+    uint8_t preferred_index = 0;
+    for (uint8_t i = 0; i < uNoOfRemoteDev; i++) {
+        if((psRemoteDevList[i].psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
+                || (psRemoteDevList[i].psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target)) {
+            preferred_index = i;
+        }
+    }
+    return preferred_index;
+}
+
 static void nfc_jni_Discovery_notification_callback(void *pContext,
    phLibNfc_RemoteDevList_t *psRemoteDevList,
    uint8_t uNofRemoteDev, NFCSTATUS status)
@@ -1037,12 +1052,16 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       LOG_CALLBACK("nfc_jni_Discovery_notification_callback", status);
       TRACE("Discovered %d tags", uNofRemoteDev);
 
+      target_index = find_preferred_target(psRemoteDevList, uNofRemoteDev);
+
       /* Reset device connected flag */
       device_connected_flag = 1;
-
-      if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
-          || (psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target))
+      phLibNfc_sRemoteDevInformation_t *remDevInfo = psRemoteDevList[target_index].psRemoteDevInfo;
+      phLibNfc_Handle remDevHandle = psRemoteDevList[target_index].hTargetDev;
+      if((remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
+          || (remDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
+
          tag_cls = e->GetObjectClass(nat->cached_P2pDevice);
          if(e->ExceptionCheck())
          {
@@ -1058,7 +1077,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
          /* Set P2P Target mode */
          f = e->GetFieldID(tag_cls, "mMode", "I"); 
          
-         if(psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
+         if(remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
          {
             LOGD("Discovered P2P Initiator");
             e->SetIntField(tag, f, (jint)MODE_P2P_INITIATOR);
@@ -1069,30 +1088,30 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
             e->SetIntField(tag, f, (jint)MODE_P2P_TARGET);
          }
           
-         if(psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
+         if(remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
          {
             /* Set General Bytes */
             f = e->GetFieldID(tag_cls, "mGeneralBytes", "[B");
    
            TRACE("General Bytes length =");
-           for(i=0;i<psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length;i++)
+           for(i=0;i<remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length;i++)
            {
-               LOGD("%02x ", psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);          
+               LOGD("%02x ", remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);
            }
-       
-            generalBytes = e->NewByteArray(psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length);   
+
+            generalBytes = e->NewByteArray(remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length);
              
             e->SetByteArrayRegion(generalBytes, 0, 
-                                  psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length, 
-                                  (jbyte *)psRemoteDevList->psRemoteDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo);
+                                  remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length,
+                                  (jbyte *)remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo);
              
             e->SetObjectField(tag, f, generalBytes);
          }
 
          /* Set tag handle */
          f = e->GetFieldID(tag_cls, "mHandle", "I");
-         e->SetIntField(tag, f,(jint)psRemoteDevList[target_index].hTargetDev);
-         TRACE("Target handle = 0x%08x",psRemoteDevList[target_index].hTargetDev);
+         e->SetIntField(tag, f,(jint)remDevHandle);
+         TRACE("Target handle = 0x%08x",remDevHandle);
       }
       else
       {
@@ -1114,21 +1133,10 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
             TRACE("Multiple Protocol TAG detected\n");
             multi_protocol = true;
         }
-        else if (status == NFCSTATUS_MULTIPLE_TAGS) {
-            // Only one tag will be used
-            // TODO: suppose there's both a multi-proto and another
-            // single-proto tag in the field: in that case, we'd want to make sure we
-            // return a "complete" tag, and not just one "target", which
-            // is then either half of the multi-proto tag or the complete
-            // single-proto.
-            target_index = 0;
-        } else {
-            target_index = 0;
-        }
 
         /* Set tag UID */
         f = e->GetFieldID(tag_cls, "mUid", "[B");
-        data = get_target_uid(psRemoteDevList[target_index].psRemoteDevInfo);
+        data = get_target_uid(remDevInfo);
         tagUid = e->NewByteArray(data.length);
         if(data.length > 0)
         {
@@ -1161,7 +1169,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         e->SetIntField(tag, f,(jint)-1);
       }
 
-      storedHandle = psRemoteDevList[target_index].hTargetDev;
+      storedHandle = remDevHandle;
       if (nat->tag != NULL) {
           e->DeleteGlobalRef(nat->tag);
       }
@@ -1169,11 +1177,11 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
       /* Notify the service */   
       TRACE("Notify Nfc Service");
-      if((psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
-          || (psRemoteDevList->psRemoteDevInfo->RemDevType == phNfc_eNfcIP1_Target))
+      if((remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
+          || (remDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
          /* Store the hanlde of the P2P device */
-         hLlcpHandle = psRemoteDevList->hTargetDev;
+         hLlcpHandle = remDevHandle;
          
          /* Notify manager that new a P2P device was found */
          e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkActivation, tag);
