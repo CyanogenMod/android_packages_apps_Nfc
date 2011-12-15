@@ -17,7 +17,7 @@
 #ifndef __COM_ANDROID_NFC_JNI_H__
 #define __COM_ANDROID_NFC_JNI_H__
 
-#define LOG_TAG "NFC JNI"
+#define LOG_TAG "NFCJNI"
 
 #include <JNIHelp.h>
 #include <jni.h>
