@@ -193,7 +193,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    e->SetIntField(llcpPacket, f,(jbyte)ssap);
 
    /* Set Llcp Packet Buffer */
-   LOGD("Set LlcpPacket Data Buffer\n");
+   ALOGD("Set LlcpPacket Data Buffer\n");
    f = e->GetFieldID(clsLlcpPacket, "mDataBuffer", "[B");
    receivedData = e->NewByteArray(sReceiveBuffer.length);
    e->SetByteArrayRegion(receivedData, 0, sReceiveBuffer.length,(jbyte *)sReceiveBuffer.buffer);

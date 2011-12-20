@@ -96,7 +96,7 @@ static void kill_client(nfc_jni_native_data *nat)
    
    usleep(50000);
 
-   LOGD("Terminating client thread...");
+   ALOGD("Terminating client thread...");
     
    pMsg = (phLibNfc_DeferredCall_t*)malloc(sizeof(phLibNfc_DeferredCall_t));
    pMsg->pCallback = client_kill_deferred_call;
@@ -180,7 +180,7 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
     gOutputParam.buffer = OutputBuffer;
     gOutputParam.length = 0x01;
 
-    LOGD("Download new Firmware");
+    ALOGD("Download new Firmware");
     REENTRANCE_LOCK();
     status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_FW_DOWNLOAD, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
     REENTRANCE_UNLOCK();
@@ -254,7 +254,7 @@ reinit:
     }
     else
     {
-        LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
+        ALOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
               caps.psDevCapabilities.hal_version,
               caps.psDevCapabilities.fw_version,
               caps.psDevCapabilities.hw_version,
@@ -325,7 +325,7 @@ static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data *nat)
     }
     else
     {
-       LOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+       ALOGD("phLibNfc_Mgt_UnConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
        result = TRUE;
     }
 
@@ -340,7 +340,7 @@ static short get_p2p_mode() {
     if (value[0]) {
         short mode;
         mode = atoi(value);
-        LOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
+        ALOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
         return mode;
     }
     return phNfc_eP2P_ALL;  // default
@@ -352,7 +352,7 @@ static bool get_p2p_target_disable() {
     if (value[0]) {
         int mode;
         mode = atoi(value);
-        LOGD("debug.nfc.TARGET_DISABLE = %d", mode);
+        ALOGD("debug.nfc.TARGET_DISABLE = %d", mode);
         return mode;
     }
     return FALSE;  // default
@@ -374,7 +374,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    const hw_module_t* hw_module;
    nfc_pn544_device_t* pn544_dev = NULL;
    int ret = 0;
-   LOGD("Start Initialization\n");
+   ALOGD("Start Initialization\n");
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -448,7 +448,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    }
    else
    {
-       LOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
+       ALOGD("NFC capabilities: HAL = %x, FW = %x, HW = %x, Model = %x, HCI = %x, Full_FW = %d, Rev = %d, FW Update Info = %d",
              caps.psDevCapabilities.hal_version,
              caps.psDevCapabilities.fw_version,
              caps.psDevCapabilities.hw_version,
@@ -503,7 +503,7 @@ force_download:
       TRACE(">> Checking property: %s", eeprom_property);
       if (property_get(eeprom_property, eeprom_value, "") == 2) {
           int eeprom_value_num = (int)strtol(eeprom_value, (char**)NULL, 16);
-          LOGD(">> Override EEPROM addr 0x%02X%02X with value %02X",
+          ALOGD(">> Override EEPROM addr 0x%02X%02X with value %02X",
                   eeprom_base[1], eeprom_base[2], eeprom_value_num);
           eeprom_base[3] = eeprom_value_num;
       }
@@ -539,23 +539,23 @@ force_download:
    /* ====== SECURE ELEMENTS ======= */
 
    REENTRANCE_LOCK();
-   LOGD("phLibNfc_SE_GetSecureElementList()");
+   ALOGD("phLibNfc_SE_GetSecureElementList()");
    status = phLibNfc_SE_GetSecureElementList(SE_List, &No_SE);
    REENTRANCE_UNLOCK();
    if (status != NFCSTATUS_SUCCESS)
    {
-      LOGD("phLibNfc_SE_GetSecureElementList(): Error");
+      ALOGD("phLibNfc_SE_GetSecureElementList(): Error");
       goto clean_and_return;
    }
 
-   LOGD("\n> Number of Secure Element(s) : %d\n", No_SE);
+   ALOGD("\n> Number of Secure Element(s) : %d\n", No_SE);
    /* Display Secure Element information */
    for (i = 0; i < No_SE; i++)
    {
       if (SE_List[i].eSE_Type == phLibNfc_SE_Type_SmartMX) {
-         LOGD("phLibNfc_SE_GetSecureElementList(): SMX detected, handle=%p", (void*)SE_List[i].hSecureElement);
+         ALOGD("phLibNfc_SE_GetSecureElementList(): SMX detected, handle=%p", (void*)SE_List[i].hSecureElement);
       } else if (SE_List[i].eSE_Type == phLibNfc_SE_Type_UICC) {
-         LOGD("phLibNfc_SE_GetSecureElementList(): UICC detected, handle=%p", (void*)SE_List[i].hSecureElement);
+         ALOGD("phLibNfc_SE_GetSecureElementList(): UICC detected, handle=%p", (void*)SE_List[i].hSecureElement);
       }
 
       /* Set SE mode - Off */
@@ -570,7 +570,7 @@ force_download:
                nfc_jni_get_status_name(status));
          goto clean_and_return;
       }
-      LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status,
+      ALOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status,
             nfc_jni_get_status_name(status));
 
       /* Wait for callback response */
@@ -622,7 +622,7 @@ force_download:
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_SUCCESS)
    {
-        LOGD("phLibNfc_SE_NtfRegister returned 0x%02x",ret);
+        ALOGD("phLibNfc_SE_NtfRegister returned 0x%02x",ret);
         goto clean_and_return;
    }
    TRACE("phLibNfc_SE_NtfRegister returned 0x%x\n", ret);
@@ -981,7 +981,7 @@ void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
    }
    else if(nErrCode == PHFRINFC_LLCP_ERR_DISCONNECTED)
    {
-      LOGD("Socket Disconnected");
+      ALOGD("Socket Disconnected");
    }
 }
 
@@ -1079,12 +1079,12 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
          
          if(remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
          {
-            LOGD("Discovered P2P Initiator");
+            ALOGD("Discovered P2P Initiator");
             e->SetIntField(tag, f, (jint)MODE_P2P_INITIATOR);
          }
          else
          {    
-            LOGD("Discovered P2P Target");
+            ALOGD("Discovered P2P Target");
             e->SetIntField(tag, f, (jint)MODE_P2P_TARGET);
          }
           
@@ -1096,7 +1096,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
            TRACE("General Bytes length =");
            for(i=0;i<remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length;i++)
            {
-               LOGD("%02x ", remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);
+               ALOGD("%02x ", remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);
            }
 
             generalBytes = e->NewByteArray(remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length);
@@ -1269,7 +1269,7 @@ static void nfc_jni_transaction_callback(void *context,
                 {
                     aid = &(evt_info->UiccEvtInfo.aid);
 
-                    LOGD("> AID DETECTED");
+                    ALOGD("> AID DETECTED");
 
                     if(aid != NULL)
                     {
@@ -1278,7 +1278,7 @@ static void nfc_jni_transaction_callback(void *context,
                         for (i = 0; i < (int) (aid->length) && i < AID_MAXLEN; i++) {
                           snprintf(&aid_str[i*2], 3, "%02x", aid->buffer[i]);
                         }
-                        LOGD("> AID: %s", aid_str);
+                        ALOGD("> AID: %s", aid_str);
 
                         tmp_array = e->NewByteArray(aid->length);
                         if (tmp_array == NULL)
@@ -1307,7 +1307,7 @@ static void nfc_jni_transaction_callback(void *context,
                 }
                 else
                 {
-                    LOGD("> NO AID DETECTED");
+                    ALOGD("> NO AID DETECTED");
                 }
             }break;
 
@@ -1442,7 +1442,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_SUCCESS)
    {
-        LOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        ALOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
         goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
@@ -1730,7 +1730,7 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    nat = (nfc_jni_native_data*)malloc(sizeof(struct nfc_jni_native_data));
    if(nat == NULL)
    {
-      LOGD("malloc of nfc_jni_native_data failed");
+      ALOGD("malloc of nfc_jni_native_data failed");
       return FALSE;   
    }
    memset(nat, 0, sizeof(*nat));
@@ -1775,13 +1775,13 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
 
    if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {
-      LOGD("Native Structure initialization failed");
+      ALOGD("Native Structure initialization failed");
       return FALSE;
    }
          
    if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
-      LOGD("Native Structure initialization failed");
+      ALOGD("Native Structure initialization failed");
       return FALSE;   
    }
    TRACE("****** Init Native Structure OK ******");
@@ -1948,11 +1948,11 @@ static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jo
     list =e->NewIntArray(se_count);
     for (i = 0; i < se_count; i++) {
         if (se_list[i].eSE_Type == phLibNfc_SE_Type_SmartMX) {
-            LOGD("phLibNfc_SE_GetSecureElementList(): SMX detected");
-            LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
+            ALOGD("phLibNfc_SE_GetSecureElementList(): SMX detected");
+            ALOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
         } else if(se_list[i].eSE_Type == phLibNfc_SE_Type_UICC) {
-            LOGD("phLibNfc_SE_GetSecureElementList(): UICC detected");
-            LOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
+            ALOGD("phLibNfc_SE_GetSecureElementList(): UICC detected");
+            ALOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
         }
         e->SetIntArrayRegion(list, i, 1, (jint*)&se_list[i].hSecureElement);
     }
@@ -1986,7 +1986,7 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
             (void *)&cb_data);
     REENTRANCE_UNLOCK();
     if (ret != NFCSTATUS_PENDING) {
-        LOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+        ALOGD("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
         goto clean_and_return;
     }
     TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -2517,7 +2517,7 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
     gOutputParam.buffer = OutputBuffer;
     gOutputParam.length = 0x01;
 
-    LOGD("Download new Firmware");
+    ALOGD("Download new Firmware");
     REENTRANCE_LOCK();
     status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_FW_DOWNLOAD, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
     REENTRANCE_UNLOCK();

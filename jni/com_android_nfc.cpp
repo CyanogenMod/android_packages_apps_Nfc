@@ -28,7 +28,7 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
    JNIEnv *e;
 
-   LOGD("NFC Service : loading JNI\n");
+   ALOGD("NFC Service : loading JNI\n");
 
    // Check JNI version
    if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6))
@@ -135,7 +135,7 @@ int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    if(cls == NULL)
    {
       return -1;
-      LOGD("Find class error\n");
+      ALOGD("Find class error\n");
    }
 
 
@@ -145,14 +145,14 @@ int nfc_jni_cache_object(JNIEnv *e, const char *clsname,
    if(obj == NULL)
    {
       return -1;
-      LOGD("Create object error\n");
+      ALOGD("Create object error\n");
    }
 
    *cached_obj = e->NewGlobalRef(obj);
    if(*cached_obj == NULL)
    {
       e->DeleteLocalRef(obj);
-      LOGD("Global ref error\n");
+      ALOGD("Global ref error\n");
       return -1;
    }
 

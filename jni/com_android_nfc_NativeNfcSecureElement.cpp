@@ -221,7 +221,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    /* Check if NFC device is already connected to a tag or P2P peer */
    if (device_connected_flag == 1)
    {
-       LOGD("Unable to open SE connection, device already connected to a P2P peer or a Tag");
+       ALOGD("Unable to open SE connection, device already connected to a P2P peer or a Tag");
        goto clean_and_return;
    }
 
@@ -259,7 +259,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    if(mask_value == 0x40)
    {
       // There is an external RF field present, fail the open request
-      LOGD("Unable to open SE connection, external RF Field detected");
+      ALOGD("Unable to open SE connection, external RF Field detected");
       goto clean_and_return;   
    }   
 

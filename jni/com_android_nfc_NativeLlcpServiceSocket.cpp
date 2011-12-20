@@ -119,7 +119,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
       {
          // NOTE: This may happen if link went down since incoming socket detected, then
          //       just drop it and start a new accept loop.
-         LOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+         ALOGD("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
          continue;
       }
       TRACE("phLibNfc_Llcp_Accept() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -134,14 +134,14 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
       if(cb_data.status != NFCSTATUS_SUCCESS)
       {
          /* NOTE: Do not generate an error if the accept failed to avoid error in server application */
-         LOGD("Failed to accept incoming socket  0x%04x[%s]", cb_data.status, nfc_jni_get_status_name(cb_data.status));
+         ALOGD("Failed to accept incoming socket  0x%04x[%s]", cb_data.status, nfc_jni_get_status_name(cb_data.status));
       }
    }
 
    /* Create new LlcpSocket object */
    if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpSocket",&(clientSocket)) == -1)
    {
-      LOGD("LLCP Socket creation error");
+      ALOGD("LLCP Socket creation error");
       goto clean_and_return;
    }
 
@@ -149,7 +149,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    clsNativeLlcpSocket = e->GetObjectClass(clientSocket);
    if(e->ExceptionCheck())
    {
-      LOGD("LLCP Socket get class object error");
+      ALOGD("LLCP Socket get class object error");
       goto clean_and_return;
    }
 
@@ -198,7 +198,7 @@ static jboolean com_NativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
    }
    else
    {
-      LOGD("Close Service socket KO");
+      ALOGD("Close Service socket KO");
       return FALSE;
    }
 }

@@ -48,32 +48,32 @@ static void nfc_jni_connect_callback(void* pContext, uint8_t nErrCode, NFCSTATUS
    }
    else
    {
-      LOGD("Socket not connected:");
+      ALOGD("Socket not connected:");
       switch(nErrCode)
       {
          case PHFRINFC_LLCP_DM_OPCODE_SAP_NOT_ACTIVE:
             {
-               LOGD("> SAP NOT ACTIVE\n");
+               ALOGD("> SAP NOT ACTIVE\n");
             }break;
 
          case PHFRINFC_LLCP_DM_OPCODE_SAP_NOT_FOUND:
             {
-               LOGD("> SAP NOT FOUND\n");
+               ALOGD("> SAP NOT FOUND\n");
             }break;
 
          case PHFRINFC_LLCP_DM_OPCODE_CONNECT_REJECTED:
             {
-               LOGD("> CONNECT REJECTED\n");
+               ALOGD("> CONNECT REJECTED\n");
             }break;
 
          case PHFRINFC_LLCP_DM_OPCODE_CONNECT_NOT_ACCEPTED:
             {
-               LOGD("> CONNECT NOT ACCEPTED\n");
+               ALOGD("> CONNECT NOT ACCEPTED\n");
             }break;
 
          case PHFRINFC_LLCP_DM_OPCODE_SOCKET_NOT_AVAILABLE:
             {
-               LOGD("> SOCKET NOT AVAILABLE\n");
+               ALOGD("> SOCKET NOT AVAILABLE\n");
             }break;
       }
    }
