@@ -2,6 +2,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC 서비스"</string>
+    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"NFC를 통해 받은 연락처"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"이 사람을 연락처에 추가하려면 터치하세요."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC 통신 완료"</string>

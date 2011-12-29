@@ -2,6 +2,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"บริการ NFC"</string>
+    <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"ได้รับข้อมูลที่อยู่ติดต่อทาง NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"แตะเพื่อเพิ่มคนนี้เป็นผู้ติดต่อ"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"ดำเนินการโต้ตอบกับ NFC ให้เสร็จสมบูรณ์"</string>
