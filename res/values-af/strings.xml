@@ -2,6 +2,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC-diens"</string>
+    <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontak ontvang via NFC"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Raak om hierdie persoon as \'n kontak by te voeg."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-interaksie voltooi"</string>
