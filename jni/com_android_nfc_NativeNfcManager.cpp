@@ -161,12 +161,12 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
         /* Wait for callback response */
         if(sem_timedwait(&cb_data.sem, &ts))
         {
-            LOGW("Deinitialization timed out (download)");
+            ALOGW("Deinitialization timed out (download)");
         }
 
         if(cb_data.status != NFCSTATUS_SUCCESS)
         {
-            LOGW("Deinitialization FAILED (download)");
+            ALOGW("Deinitialization FAILED (download)");
         }
         TRACE("Deinitialization SUCCESS (download)");
     }
@@ -212,7 +212,7 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
 
     if(cb_data.status == NFCSTATUS_FEATURE_NOT_SUPPORTED)
     {
-        LOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
+        ALOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
     }
 
 reinit:
@@ -250,7 +250,7 @@ reinit:
     REENTRANCE_UNLOCK();
     if (status != NFCSTATUS_SUCCESS)
     {
-       LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+       ALOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
     }
     else
     {
@@ -288,7 +288,7 @@ static int nfc_jni_configure_driver(struct nfc_jni_native_data *nat)
     status = phLibNfc_Mgt_ConfigureDriver(&gDrvCfg, &gHWRef);
     REENTRANCE_UNLOCK();
     if(status == NFCSTATUS_ALREADY_INITIALISED) {
-           LOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+           ALOGW("phLibNfc_Mgt_ConfigureDriver() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
     }
     else if(status != NFCSTATUS_SUCCESS)
     {
@@ -444,7 +444,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
    REENTRANCE_UNLOCK();
    if (status != NFCSTATUS_SUCCESS)
    {
-      LOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGW("phLibNfc_Mgt_GetstackCapabilities returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
    }
    else
    {
@@ -472,7 +472,7 @@ force_download:
                ALOGI("Firmware update SUCCESS");
                break;
            }
-           LOGW("Firmware update FAILED");
+           ALOGW("Firmware update FAILED");
            update = FALSE;
        }
        if(i>=3)
@@ -882,7 +882,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
       REENTRANCE_UNLOCK();
       if(status != NFCSTATUS_SUCCESS)
       {
-           LOGW("GetRemote Info failded - Status = %02x",status);
+           ALOGW("GetRemote Info failded - Status = %02x",status);
       }
       else
       {
@@ -977,7 +977,7 @@ void nfc_jni_llcp_transport_socket_err_callback(void*      pContext,
 
    if(nErrCode == PHFRINFC_LLCP_ERR_FRAME_REJECTED)
    {
-      LOGW("Frame Rejected - Disconnected");
+      ALOGW("Frame Rejected - Disconnected");
    }
    else if(nErrCode == PHFRINFC_LLCP_ERR_DISCONNECTED)
    {
@@ -1664,7 +1664,7 @@ static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
                 success = true;
                 break;
             default:
-                LOGW("doSetTimeout: Timeout not supported for tech %d", tech);
+                ALOGW("doSetTimeout: Timeout not supported for tech %d", tech);
                 success = false;
         }
     }
@@ -1708,7 +1708,7 @@ static jint com_android_nfc_NfcManager_doGetTimeout( JNIEnv *e, jobject o,
             }
             break;
         default:
-            LOGW("doGetTimeout: Timeout not supported for tech %d", tech);
+            ALOGW("doGetTimeout: Timeout not supported for tech %d", tech);
             break;
     }
     CONCURRENCY_UNLOCK();
@@ -1882,7 +1882,7 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
          /* Wait for callback response */
          if(sem_timedwait(&cb_data.sem, &ts) == -1)
          {
-            LOGW("Operation timed out");
+            ALOGW("Operation timed out");
             bStackReset = TRUE;
          }
 
@@ -1910,7 +1910,7 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
    if(bStackReset == TRUE)
    {
       /* Complete deinit. failed, try hard restart of NFC */
-      LOGW("Reseting stack...");
+      ALOGW("Reseting stack...");
       emergency_recovery(nat);
    }
 
@@ -2550,7 +2550,7 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
 
     if(cb_data.status == NFCSTATUS_FEATURE_NOT_SUPPORTED)
     {
-        LOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
+        ALOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
     }
 
     /*Download is successful*/

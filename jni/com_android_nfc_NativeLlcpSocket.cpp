@@ -152,7 +152,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnect(JNIEnv *e, jobject o,
 
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGW("LLCP Connect request failed");
+      ALOGW("LLCP Connect request failed");
       goto clean_and_return;
    }
 
@@ -393,7 +393,7 @@ static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, job
    }
    else
    {
-      LOGW("phLibNfc_Llcp_SocketGetRemoteOptions(MIU) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      ALOGW("phLibNfc_Llcp_SocketGetRemoteOptions(MIU) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return 0;
    }
 }
@@ -422,7 +422,7 @@ static jint com_android_nfc_NativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobj
    }
    else
    {
-      LOGW("phLibNfc_Llcp_SocketGetRemoteOptions(RW) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      ALOGW("phLibNfc_Llcp_SocketGetRemoteOptions(RW) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return 0;
    }
 }
