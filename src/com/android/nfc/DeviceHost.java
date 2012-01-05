@@ -76,7 +76,7 @@ public interface DeviceHost {
         boolean checkNdef(int[] out);
         byte[] readNdef();
         boolean writeNdef(byte[] data);
-        NdefMessage[] findAndReadNdef();
+        NdefMessage findAndReadNdef();
         boolean formatNdef(byte[] key);
         boolean isNdefFormatable();
         boolean makeReadOnly();

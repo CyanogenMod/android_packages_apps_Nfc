@@ -699,11 +699,11 @@ public class NativeNfcTag implements TagEndpoint {
     }
 
     @Override
-    public NdefMessage[] findAndReadNdef() {
+    public NdefMessage findAndReadNdef() {
         // Try to find NDEF on any of the technologies.
         int[] technologies = getTechList();
         int[] handles = mTechHandles;
-        NdefMessage[] ndefMsgs = null;
+        NdefMessage ndefMsg = null;
         boolean foundFormattable = false;
         int formattableHandle = 0;
         int formattableLibNfcType = 0;
@@ -755,10 +755,9 @@ public class NativeNfcTag implements TagEndpoint {
             int cardState = ndefinfo[1];
             byte[] buff = readNdef();
             if (buff != null) {
-                ndefMsgs = new NdefMessage[1];
                 try {
-                    ndefMsgs[0] = new NdefMessage(buff);
-                    addNdefTechnology(ndefMsgs[0],
+                    ndefMsg = new NdefMessage(buff);
+                    addNdefTechnology(ndefMsg,
                             getConnectedHandle(),
                             getConnectedLibNfcType(),
                             getConnectedTechnology(),
@@ -773,7 +772,7 @@ public class NativeNfcTag implements TagEndpoint {
             }
 
             if (generateEmptyNdef) {
-                ndefMsgs = new NdefMessage[] { };
+                ndefMsg = null;
                 addNdefTechnology(null,
                         getConnectedHandle(),
                         getConnectedLibNfcType(),
@@ -784,7 +783,7 @@ public class NativeNfcTag implements TagEndpoint {
             break;
         }
 
-        if (ndefMsgs == null && foundFormattable) {
+        if (ndefMsg == null && foundFormattable) {
             // Tag is not NDEF yet, and found a formattable target,
             // so add formattable tech to tech list.
             addNdefFormatableTechnology(
@@ -792,6 +791,6 @@ public class NativeNfcTag implements TagEndpoint {
                     formattableLibNfcType);
         }
 
-        return ndefMsgs;
+        return ndefMsg;
     }
 }

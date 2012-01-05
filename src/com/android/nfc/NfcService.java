@@ -780,6 +780,12 @@ public class NfcService extends Application implements DeviceHostListener {
         protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             NfcService.this.dump(fd, pw, args);
         }
+
+        @Override
+        public void dispatch(Tag tag, NdefMessage message) throws RemoteException {
+            enforceAdminPerm(mContext);
+            mNfcDispatcher.dispatchTag(tag, message);
+        }
     }
 
     final class TagService extends INfcTag.Stub {
@@ -1102,7 +1108,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 // again.
                 tag.removeTechnology(TagTechnology.NDEF);
                 tag.removeTechnology(TagTechnology.NDEF_FORMATABLE);
-                NdefMessage[] msgs = tag.findAndReadNdef();
+                tag.findAndReadNdef();
                 // Build a new Tag object to return
                 Tag newTag = new Tag(tag.getUid(), tag.getTechList(),
                         tag.getTechExtras(), tag.getHandle(), this);
@@ -1532,8 +1538,7 @@ public class NfcService extends Application implements DeviceHostListener {
                             new Bundle[] { extras });
                     Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                     Log.d(TAG, tag.toString());
-                    boolean delivered = mNfcDispatcher.dispatchTag(tag,
-                            new NdefMessage[] { ndefMsg });
+                    boolean delivered = mNfcDispatcher.dispatchTag(tag, ndefMsg);
                     if (delivered) {
                         playSound(SOUND_END);
                     } else {
@@ -1546,11 +1551,11 @@ public class NfcService extends Application implements DeviceHostListener {
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     playSound(SOUND_START);
-                    NdefMessage[] ndefMsgs = tag.findAndReadNdef();
+                    NdefMessage ndefMsg = tag.findAndReadNdef();
 
-                    if (ndefMsgs != null) {
+                    if (ndefMsg != null) {
                         tag.startPresenceChecking();
-                        dispatchTagEndpoint(tag, ndefMsgs);
+                        dispatchTagEndpoint(tag, ndefMsg);
                     } else {
                         if (tag.reconnect()) {
                             tag.startPresenceChecking();
@@ -1742,11 +1747,11 @@ public class NfcService extends Application implements DeviceHostListener {
             return false;
         }
 
-        private void dispatchTagEndpoint(TagEndpoint tagEndpoint, NdefMessage[] msgs) {
+        private void dispatchTagEndpoint(TagEndpoint tagEndpoint, NdefMessage msg) {
             Tag tag = new Tag(tagEndpoint.getUid(), tagEndpoint.getTechList(),
                     tagEndpoint.getTechExtras(), tagEndpoint.getHandle(), mNfcTagService);
             registerTagObject(tagEndpoint);
-            if (!mNfcDispatcher.dispatchTag(tag, msgs)) {
+            if (!mNfcDispatcher.dispatchTag(tag, msg)) {
                 unregisterObject(tagEndpoint.getHandle());
                 playSound(SOUND_ERROR);
             } else {
@@ -1907,6 +1912,7 @@ public class NfcService extends Application implements DeviceHostListener {
             pw.println("mOpenEe=" + mOpenEe);
             mP2pLinkManager.dump(fd, pw, args);
             mNfceeAccessControl.dump(fd, pw, args);
+            mNfcDispatcher.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
 
         }
