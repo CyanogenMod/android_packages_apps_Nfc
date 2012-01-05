@@ -469,7 +469,7 @@ force_download:
            status = nfc_jni_download(nat, update);
            if(status == NFCSTATUS_SUCCESS)
            {
-               LOGI("Firmware update SUCCESS");
+               ALOGI("Firmware update SUCCESS");
                break;
            }
            LOGW("Firmware update FAILED");
@@ -630,7 +630,7 @@ force_download:
 
    /* ====== END ======= */
 
-   LOGI("NFC Initialized");
+   ALOGI("NFC Initialized");
 
    result = TRUE;
 
@@ -886,7 +886,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
       }
       else
       {
-           LOGI("LLCP Link activated (LTO=%d, MIU=%d, OPTION=0x%02x, WKS=0x%02x)",sLinkParams.lto,
+           ALOGI("LLCP Link activated (LTO=%d, MIU=%d, OPTION=0x%02x, WKS=0x%02x)",sLinkParams.lto,
                                                                                   sLinkParams.miu,
                                                                                   sLinkParams.option,
                                                                                   sLinkParams.wks);
@@ -895,7 +895,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    }
    else if(eLinkStatus == phFriNfc_LlcpMac_eLinkDeactivated)
    {
-      LOGI("LLCP Link deactivated");
+      ALOGI("LLCP Link deactivated");
       free(pContextData);
       /* Reset device connected flag */
       device_connected_flag = 0;
