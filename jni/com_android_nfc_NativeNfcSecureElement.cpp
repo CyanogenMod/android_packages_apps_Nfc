@@ -139,7 +139,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
              }
          }
          if (!foundHandle) {
-             LOGE("Could not find ISO-DEP secure element");
+             ALOGE("Could not find ISO-DEP secure element");
              status = NFCSTATUS_FAILED;
              goto clean_and_return;
          }
@@ -164,7 +164,7 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          TRACE("Discovered secure element: tech=%d", SecureElementTech);
       }
       else {
-         LOGE("Discovered secure element, but could not resolve tech");
+         ALOGE("Discovered secure element, but could not resolve tech");
          status = NFCSTATUS_FAILED;
       }
 
@@ -235,20 +235,20 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    REENTRANCE_UNLOCK();
    if(ret!=NFCSTATUS_PENDING)
    {
-      LOGE("IOCTL status error");
+      ALOGE("IOCTL status error");
       goto clean_and_return;
    }
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("IOCTL semaphore error");
+      ALOGE("IOCTL semaphore error");
       goto clean_and_return;
    }
       
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGE("READ MEM ERROR");
+      ALOGE("READ MEM ERROR");
       goto clean_and_return;
    }
 
@@ -290,7 +290,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          REENTRANCE_UNLOCK();
          if(ret != NFCSTATUS_SUCCESS)
          {
-            LOGE("Register Notification error");
+            ALOGE("Register Notification error");
             goto clean_and_return;
          }
 
@@ -304,20 +304,20 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          REENTRANCE_UNLOCK();
          if (ret != NFCSTATUS_PENDING )
          {
-            LOGE("\n> SE Set SmartMX mode ERROR \n" );
+            ALOGE("\n> SE Set SmartMX mode ERROR \n" );
             goto clean_and_return;
          }
 
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGE("Secure Element opening error");
+            ALOGE("Secure Element opening error");
             goto clean_and_return;
          }
 
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
-            LOGE("SE set mode failed");
+            ALOGE("SE set mode failed");
             goto clean_and_return;
          }
 
@@ -325,13 +325,13 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGE("Secure Element opening error");
+            ALOGE("Secure Element opening error");
             goto clean_and_return;
          }
 
          if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_MULTIPLE_PROTOCOLS)
          {
-            LOGE("SE detection failed");
+            ALOGE("SE detection failed");
             goto clean_and_return;
          }
          CONCURRENCY_UNLOCK();
@@ -344,7 +344,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          REENTRANCE_UNLOCK();
          if(ret != NFCSTATUS_PENDING)
          {
-            LOGE("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+            ALOGE("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
             goto clean_and_return;
          }
          TRACE("phLibNfc_RemoteDev_Connect(SMX) returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -352,14 +352,14 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-             LOGE("CONNECT semaphore error");
+             ALOGE("CONNECT semaphore error");
              goto clean_and_return;
          }
 
          /* Connect Status */
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
-            LOGE("Secure Element connect error");
+            ALOGE("Secure Element connect error");
             goto clean_and_return;
          }
 
@@ -376,19 +376,19 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          REENTRANCE_UNLOCK();
          if(ret!=NFCSTATUS_PENDING)
          {
-             LOGE("IOCTL status error");
+             ALOGE("IOCTL status error");
          }
 
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGE("IOCTL semaphore error");
+            ALOGE("IOCTL semaphore error");
             goto clean_and_return;
          }
 
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
-            LOGE("READ MEM ERROR");
+            ALOGE("READ MEM ERROR");
             goto clean_and_return;
          }
 
@@ -417,20 +417,20 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
          REENTRANCE_UNLOCK();
          if(ret!=NFCSTATUS_PENDING)
          {
-             LOGE("IOCTL status error");
+             ALOGE("IOCTL status error");
              goto clean_and_return;
          }
 
          /* Wait for callback response */
          if(sem_wait(&cb_data.sem))
          {
-            LOGE("IOCTL semaphore error");
+            ALOGE("IOCTL semaphore error");
             goto clean_and_return;
          }
 
          if(cb_data.status != NFCSTATUS_SUCCESS)
          {
-            LOGE("READ MEM ERROR");
+            ALOGE("READ MEM ERROR");
             goto clean_and_return;
          }
          CONCURRENCY_UNLOCK();
@@ -439,13 +439,13 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
       }
       else
       {
-         LOGE("phLibNfc_SE_GetSecureElementList(): No SMX detected");
+         ALOGE("phLibNfc_SE_GetSecureElementList(): No SMX detected");
          goto clean_and_return; 
       } 
   }
   else
   {
-      LOGE("phLibNfc_SE_GetSecureElementList(): Error");
+      ALOGE("phLibNfc_SE_GetSecureElementList(): Error");
       goto clean_and_return;
   }
   
@@ -491,7 +491,7 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_Disconnect(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -505,7 +505,7 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    /* Disconnect Status */
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-     LOGE("\n> Disconnect SE ERROR \n" );
+     ALOGE("\n> Disconnect SE ERROR \n" );
       goto clean_and_return;
    }
    CONCURRENCY_UNLOCK();
@@ -521,20 +521,20 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    REENTRANCE_UNLOCK();
    if(status!=NFCSTATUS_PENDING)
    {
-       LOGE("IOCTL status error");
+       ALOGE("IOCTL status error");
        goto clean_and_return;
    }
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("IOCTL semaphore error");
+      ALOGE("IOCTL semaphore error");
       goto clean_and_return;
    }
 
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGE("READ MEM ERROR");
+      ALOGE("READ MEM ERROR");
       goto clean_and_return;
    }
 
@@ -563,20 +563,20 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    REENTRANCE_UNLOCK();
    if(status!=NFCSTATUS_PENDING)
    {
-       LOGE("IOCTL status error");
+       ALOGE("IOCTL status error");
        goto clean_and_return;
    }
 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("IOCTL semaphore error");
+      ALOGE("IOCTL semaphore error");
       goto clean_and_return;
    }
 
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGE("READ MEM ERROR");
+      ALOGE("READ MEM ERROR");
       goto clean_and_return;
    }
 
@@ -646,7 +646,7 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_Transceive(SMX) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -654,13 +654,13 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-       LOGE("TRANSCEIVE semaphore error");
+       ALOGE("TRANSCEIVE semaphore error");
        goto clean_and_return;
    }
 
    if(cb_data.status != NFCSTATUS_SUCCESS)
    {
-      LOGE("TRANSCEIVE error");
+      ALOGE("TRANSCEIVE error");
       goto clean_and_return;
    }
 

@@ -88,7 +88,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      ALOGE("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
    } 
    TRACE("phLibNfc_Llcp_SendTo() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -96,7 +96,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo(JNIEnv *
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -139,7 +139,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    /* Create new LlcpPacket object */
    if(nfc_jni_cache_object(e,"android/nfc/LlcpPacket",&(llcpPacket)) == -1)
    {
-      LOGE("Find LlcpPacket class error");
+      ALOGE("Find LlcpPacket class error");
       goto clean_and_return;
    }
 
@@ -147,7 +147,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    clsLlcpPacket = e->GetObjectClass(llcpPacket);
    if(e->ExceptionCheck())
    {
-      LOGE("Get Object class error");
+      ALOGE("Get Object class error");
       goto clean_and_return;
    } 
 
@@ -168,7 +168,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      ALOGE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
    } 
    TRACE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -176,7 +176,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -228,7 +228,7 @@ static jboolean com_android_nfc_NativeLlcpConnectionlessSocket_doClose(JNIEnv *e
    }
    else
    {
-      LOGE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      ALOGE("phLibNfc_Llcp_Close() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       return FALSE;
    }
 }

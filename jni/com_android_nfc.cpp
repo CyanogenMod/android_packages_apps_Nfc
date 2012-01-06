@@ -67,7 +67,7 @@ JNIEnv *nfc_get_env()
 {
     JNIEnv *e;
     if (vm->GetEnv((void **)&e, JNI_VERSION_1_6) != JNI_OK) {
-        LOGE("Current thread is not attached to VM");
+        ALOGE("Current thread is not attached to VM");
         abort();
     }
     return e;
@@ -78,7 +78,7 @@ bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext)
    /* Create semaphore */
    if(sem_init(&pCallbackData->sem, 0, 0) == -1)
    {
-      LOGE("Semaphore creation failed (errno=0x%08x)", errno);
+      ALOGE("Semaphore creation failed (errno=0x%08x)", errno);
       return false;
    }
 
@@ -91,7 +91,7 @@ bool nfc_cb_data_init(nfc_jni_callback_data* pCallbackData, void* pContext)
    /* Add to active semaphore list */
    if (!listAdd(&nfc_jni_get_monitor()->sem_list, pCallbackData))
    {
-      LOGE("Failed to add the semaphore to the list");
+      ALOGE("Failed to add the semaphore to the list");
    }
 
    return true;
@@ -102,13 +102,13 @@ void nfc_cb_data_deinit(nfc_jni_callback_data* pCallbackData)
    /* Destroy semaphore */
    if (sem_destroy(&pCallbackData->sem))
    {
-      LOGE("Failed to destroy semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to destroy semaphore (errno=0x%08x)", errno);
    }
 
    /* Remove from active semaphore list */
    if (!listRemove(&nfc_jni_get_monitor()->sem_list, pCallbackData))
    {
-      LOGE("Failed to remove semaphore from the list");
+      ALOGE("Failed to remove semaphore from the list");
    }
 
 }
@@ -199,19 +199,19 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->reentrance_mutex, &recursive_attr) == -1)
       {
-         LOGE("NFC Manager Reentrance Mutex creation returned 0x%08x", errno);
+         ALOGE("NFC Manager Reentrance Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->concurrency_mutex, NULL) == -1)
       {
-         LOGE("NFC Manager Concurrency Mutex creation returned 0x%08x", errno);
+         ALOGE("NFC Manager Concurrency Mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(!listInit(&nfc_jni_native_monitor->sem_list))
       {
-         LOGE("NFC Manager Semaphore List creation failed");
+         ALOGE("NFC Manager Semaphore List creation failed");
          return NULL;
       }
 
@@ -219,13 +219,13 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void)
 
       if(pthread_mutex_init(&nfc_jni_native_monitor->incoming_socket_mutex, NULL) == -1)
       {
-         LOGE("NFC Manager incoming socket mutex creation returned 0x%08x", errno);
+         ALOGE("NFC Manager incoming socket mutex creation returned 0x%08x", errno);
          return NULL;
       }
 
       if(pthread_cond_init(&nfc_jni_native_monitor->incoming_socket_cond, NULL) == -1)
       {
-         LOGE("NFC Manager incoming socket condition creation returned 0x%08x", errno);
+         ALOGE("NFC Manager incoming socket condition creation returned 0x%08x", errno);
          return NULL;
       }
 
