@@ -127,7 +127,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
       /* Wait for callback response */
       if(sem_wait(&cb_data.sem))
       {
-         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+         ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
          goto clean_and_return;
       }
 

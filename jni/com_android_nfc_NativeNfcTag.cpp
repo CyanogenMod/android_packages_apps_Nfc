@@ -202,7 +202,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -210,7 +210,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -259,7 +259,7 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_Ndef_Write() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -267,7 +267,7 @@ static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -469,7 +469,7 @@ static jint com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -477,7 +477,7 @@ static jint com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
@@ -525,7 +525,7 @@ static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -533,7 +533,7 @@ static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
@@ -605,7 +605,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    if (handle == -1) {
        // Was never connected to any tag, exit
        result = JNI_TRUE;
-       LOGE("doDisconnect() - Target already disconnected");
+       ALOGE("doDisconnect() - Target already disconnected");
        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
        goto clean_and_return;
    }
@@ -624,7 +624,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     }
     if(status != NFCSTATUS_PENDING)
     {
-        LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
+        ALOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
         nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
         goto clean_and_return;
     }
@@ -633,7 +633,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
     /* Wait for callback response */
     if(sem_wait(&cb_data.sem))
     {
-       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
        goto clean_and_return;
     }
    
@@ -836,7 +836,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     REENTRANCE_UNLOCK();
     if(status != NFCSTATUS_PENDING)
     {
-      LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       if ((targetLost != NULL) && (status == NFCSTATUS_TARGET_LOST)) {
           *targetLost = 1;
       }
@@ -847,7 +847,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     /* Wait for callback response */
     if(sem_wait(&cb_data.sem))
     {
-       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
        goto clean_and_return;
     }
 
@@ -970,7 +970,7 @@ static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -978,7 +978,7 @@ static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       status = NFCSTATUS_ABORTED;
       goto clean_and_return;
    }
@@ -1040,7 +1040,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
 
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -1048,7 +1048,7 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -1138,7 +1138,7 @@ static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, 
 
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -1146,7 +1146,7 @@ static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, 
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -1186,7 +1186,7 @@ static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o
 
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("pphLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("pphLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -1194,7 +1194,7 @@ static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 

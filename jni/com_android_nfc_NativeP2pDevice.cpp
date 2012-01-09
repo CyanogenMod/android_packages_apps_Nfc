@@ -146,7 +146,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
     REENTRANCE_UNLOCK();
     if(status != NFCSTATUS_PENDING)
     {
-      LOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
     }
     TRACE("phLibNfc_RemoteDev_Connect(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -154,7 +154,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doConnect(JNIEnv *e, jobject o)
     /* Wait for callback response */
     if(sem_wait(&cb_data.sem))
     {
-       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
        goto clean_and_return;
     }
 
@@ -227,14 +227,14 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     REENTRANCE_UNLOCK();
     if(status != NFCSTATUS_PENDING)
     {
-        LOGE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        ALOGE("phLibNfc_RemoteDev_Disconnect() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
         if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
         {
-            LOGE("phLibNfc_RemoteDev_Disconnect() failed: Target not connected");
+            ALOGE("phLibNfc_RemoteDev_Disconnect() failed: Target not connected");
         }
         else
         {
-            LOGE("phLibNfc_RemoteDev_Disconnect() failed");
+            ALOGE("phLibNfc_RemoteDev_Disconnect() failed");
             nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
         }
 
@@ -245,7 +245,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doDisconnect(JNIEnv *e, jobject 
     /* Wait for callback response */
     if(sem_wait(&cb_data.sem))
     {
-       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+       ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
        goto clean_and_return;
     }
 
@@ -310,7 +310,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;
    }
    TRACE("phLibNfc_RemoteDev_Transceive(P2P) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -318,7 +318,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doTransceive(JNIEnv *e,
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -378,7 +378,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;   
    }
    TRACE("phLibNfc_RemoteDev_Receive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -386,7 +386,7 @@ static jbyteArray com_android_nfc_NativeP2pDevice_doReceive(
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 
@@ -434,7 +434,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doSend(
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
    {
-      LOGE("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+      ALOGE("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
       goto clean_and_return;   
    }
    TRACE("phLibNfc_RemoteDev_Send() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
@@ -442,7 +442,7 @@ static jboolean com_android_nfc_NativeP2pDevice_doSend(
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
-      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
       goto clean_and_return;
    }
 

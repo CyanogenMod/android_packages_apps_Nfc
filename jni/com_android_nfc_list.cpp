@@ -28,7 +28,7 @@ bool listInit(listHead* pList)
    pList->pFirst = NULL;
    if(pthread_mutex_init(&pList->mutex, NULL) == -1)
    {
-      LOGE("Mutex creation failed (errno=0x%08x)", errno);
+      ALOGE("Mutex creation failed (errno=0x%08x)", errno);
       return false;
    }
 
@@ -44,7 +44,7 @@ bool listDestroy(listHead* pList)
 
    if(pthread_mutex_destroy(&pList->mutex) == -1)
    {
-      LOGE("Mutex destruction failed (errno=0x%08x)", errno);
+      ALOGE("Mutex destruction failed (errno=0x%08x)", errno);
       return false;
    }
 
@@ -62,7 +62,7 @@ bool listAdd(listHead* pList, void* pData)
    if (pNode == NULL)
    {
       result = false;
-      LOGE("Failed to malloc");
+      ALOGE("Failed to malloc");
       goto clean_and_return;
    }
    TRACE("Allocated node: %8p (%8p)", pNode, pData);
@@ -108,7 +108,7 @@ bool listRemove(listHead* pList, void* pData)
    if (pList->pFirst == NULL)
    {
       /* Empty list */
-      LOGE("Failed to deallocate (list empty)");
+      ALOGE("Failed to deallocate (list empty)");
       result = false;
       goto clean_and_return;
    }
@@ -138,7 +138,7 @@ bool listRemove(listHead* pList, void* pData)
       {
          /* Node not found */
           result = false;
-          LOGE("Failed to deallocate (not found %8p)", pData);
+          ALOGE("Failed to deallocate (not found %8p)", pData);
           goto clean_and_return;
       }
 
@@ -170,7 +170,7 @@ bool listGetAndRemoveNext(listHead* pList, void** ppData)
    if (pList->pFirst)
    {
       /* Empty list */
-      LOGE("Failed to deallocate (list empty)");
+      ALOGE("Failed to deallocate (list empty)");
       result = false;
       goto clean_and_return;
    }
