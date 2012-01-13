@@ -137,7 +137,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    }
 
    /* Create new LlcpPacket object */
-   if(nfc_jni_cache_object(e,"android/nfc/LlcpPacket",&(llcpPacket)) == -1)
+   if(nfc_jni_cache_object(e,"com/android/nfc/LlcpPacket",&(llcpPacket)) == -1)
    {
       ALOGE("Find LlcpPacket class error");
       goto clean_and_return;
@@ -241,7 +241,7 @@ static JNINativeMethod gMethods[] =
 {
    {"doSendTo", "(I[B)Z", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doSendTo},
       
-   {"doReceiveFrom", "(I)Landroid/nfc/LlcpPacket;", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom},
+   {"doReceiveFrom", "(I)Lcom/android/nfc/LlcpPacket;", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom},
       
    {"doClose", "()Z", (void *)com_android_nfc_NativeLlcpConnectionlessSocket_doClose},
 };

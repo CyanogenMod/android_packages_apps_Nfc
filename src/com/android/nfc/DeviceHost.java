@@ -148,6 +148,18 @@ public interface DeviceHost {
         public void close() throws IOException;
     }
 
+    public interface LlcpConnectionlessSocket {
+        public int getLinkMiu();
+
+        public int getSap();
+
+        public void send(int sap, byte[] data) throws IOException;
+
+        public LlcpPacket receive() throws IOException;
+
+        public void close() throws IOException;
+    }
+
     /**
      * Called at boot if NFC is disabled to give the device host an opportunity
      * to check the firmware version to see if it needs updating. Normally the firmware version
@@ -174,6 +186,9 @@ public interface DeviceHost {
     public void doDeselectSecureElement();
 
     public int doGetLastError();
+
+    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap)
+            throws LlcpException;
 
     public LlcpServerSocket createLlcpServerSocket(int nSap, String sn, int miu,
             int rw, int linearBufferLength) throws LlcpException;
