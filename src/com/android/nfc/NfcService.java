@@ -97,6 +97,7 @@ public class NfcService extends Application implements DeviceHostListener {
     static final boolean NDEF_PUSH_ON_DEFAULT = true;
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
+    static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
 
     static final boolean PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE = true;
 
@@ -457,8 +458,9 @@ public class NfcService extends Application implements DeviceHostListener {
                     break;
                 case TASK_BOOT:
                     Log.d(TAG,"checking on firmware download");
+                    boolean airplaneOverride = mPrefs.getBoolean(PREF_AIRPLANE_OVERRIDE, false);
                     if (mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT) &&
-                            !(mIsAirplaneSensitive && isAirplaneModeOn())) {
+                            (!mIsAirplaneSensitive || !isAirplaneModeOn() || airplaneOverride)) {
                         Log.d(TAG,"NFC is on. Doing normal stuff");
                         enableInternal();
                     } else {
@@ -647,9 +649,15 @@ public class NfcService extends Application implements DeviceHostListener {
             NfcService.enforceAdminPerm(mContext);
 
             saveNfcOnSetting(true);
-            if (mIsAirplaneSensitive && isAirplaneModeOn() && !mIsAirplaneToggleable) {
-                Log.i(TAG, "denying enable() request (airplane mode)");
-                return false;
+
+            if (mIsAirplaneSensitive && isAirplaneModeOn()) {
+                if (!mIsAirplaneToggleable) {
+                    Log.i(TAG, "denying enable() request (airplane mode)");
+                    return false;
+                }
+                // Make sure the override survives a reboot
+                mPrefsEditor.putBoolean(PREF_AIRPLANE_OVERRIDE, true);
+                mPrefsEditor.apply();
             }
             new EnableDisableTask().execute(TASK_ENABLE);
 
@@ -1825,6 +1833,8 @@ public class NfcService extends Application implements DeviceHostListener {
                 if (!mIsAirplaneSensitive) {
                     return;
                 }
+                mPrefsEditor.putBoolean(PREF_AIRPLANE_OVERRIDE, false);
+                mPrefsEditor.apply();
                 if (isAirplaneModeOn) {
                     new EnableDisableTask().execute(TASK_DISABLE);
                 } else if (!isAirplaneModeOn && mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT)) {
