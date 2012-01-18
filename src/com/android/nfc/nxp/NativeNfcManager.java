@@ -136,6 +136,28 @@ public class NativeNfcManager implements DeviceHost {
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
 
+    @Override
+    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap)
+            throws LlcpException {
+        LlcpConnectionlessSocket socket = doCreateLlcpConnectionlessSocket(nSap);
+        if (socket != null) {
+            return socket;
+        } else {
+            /* Get Error Status */
+            int error = doGetLastError();
+
+            Log.d(TAG, "failed to create llcp socket: " + ErrorCodes.asString(error));
+
+            switch (error) {
+                case ErrorCodes.ERROR_BUFFER_TO_SMALL:
+                case ErrorCodes.ERROR_INSUFFICIENT_RESOURCES:
+                    throw new LlcpException(error);
+                default:
+                    throw new LlcpException(ErrorCodes.ERROR_SOCKET_CREATION);
+            }
+        }
+    }
+
     private native NativeLlcpServiceSocket doCreateLlcpServiceSocket(int nSap, String sn, int miu,
             int rw, int linearBufferLength);
     @Override

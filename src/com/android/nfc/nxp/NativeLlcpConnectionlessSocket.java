@@ -16,13 +16,16 @@
 
 package com.android.nfc.nxp;
 
-import android.nfc.LlcpPacket;
+import com.android.nfc.DeviceHost;
+import com.android.nfc.LlcpPacket;
+
+import java.io.IOException;
 
 /**
  * LlcpConnectionlessSocket represents a LLCP Connectionless object to be used
  * in a connectionless communication
  */
-public class NativeLlcpConnectionlessSocket {
+public class NativeLlcpConnectionlessSocket implements DeviceHost.LlcpConnectionlessSocket {
 
     private int mHandle;
     private int mSap;
@@ -36,16 +39,40 @@ public class NativeLlcpConnectionlessSocket {
 
     public native boolean doClose();
 
+    @Override
     public int getLinkMiu(){
         return mLinkMiu;
     }
 
+    @Override
     public int getSap(){
         return mSap;
+    }
+
+    @Override
+    public void send(int sap, byte[] data) throws IOException {
+        if (!doSendTo(sap, data)) {
+            throw new IOException();
+        }
+    }
+
+    @Override
+    public LlcpPacket receive() throws IOException {
+        LlcpPacket packet = doReceiveFrom(mLinkMiu);
+        if (packet == null) {
+            throw new IOException();
+        }
+        return packet;
     }
 
     public int getHandle(){
         return mHandle;
     }
 
+    @Override
+    public void close() throws IOException {
+        if (!doClose()) {
+            throw new IOException();
+        }
+    }
 }
