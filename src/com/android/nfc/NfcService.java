@@ -17,6 +17,7 @@
 package com.android.nfc;
 
 import com.android.nfc.DeviceHost.DeviceHostListener;
+import com.android.nfc.DeviceHost.LlcpConnectionlessSocket;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
 import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
@@ -1490,6 +1491,12 @@ public class NfcService extends Application implements DeviceHostListener {
     public LlcpSocket createLlcpSocket(int sap, int miu, int rw, int linearBufferLength)
             throws LlcpException {
         return mDeviceHost.createLlcpSocket(sap, miu, rw, linearBufferLength);
+    }
+
+    /** For use by code in this process */
+    public LlcpConnectionlessSocket createLlcpConnectionLessSocket(int sap)
+            throws LlcpException {
+        return mDeviceHost.createLlcpConnectionlessSocket(sap);
     }
 
     /** For use by code in this process */
