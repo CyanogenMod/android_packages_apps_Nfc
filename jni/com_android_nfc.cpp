@@ -470,6 +470,18 @@ void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
        int handle = devList[target].hTargetDev;
        switch (type)
        {
+          case phNfc_eISO14443_A_PCD:
+            {
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4A_PCD, handle, type);
+              break;
+            }
+          case phNfc_eISO14443_B_PCD:
+            {
+              index = addTechIfNeeded(technologies, handles, libnfctypes, index,
+                      MAX_NUM_TECHNOLOGIES, TARGET_TYPE_ISO14443_4B_PCD, handle, type);
+              break;
+            }
           case phNfc_eISO14443_A_PICC:
           case phNfc_eISO14443_4A_PICC:
             {
