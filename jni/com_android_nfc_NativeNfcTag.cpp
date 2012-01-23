@@ -927,7 +927,9 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
 		    if(status != NFCSTATUS_PENDING)
 		    {
 		      LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      if ((targetLost != NULL) && (status == NFCSTATUS_TARGET_LOST)) {
+		      if ((targetLost != NULL) && 
+		      	  (status == NFCSTATUS_TARGET_LOST || selectedTech == TARGET_TYPE_ISO14443_4A_PCD || selectedTech == TARGET_TYPE_ISO14443_4B_PCD)
+		      	 ) {
 		          *targetLost = 1;
 		      }
 		      goto clean_and_return;
