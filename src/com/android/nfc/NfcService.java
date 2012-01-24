@@ -782,9 +782,9 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public void dispatch(Tag tag, NdefMessage message) throws RemoteException {
+        public void dispatch(Tag tag) throws RemoteException {
             enforceAdminPerm(mContext);
-            mNfcDispatcher.dispatchTag(tag, message);
+            mNfcDispatcher.dispatchTag(tag);
         }
     }
 
@@ -1538,7 +1538,7 @@ public class NfcService extends Application implements DeviceHostListener {
                             new Bundle[] { extras });
                     Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                     Log.d(TAG, tag.toString());
-                    boolean delivered = mNfcDispatcher.dispatchTag(tag, ndefMsg);
+                    boolean delivered = mNfcDispatcher.dispatchTag(tag);
                     if (delivered) {
                         playSound(SOUND_END);
                     } else {
@@ -1555,11 +1555,11 @@ public class NfcService extends Application implements DeviceHostListener {
 
                     if (ndefMsg != null) {
                         tag.startPresenceChecking();
-                        dispatchTagEndpoint(tag, ndefMsg);
+                        dispatchTagEndpoint(tag);
                     } else {
                         if (tag.reconnect()) {
                             tag.startPresenceChecking();
-                            dispatchTagEndpoint(tag, null);
+                            dispatchTagEndpoint(tag);
                         } else {
                             tag.disconnect();
                             playSound(SOUND_ERROR);
@@ -1747,11 +1747,11 @@ public class NfcService extends Application implements DeviceHostListener {
             return false;
         }
 
-        private void dispatchTagEndpoint(TagEndpoint tagEndpoint, NdefMessage msg) {
+        private void dispatchTagEndpoint(TagEndpoint tagEndpoint) {
             Tag tag = new Tag(tagEndpoint.getUid(), tagEndpoint.getTechList(),
                     tagEndpoint.getTechExtras(), tagEndpoint.getHandle(), mNfcTagService);
             registerTagObject(tagEndpoint);
-            if (!mNfcDispatcher.dispatchTag(tag, msg)) {
+            if (!mNfcDispatcher.dispatchTag(tag)) {
                 unregisterObject(tagEndpoint.getHandle());
                 playSound(SOUND_ERROR);
             } else {
