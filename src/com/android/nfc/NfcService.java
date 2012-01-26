@@ -719,8 +719,8 @@ public class NfcService extends Application implements DeviceHostListener {
             // Short-cut the disable path
             if (intent == null && filters == null && techListsParcel == null) {
                 mNfcDispatcher.setForegroundDispatch(null, null, null);
-			          mDeviceHost.disableCE_A();
-			          mDeviceHost.disableCE_B();
+                mDeviceHost.disableCE_A();
+                mDeviceHost.disableCE_B();
                 return;
             }
 
@@ -744,28 +744,28 @@ public class NfcService extends Application implements DeviceHostListener {
             }
 
             mNfcDispatcher.setForegroundDispatch(intent, filters, techLists);
-            
+
             //check for PCD A or PCD B technology
             //turn on if in list
             //turn off if not
             boolean PCD_A = false;
             boolean PCD_B = false;
-		        for(short j=0;j<techLists.length;j++)
-			        for(short k=0;k<techLists[j].length;k++)
-			        {
-				        if(techLists[j][k].equals("android.nfc.tech.IsoPcdA"))
-					        PCD_A = true;
-				        if(techLists[j][k].equals("android.nfc.tech.IsoPcdB"))
-					        PCD_B = true;
-			        }
-		        if(PCD_A)
-			        mDeviceHost.enableCE_A();
-		        else
-			        mDeviceHost.disableCE_A();
-		        if(PCD_B)
-			        mDeviceHost.enableCE_B();
-		        else
-			        mDeviceHost.disableCE_B();
+            for(short j=0;j<techLists.length;j++)
+              for(short k=0;k<techLists[j].length;k++)
+              {
+                if(techLists[j][k].equals("android.nfc.tech.IsoPcdA"))
+                  PCD_A = true;
+                if(techLists[j][k].equals("android.nfc.tech.IsoPcdB"))
+                  PCD_B = true;
+              }
+            if(PCD_A)
+              mDeviceHost.enableCE_A();
+            else
+              mDeviceHost.disableCE_A();
+            if(PCD_B)
+              mDeviceHost.enableCE_B();
+            else
+              mDeviceHost.disableCE_B();
         }
 
         @Override
@@ -1295,7 +1295,6 @@ public class NfcService extends Application implements DeviceHostListener {
                     throw new SecurityException("Wrong PID");
                 }
             }
-
             return mSecureElement.doTransceive(mOpenEe.handle, data);
         }
 

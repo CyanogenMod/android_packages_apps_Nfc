@@ -133,7 +133,7 @@ static void nfc_jni_transceive_callback(void *pContext,
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_transceive_callback", status);
-  
+
    nfc_jni_transceive_buffer = pResBuffer;
 
    /* Report the callback status and wake up the caller */
@@ -196,8 +196,8 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
    TRACE("phLibNfc_Ndef_Read()");
    REENTRANCE_LOCK();
    status = phLibNfc_Ndef_Read(handle, &nfc_jni_ndef_rw,
-                               phLibNfc_Ndef_EBegin, 
-                               nfc_jni_tag_rw_callback, 
+                               phLibNfc_Ndef_EBegin,
+                               nfc_jni_tag_rw_callback,
                                (void *)&cb_data);
    REENTRANCE_UNLOCK();
    if(status != NFCSTATUS_PENDING)
@@ -206,7 +206,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doRead(JNIEnv *e,
       goto clean_and_return;
    }
    TRACE("phLibNfc_Ndef_Read() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-    
+
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
@@ -229,7 +229,7 @@ clean_and_return:
 
    return buf;
 }
- 
+
 
 static jboolean com_android_nfc_NativeNfcTag_doWrite(JNIEnv *e,
    jobject o, jbyteArray buf)
@@ -452,69 +452,69 @@ static jint com_android_nfc_NativeNfcTag_doConnect(JNIEnv *e,
    jint status;
    struct nfc_jni_callback_data cb_data;
    phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
-   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
-   	  if(pRemDevInfoPCD->SessionOpened==TRUE)
-   	  {
-  	       storedHandle = handle;
-			   	 pRemDevInfo = pRemDevInfoPCD;
-				   // Success, set poll & act bytes
-				   set_target_pollBytes(e, o, pRemDevInfo);
-				   set_target_activationBytes(e, o, pRemDevInfo);
-					 status = NFCSTATUS_SUCCESS;   
-	  }
-	  else
-	  {
-		status = NFCSTATUS_FAILED;   
-	  }
+      if(pRemDevInfoPCD->SessionOpened==TRUE)
+      {
+           storedHandle = handle;
+           pRemDevInfo = pRemDevInfoPCD;
+           // Success, set poll & act bytes
+           set_target_pollBytes(e, o, pRemDevInfo);
+           set_target_activationBytes(e, o, pRemDevInfo);
+           status = NFCSTATUS_SUCCESS;
+      }
+      else
+      {
+      status = NFCSTATUS_FAILED;
+      }
   }
   else
   {
-	CONCURRENCY_LOCK();
-	/* Create the local semaphore */
-	if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
-	{
-	   status = NFCSTATUS_NOT_ENOUGH_MEMORY;
-	   goto clean_and_return;
-	}
-		
-	TRACE("phLibNfc_RemoteDev_Connect(RW)");
-	REENTRANCE_LOCK();
-	storedHandle = handle;
-	status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback,(void *)&cb_data);
-	REENTRANCE_UNLOCK();
-	if(status != NFCSTATUS_PENDING)
-	{
-	  LOGE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-	  goto clean_and_return;
-	}
-	TRACE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-	/* Wait for callback response */
-	if(sem_wait(&cb_data.sem))
-	{
-	  LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-	  status = NFCSTATUS_ABORTED;
-	  goto clean_and_return;
-	}
-		
-	status = cb_data.status;
-	TRACE("phLibNfc_RemoteDev_Connect() - Status code = %d", status);
+  CONCURRENCY_LOCK();
+  /* Create the local semaphore */
+  if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
+  {
+     status = NFCSTATUS_NOT_ENOUGH_MEMORY;
+     goto clean_and_return;
+  }
 
-	nfc_cb_data_deinit(&cb_data);
+  TRACE("phLibNfc_RemoteDev_Connect(RW)");
+  REENTRANCE_LOCK();
+  storedHandle = handle;
+  status = phLibNfc_RemoteDev_Connect(handle, nfc_jni_connect_callback,(void *)&cb_data);
+  REENTRANCE_UNLOCK();
+  if(status != NFCSTATUS_PENDING)
+  {
+    LOGE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    goto clean_and_return;
+  }
+  TRACE("phLibNfc_RemoteDev_Connect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+  /* Wait for callback response */
+  if(sem_wait(&cb_data.sem))
+  {
+    LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+    status = NFCSTATUS_ABORTED;
+    goto clean_and_return;
+  }
+
+  status = cb_data.status;
+  TRACE("phLibNfc_RemoteDev_Connect() - Status code = %d", status);
+
+  nfc_cb_data_deinit(&cb_data);
     /* Connect Status */
     if(status != NFCSTATUS_SUCCESS)
     {
       goto clean_and_return;
     }
-	// Success, set poll & act bytes
-	set_target_pollBytes(e, o, pRemDevInfo);
-	set_target_activationBytes(e, o, pRemDevInfo);
-       
+  // Success, set poll & act bytes
+  set_target_pollBytes(e, o, pRemDevInfo);
+  set_target_activationBytes(e, o, pRemDevInfo);
+
 clean_and_return:
 
     CONCURRENCY_UNLOCK();
@@ -531,64 +531,64 @@ static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
    jint status;
    struct nfc_jni_callback_data cb_data;
    phLibNfc_sRemoteDevInformation_t* pRemDevInfo = NULL;
-	 phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
 
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
        if(pRemDevInfoPCD->SessionOpened==TRUE)
        {
-	  	    storedHandle = handle;
-       		pRemDevInfo = pRemDevInfoPCD;
-	  	 		status = NFCSTATUS_SUCCESS;
-	  	 }
-	  	 else
-	  	 		status = NFCSTATUS_FAILED;
+          storedHandle = handle;
+          pRemDevInfo = pRemDevInfoPCD;
+          status = NFCSTATUS_SUCCESS;
+       }
+       else
+          status = NFCSTATUS_FAILED;
    }
-	 else
-	 {
-		   CONCURRENCY_LOCK();
-		
-		   /* Create the local semaphore */
-		   if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
-		   {
-		      status = NFCSTATUS_NOT_ENOUGH_MEMORY;
-		      goto clean_and_return;
-		   }
-		
-		   TRACE("phLibNfc_RemoteDev_ReConnect(RW)");
-		   REENTRANCE_LOCK();
-		   storedHandle = handle;
-		   status = phLibNfc_RemoteDev_ReConnect(handle, nfc_jni_connect_callback,(void *)&cb_data);
-		   REENTRANCE_UNLOCK();
-		   if(status != NFCSTATUS_PENDING)
-		   {
-		      LOGE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      goto clean_and_return;
-		   }
-		   TRACE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		   /* Wait for callback response */
-		   if(sem_wait(&cb_data.sem))
-		   {
-		      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		      status = NFCSTATUS_ABORTED;
-		      goto clean_and_return;
-		   }
-		
-		   status = cb_data.status;
+   else
+   {
+       CONCURRENCY_LOCK();
 
-		   /* Connect Status */
-		   if(status != NFCSTATUS_SUCCESS)
-		   {
-		      goto clean_and_return;
-		   }
-		
+       /* Create the local semaphore */
+       if (!nfc_cb_data_init(&cb_data, &pRemDevInfo))
+       {
+          status = NFCSTATUS_NOT_ENOUGH_MEMORY;
+          goto clean_and_return;
+       }
+
+       TRACE("phLibNfc_RemoteDev_ReConnect(RW)");
+       REENTRANCE_LOCK();
+       storedHandle = handle;
+       status = phLibNfc_RemoteDev_ReConnect(handle, nfc_jni_connect_callback,(void *)&cb_data);
+       REENTRANCE_UNLOCK();
+       if(status != NFCSTATUS_PENDING)
+       {
+          LOGE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          goto clean_and_return;
+       }
+       TRACE("phLibNfc_RemoteDev_ReConnect(RW) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+       /* Wait for callback response */
+       if(sem_wait(&cb_data.sem))
+       {
+          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+          status = NFCSTATUS_ABORTED;
+          goto clean_and_return;
+       }
+
+       status = cb_data.status;
+
+       /* Connect Status */
+       if(status != NFCSTATUS_SUCCESS)
+       {
+          goto clean_and_return;
+       }
+
 clean_and_return:
-		   nfc_cb_data_deinit(&cb_data);
-		   CONCURRENCY_UNLOCK();
+       nfc_cb_data_deinit(&cb_data);
+       CONCURRENCY_UNLOCK();
    }
    return status;
 }
@@ -624,12 +624,10 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    NFCSTATUS status;
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
-
    CONCURRENCY_LOCK();
 
    handle = nfc_jni_get_connected_handle(e, o);
-   phLibNfc_sRemoteDevInformation_t* pRemDevInfo = (phLibNfc_sRemoteDevInformation_t *) storedHandle; 
-	   
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfo = (phLibNfc_sRemoteDevInformation_t *) storedHandle;
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -644,19 +642,19 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
 
    /* Disconnect */
    TRACE("Disconnecting from tag (%x)", handle);
-   
+
    if(pRemDevInfo!=NULL &&
-   	  (pRemDevInfo->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfo->RemDevType == phNfc_eISO14443_B_PCD))
+      (pRemDevInfo->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfo->RemDevType == phNfc_eISO14443_B_PCD))
    {
-   	  if(pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer!=NULL && 
-   	  	 pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length>0)
-   	  {
-		    free(pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer);
-			  pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer = NULL;
-			  pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length = 0;
-			}
-   	  phOsalNfc_FreeMemory(pRemDevInfo);
+      if(pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer!=NULL &&
+         pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length>0)
+      {
+        free(pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer);
+        pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer = NULL;
+        pRemDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length = 0;
+      }
+      phOsalNfc_FreeMemory(pRemDevInfo);
    }
    else if(handle==-1)
    {
@@ -668,38 +666,38 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    }
    else
    {
-	    TRACE("phLibNfc_RemoteDev_Disconnect(%x)", handle);
-	    REENTRANCE_LOCK();
-	    status = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,
-	                                          nfc_jni_disconnect_callback, (void *)&cb_data);
-	    REENTRANCE_UNLOCK();
-	
-	    if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
-	    {
-	        result = JNI_TRUE;
-	        TRACE("phLibNfc_RemoteDev_Disconnect() - Target already disconnected");
-	        goto clean_and_return;
-	    }
-	    if(status != NFCSTATUS_PENDING)
-	    {
-	        LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-	        nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
-	        goto clean_and_return;
-	    }
-	    TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
-	
-	    /* Wait for callback response */
-	    if(sem_wait(&cb_data.sem))
-	    {
-	       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-	       goto clean_and_return;
-	    }
-	   
-	    /* Disconnect Status */
-	    if(cb_data.status != NFCSTATUS_SUCCESS)
-	    {
-	        goto clean_and_return;
-	    }
+      TRACE("phLibNfc_RemoteDev_Disconnect(%x)", handle);
+      REENTRANCE_LOCK();
+      status = phLibNfc_RemoteDev_Disconnect(handle, NFC_DISCOVERY_CONTINUE,
+                                            nfc_jni_disconnect_callback, (void *)&cb_data);
+      REENTRANCE_UNLOCK();
+
+      if(status == NFCSTATUS_TARGET_NOT_CONNECTED)
+      {
+          result = JNI_TRUE;
+          TRACE("phLibNfc_RemoteDev_Disconnect() - Target already disconnected");
+          goto clean_and_return;
+      }
+      if(status != NFCSTATUS_PENDING)
+      {
+          LOGE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
+          nfc_jni_restart_discovery_locked(nfc_jni_get_nat_ext(e));
+          goto clean_and_return;
+      }
+      TRACE("phLibNfc_RemoteDev_Disconnect(%x) returned 0x%04x[%s]", handle, status, nfc_jni_get_status_name(status));
+
+      /* Wait for callback response */
+      if(sem_wait(&cb_data.sem))
+      {
+         LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+         goto clean_and_return;
+      }
+
+      /* Disconnect Status */
+      if(cb_data.status != NFCSTATUS_SUCCESS)
+      {
+          goto clean_and_return;
+      }
    }
    result = JNI_TRUE;
 
@@ -779,7 +777,7 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     jbyteArray result = NULL;
     int res;
     phLibNfc_Handle handle = nfc_jni_get_connected_handle(e, o);
-  	phLibNfc_sRemoteDevInformation_t* psRemoteDevInfo = (phLibNfc_sRemoteDevInformation_t *) handle; 
+    phLibNfc_sRemoteDevInformation_t* psRemoteDevInfo = (phLibNfc_sRemoteDevInformation_t *) handle;
     NFCSTATUS status;
     struct nfc_jni_callback_data cb_data;
     int selectedTech = 0;
@@ -801,191 +799,191 @@ static jbyteArray com_android_nfc_NativeNfcTag_doTransceive(JNIEnv *e,
     selectedTech = nfc_jni_get_connected_technology(e, o);
     buf = (uint8_t *)e->GetByteArrayElements(data, NULL);
     if((selectedTech == TARGET_TYPE_ISO14443_4A_PCD ||
-    	  selectedTech == TARGET_TYPE_ISO14443_4B_PCD) &&
-    	  psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer!=NULL && 
-    	  psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length>0
-    	 )
+        selectedTech == TARGET_TYPE_ISO14443_4B_PCD) &&
+        psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer!=NULL &&
+        psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length>0
+       )
     {
-   	   if(psRemoteDevInfo->SessionOpened==TRUE)
+       if(psRemoteDevInfo->SessionOpened==TRUE)
        {
-       	 result = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length);
+         result = e->NewByteArray(psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length);
          if (result != NULL) {
             e->SetByteArrayRegion(result, 0,
              psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length,
              (jbyte *)psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer);
-				    free(psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer);
-				    psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer = NULL;
-				    psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length = 0;
-        		status = NFCSTATUS_SUCCESS;
+            free(psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer);
+            psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.buffer = NULL;
+            psRemoteDevInfo->RemoteDevInfo.Iso14443_4_PCD_Info.length = 0;
+            status = NFCSTATUS_SUCCESS;
          }
          else
-        	 status = NFCSTATUS_FAILED;
+           status = NFCSTATUS_FAILED;
        }
        else
-     		 status = NFCSTATUS_FAILED;
+         status = NFCSTATUS_FAILED;
     }
-		else
-		{
+    else
+    {
 
-		    CONCURRENCY_LOCK();
-		
-		    /* Create the local semaphore */
-		    if (!nfc_cb_data_init(&cb_data, NULL))
-		    {
-		       goto clean_and_return;
-		    }
-		
-		    outbuf = buf;
-		    
-		    buflen = outlen = (uint32_t)e->GetArrayLength(data);
-		
-		    selectedLibNfcType = nfc_jni_get_connected_technology_libnfc_type(e, o);
-		
-		    switch (selectedTech) {
-		        case TARGET_TYPE_FELICA:
-		          transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
-		          transceive_info.addr = 0;
-		          break;
-		        case TARGET_TYPE_MIFARE_CLASSIC:
-		        case TARGET_TYPE_MIFARE_UL:
-		          if (raw) {
-		              transceive_info.cmd.MfCmd = phHal_eMifareRaw;
-		              transceive_info.addr = 0;
-		              // Need to add in the crc here
-		              outbuf = (uint8_t*)malloc(buflen + 2);
-		              outlen += 2;
-		              memcpy(outbuf, buf, buflen);
-		              nfc_insert_crc_a(outbuf, buflen);
-		
-		              checkResponseCrc = true;
-		          } else {
-		              offset = 2;
-		              transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
-		              transceive_info.addr = (uint8_t)buf[1];
-		          }
-		          break;
-		        case TARGET_TYPE_ISO14443_3A:
-		          // Check which libnfc type
-		          if (selectedLibNfcType == phNfc_eJewel_PICC) {
-		              // For the Jewel pipe, CRC is automatically computed
-		              transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
-		              transceive_info.addr = 0;
-		          } else {
-		              if (raw) {
-		                  // Use Mifare Raw to implement a standard
-		                  // ISO14443-3A transceive, with CRC added
-		                  transceive_info.cmd.MfCmd = phHal_eMifareRaw;
-		                  transceive_info.addr = 0;
-		                  // Need to add in the crc here
-		                  outbuf = (uint8_t*)malloc(buflen + 2);
-		                  outlen += 2;
-		                  memcpy(outbuf, buf, buflen);
-		                  nfc_insert_crc_a(outbuf, buflen);
-		
-		                  checkResponseCrc = true;
-		              } else {
-		                  // Use the mifare pipe
-		                  offset = 2;
-		                  transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
-		                  transceive_info.addr = (uint8_t)buf[1];
-		              }
-		
-		          }
-		          break;
-		        case TARGET_TYPE_ISO14443_4A_PCD:
-		        case TARGET_TYPE_ISO14443_4B_PCD:
-		        case TARGET_TYPE_ISO14443_4:
-		          transceive_info.cmd.Iso144434Cmd = phNfc_eIso14443_4_Raw;
-		          transceive_info.addr = 0;
-		          break;
-		        case TARGET_TYPE_ISO15693:
-		          transceive_info.cmd.Iso15693Cmd = phNfc_eIso15693_Cmd;
-		          transceive_info.addr = 0;
-		          break;
-		        case TARGET_TYPE_UNKNOWN:
-		        case TARGET_TYPE_ISO14443_3B:
-		          // Not supported
-		          goto clean_and_return;
-		        default:
-		          break;
-		    }
+        CONCURRENCY_LOCK();
 
-		    transceive_info.sSendData.buffer = outbuf + offset;
-		    transceive_info.sSendData.length = outlen - offset;
-		    transceive_info.sRecvData.buffer = (uint8_t*)malloc(1024);
-		    transceive_info.sRecvData.length = 1024;
-		    if(transceive_info.sRecvData.buffer == NULL)
-		    {
-		      goto clean_and_return;
-		    }
-		
-		    TRACE("phLibNfc_RemoteDev_Transceive()");
-		    REENTRANCE_LOCK();
-		    status = phLibNfc_RemoteDev_Transceive(handle, &transceive_info,
-		         nfc_jni_transceive_callback, (void *)&cb_data);
-		    REENTRANCE_UNLOCK();
-		    if(status != NFCSTATUS_PENDING)
-		    {
-		      LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      if ((targetLost != NULL) && 
-		      	  (status == NFCSTATUS_TARGET_LOST || selectedTech == TARGET_TYPE_ISO14443_4A_PCD || selectedTech == TARGET_TYPE_ISO14443_4B_PCD)
-		      	 ) {
-		          *targetLost = 1;
-		      }
-		      goto clean_and_return;
-		    }
-		    TRACE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		    /* Wait for callback response */
-		    if(sem_wait(&cb_data.sem))
-		    {
-		       LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		       goto clean_and_return;
-		    }
-		
-		    if(cb_data.status != NFCSTATUS_SUCCESS)
-		    {
-		        if ((targetLost != NULL) && (cb_data.status == NFCSTATUS_TARGET_LOST)) {
-		            *targetLost = 1;
-		        }
-		        goto clean_and_return;
-		    }
-		
-		    /* Copy results back to Java *
-		     * In case of NfcA and raw, also check the CRC in the response
-		     * and cut it off in the returned data.
-		     */
-		    if ((nfc_jni_transceive_buffer->length > 2) && checkResponseCrc) {
-		        if (crc_valid(nfc_jni_transceive_buffer->buffer, nfc_jni_transceive_buffer->length)) {
-		            result = e->NewByteArray(nfc_jni_transceive_buffer->length - 2);
-		            if (result != NULL) {
-		                e->SetByteArrayRegion(result, 0,
-		                 nfc_jni_transceive_buffer->length - 2,
-		                 (jbyte *)nfc_jni_transceive_buffer->buffer);
-		            }
-		        }
-		    } else {
-		        result = e->NewByteArray(nfc_jni_transceive_buffer->length);
-		        if (result != NULL) {
-		            e->SetByteArrayRegion(result, 0,
-		             nfc_jni_transceive_buffer->length,
-		             (jbyte *)nfc_jni_transceive_buffer->buffer);
-		        }
-		    }
+        /* Create the local semaphore */
+        if (!nfc_cb_data_init(&cb_data, NULL))
+        {
+           goto clean_and_return;
+        }
+
+        outbuf = buf;
+
+        buflen = outlen = (uint32_t)e->GetArrayLength(data);
+
+        selectedLibNfcType = nfc_jni_get_connected_technology_libnfc_type(e, o);
+
+        switch (selectedTech) {
+            case TARGET_TYPE_FELICA:
+              transceive_info.cmd.FelCmd = phNfc_eFelica_Raw;
+              transceive_info.addr = 0;
+              break;
+            case TARGET_TYPE_MIFARE_CLASSIC:
+            case TARGET_TYPE_MIFARE_UL:
+              if (raw) {
+                  transceive_info.cmd.MfCmd = phHal_eMifareRaw;
+                  transceive_info.addr = 0;
+                  // Need to add in the crc here
+                  outbuf = (uint8_t*)malloc(buflen + 2);
+                  outlen += 2;
+                  memcpy(outbuf, buf, buflen);
+                  nfc_insert_crc_a(outbuf, buflen);
+
+                  checkResponseCrc = true;
+              } else {
+                  offset = 2;
+                  transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+                  transceive_info.addr = (uint8_t)buf[1];
+              }
+              break;
+            case TARGET_TYPE_ISO14443_3A:
+              // Check which libnfc type
+              if (selectedLibNfcType == phNfc_eJewel_PICC) {
+                  // For the Jewel pipe, CRC is automatically computed
+                  transceive_info.cmd.JewelCmd = phNfc_eJewel_Raw;
+                  transceive_info.addr = 0;
+              } else {
+                  if (raw) {
+                      // Use Mifare Raw to implement a standard
+                      // ISO14443-3A transceive, with CRC added
+                      transceive_info.cmd.MfCmd = phHal_eMifareRaw;
+                      transceive_info.addr = 0;
+                      // Need to add in the crc here
+                      outbuf = (uint8_t*)malloc(buflen + 2);
+                      outlen += 2;
+                      memcpy(outbuf, buf, buflen);
+                      nfc_insert_crc_a(outbuf, buflen);
+
+                      checkResponseCrc = true;
+                  } else {
+                      // Use the mifare pipe
+                      offset = 2;
+                      transceive_info.cmd.MfCmd = (phNfc_eMifareCmdList_t)buf[0];
+                      transceive_info.addr = (uint8_t)buf[1];
+                  }
+
+              }
+              break;
+            case TARGET_TYPE_ISO14443_4A_PCD:
+            case TARGET_TYPE_ISO14443_4B_PCD:
+            case TARGET_TYPE_ISO14443_4:
+              transceive_info.cmd.Iso144434Cmd = phNfc_eIso14443_4_Raw;
+              transceive_info.addr = 0;
+              break;
+            case TARGET_TYPE_ISO15693:
+              transceive_info.cmd.Iso15693Cmd = phNfc_eIso15693_Cmd;
+              transceive_info.addr = 0;
+              break;
+            case TARGET_TYPE_UNKNOWN:
+            case TARGET_TYPE_ISO14443_3B:
+              // Not supported
+              goto clean_and_return;
+            default:
+              break;
+        }
+
+        transceive_info.sSendData.buffer = outbuf + offset;
+        transceive_info.sSendData.length = outlen - offset;
+        transceive_info.sRecvData.buffer = (uint8_t*)malloc(1024);
+        transceive_info.sRecvData.length = 1024;
+        if(transceive_info.sRecvData.buffer == NULL)
+        {
+          goto clean_and_return;
+        }
+
+        TRACE("phLibNfc_RemoteDev_Transceive()");
+        REENTRANCE_LOCK();
+        status = phLibNfc_RemoteDev_Transceive(handle, &transceive_info,
+             nfc_jni_transceive_callback, (void *)&cb_data);
+        REENTRANCE_UNLOCK();
+        if(status != NFCSTATUS_PENDING)
+        {
+          LOGE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          if ((targetLost != NULL) &&
+              (status == NFCSTATUS_TARGET_LOST || selectedTech == TARGET_TYPE_ISO14443_4A_PCD || selectedTech == TARGET_TYPE_ISO14443_4B_PCD)
+             ) {
+              *targetLost = 1;
+          }
+          goto clean_and_return;
+        }
+        TRACE("phLibNfc_RemoteDev_Transceive() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+        /* Wait for callback response */
+        if(sem_wait(&cb_data.sem))
+        {
+           LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+           goto clean_and_return;
+        }
+
+        if(cb_data.status != NFCSTATUS_SUCCESS)
+        {
+            if ((targetLost != NULL) && (cb_data.status == NFCSTATUS_TARGET_LOST)) {
+                *targetLost = 1;
+            }
+            goto clean_and_return;
+        }
+
+        /* Copy results back to Java *
+         * In case of NfcA and raw, also check the CRC in the response
+         * and cut it off in the returned data.
+         */
+        if ((nfc_jni_transceive_buffer->length > 2) && checkResponseCrc) {
+            if (crc_valid(nfc_jni_transceive_buffer->buffer, nfc_jni_transceive_buffer->length)) {
+                result = e->NewByteArray(nfc_jni_transceive_buffer->length - 2);
+                if (result != NULL) {
+                    e->SetByteArrayRegion(result, 0,
+                     nfc_jni_transceive_buffer->length - 2,
+                     (jbyte *)nfc_jni_transceive_buffer->buffer);
+                }
+            }
+        } else {
+            result = e->NewByteArray(nfc_jni_transceive_buffer->length);
+            if (result != NULL) {
+                e->SetByteArrayRegion(result, 0,
+                 nfc_jni_transceive_buffer->length,
+                 (jbyte *)nfc_jni_transceive_buffer->buffer);
+            }
+        }
 clean_and_return:
-		    nfc_cb_data_deinit(&cb_data);
-		
-		    CONCURRENCY_UNLOCK();
-		    
-		    if(transceive_info.sRecvData.buffer != NULL)
-		    {
-		      free(transceive_info.sRecvData.buffer);
-		    }
-		
-		    if ((outbuf != buf) && (outbuf != NULL)) {
-		        // Buf was extended and re-alloced with crc bytes, free separately
-		        free(outbuf);
-		    }
+        nfc_cb_data_deinit(&cb_data);
+
+        CONCURRENCY_UNLOCK();
+
+        if(transceive_info.sRecvData.buffer != NULL)
+        {
+          free(transceive_info.sRecvData.buffer);
+        }
+
+        if ((outbuf != buf) && (outbuf != NULL)) {
+            // Buf was extended and re-alloced with crc bytes, free separately
+            free(outbuf);
+        }
     }
 
     e->ReleaseByteArrayElements(data,
@@ -1045,75 +1043,75 @@ static jint com_android_nfc_NativeNfcTag_doCheckNdef(JNIEnv *e, jobject o, jintA
    jint *ndef = e->GetIntArrayElements(ndefinfo, 0);
    int apiCardState = NDEF_MODE_UNKNOWN;
    handle = nfc_jni_get_connected_handle(e, o);
-	 phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
-   
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
+
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
-		   status = NFCSTATUS_FAILED;
+       status = NFCSTATUS_FAILED;
    }
    else
    {
-		   CONCURRENCY_LOCK();
-		
-		   /* Create the local semaphore */
-		   if (!nfc_cb_data_init(&cb_data, NULL))
-		   {
-		      status = NFCSTATUS_NOT_ENOUGH_MEMORY;
-		      goto clean_and_return;
-		   }
-		   cb_data.pContext = &sNdefInfo;
-		
-		   TRACE("phLibNfc_Ndef_CheckNdef()");
-		   REENTRANCE_LOCK();
-		   status = phLibNfc_Ndef_CheckNdef(handle, nfc_jni_checkndef_callback,(void *)&cb_data);
-		   REENTRANCE_UNLOCK();
-		   if(status != NFCSTATUS_PENDING)
-		   {
-		      LOGE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      goto clean_and_return;
-		   }
-		   TRACE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		   /* Wait for callback response */
-		   if(sem_wait(&cb_data.sem))
-		   {
-		      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		      status = NFCSTATUS_ABORTED;
-		      goto clean_and_return;
-		   }
-		
-		   status = cb_data.status;
-		   TRACE("phLibNfc_Ndef_CheckNdef() - Status code = %d", status);
-		
-		   if (status != NFCSTATUS_SUCCESS)
-		   {
-		      goto clean_and_return;
-		   }
-		
-		   ndef[0] = sNdefInfo.MaxNdefMsgLength;
-		   // Translate the card state to know values for the NFC API
-		   switch (sNdefInfo.NdefCardState) {
-		       case PHLIBNFC_NDEF_CARD_INITIALISED:
-		           apiCardState = NDEF_MODE_READ_WRITE;
-		           break;
-		       case PHLIBNFC_NDEF_CARD_READ_ONLY:
-		           apiCardState = NDEF_MODE_READ_ONLY;
-		           break;
-		       case PHLIBNFC_NDEF_CARD_READ_WRITE:
-		           apiCardState = NDEF_MODE_READ_WRITE;
-		           break;
-		       case PHLIBNFC_NDEF_CARD_INVALID:
-		           apiCardState = NDEF_MODE_UNKNOWN;
-		           break;
-		   }
-		   ndef[1] = apiCardState;
+       CONCURRENCY_LOCK();
+
+       /* Create the local semaphore */
+       if (!nfc_cb_data_init(&cb_data, NULL))
+       {
+          status = NFCSTATUS_NOT_ENOUGH_MEMORY;
+          goto clean_and_return;
+       }
+       cb_data.pContext = &sNdefInfo;
+
+       TRACE("phLibNfc_Ndef_CheckNdef()");
+       REENTRANCE_LOCK();
+       status = phLibNfc_Ndef_CheckNdef(handle, nfc_jni_checkndef_callback,(void *)&cb_data);
+       REENTRANCE_UNLOCK();
+       if(status != NFCSTATUS_PENDING)
+       {
+          LOGE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          goto clean_and_return;
+       }
+       TRACE("phLibNfc_Ndef_CheckNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+       /* Wait for callback response */
+       if(sem_wait(&cb_data.sem))
+       {
+          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+          status = NFCSTATUS_ABORTED;
+          goto clean_and_return;
+       }
+
+       status = cb_data.status;
+       TRACE("phLibNfc_Ndef_CheckNdef() - Status code = %d", status);
+
+       if (status != NFCSTATUS_SUCCESS)
+       {
+          goto clean_and_return;
+       }
+
+       ndef[0] = sNdefInfo.MaxNdefMsgLength;
+       // Translate the card state to know values for the NFC API
+       switch (sNdefInfo.NdefCardState) {
+           case PHLIBNFC_NDEF_CARD_INITIALISED:
+               apiCardState = NDEF_MODE_READ_WRITE;
+               break;
+           case PHLIBNFC_NDEF_CARD_READ_ONLY:
+               apiCardState = NDEF_MODE_READ_ONLY;
+               break;
+           case PHLIBNFC_NDEF_CARD_READ_WRITE:
+               apiCardState = NDEF_MODE_READ_WRITE;
+               break;
+           case PHLIBNFC_NDEF_CARD_INVALID:
+               apiCardState = NDEF_MODE_UNKNOWN;
+               break;
+       }
+       ndef[1] = apiCardState;
 
 clean_and_return:
-		   nfc_cb_data_deinit(&cb_data);
-		   CONCURRENCY_UNLOCK();
+       nfc_cb_data_deinit(&cb_data);
+       CONCURRENCY_UNLOCK();
    }
 
    e->ReleaseIntArrayElements(ndefinfo, ndef, 0);
@@ -1127,60 +1125,60 @@ static jboolean com_android_nfc_NativeNfcTag_doPresenceCheck(JNIEnv *e, jobject 
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
    handle = nfc_jni_get_connected_handle(e, o);
-	 phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
 
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
-   	   if(pRemDevInfoPCD->SessionOpened==TRUE)
-		   {
-		     result = JNI_TRUE;
-	     }
-		   else
-		   {
-		   	 result = JNI_FALSE;
-		   }
+       if(pRemDevInfoPCD->SessionOpened==TRUE)
+       {
+         result = JNI_TRUE;
+       }
+       else
+       {
+         result = JNI_FALSE;
+       }
    }
    else
    {
-		   CONCURRENCY_LOCK();
+       CONCURRENCY_LOCK();
 
-		   /* Create the local semaphore */
-		   if (!nfc_cb_data_init(&cb_data, NULL))
-		   {
-		      goto clean_and_return;
-		   }
-		
-		   TRACE("phLibNfc_RemoteDev_CheckPresence()");
-		   REENTRANCE_LOCK();
-		   status = phLibNfc_RemoteDev_CheckPresence(handle, nfc_jni_presencecheck_callback, (void *)&cb_data);
-		   REENTRANCE_UNLOCK();
-		
-		   if(status != NFCSTATUS_PENDING)
-		   {
-		      LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      goto clean_and_return;
-		   }
-		   TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		   /* Wait for callback response */
-		   if(sem_wait(&cb_data.sem))
-		   {
-		      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		      goto clean_and_return;
-		   }
-		
-		   if (cb_data.status == NFCSTATUS_SUCCESS)
-		   {
-		       result = JNI_TRUE;
-		   }
+       /* Create the local semaphore */
+       if (!nfc_cb_data_init(&cb_data, NULL))
+       {
+          goto clean_and_return;
+       }
+
+       TRACE("phLibNfc_RemoteDev_CheckPresence()");
+       REENTRANCE_LOCK();
+       status = phLibNfc_RemoteDev_CheckPresence(handle, nfc_jni_presencecheck_callback, (void *)&cb_data);
+       REENTRANCE_UNLOCK();
+
+       if(status != NFCSTATUS_PENDING)
+       {
+          LOGE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          goto clean_and_return;
+       }
+       TRACE("phLibNfc_RemoteDev_CheckPresence() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+       /* Wait for callback response */
+       if(sem_wait(&cb_data.sem))
+       {
+          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+          goto clean_and_return;
+       }
+
+       if (cb_data.status == NFCSTATUS_SUCCESS)
+       {
+           result = JNI_TRUE;
+       }
 
 clean_and_return:
-		   nfc_cb_data_deinit(&cb_data);
-		
-		   CONCURRENCY_UNLOCK();
+       nfc_cb_data_deinit(&cb_data);
+
+       CONCURRENCY_UNLOCK();
    }
 
    return result;
@@ -1240,55 +1238,55 @@ static jboolean com_android_nfc_NativeNfcTag_doNdefFormat(JNIEnv *e, jobject o, 
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
    handle = nfc_jni_get_connected_handle(e, o);
-	 phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
 
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
-		   result = JNI_FALSE;
+       result = JNI_FALSE;
    }
    else
    {
-		   CONCURRENCY_LOCK();
+       CONCURRENCY_LOCK();
 
-		   /* Create the local semaphore */
-		   if (!nfc_cb_data_init(&cb_data, NULL))
-		   {
-		      goto clean_and_return;
-		   }
-		
-		   keyBuffer.buffer = (uint8_t *)e->GetByteArrayElements(key, NULL);
-		   keyBuffer.length = e->GetArrayLength(key);
-		   TRACE("phLibNfc_RemoteDev_FormatNdef()");
-		   REENTRANCE_LOCK();
-		   status = phLibNfc_RemoteDev_FormatNdef(handle, &keyBuffer, nfc_jni_formatndef_callback, (void *)&cb_data);
-		   REENTRANCE_UNLOCK();
-		
-		   if(status != NFCSTATUS_PENDING)
-		   {
-		      LOGE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      goto clean_and_return;
-		   }
-		   TRACE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		   /* Wait for callback response */
-		   if(sem_wait(&cb_data.sem))
-		   {
-		      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		      goto clean_and_return;
-		   }
-		
-		   if (cb_data.status == NFCSTATUS_SUCCESS)
-		   {
-		       result = JNI_TRUE;
-		   }
+       /* Create the local semaphore */
+       if (!nfc_cb_data_init(&cb_data, NULL))
+       {
+          goto clean_and_return;
+       }
+
+       keyBuffer.buffer = (uint8_t *)e->GetByteArrayElements(key, NULL);
+       keyBuffer.length = e->GetArrayLength(key);
+       TRACE("phLibNfc_RemoteDev_FormatNdef()");
+       REENTRANCE_LOCK();
+       status = phLibNfc_RemoteDev_FormatNdef(handle, &keyBuffer, nfc_jni_formatndef_callback, (void *)&cb_data);
+       REENTRANCE_UNLOCK();
+
+       if(status != NFCSTATUS_PENDING)
+       {
+          LOGE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          goto clean_and_return;
+       }
+       TRACE("phLibNfc_RemoteDev_FormatNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+       /* Wait for callback response */
+       if(sem_wait(&cb_data.sem))
+       {
+          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+          goto clean_and_return;
+       }
+
+       if (cb_data.status == NFCSTATUS_SUCCESS)
+       {
+           result = JNI_TRUE;
+       }
 clean_and_return:
-		   nfc_cb_data_deinit(&cb_data);
-		   CONCURRENCY_UNLOCK();
+       nfc_cb_data_deinit(&cb_data);
+       CONCURRENCY_UNLOCK();
    }
-   
+
    e->ReleaseByteArrayElements(key, (jbyte *)keyBuffer.buffer, JNI_ABORT);
    return result;
 }
@@ -1300,53 +1298,53 @@ static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
    handle = nfc_jni_get_connected_handle(e, o);
-	 phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle; 
+   phLibNfc_sRemoteDevInformation_t* pRemDevInfoPCD = (phLibNfc_sRemoteDevInformation_t *) handle;
 
    if(pRemDevInfoPCD!=NULL &&
-   	  (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD || 
-   	   pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
-   	  )
+      (pRemDevInfoPCD->RemDevType == phNfc_eISO14443_A_PCD ||
+       pRemDevInfoPCD->RemDevType == phNfc_eISO14443_B_PCD)
+      )
    {
-		   result = JNI_FALSE;
+       result = JNI_FALSE;
    }
    else
    {
-		   CONCURRENCY_LOCK();
+       CONCURRENCY_LOCK();
 
-		   /* Create the local semaphore */
-		   if (!nfc_cb_data_init(&cb_data, NULL))
-		   {
-		      goto clean_and_return;
-		   }
-		
-		   TRACE("phLibNfc_ConvertToReadOnlyNdef()");
-		   REENTRANCE_LOCK();
-		   status = phLibNfc_ConvertToReadOnlyNdef(handle, nfc_jni_readonly_callback, (void *)&cb_data);
-		   REENTRANCE_UNLOCK();
-		
-		   if(status != NFCSTATUS_PENDING)
-		   {
-		      LOGE("pphLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		      goto clean_and_return;
-		   }
-		   TRACE("phLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-		
-		   /* Wait for callback response */
-		   if(sem_wait(&cb_data.sem))
-		   {
-		      LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-		      goto clean_and_return;
-		   }
-		
-		   if (cb_data.status == NFCSTATUS_SUCCESS)
-		   {
-		       result = JNI_TRUE;
-		   }
+       /* Create the local semaphore */
+       if (!nfc_cb_data_init(&cb_data, NULL))
+       {
+          goto clean_and_return;
+       }
+
+       TRACE("phLibNfc_ConvertToReadOnlyNdef()");
+       REENTRANCE_LOCK();
+       status = phLibNfc_ConvertToReadOnlyNdef(handle, nfc_jni_readonly_callback, (void *)&cb_data);
+       REENTRANCE_UNLOCK();
+
+       if(status != NFCSTATUS_PENDING)
+       {
+          LOGE("pphLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+          goto clean_and_return;
+       }
+       TRACE("phLibNfc_ConvertToReadOnlyNdef() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+       /* Wait for callback response */
+       if(sem_wait(&cb_data.sem))
+       {
+          LOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+          goto clean_and_return;
+       }
+
+       if (cb_data.status == NFCSTATUS_SUCCESS)
+       {
+           result = JNI_TRUE;
+       }
 clean_and_return:
-		   nfc_cb_data_deinit(&cb_data);
-		   CONCURRENCY_UNLOCK();
+       nfc_cb_data_deinit(&cb_data);
+       CONCURRENCY_UNLOCK();
    }
-   
+
    return result;
 }
 /*
