@@ -16,6 +16,7 @@
 
 package com.android.nfc;
 
+import com.android.nfc.echoserver.EchoServer;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 import com.android.nfc.snep.SnepClient;
@@ -97,6 +98,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final String TAG = "NfcP2pLinkManager";
     static final boolean DBG = true;
 
+    /** Enables the LLCP EchoServer, which can be used to test the android
+     * LLCP stack against nfcpy.
+     */
+    static final boolean ECHOSERVER_ENABLED = false;
+
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
 
@@ -105,6 +111,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int MSG_DEBOUNCE_TIMEOUT = 1;
     static final int MSG_RECEIVE_COMPLETE = 2;
     static final int MSG_SEND_COMPLETE = 3;
+    static final int MSG_START_ECHOSERVER = 4;
+    static final int MSG_STOP_ECHOSERVER = 5;
 
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
@@ -123,6 +131,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
+    final EchoServer mEchoServer;
     final ActivityManager mActivityManager;
     final PackageManager mPackageManager;
     final Context mContext;
@@ -144,6 +153,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     public P2pLinkManager(Context context) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
+        if (ECHOSERVER_ENABLED) {
+            mEchoServer = new EchoServer();
+        } else {
+            mEchoServer = null;
+        }
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
@@ -166,9 +180,15 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (!mIsReceiveEnabled && receiveEnable) {
                 mDefaultSnepServer.start();
                 mNdefPushServer.start();
+                if (mEchoServer != null) {
+                    mHandler.sendEmptyMessage(MSG_START_ECHOSERVER);
+                }
             } else if (mIsReceiveEnabled && !receiveEnable) {
                 mDefaultSnepServer.stop();
                 mNdefPushServer.stop();
+                if (mEchoServer != null) {
+                    mHandler.sendEmptyMessage(MSG_STOP_ECHOSERVER);
+                }
             }
             mIsSendEnabled = sendEnable;
             mIsReceiveEnabled = receiveEnable;
@@ -196,6 +216,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         Log.i(TAG, "LLCP activated");
 
         synchronized (P2pLinkManager.this) {
+            if (mEchoServer != null) {
+                mEchoServer.onLlcpActivated();
+            }
+
             switch (mLinkState) {
                 case LINK_STATE_DOWN:
                     mLinkState = LINK_STATE_UP;
@@ -278,6 +302,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     public void onLlcpDeactivated() {
         Log.i(TAG, "LLCP deactivated.");
         synchronized (this) {
+            if (mEchoServer != null) {
+                mEchoServer.onLlcpDeactivated();
+            }
+
             switch (mLinkState) {
                 case LINK_STATE_DOWN:
                 case LINK_STATE_DEBOUNCE:
@@ -410,6 +438,16 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     @Override
     public boolean handleMessage(Message msg) {
         switch (msg.what) {
+            case MSG_START_ECHOSERVER:
+                synchronized (this) {
+                    mEchoServer.start();
+                    break;
+                }
+            case MSG_STOP_ECHOSERVER:
+                synchronized (this) {
+                    mEchoServer.stop();
+                    break;
+                }
             case MSG_DEBOUNCE_TIMEOUT:
                 synchronized (this) {
                     if (mLinkState != LINK_STATE_DEBOUNCE) {

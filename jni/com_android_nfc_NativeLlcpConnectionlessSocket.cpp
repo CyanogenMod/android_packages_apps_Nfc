@@ -200,10 +200,6 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
    e->SetObjectField(llcpPacket, f, receivedData);
 
 clean_and_return:
-   if (receivedData != NULL)
-   {
-      e->ReleaseByteArrayElements(receivedData, (jbyte*)sReceiveBuffer.buffer, 0);
-   }
    nfc_cb_data_deinit(&cb_data);
    return llcpPacket;
 }
