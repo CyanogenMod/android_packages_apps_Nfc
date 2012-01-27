@@ -35,6 +35,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.tech.Ndef;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -173,7 +174,12 @@ public class NfcDispatcher {
     }
 
     /** Returns false if no activities were found to dispatch to */
-    public boolean dispatchTag(Tag tag, NdefMessage message) {
+    public boolean dispatchTag(Tag tag) {
+        NdefMessage message = null;
+        Ndef ndef = Ndef.get(tag);
+        if (ndef != null) {
+            message = ndef.getCachedNdefMessage();
+        }
         if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
 
         PendingIntent overrideIntent;
