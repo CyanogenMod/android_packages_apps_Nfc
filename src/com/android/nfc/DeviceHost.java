@@ -187,7 +187,7 @@ public interface DeviceHost {
 
     public int doGetLastError();
 
-    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap)
+    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap, String sn)
             throws LlcpException;
 
     public LlcpServerSocket createLlcpServerSocket(int nSap, String sn, int miu,
