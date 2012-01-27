@@ -2133,12 +2133,14 @@ static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
 
 
 
-static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *e, jobject o, jint nSap)
+static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *e, jobject o,
+        jint nSap, jstring sn)
 {
    NFCSTATUS ret;
    jobject connectionlessSocket = NULL;
    phLibNfc_Handle hLlcpSocket;
    struct nfc_jni_native_data *nat;
+   phNfc_sData_t serviceName = {0};
    jclass clsNativeConnectionlessSocket;
    jfieldID f;
    
@@ -2160,15 +2162,23 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    {
       lastErrorStatus = ret;
       ALOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      return NULL;
+      goto error;
    }
    TRACE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   
+
+   /* Service socket */
+   if (sn == NULL) {
+       serviceName.buffer = NULL;
+       serviceName.length = 0;
+   } else {
+       serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
+       serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
+   }
    
    /* Bind socket */
    TRACE("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
    REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap);
+   ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap, &serviceName);
    REENTRANCE_UNLOCK();
    if(ret != NFCSTATUS_SUCCESS)
    {
@@ -2178,7 +2188,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
       REENTRANCE_LOCK();
       ret = phLibNfc_Llcp_Close(hLlcpSocket); 
       REENTRANCE_UNLOCK();
-      return NULL;
+      goto error;
    }
    TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
  
@@ -2186,14 +2196,14 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    /* Create new NativeLlcpConnectionlessSocket object */
    if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
    {
-      return NULL;           
+      goto error;
    } 
    
    /* Get NativeConnectionless class object */
    clsNativeConnectionlessSocket = e->GetObjectClass(connectionlessSocket);
    if(e->ExceptionCheck())
    {
-      return NULL;  
+      goto error;
    }
    
    /* Set socket handle */
@@ -2212,6 +2222,12 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    TRACE("Connectionless socket SAP = %d\n",nSap);  
    
    return connectionlessSocket;
+error:
+   if (serviceName.buffer != NULL) {
+      e->ReleaseStringUTFChars(sn, (const char *)serviceName.buffer);
+   }
+
+   return NULL;
 }
 
 static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, jobject o, jint nSap, jstring sn, jint miu, jint rw, jint linearBufferLength)
@@ -2253,24 +2269,9 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    {
       ALOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       lastErrorStatus = ret;
-      return NULL;
+      goto error;
    }
    TRACE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   
-   /* Bind socket */
-   TRACE("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
-   REENTRANCE_LOCK();
-   ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-      lastErrorStatus = ret;
-      ALOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      /* Close socket created */
-      ret = phLibNfc_Llcp_Close(hLlcpSocket); 
-      return NULL;
-   }
-   TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
 
    /* Service socket */
    if (sn == NULL) {
@@ -2281,10 +2282,24 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
        serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
    }
 
+   /* Bind socket */
+   TRACE("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
+   REENTRANCE_LOCK();
+   ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap, &serviceName);
+   REENTRANCE_UNLOCK();
+   if(ret != NFCSTATUS_SUCCESS)
+   {
+      lastErrorStatus = ret;
+      ALOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+      /* Close socket created */
+      ret = phLibNfc_Llcp_Close(hLlcpSocket); 
+      goto error;
+   }
+   TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
+
    TRACE("phLibNfc_Llcp_Listen(hSocket=0x%08x, ...)", hLlcpSocket);
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Listen( hLlcpSocket,
-                               &serviceName,
                                nfc_jni_llcp_transport_listen_socket_callback,
                                (void*)hLlcpSocket);
    REENTRANCE_UNLOCK();
@@ -2297,7 +2312,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
       REENTRANCE_LOCK();
       ret = phLibNfc_Llcp_Close(hLlcpSocket); 
       REENTRANCE_UNLOCK();
-      return NULL;
+      goto error;
    }                         
    TRACE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
    
@@ -2305,7 +2320,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    if(nfc_jni_cache_object(e,"com/android/nfc/nxp/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
    {
       ALOGE("Llcp Socket object creation error");
-      return NULL;           
+      goto error;
    } 
    
    /* Get NativeLlcpServiceSocket class object */
@@ -2313,7 +2328,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    if(e->ExceptionCheck())
    {
       ALOGE("Llcp Socket get object class error");
-      return NULL;  
+      goto error;
    } 
    
    /* Set socket handle */
@@ -2335,8 +2350,13 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    f = e->GetFieldID(clsNativeLlcpServiceSocket, "mLocalRw", "I");
    e->SetIntField(serviceSocket, f,(jint)rw);
    TRACE("Service socket RW = %d\n",rw);   
-  
+
    return serviceSocket;
+error:
+   if (serviceName.buffer != NULL) {
+      e->ReleaseStringUTFChars(sn, (const char *)serviceName.buffer);
+   }
+   return NULL;
 }
 
 static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject o, jint nSap, jint miu, jint rw, jint linearBufferLength)
@@ -2401,7 +2421,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
       /* Bind socket */
       TRACE("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
       REENTRANCE_LOCK();
-      ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap);
+      ret = phLibNfc_Llcp_Bind(hLlcpSocket,nSap, NULL);
       REENTRANCE_UNLOCK();
       if(ret != NFCSTATUS_SUCCESS)
       {
@@ -2611,7 +2631,7 @@ static JNINativeMethod gMethods[] =
    {"doActivateLlcp", "()Z",
       (void *)com_android_nfc_NfcManager_doActivateLlcp},
             
-   {"doCreateLlcpConnectionlessSocket", "(I)Lcom/android/nfc/nxp/NativeLlcpConnectionlessSocket;",
+   {"doCreateLlcpConnectionlessSocket", "(ILjava/lang/String;)Lcom/android/nfc/nxp/NativeLlcpConnectionlessSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket},
         
    {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/android/nfc/nxp/NativeLlcpServiceSocket;",

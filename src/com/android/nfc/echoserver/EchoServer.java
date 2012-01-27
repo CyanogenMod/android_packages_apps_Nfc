@@ -99,7 +99,7 @@ public class EchoServer {
          * We use ECHO_MIU=48 because of a bug in PN544, which does not respect
          * the target length reduction parameter of the p2p protocol.
          */
-        static final int ECHO_MIU = 48;
+        static final int ECHO_MIU = 128;
 
         final BlockingQueue<byte[]> dataQueue;
         final Handler handler;
@@ -123,7 +123,7 @@ public class EchoServer {
                 try {
                     // Split up the packet in ECHO_MIU size packets
                     int sizeLeft = size;
-
+                    int offset = 0;
                     if (dataQueue.isEmpty()) {
                         // First message: start echo'ing in 2 seconds
                         handler.sendMessageDelayed(handler.obtainMessage(), ECHO_DELAY_IN_MS);
@@ -136,9 +136,10 @@ public class EchoServer {
                     while (sizeLeft > 0) {
                         int minSize = Math.min(size, ECHO_MIU);
                         byte[] data = new byte[minSize];
-                        System.arraycopy(unit, 0, data, 0, minSize);
+                        System.arraycopy(unit, offset, data, 0, minSize);
                         dataQueue.put(data);
                         sizeLeft -= minSize;
+                        offset += minSize;
                     }
                 } catch (InterruptedException e) {
                     // Ignore
@@ -252,8 +253,9 @@ public class EchoServer {
             if (clientSocket != null) {
                 try {
                     clientSocket.send(data);
+                    Log.e(TAG, "Send success!");
                 } catch (IOException e) {
-                    // Ignore
+                    Log.e(TAG, "Send failed.");
                 }
             }
         }
@@ -290,7 +292,7 @@ public class EchoServer {
             if (DBG) Log.d(TAG, "about create LLCP connectionless socket");
             try {
                 socket = mService.createLlcpConnectionLessSocket(
-                        DEFAULT_CL_SAP);
+                        DEFAULT_CL_SAP, CONNECTIONLESS_SERVICE_NAME);
                 if (socket == null) {
                     if (DBG) Log.d(TAG, "failed to create LLCP connectionless socket");
                     return;
