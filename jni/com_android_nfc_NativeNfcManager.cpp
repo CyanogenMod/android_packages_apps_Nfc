@@ -1816,7 +1816,9 @@ static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
 
    nat->lto = 150;  // LLCP_LTO
    nat->miu = 128; // LLCP_MIU
-   nat->wks = 1;  // LLCP_WKS
+   // WKS indicates well-known services; 1 << sap for each supported SAP.
+   // We support Link mgmt (SAP 0), SDP (SAP 1) and SNEP (SAP 4)
+   nat->wks = 0x13;  // LLCP_WKS
    nat->opt = 0;  // LLCP_OPT
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
