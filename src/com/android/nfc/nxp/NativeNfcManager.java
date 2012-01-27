@@ -134,12 +134,13 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native int doGetLastError();
 
-    private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap);
+    private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
+            String sn);
 
     @Override
-    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap)
+    public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap, String sn)
             throws LlcpException {
-        LlcpConnectionlessSocket socket = doCreateLlcpConnectionlessSocket(nSap);
+        LlcpConnectionlessSocket socket = doCreateLlcpConnectionlessSocket(nSap, sn);
         if (socket != null) {
             return socket;
         } else {

@@ -1500,9 +1500,9 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     /** For use by code in this process */
-    public LlcpConnectionlessSocket createLlcpConnectionLessSocket(int sap)
+    public LlcpConnectionlessSocket createLlcpConnectionLessSocket(int sap, String sn)
             throws LlcpException {
-        return mDeviceHost.createLlcpConnectionlessSocket(sap);
+        return mDeviceHost.createLlcpConnectionlessSocket(sap, sn);
     }
 
     /** For use by code in this process */
