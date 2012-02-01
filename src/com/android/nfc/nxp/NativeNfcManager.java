@@ -267,6 +267,18 @@ public class NativeNfcManager implements DeviceHost {
 
     }
 
+    private native void doSetP2pInitiatorModes(int modes);
+    @Override
+    public void setP2pInitiatorModes(int modes) {
+        doSetP2pInitiatorModes(modes);
+    }
+
+    private native void doSetP2pTargetModes(int modes);
+    @Override
+    public void setP2pTargetModes(int modes) {
+        doSetP2pTargetModes(modes);
+    }
+
     private native String doDump();
     @Override
     public String dump() {

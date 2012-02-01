@@ -153,6 +153,10 @@ struct nfc_jni_native_data
 
    /* Lib Status */
    NFCSTATUS status;
+
+   /* p2p modes */
+   int p2p_initiator_modes;
+   int p2p_target_modes;
    
 };
 

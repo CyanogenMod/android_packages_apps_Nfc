@@ -212,5 +212,9 @@ public interface DeviceHost {
 
     int getMaxTransceiveLength(int technology);
 
+    void setP2pInitiatorModes(int modes);
+
+    void setP2pTargetModes(int modes);
+
     String dump();
 }

@@ -510,6 +510,7 @@ public class NfcService extends Application implements DeviceHostListener {
             Log.i(TAG, "Enabling NFC");
             updateState(NfcAdapter.STATE_TURNING_ON);
 
+
             if (!mDeviceHost.initialize()) {
                 Log.w(TAG, "Error enabling NFC");
                 updateState(NfcAdapter.STATE_OFF);
@@ -526,6 +527,7 @@ public class NfcService extends Application implements DeviceHostListener {
             initSoundPool();
 
             /* Start polling loop */
+
             applyRouting(true);
             return true;
         }
@@ -799,6 +801,16 @@ public class NfcService extends Application implements DeviceHostListener {
         public void dispatch(Tag tag) throws RemoteException {
             enforceAdminPerm(mContext);
             mNfcDispatcher.dispatchTag(tag);
+        }
+
+        @Override
+        public void setP2pModes(int initiatorModes, int targetModes) throws RemoteException {
+            enforceAdminPerm(mContext);
+
+            mDeviceHost.setP2pInitiatorModes(initiatorModes);
+            mDeviceHost.setP2pTargetModes(targetModes);
+            mDeviceHost.disableDiscovery();
+            mDeviceHost.enableDiscovery();
         }
     }
 

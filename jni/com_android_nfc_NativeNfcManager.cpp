@@ -71,13 +71,14 @@ static void nfc_jni_discover_callback(void *pContext, NFCSTATUS status);
 static void nfc_jni_se_set_mode_callback(void *context,
         phLibNfc_Handle handle, NFCSTATUS status);
 static void nfc_jni_llcpcfg_callback(void *pContext, NFCSTATUS status);
-static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat);
+static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat, bool resume);
 static void nfc_jni_Discovery_notification_callback(void *pContext,
         phLibNfc_RemoteDevList_t *psRemoteDevList,
         uint8_t uNofRemoteDev, NFCSTATUS status);
 static void nfc_jni_transaction_callback(void *context,
         phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
         phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status);
+static bool performDownload(struct nfc_jni_native_data *nat);
 
 /*
  * Deferred callback called when client thread must be exited
@@ -136,6 +137,7 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
     NFCSTATUS status = NFCSTATUS_FAILED;
     phLibNfc_StackCapabilities_t caps;
     struct nfc_jni_callback_data cb_data;
+    bool result;
 
     /* Create the local semaphore */
     if (!nfc_cb_data_init(&cb_data, NULL))
@@ -171,53 +173,12 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
         TRACE("Deinitialization SUCCESS (download)");
     }
 
-    TRACE("Go in Download Mode");
-    phLibNfc_Download_Mode();
+    result = performDownload(nat);
 
-    // Download
-    gInputParam.buffer  = InputBuffer;
-    gInputParam.length  = 0x01;
-    gOutputParam.buffer = OutputBuffer;
-    gOutputParam.length = 0x01;
-
-    ALOGD("Download new Firmware");
-    REENTRANCE_LOCK();
-    status = phLibNfc_Mgt_IoCtl(gHWRef,NFC_FW_DOWNLOAD, &gInputParam, &gOutputParam, nfc_jni_ioctl_callback, (void *)&cb_data);
-    REENTRANCE_UNLOCK();
-    if(status != NFCSTATUS_PENDING)
-    {
-        ALOGE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+    if (!result) {
         status = NFCSTATUS_FAILED;
         goto clean_and_return;
     }
-    TRACE("phLibNfc_Mgt_IoCtl() (download) returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-
-    /* Wait for callback response */
-    if(sem_wait(&cb_data.sem))
-    {
-       ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-       status = NFCSTATUS_FAILED;
-       goto clean_and_return;
-    }
-
-    /* NOTE: we will get NFCSTATUS_FEATURE_NOT_SUPPORTED when we
-       try to download an old-style firmware on top of a new-style
-       firmware.  Hence, this is expected behavior, and not an
-       error condition. */
-    if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_FEATURE_NOT_SUPPORTED)
-    {
-        status = cb_data.status;
-        goto clean_and_return;
-    }
-
-    if(cb_data.status == NFCSTATUS_FEATURE_NOT_SUPPORTED)
-    {
-        ALOGW("Old-style firmware not installed on top of new-style firmware. Using existing firmware in the chip.");
-    }
-
-reinit:
-    TRACE("phLibNfc_HW_Reset()");
-    phLibNfc_HW_Reset();
 
     TRACE("phLibNfc_Mgt_Initialize()");
     REENTRANCE_LOCK();
@@ -332,30 +293,6 @@ static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data *nat)
     driverConfigured = FALSE;
 
     return result;
-}
-
-static short get_p2p_mode() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.nfc.NXP_NFCI_MODE", value, "");
-    if (value[0]) {
-        short mode;
-        mode = atoi(value);
-        ALOGD("debug.nfc.NXP_NFCI_MODE = %X", mode);
-        return mode;
-    }
-    return phNfc_eP2P_ALL;  // default
-}
-
-static bool get_p2p_target_disable() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.nfc.TARGET_DISABLE", value, "");
-    if (value[0]) {
-        int mode;
-        mode = atoi(value);
-        ALOGD("debug.nfc.TARGET_DISABLE = %d", mode);
-        return mode;
-    }
-    return FALSE;  // default
 }
 
 /* Initialization function */
@@ -485,7 +422,6 @@ force_download:
    {
        TRACE("Firmware version UpToDate");
    }
-
    /* ====== EEPROM SETTINGS ======= */
 
    // Update EEPROM settings
@@ -612,9 +548,10 @@ force_download:
    }
 
    /* ===== DISCOVERY ==== */
-   nat->discovery_cfg.NfcIP_Mode = get_p2p_mode();  //initiator
+   nat->discovery_cfg.NfcIP_Mode = nat->p2p_initiator_modes;  //initiator
+   nat->discovery_cfg.NfcIP_Target_Mode = nat->p2p_target_modes;  //target
    nat->discovery_cfg.Duration = 300000; /* in ms */
-   nat->discovery_cfg.NfcIP_Tgt_Disable = get_p2p_target_disable();
+   nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
 
    /* Register for the card emulation mode */
    REENTRANCE_LOCK();
@@ -689,54 +626,7 @@ void nfc_jni_reset_timeout_values()
   */
 void nfc_jni_restart_discovery_locked(struct nfc_jni_native_data *nat)
 {
-   int ret;
-   struct nfc_jni_callback_data cb_data;
-
-   TRACE("Restarting polling loop");
-   
-   /* Create the local semaphore */
-   if (!nfc_cb_data_init(&cb_data, NULL))
-   {
-      goto clean_and_return;
-   }
-
-   /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
-   nfc_jni_reset_timeout_values();
-
-   /* Reset device connected flag */
-   device_connected_flag = 0;
-
-   /* Restart Polling loop */
-   TRACE("******  Start NFC Discovery ******");
-   REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_RESUME,nat->discovery_cfg, nfc_jni_discover_callback, (void *)&cb_data);
-   REENTRANCE_UNLOCK();
-   TRACE("phLibNfc_Mgt_ConfigureDiscovery(%s-%s-%s-%s-%s-%s, %s-%x-%x) returned 0x%08x\n",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A==TRUE?"3A":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B==TRUE?"3B":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212==TRUE?"F2":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424==TRUE?"F4":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableNfcActive==TRUE?"NFC":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693==TRUE?"RFID":"",
-      nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation==FALSE?"CE":"",
-      nat->discovery_cfg.NfcIP_Mode, nat->discovery_cfg.Duration, ret);
-   
-   if (ret != NFCSTATUS_PENDING)
-   {
-      emergency_recovery(nat);
-      goto clean_and_return;
-   }
-
-   /* Wait for callback response */
-   if(sem_wait(&cb_data.sem))
-   {
-      ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-      goto clean_and_return;
-   }
-
-clean_and_return:
-   nfc_cb_data_deinit(&cb_data);
-
+    nfc_jni_start_discovery_locked(nat, true);
 }
 
  /*
@@ -1417,7 +1307,7 @@ static void nfc_jni_se_set_mode_callback(void *pContext,
  * NFCManager methods
  */
 
-static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
+static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat, bool resume)
 {
    NFCSTATUS ret;
    struct nfc_jni_callback_data cb_data;
@@ -1430,35 +1320,19 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    /* Reset the PN544 ISO XCHG / sw watchdog timeouts */
    nfc_jni_reset_timeout_values();
 
+   /* Reload the p2p modes */
+   nat->discovery_cfg.NfcIP_Mode = nat->p2p_initiator_modes;  //initiator
+   nat->discovery_cfg.NfcIP_Target_Mode = nat->p2p_target_modes;  //target
+   nat->discovery_cfg.NfcIP_Tgt_Disable = FALSE;
+
    /* Reset device connected flag */
    device_connected_flag = 0;
-
-   /* Register callback for remote device notifications.
-    * Must re-register every time we turn on discovery, since other operations
-    * (such as opening the Secure Element) can change the remote device
-    * notification callback*/
-   REENTRANCE_LOCK();
-   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
-   REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_SUCCESS)
-   {
-        ALOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
-        goto clean_and_return;
-   }
-   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
-      nat->registry_info.Jewel==TRUE?"J":"",
-      nat->registry_info.MifareUL==TRUE?"UL":"",
-      nat->registry_info.MifareStd==TRUE?"Mi":"",
-      nat->registry_info.Felica==TRUE?"F":"",
-      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
-      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
-      nat->registry_info.NFC==TRUE?"P2P":"",
-      nat->registry_info.ISO15693==TRUE?"R":"", ret);
 
    /* Start Polling loop */
    TRACE("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
-   ret = phLibNfc_Mgt_ConfigureDiscovery(NFC_DISCOVERY_CONFIG,nat->discovery_cfg, nfc_jni_discover_callback, (void *)&cb_data);
+   ret = phLibNfc_Mgt_ConfigureDiscovery(resume ? NFC_DISCOVERY_RESUME : NFC_DISCOVERY_CONFIG,
+      nat->discovery_cfg, nfc_jni_discover_callback, (void *)&cb_data);
    REENTRANCE_UNLOCK();
    TRACE("phLibNfc_Mgt_ConfigureDiscovery(%s-%s-%s-%s-%s-%s, %s-%x-%x) returned 0x%08x\n",
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A==TRUE?"3A":"",
@@ -1473,6 +1347,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat)
    if(ret != NFCSTATUS_PENDING)
    {
       emergency_recovery(nat);
+      goto clean_and_return;
    }
 
    /* Wait for callback response */
@@ -1499,8 +1374,8 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    }
 
    discovery_cfg.PollDevInfo.PollEnabled = 0;
-   discovery_cfg.Duration = 300000; /* in ms */
    discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
+   discovery_cfg.NfcIP_Target_Mode = 0;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
  
    /* Start Polling loop */
@@ -1557,8 +1432,31 @@ static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o) {
     CONCURRENCY_LOCK();
 
     nat = nfc_jni_get_nat(e, o);
-    nfc_jni_start_discovery_locked(nat);
 
+   /* Register callback for remote device notifications.
+    * Must re-register every time we turn on discovery, since other operations
+    * (such as opening the Secure Element) can change the remote device
+    * notification callback*/
+   REENTRANCE_LOCK();
+   ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
+   REENTRANCE_UNLOCK();
+   if(ret != NFCSTATUS_SUCCESS)
+   {
+        ALOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+   }
+   TRACE("phLibNfc_RemoteDev_NtfRegister(%s-%s-%s-%s-%s-%s-%s-%s) returned 0x%x\n",
+      nat->registry_info.Jewel==TRUE?"J":"",
+      nat->registry_info.MifareUL==TRUE?"UL":"",
+      nat->registry_info.MifareStd==TRUE?"Mi":"",
+      nat->registry_info.Felica==TRUE?"F":"",
+      nat->registry_info.ISO14443_4A==TRUE?"4A":"",
+      nat->registry_info.ISO14443_4B==TRUE?"4B":"",
+      nat->registry_info.NFC==TRUE?"P2P":"",
+      nat->registry_info.ISO15693==TRUE?"R":"", ret);
+
+    nfc_jni_start_discovery_locked(nat, false);
+clean_and_return:
     CONCURRENCY_UNLOCK();
 }
 
@@ -1820,6 +1718,8 @@ static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
    // We support Link mgmt (SAP 0), SDP (SAP 1) and SNEP (SAP 4)
    nat->wks = 0x13;  // LLCP_WKS
    nat->opt = 0;  // LLCP_OPT
+   nat->p2p_initiator_modes = phNfc_eP2P_ALL;
+   nat->p2p_target_modes = 0x0E; // All passive except 106, active
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = TRUE;
@@ -2142,8 +2042,8 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    jobject connectionlessSocket = NULL;
    phLibNfc_Handle hLlcpSocket;
    struct nfc_jni_native_data *nat;
-   phNfc_sData_t sWorkingBuffer = {0};
-   phNfc_sData_t serviceName = {0};
+   phNfc_sData_t sWorkingBuffer = {NULL, 0};
+   phNfc_sData_t serviceName = {NULL, 0};
    phLibNfc_Llcp_sLinkParameters_t sParams;
    jclass clsNativeConnectionlessSocket;
    jfieldID f;
@@ -2496,20 +2396,32 @@ static void com_android_nfc_NfcManager_doAbort(JNIEnv *e, jobject o)
     emergency_recovery(NULL);
 }
 
-static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
+static void com_android_nfc_NfcManager_doSetP2pInitiatorModes(JNIEnv *e, jobject o,
+        jint modes)
 {
-    char* firmware_version;
-    jboolean result = FALSE;
+    ALOGE("Setting init modes to %x", modes);
+    struct nfc_jni_native_data *nat = NULL;
+    nat = nfc_jni_get_nat(e, o);
+    nat->p2p_initiator_modes = modes;
+}
+
+static void com_android_nfc_NfcManager_doSetP2pTargetModes(JNIEnv *e, jobject o,
+        jint modes)
+{
+    ALOGE("Setting target modes to %x", modes);
+    struct nfc_jni_native_data *nat = NULL;
+    nat = nfc_jni_get_nat(e, o);
+    nat->p2p_target_modes = modes;
+}
+
+static bool performDownload(struct nfc_jni_native_data* nat) {
+    bool result = FALSE;
     int load_result;
-    int unconfigure_status;
-    bool drive_state = FALSE;
+    bool wasDisabled = FALSE;
     uint8_t OutputBuffer[1];
     uint8_t InputBuffer[1];
-    struct timespec ts;
     NFCSTATUS status = NFCSTATUS_FAILED;
     struct nfc_jni_callback_data cb_data;
-    struct nfc_jni_native_data *nat = NULL;
-    char value[PROPERTY_VALUE_MAX];
 
     /* Create the local semaphore */
     if (!nfc_cb_data_init(&cb_data, NULL))
@@ -2518,18 +2430,14 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
        goto clean_and_return;
     }
 
-    /* Retrieve native structure address */
-    nat = nfc_jni_get_nat(e, o);
-
     CONCURRENCY_LOCK();
 
     /* Initialize Driver */
     if(!driverConfigured)
     {
         result = nfc_jni_configure_driver(nat);
-        drive_state = TRUE;
+        wasDisabled = TRUE;
     }
-
     TRACE("com_android_nfc_NfcManager_doDownload()");
 
     TRACE("Go in Download Mode");
@@ -2588,18 +2496,24 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
 
     /*Download is successful*/
     result = TRUE;
-
 clean_and_return:
     TRACE("phLibNfc_HW_Reset()");
     phLibNfc_HW_Reset();
     /* Deinitialize Driver */
-    if(drive_state)
+    if(wasDisabled)
     {
         result = nfc_jni_unconfigure_driver(nat);
     }
     CONCURRENCY_UNLOCK();
     nfc_cb_data_deinit(&cb_data);
     return result;
+}
+
+static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
+{
+    struct nfc_jni_native_data *nat = NULL;
+    nat = nfc_jni_get_nat(e, o);
+    return performDownload(nat);
 }
 
 static jstring com_android_nfc_NfcManager_doDump(JNIEnv *e, jobject o)
@@ -2670,6 +2584,12 @@ static JNINativeMethod gMethods[] =
 
    {"doAbort", "()V",
       (void *)com_android_nfc_NfcManager_doAbort},
+
+   {"doSetP2pInitiatorModes","(I)V",
+      (void *)com_android_nfc_NfcManager_doSetP2pInitiatorModes},
+
+   {"doSetP2pTargetModes","(I)V",
+      (void *)com_android_nfc_NfcManager_doSetP2pTargetModes},
 
    {"doDump", "()Ljava/lang/String;",
       (void *)com_android_nfc_NfcManager_doDump},
