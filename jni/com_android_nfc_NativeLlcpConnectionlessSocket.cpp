@@ -166,7 +166,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
                                 nfc_jni_receive_callback,
                                 &cb_data);
    REENTRANCE_UNLOCK();
-   if(ret != NFCSTATUS_PENDING)
+   if(ret != NFCSTATUS_PENDING && ret != NFCSTATUS_SUCCESS)
    {
       ALOGE("phLibNfc_Llcp_RecvFrom() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       goto clean_and_return;
