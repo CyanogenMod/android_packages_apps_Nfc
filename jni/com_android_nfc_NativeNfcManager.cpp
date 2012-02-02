@@ -2142,19 +2142,26 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    jobject connectionlessSocket = NULL;
    phLibNfc_Handle hLlcpSocket;
    struct nfc_jni_native_data *nat;
+   phNfc_sData_t sWorkingBuffer = {0};
    phNfc_sData_t serviceName = {0};
+   phLibNfc_Llcp_sLinkParameters_t sParams;
    jclass clsNativeConnectionlessSocket;
    jfieldID f;
    
    /* Retrieve native structure address */
    nat = nfc_jni_get_nat(e, o); 
    
+   /* Allocate Working buffer length */
+   phLibNfc_Llcp_GetLocalInfo(hLlcpHandle, &sParams);
+   sWorkingBuffer.length = sParams.miu + 1; // extra byte for SAP
+   sWorkingBuffer.buffer = (uint8_t*)malloc(sWorkingBuffer.length);
+
    /* Create socket */
    TRACE("phLibNfc_Llcp_Socket(eType=phFriNfc_LlcpTransport_eConnectionLess, ...)");
    REENTRANCE_LOCK();
    ret = phLibNfc_Llcp_Socket(phFriNfc_LlcpTransport_eConnectionLess,
                               NULL,
-                              NULL,
+                              &sWorkingBuffer,
                               &hLlcpSocket,
                               nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
@@ -2227,6 +2234,10 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
 error:
    if (serviceName.buffer != NULL) {
       e->ReleaseStringUTFChars(sn, (const char *)serviceName.buffer);
+   }
+
+   if (sWorkingBuffer.buffer != NULL) {
+       free(sWorkingBuffer.buffer);
    }
 
    return NULL;
