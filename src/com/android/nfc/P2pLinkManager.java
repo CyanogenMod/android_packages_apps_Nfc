@@ -257,21 +257,22 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return;
             }
 
-            NdefMessage messageToSend = mStaticNdef;
-            INdefPushCallback callback = mCallbackNdef;
-
-            if (callback != null) {
+            // Look for a callback, if it does not exist or fails, fall back
+            // to pushed messages
+            if (mCallbackNdef != null) {
                 try {
-                    messageToSend = callback.createMessage();
+                    mMessageToSend = mCallbackNdef.createMessage();
+                    return;
                 } catch (RemoteException e) {
                     // Ignore
                 }
             }
 
-            if (messageToSend == null) {
-                messageToSend = createDefaultNdef();
+            if (mStaticNdef != null) {
+                mMessageToSend = mStaticNdef;
+            } else {
+                mMessageToSend = createDefaultNdef();
             }
-            mMessageToSend = messageToSend;
         }
     }
 
