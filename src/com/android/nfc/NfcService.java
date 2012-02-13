@@ -188,6 +188,7 @@ public class NfcService extends Application implements DeviceHostListener {
     boolean mIsNdefPushEnabled;
     boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
+    List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
@@ -341,14 +342,19 @@ public class NfcService extends Application implements DeviceHostListener {
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
         filter.addAction(Intent.ACTION_USER_PRESENT);
+        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         registerForAirplaneMode(filter);
         registerReceiver(mReceiver, filter);
 
         filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme("package");
 
         registerReceiver(mReceiver, filter);
+
+        updatePackageCache();
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
     }
@@ -387,6 +393,14 @@ public class NfcService extends Application implements DeviceHostListener {
 
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        }
+    }
+
+    void updatePackageCache() {
+        PackageManager pm = getPackageManager();
+        List<PackageInfo> packages = pm.getInstalledPackages(0);
+        synchronized (this) {
+            mInstalledPackages = packages;
         }
     }
 
@@ -1675,18 +1689,17 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         private void sendSeBroadcast(Intent intent) {
-            PackageManager pm = getPackageManager();
             intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-
             // Resume app switches so the receivers can start activites without delay
             mNfcDispatcher.resumeAppSwitches();
 
-            List<PackageInfo> packages = pm.getInstalledPackages(0);
-            for (PackageInfo pkg : packages) {
-                if (pkg != null && pkg.applicationInfo != null) {
-                    if (mNfceeAccessControl.check(pkg.applicationInfo)) {
-                        intent.setPackage(pkg.packageName);
-                        mContext.sendBroadcast(intent);
+            synchronized(this) {
+                for (PackageInfo pkg : mInstalledPackages) {
+                    if (pkg != null && pkg.applicationInfo != null) {
+                        if (mNfceeAccessControl.check(pkg.applicationInfo)) {
+                            intent.setPackage(pkg.packageName);
+                            mContext.sendBroadcast(intent);
+                        }
                     }
                 }
             }
@@ -1818,20 +1831,27 @@ public class NfcService extends Application implements DeviceHostListener {
                 } catch (InterruptedException e) {
                     Log.w(TAG, "failed to wipe NFC-EE");
                 }
-            } else if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
-                // Clear the NFCEE access cache in case a UID gets recycled
-                mNfceeAccessControl.invalidateCache();
+            } else if (action.equals(Intent.ACTION_PACKAGE_REMOVED) ||
+                    action.equals(Intent.ACTION_PACKAGE_ADDED) ||
+                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE) ||
+                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE)) {
+                updatePackageCache();
 
-                boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
-                if (dataRemoved) {
-                    Uri data = intent.getData();
-                    if (data == null) return;
-                    String packageName = data.getSchemeSpecificPart();
+                if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
+                    // Clear the NFCEE access cache in case a UID gets recycled
+                    mNfceeAccessControl.invalidateCache();
 
-                    synchronized (NfcService.this) {
-                        if (mSePackages.contains(packageName)) {
-                            new EnableDisableTask().execute(TASK_EE_WIPE);
-                            mSePackages.remove(packageName);
+                    boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
+                    if (dataRemoved) {
+                        Uri data = intent.getData();
+                        if (data == null) return;
+                        String packageName = data.getSchemeSpecificPart();
+
+                        synchronized (NfcService.this) {
+                            if (mSePackages.contains(packageName)) {
+                                new EnableDisableTask().execute(TASK_EE_WIPE);
+                                mSePackages.remove(packageName);
+                            }
                         }
                     }
                 }
