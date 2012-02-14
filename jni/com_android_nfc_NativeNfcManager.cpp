@@ -282,7 +282,7 @@ static int nfc_jni_configure_driver(struct nfc_jni_native_data *nat)
     /* Configure hardware link */
     gDrvCfg.nClientId = phDal4Nfc_msgget(0, 0600);
 
-    TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x, 0x%08x)", gDrvCfg.nClientId);
+    TRACE("phLibNfc_Mgt_ConfigureDriver(0x%08x)", gDrvCfg.nClientId);
     REENTRANCE_LOCK();
     status = phLibNfc_Mgt_ConfigureDriver(&gDrvCfg, &gHWRef);
     REENTRANCE_UNLOCK();
