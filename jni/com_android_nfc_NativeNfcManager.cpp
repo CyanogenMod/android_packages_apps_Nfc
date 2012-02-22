@@ -1248,13 +1248,14 @@ static void nfc_jni_transaction_callback(void *context,
 
                     if(aid != NULL)
                     {
-                        char aid_str[AID_MAXLEN * 2 + 1];
-                        aid_str[0] = '\0';
-                        for (i = 0; i < (int) (aid->length) && i < AID_MAXLEN; i++) {
-                          snprintf(&aid_str[i*2], 3, "%02x", aid->buffer[i]);
+                        if (TRACE_ENABLED == 1) {
+                            char aid_str[AID_MAXLEN * 2 + 1];
+                            aid_str[0] = '\0';
+                            for (i = 0; i < (int) (aid->length) && i < AID_MAXLEN; i++) {
+                              snprintf(&aid_str[i*2], 3, "%02x", aid->buffer[i]);
+                            }
+                            LOGD("> AID: %s", aid_str);
                         }
-                        LOGD("> AID: %s", aid_str);
-
                         tmp_array = e->NewByteArray(aid->length);
                         if (tmp_array == NULL)
                         {
