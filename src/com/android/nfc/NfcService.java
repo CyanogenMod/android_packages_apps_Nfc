@@ -750,14 +750,25 @@ public class NfcService extends Application implements DeviceHostListener {
             //turn off if not
             boolean PCD_A = false;
             boolean PCD_B = false;
-            for(short j=0;j<techLists.length;j++)
-              for(short k=0;k<techLists[j].length;k++)
+            if(techLists!=null)
+            {
+              for(short j=0;j<techLists.length;j++)
               {
-                if(techLists[j][k].equals("android.nfc.tech.IsoPcdA"))
-                  PCD_A = true;
-                if(techLists[j][k].equals("android.nfc.tech.IsoPcdB"))
-                  PCD_B = true;
+                if(techLists[j]!=null)
+                {
+                  for(short k=0;k<techLists[j].length;k++)
+                  {
+                    if(techLists[j][k]!=null)
+                    {
+                      if(techLists[j][k].equals("android.nfc.tech.IsoPcdA"))
+                        PCD_A = true;
+                      if(techLists[j][k].equals("android.nfc.tech.IsoPcdB"))
+                        PCD_B = true;
+                    }
+                  }
+                }
               }
+            }
             if(PCD_A)
               mDeviceHost.enableCE_A();
             else
