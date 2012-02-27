@@ -1353,6 +1353,12 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
+    boolean isNfcEnabledOrShuttingDown() {
+        synchronized (this) {
+            return (mState == NfcAdapter.STATE_ON || mState == NfcAdapter.STATE_TURNING_OFF);
+        }
+    }
+
     boolean isNfcEnabled() {
         synchronized (this) {
             return mState == NfcAdapter.STATE_ON;
@@ -1388,7 +1394,7 @@ public class NfcService extends Application implements DeviceHostListener {
      */
     void applyRouting(boolean force) {
         synchronized (this) {
-            if (!isNfcEnabled() || mOpenEe != null) {
+            if (!isNfcEnabledOrShuttingDown() || mOpenEe != null) {
                 // PN544 cannot be reconfigured while EE is open
                 return;
             }
@@ -1454,7 +1460,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
     /** Disconnect any target if present */
     void maybeDisconnectTarget() {
-        if (!isNfcEnabled()) {
+        if (!isNfcEnabledOrShuttingDown()) {
             return;
         }
         Object[] objectsToDisconnect;
