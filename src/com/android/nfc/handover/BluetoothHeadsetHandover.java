@@ -65,8 +65,7 @@ public class BluetoothHeadsetHandover {
     static final int ACTION_DISCONNECT = 1;
     static final int ACTION_CONNECT = 2;
 
-    static final int MSG_TOAST = 1;
-    static final int MSG_TIMEOUT = 2;
+    static final int MSG_TIMEOUT = 1;
 
     final Context mContext;
     final BluetoothDevice mDevice;
@@ -76,7 +75,7 @@ public class BluetoothHeadsetHandover {
     final BluetoothHeadset mHeadset;
     final Callback mCallback;
 
-    // synchronized on BluetoothHeadsetHandover.this
+    // only used on main thread
     int mAction;
     int mState;
     int mHfpResult;  // used only in STATE_CONNECTING and STATE_DISCONNETING
@@ -89,6 +88,7 @@ public class BluetoothHeadsetHandover {
     public BluetoothHeadsetHandover(Context context, BluetoothDevice device, String name,
             BluetoothAdapter adapter, BluetoothA2dp a2dp, BluetoothHeadset headset,
             Callback callback) {
+        checkMainThread();  // mHandler must get get constructed on Main Thread for toasts to work
         mContext = context;
         mDevice = device;
         mName = name;
@@ -101,9 +101,12 @@ public class BluetoothHeadsetHandover {
 
     /**
      * Main entry point. This method is usually called after construction,
-     * to begin the BT sequence.
+     * to begin the BT sequence. Must be called on Main thread.
      */
-    public synchronized void start() {
+    public void start() {
+        checkMainThread();
+        if (mState != STATE_INIT) return;
+
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
@@ -126,7 +129,7 @@ public class BluetoothHeadsetHandover {
     /**
      * Called to execute next step in state machine
      */
-    synchronized void nextStep() {
+    void nextStep() {
         if (mAction == ACTION_CONNECT) {
             nextStepConnect();
         } else {
@@ -134,7 +137,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    synchronized void nextStepDisconnect() {
+    void nextStepDisconnect() {
         switch (mState) {
             case STATE_INIT:
                 mState = STATE_DISCONNECTING;
@@ -168,7 +171,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    synchronized void nextStepConnect() {
+    void nextStepConnect() {
         switch (mState) {
             case STATE_INIT:
                 if (!mAdapter.isEnabled()) {
@@ -220,7 +223,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    synchronized void startEnabling() {
+    void startEnabling() {
         mState = STATE_TURNING_ON;
         toast("Enabling Bluetooth...");
         if (!mAdapter.enable()) {
@@ -229,7 +232,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    synchronized void startBonding() {
+    void startBonding() {
         mState = STATE_BONDING;
         toast("Pairing " + mName + "...");
         if (!mDevice.createBond()) {
@@ -238,14 +241,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            handleIntent(intent);
-        }
-    };
-
-    synchronized void handleIntent(Intent intent) {
+    void handleIntent(Intent intent) {
         String action = intent.getAction();
         if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action) && mState == STATE_TURNING_ON) {
             int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
@@ -294,7 +290,7 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    synchronized void complete() {
+    void complete() {
         if (DBG) Log.d(TAG, "complete()");
         mState = STATE_COMPLETE;
         mContext.unregisterReceiver(mReceiver);
@@ -303,30 +299,8 @@ public class BluetoothHeadsetHandover {
     }
 
     void toast(CharSequence text) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            Toast.makeText(mContext,  text, Toast.LENGTH_SHORT).show();  // already on main thread
-        } else {
-            mHandler.obtainMessage(MSG_TOAST, text).sendToTarget();  // move to main thread
-        }
+        Toast.makeText(mContext,  text, Toast.LENGTH_SHORT).show();
     }
-
-    final Handler mHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case MSG_TOAST:
-                    Toast.makeText(mContext, (CharSequence) msg.obj, Toast.LENGTH_SHORT).show();
-                    break;
-                case MSG_TIMEOUT:
-                    synchronized (BluetoothHeadsetHandover.this) {
-                        if (mState == STATE_COMPLETE) return;
-                        Log.i(TAG, "Timeout completing BT handover");
-                        complete();
-                    }
-                    break;
-            }
-        }
-    };
 
     void startTheMusic() {
         Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
@@ -336,5 +310,31 @@ public class BluetoothHeadsetHandover {
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
         mContext.sendOrderedBroadcast(intent, null);
+    }
+
+    final Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MSG_TIMEOUT:
+                    if (mState == STATE_COMPLETE) return;
+                    Log.i(TAG, "Timeout completing BT handover");
+                    complete();
+                    break;
+            }
+        }
+    };
+
+    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            handleIntent(intent);
+        }
+    };
+
+    static void checkMainThread() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            throw new IllegalThreadStateException("must be called on main thread");
+        }
     }
 }
