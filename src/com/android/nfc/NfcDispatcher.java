@@ -17,6 +17,7 @@
 package com.android.nfc;
 
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
+import com.android.nfc.handover.HandoverManager;
 
 import android.app.Activity;
 import android.app.ActivityManagerNative;
@@ -59,6 +60,7 @@ public class NfcDispatcher {
     final RegisteredComponentCache mTechListFilters;
     final PackageManager mPackageManager;
     final ContentResolver mContentResolver;
+    final HandoverManager mHandoverManager;
 
     // Locked on this
     PendingIntent mOverrideIntent;
@@ -72,6 +74,7 @@ public class NfcDispatcher {
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mPackageManager = context.getPackageManager();
         mContentResolver = context.getContentResolver();
+        mHandoverManager = new HandoverManager(context);
     }
 
     public synchronized void setForegroundDispatch(PendingIntent intent,
@@ -196,6 +199,11 @@ public class NfcDispatcher {
         resumeAppSwitches();
 
         if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters, overrideTechLists)) {
+            return true;
+        }
+
+        if (mHandoverManager.tryHandover(message)) {
+            if (DBG) Log.i(TAG, "matched BT HANDOVER");
             return true;
         }
 
