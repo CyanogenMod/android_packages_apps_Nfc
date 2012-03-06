@@ -280,17 +280,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
         if (tasks.size() > 0) {
             String pkg = tasks.get(0).baseActivity.getPackageName();
-            try {
-                ApplicationInfo appInfo = mPackageManager.getApplicationInfo(pkg, 0);
-                if (0 == (appInfo.flags & ApplicationInfo.FLAG_SYSTEM)) {
-                    NdefRecord appUri = NdefRecord.createUri(
-                            Uri.parse("http://market.android.com/search?q=pname:" + pkg));
-                    NdefRecord appRecord = NdefRecord.createApplicationRecord(pkg);
-                    return new NdefMessage(new NdefRecord[] { appUri, appRecord });
-                }
-            } catch (NameNotFoundException e) {
-                Log.e(TAG, "Bad package returned from ActivityManager: " + pkg);
-            }
+            NdefRecord appUri = NdefRecord.createUri(
+                    Uri.parse("http://market.android.com/search?q=pname:" + pkg));
+            NdefRecord appRecord = NdefRecord.createApplicationRecord(pkg);
+            return new NdefMessage(new NdefRecord[] { appUri, appRecord });
         } else {
             Log.d(TAG, "no foreground activity");
         }
