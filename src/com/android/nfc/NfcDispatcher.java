@@ -227,7 +227,8 @@ public class NfcDispatcher {
         // NDEF
         if (message != null) {
             intent = dispatch.setNdefIntent();
-            if (isFilterMatch(intent, overrideFilters, overrideTechLists != null)) {
+            if (intent != null &&
+                    isFilterMatch(intent, overrideFilters, overrideTechLists != null)) {
                 try {
                     overrideIntent.send(mContext, Activity.RESULT_OK, intent);
                     if (DBG) Log.i(TAG, "matched NDEF override");
