@@ -78,7 +78,7 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 static void nfc_jni_transaction_callback(void *context,
         phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
         phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status);
-static bool performDownload(struct nfc_jni_native_data *nat);
+static bool performDownload(struct nfc_jni_native_data *nat, bool takeLock);
 
 /*
  * Deferred callback called when client thread must be exited
@@ -129,7 +129,7 @@ static void nfc_jni_deinit_download_callback(void *pContext, NFCSTATUS status)
    sem_post(&pCallbackData->sem);
 }
 
-static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
+static int nfc_jni_download_locked(struct nfc_jni_native_data *nat, uint8_t update)
 {
     uint8_t OutputBuffer[1];
     uint8_t InputBuffer[1];
@@ -173,7 +173,7 @@ static int nfc_jni_download(struct nfc_jni_native_data *nat, uint8_t update)
         TRACE("Deinitialization SUCCESS (download)");
     }
 
-    result = performDownload(nat);
+    result = performDownload(nat, false);
 
     if (!result) {
         status = NFCSTATUS_FAILED;
@@ -403,7 +403,7 @@ force_download:
        for (i=0; i<3; i++)
        {
            TRACE("Firmware version not UpToDate");
-           status = nfc_jni_download(nat, update);
+           status = nfc_jni_download_locked(nat, update);
            if(status == NFCSTATUS_SUCCESS)
            {
                ALOGI("Firmware update SUCCESS");
@@ -2414,7 +2414,7 @@ static void com_android_nfc_NfcManager_doSetP2pTargetModes(JNIEnv *e, jobject o,
     nat->p2p_target_modes = modes;
 }
 
-static bool performDownload(struct nfc_jni_native_data* nat) {
+static bool performDownload(struct nfc_jni_native_data* nat, bool takeLock) {
     bool result = FALSE;
     int load_result;
     bool wasDisabled = FALSE;
@@ -2430,7 +2430,10 @@ static bool performDownload(struct nfc_jni_native_data* nat) {
        goto clean_and_return;
     }
 
-    CONCURRENCY_LOCK();
+    if (takeLock)
+    {
+        CONCURRENCY_LOCK();
+    }
 
     /* Initialize Driver */
     if(!driverConfigured)
@@ -2504,7 +2507,10 @@ clean_and_return:
     {
         result = nfc_jni_unconfigure_driver(nat);
     }
-    CONCURRENCY_UNLOCK();
+    if (takeLock)
+    {
+        CONCURRENCY_UNLOCK();
+    }
     nfc_cb_data_deinit(&cb_data);
     return result;
 }
@@ -2513,7 +2519,7 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
 {
     struct nfc_jni_native_data *nat = NULL;
     nat = nfc_jni_get_nat(e, o);
-    return performDownload(nat);
+    return performDownload(nat, true);
 }
 
 static jstring com_android_nfc_NfcManager_doDump(JNIEnv *e, jobject o)
