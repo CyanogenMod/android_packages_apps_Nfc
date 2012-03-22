@@ -719,8 +719,6 @@ public class NfcService extends Application implements DeviceHostListener {
             // Short-cut the disable path
             if (intent == null && filters == null && techListsParcel == null) {
                 mNfcDispatcher.setForegroundDispatch(null, null, null);
-                mDeviceHost.disableCE_A();
-                mDeviceHost.disableCE_B();
                 return;
             }
 

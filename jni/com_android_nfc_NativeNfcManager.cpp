@@ -51,7 +51,7 @@
 *   Author:  doug yeager (doug@simplytapp.com)
 ******************************************************************/
 #define HOST_EMULATION
-#define CONFIG_CE_DEFAULT
+//#define CONFIG_CE_DEFAULT
 #define TURN_CE_ON                        1
 #define TURN_CE_OFF                       0
 #define UNBLOCK_CE_CALLBACK               2
