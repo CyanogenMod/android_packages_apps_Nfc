@@ -768,9 +768,9 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public void setForegroundNdefPush(NdefMessage msg, INdefPushCallback callback) {
+        public void setNdefPushCallback(INdefPushCallback callback) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            mP2pLinkManager.setNdefToSend(msg, callback);
+            mP2pLinkManager.setNdefCallback(callback);
         }
 
         @Override

@@ -144,7 +144,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     boolean mIsSendEnabled;
     boolean mIsReceiveEnabled;
     NdefMessage mMessageToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
-    NdefMessage mStaticNdef;
     INdefPushCallback mCallbackNdef;
     SendTask mSendTask;
     SharedPreferences mPrefs;
@@ -196,15 +195,14 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     }
 
     /**
-     * Set NDEF message or callback for sending.
+     * Set NDEF callback for sending.
      * May be called from any thread.
-     * NDEF messages or callbacks may be set at any time (even if NFC is
+     * NDEF callbacks may be set at any time (even if NFC is
      * currently off or P2P send is currently off). They will become
      * active as soon as P2P send is enabled.
      */
-    public void setNdefToSend(NdefMessage staticNdef, INdefPushCallback callbackNdef) {
+    public void setNdefCallback(INdefPushCallback callbackNdef) {
         synchronized (this) {
-            mStaticNdef = staticNdef;
             mCallbackNdef = callbackNdef;
         }
     }
@@ -257,8 +255,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return;
             }
 
-            // Look for a callback, if it does not exist or fails, fall back
-            // to pushed messages
+            // Try application callback first
+            //TODO: Check that mCallbackNdef refers to the foreground activity
             if (mCallbackNdef != null) {
                 try {
                     mMessageToSend = mCallbackNdef.createMessage();
@@ -268,11 +266,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 }
             }
 
-            if (mStaticNdef != null) {
-                mMessageToSend = mStaticNdef;
-            } else {
-                mMessageToSend = createDefaultNdef();
-            }
+            // fall back to default NDEF for this activity
+            mMessageToSend = createDefaultNdef();
         }
     }
 
@@ -602,7 +597,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             pw.println("mLinkState=" + linkStateToString(mLinkState));
             pw.println("mSendState=" + sendStateToString(mSendState));
 
-            pw.println("mStaticNdef=" + mStaticNdef);
             pw.println("mCallbackNdef=" + mCallbackNdef);
             pw.println("mMessageToSend=" + mMessageToSend);
         }
