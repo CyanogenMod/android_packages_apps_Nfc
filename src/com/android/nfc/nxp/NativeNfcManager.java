@@ -66,6 +66,8 @@ public class NativeNfcManager implements DeviceHost {
 
     private native boolean doDownload();
 
+    public native int doGetLastError();
+
     @Override
     public void checkFirmware() {
         // Check that the NFC controller firmware is up to date.  This
@@ -131,8 +133,6 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native void doDeselectSecureElement();
 
-    @Override
-    public native int doGetLastError();
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
             String sn);

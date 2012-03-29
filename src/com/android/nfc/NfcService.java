@@ -1053,11 +1053,6 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public int getLastError(int nativeHandle) throws RemoteException {
-            return(mDeviceHost.doGetLastError());
-        }
-
-        @Override
         public boolean ndefIsWritable(int nativeHandle) throws RemoteException {
             throw new UnsupportedOperationException();
         }
