@@ -20,6 +20,7 @@ import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
+import android.animation.TimeAnimator;
 import android.app.ActivityManager;
 import android.app.StatusBarManager;
 import android.content.Context;
@@ -32,7 +33,6 @@ import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.os.Binder;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -42,26 +42,43 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 /**
- * All methods must be called on UI thread
+ * This class is responsible for handling the UI animation
+ * around Android Beam. The animation consists of the following
+ * animators:
+ *
+ * mPreAnimator: scales the screenshot down to INTERMEDIATE_SCALE
+ * mSlowSendAnimator: scales the screenshot down to 0.2f (used as a "send in progress" animation)
+ * mFastSendAnimator: quickly scales the screenshot down to 0.0f (used for send success)
+ * mFadeInAnimator: fades the current activity back in (used after mFastSendAnimator completes)
+ * mScaleUpAnimator: scales the screenshot back up to full screen (used for failure or receiving)
+ * mHintAnimator: Slowly turns up the alpha of the "Touch to Beam" hint
+ *
+ * Possible sequences are:
+ *
+ * mPreAnimator => mSlowSendAnimator => mFastSendAnimator => mFadeInAnimator (send success)
+ * mPreAnimator => mSlowSendAnimator => mScaleUpAnimator (send failure)
+ * mPreAnimator => mScaleUpAnimator (p2p link broken, or data received)
+ *
+ * Note that mFastSendAnimator and mFadeInAnimator are combined in a set, as they
+ * are an atomic animation that cannot be interrupted.
+ *
+ * All methods of this class must be called on the UI thread
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
-        TextureView.SurfaceTextureListener {
-    private static final String LOG_TAG = "SendUI";
-
+        TimeAnimator.TimeListener, TextureView.SurfaceTextureListener {
     static final float INTERMEDIATE_SCALE = 0.6f;
 
     static final float[] PRE_SCREENSHOT_SCALE = {1.0f, INTERMEDIATE_SCALE};
     static final int PRE_DURATION_MS = 350;
 
-    static final float[] CLONE_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.2f};
+    static final float[] SEND_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 0.2f};
     static final int SLOW_SEND_DURATION_MS = 8000; // Stretch out sending over 8s
-    static final int FAST_CLONE_DURATION_MS = 350;
+    static final int FAST_SEND_DURATION_MS = 350;
 
     static final float[] SCALE_UP_SCREENSHOT_SCALE = {INTERMEDIATE_SCALE, 1.0f};
     static final int SCALE_UP_DURATION_MS = 300;
@@ -76,7 +93,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int TEXT_HINT_ALPHA_START_DELAY_MS = 300;
 
     static final int FINISH_SCALE_UP = 0;
-    static final int FINISH_SLIDE_OUT = 1;
+    static final int FINISH_SEND_SUCCESS = 1;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -92,20 +109,47 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final TextureView mTextureView;
     final TextView mTextHint;
     final Callback mCallback;
+
+    // The mFrameCounter animation is purely used to count down a certain
+    // number of (vsync'd) frames. This is needed because the first 3
+    // times the animation internally calls eglSwapBuffers(), large buffers
+    // are allocated by the graphics drivers. This causes the animation
+    // to look janky. So on platforms where we can use hardware acceleration,
+    // the animation order is:
+    // Wait for hw surface => start frame counter => start pre-animation after 3 frames
+    // For platforms where no hw acceleration can be used, the pre-animation
+    // is started immediately.
+    final TimeAnimator mFrameCounterAnimator;
+
     final ObjectAnimator mPreAnimator;
     final ObjectAnimator mSlowSendAnimator;
-    final ObjectAnimator mFastCloneAnimator;
+    final ObjectAnimator mFastSendAnimator;
     final ObjectAnimator mFadeInAnimator;
     final ObjectAnimator mHintAnimator;
+    final ObjectAnimator mScaleUpAnimator;
     final AnimatorSet mSuccessAnimatorSet;
+
+    // Besides animating the screenshot, the Beam UI also renders
+    // fireflies on platforms where we can do hardware-acceleration.
+    // Firefly rendering is only started once the initial
+    // "pre-animation" has scaled down the screenshot, to avoid
+    // that animation becoming janky. Likewise, the fireflies are
+    // stopped in their tracks as soon as we finish the animation,
+    // to make the finishing animation smooth.
     final boolean mHardwareAccelerated;
+    final FireflyRenderer mFireflyRenderer;
 
     Bitmap mScreenshotBitmap;
-    ObjectAnimator mSlideoutAnimator;
-    ObjectAnimator mScaleUpAnimator;
-    FireflyRenderThread mFireflyRenderThread;
 
     boolean mAttached;
+    boolean mSending;
+
+    int mRenderedFrames;
+
+    // Used for holding the surface
+    SurfaceTexture mSurface;
+    int mSurfaceWidth;
+    int mSurfaceHeight;
 
     interface Callback {
         public void onSendConfirmed();
@@ -125,6 +169,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mLayoutInflater = (LayoutInflater)
                 context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
+
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
         mScreenshotLayout.setFocusable(true);
 
@@ -150,6 +195,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.token = new Binder();
 
+        mFrameCounterAnimator = new TimeAnimator();
+        mFrameCounterAnimator.setTimeListener(this);
+
         PropertyValuesHolder preX = PropertyValuesHolder.ofFloat("scaleX", PRE_SCREENSHOT_SCALE);
         PropertyValuesHolder preY = PropertyValuesHolder.ofFloat("scaleY", PRE_SCREENSHOT_SCALE);
         mPreAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, preX, preY);
@@ -157,8 +205,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mPreAnimator.setDuration(PRE_DURATION_MS);
         mPreAnimator.addListener(this);
 
-        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", CLONE_SCREENSHOT_SCALE);
-        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", CLONE_SCREENSHOT_SCALE);
+        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", SEND_SCREENSHOT_SCALE);
+        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", SEND_SCREENSHOT_SCALE);
         PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
                 new float[]{1.0f, 0.0f});
 
@@ -166,11 +214,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mSlowSendAnimator.setInterpolator(new DecelerateInterpolator());
         mSlowSendAnimator.setDuration(SLOW_SEND_DURATION_MS);
 
-        mFastCloneAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX,
+        mFastSendAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX,
                 postY, alphaDown);
-        mFastCloneAnimator.setInterpolator(new DecelerateInterpolator());
-        mFastCloneAnimator.setDuration(FAST_CLONE_DURATION_MS);
-        mFastCloneAnimator.addListener(this);
+        mFastSendAnimator.setInterpolator(new DecelerateInterpolator());
+        mFastSendAnimator.setDuration(FAST_SEND_DURATION_MS);
+        mFastSendAnimator.addListener(this);
 
         PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
         PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
@@ -194,8 +242,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mHintAnimator.setStartDelay(TEXT_HINT_ALPHA_START_DELAY_MS);
 
         mSuccessAnimatorSet = new AnimatorSet();
-        mSuccessAnimatorSet.playSequentially(mFastCloneAnimator, mFadeInAnimator);
+        mSuccessAnimatorSet.playSequentially(mFastSendAnimator, mFadeInAnimator);
 
+        if (mHardwareAccelerated) {
+            mFireflyRenderer = new FireflyRenderer(context);
+        } else {
+            mFireflyRenderer = null;
+        }
         mAttached = false;
     }
 
@@ -253,92 +306,85 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Disable statusbar pull-down
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
+        mSending = false;
         mAttached = true;
-        mPreAnimator.start();
+
+        if (!mHardwareAccelerated) {
+            mPreAnimator.start();
+        } // else, we will start the animation once we get the hardware surface
     }
 
     /** Show starting send animation */
     public void showStartSend() {
-        if (!mAttached) {
-            return;
-        }
-        mSlowSendAnimator.start();
-    }
+        if (!mAttached) return;
 
-    /** Show post-send animation */
-    public void showPostSend() {
-        if (!mAttached) {
-            return;
-        }
-
-        mSlowSendAnimator.cancel();
-        mTextHint.setVisibility(View.GONE);
-
-
+        // Update the starting scale - touchscreen-mashers may trigger
+        // this before the pre-animation completes.
         float currentScale = mScreenshotView.getScaleX();
-
-        // Modify the fast clone parameters to match the current scale
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
                 new float[] {currentScale, 0.0f});
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
                 new float[] {currentScale, 0.0f});
-        PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
-                new float[] {1.0f, 0.0f});
-        mFastCloneAnimator.setValues(postX, postY, alpha);
 
-        // Modify the fadeIn parameters to match the current scale
-        PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha",
-               new float[] {0.0f, 1.0f});
-        mFadeInAnimator.setValues(fadeIn);
-
-        if (mFireflyRenderThread != null) {
-            mFireflyRenderThread.fadeOut();
-        }
-
-        mSuccessAnimatorSet.start();
+        mSlowSendAnimator.setValues(postX, postY);
+        mSlowSendAnimator.start();
     }
 
     /** Return to initial state */
     public void finish(int finishMode) {
-        if (!mAttached) {
-            return;
+        if (!mAttached) return;
+
+        // Stop rendering the fireflies
+        if (mFireflyRenderer != null) {
+            mFireflyRenderer.stop();
         }
+
         mTextHint.setVisibility(View.GONE);
-        if (finishMode == FINISH_SLIDE_OUT) {
-            PropertyValuesHolder slideX = PropertyValuesHolder.ofFloat("translationX",
-                    new float[]{0.0f, mScreenshotView.getWidth()});
-            mSlideoutAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, slideX);
-            mSlideoutAnimator.setInterpolator(new AccelerateInterpolator());
-            mSlideoutAnimator.setDuration(SLIDE_OUT_DURATION_MS);
-            mSlideoutAnimator.addListener(this);
-            mSlideoutAnimator.start();
-        } else {
-            float currentScale = mScreenshotView.getScaleX();
-            float currentAlpha = mScreenshotView.getAlpha();
+
+        float currentScale = mScreenshotView.getScaleX();
+        float currentAlpha = mScreenshotView.getAlpha();
+
+        if (finishMode == FINISH_SCALE_UP) {
             PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
                     new float[] {currentScale, 1.0f});
             PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
                     new float[] {currentScale, 1.0f});
             PropertyValuesHolder scaleUpAlpha = PropertyValuesHolder.ofFloat("alpha",
                     new float[] {currentAlpha, 1.0f});
-            mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY, scaleUpAlpha);
-            mScaleUpAnimator.setInterpolator(new DecelerateInterpolator());
-            mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
-            mScaleUpAnimator.addListener(this);
+            mScaleUpAnimator.setValues(scaleUpX, scaleUpY, scaleUpAlpha);
+
             mScaleUpAnimator.start();
+        } else if (finishMode == FINISH_SEND_SUCCESS){
+            // Modify the fast send parameters to match the current scale
+            PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
+                    new float[] {currentScale, 0.0f});
+            PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
+                    new float[] {currentScale, 0.0f});
+            PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
+                    new float[] {1.0f, 0.0f});
+            mFastSendAnimator.setValues(postX, postY, alpha);
+
+            // Reset the fadeIn parameters to start from alpha 1
+            PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha",
+                    new float[] {0.0f, 1.0f});
+            mFadeInAnimator.setValues(fadeIn);
+
+            mSlowSendAnimator.cancel();
+            mSuccessAnimatorSet.start();
         }
     }
 
     public void dismiss() {
-        if (!mAttached) {
-            return;
-        }
+        if (!mAttached) return;
+
         // Immediately set to false, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
         mAttached = false;
+        mSurface = null;
+        mFrameCounterAnimator.cancel();
         mPreAnimator.cancel();
         mSlowSendAnimator.cancel();
-        mFastCloneAnimator.cancel();
+        mFastSendAnimator.cancel();
         mSuccessAnimatorSet.cancel();
         mScaleUpAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
@@ -403,7 +449,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             return null;
         }
 
-
         if (requiresRotation) {
             // Rotate the screenshot to the current orientation
             Bitmap ss = Bitmap.createBitmap(mDisplayMetrics.widthPixels,
@@ -444,13 +489,18 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onAnimationEnd(Animator animation) {
         if (animation == mScaleUpAnimator || animation == mSuccessAnimatorSet ||
-            animation == mSlideoutAnimator || animation == mFadeInAnimator) {
+            animation == mFadeInAnimator) {
+            // These all indicate the end of the animation
             dismiss();
-        } else if (animation == mFastCloneAnimator) {
-            // After cloning is done and we've faded out, reset the scale to 1
+        } else if (animation == mFastSendAnimator) {
+            // After sending is done and we've faded out, reset the scale to 1
             // so we can fade it back in.
             mScreenshotView.setScaleX(1.0f);
             mScreenshotView.setScaleY(1.0f);
+        } else if (animation == mPreAnimator) {
+            if (mHardwareAccelerated && mAttached && !mSending) {
+                mFireflyRenderer.start(mSurface, mSurfaceWidth, mSurfaceHeight);
+            }
         }
     }
 
@@ -461,23 +511,46 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     public void onAnimationRepeat(Animator animation) {  }
 
     @Override
+    public void onTimeUpdate(TimeAnimator animation, long totalTime, long deltaTime) {
+        // This gets called on animation vsync
+        if (++mRenderedFrames < 4) {
+            // For the first 3 frames, call invalidate(); this calls eglSwapBuffers
+            // on the surface, which will allocate large buffers the first three calls
+            // as Android uses triple buffering.
+            mScreenshotLayout.invalidate();
+        } else {
+            // Buffers should be allocated, start the real animation
+            mFrameCounterAnimator.cancel();
+            mPreAnimator.start();
+        }
+    }
+
+    @Override
     public boolean onTouch(View v, MotionEvent event) {
         if (!mAttached) {
             return false;
         }
+        mSending = true;
         // Ignore future touches
         mScreenshotView.setOnTouchListener(null);
 
-        mPreAnimator.end();
+        // Cancel any ongoing animations
+        mFrameCounterAnimator.cancel();
+        mPreAnimator.cancel();
+
         mCallback.onSendConfirmed();
         return true;
     }
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        if (mHardwareAccelerated) {
-            mFireflyRenderThread = new FireflyRenderThread(mContext, surface, width, height);
-            mFireflyRenderThread.start();
+        if (mHardwareAccelerated && !mSending) {
+            mRenderedFrames = 0;
+
+            mFrameCounterAnimator.start();
+            mSurface = surface;
+            mSurfaceWidth = width;
+            mSurfaceHeight = height;
         }
     }
 
@@ -488,19 +561,12 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        if (mFireflyRenderThread != null) {
-            mFireflyRenderThread.finish();
-            try {
-                mFireflyRenderThread.join();
-            } catch (InterruptedException e) {
-                Log.e(LOG_TAG, "Couldn't wait for FireflyRenderThread.");
-            }
-            mFireflyRenderThread = null;
-        }
+        mSurface = null;
+
         return true;
     }
 
     @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-    }
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) { }
+
 }

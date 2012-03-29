@@ -81,7 +81,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     public void onP2pSendComplete() {
         mNfcService.playSound(NfcService.SOUND_END);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        mSendUi.showPostSend();
+        mSendUi.finish(SendUi.FINISH_SEND_SUCCESS);
         mSending = false;
         mNdefSent = true;
     }
