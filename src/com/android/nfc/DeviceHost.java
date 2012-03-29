@@ -185,8 +185,6 @@ public interface DeviceHost {
 
     public void doDeselectSecureElement();
 
-    public int doGetLastError();
-
     public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap, String sn)
             throws LlcpException;
 
