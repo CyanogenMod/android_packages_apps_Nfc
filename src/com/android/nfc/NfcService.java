@@ -1044,6 +1044,8 @@ public class NfcService extends Application implements DeviceHostListener {
                 return ErrorCodes.ERROR_IO;
             }
 
+            if (msg == null) return ErrorCodes.ERROR_INVALID_PARAM;
+
             if (tag.writeNdef(msg.toByteArray())) {
                 return ErrorCodes.SUCCESS;
             } else {
