@@ -853,6 +853,10 @@ public class NfcService extends Application implements DeviceHostListener {
                 return ErrorCodes.ERROR_DISCONNECT;
             }
 
+            if (!tag.isPresent()) {
+                return ErrorCodes.ERROR_DISCONNECT;
+            }
+
             if (technology == TagTechnology.NFC_B) {
                 return ErrorCodes.ERROR_NOT_SUPPORTED;
             }
