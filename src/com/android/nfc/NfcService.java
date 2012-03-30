@@ -775,7 +775,6 @@ public class NfcService extends Application implements DeviceHostListener {
 
         @Override
         public INfcTag getNfcTagInterface() throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             return mNfcTagService;
         }
 
@@ -909,25 +908,6 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public byte[] getUid(int nativeHandle) throws RemoteException {
-            TagEndpoint tag = null;
-            byte[] uid;
-
-            // Check if NFC is enabled
-            if (!isNfcEnabled()) {
-                return null;
-            }
-
-            /* find the tag in the hmap */
-            tag = (TagEndpoint) findObject(nativeHandle);
-            if (tag != null) {
-                uid = tag.getUid();
-                return uid;
-            }
-            return null;
-        }
-
-        @Override
         public boolean isPresent(int nativeHandle) throws RemoteException {
             TagEndpoint tag = null;
 
@@ -947,6 +927,8 @@ public class NfcService extends Application implements DeviceHostListener {
 
         @Override
         public boolean isNdef(int nativeHandle) throws RemoteException {
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+
             TagEndpoint tag = null;
 
             // Check if NFC is enabled
@@ -1167,15 +1149,11 @@ public class NfcService extends Application implements DeviceHostListener {
 
         @Override
         public boolean canMakeReadOnly(int ndefType) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
             return mDeviceHost.canMakeReadOnly(ndefType);
         }
 
         @Override
         public int getMaxTransceiveLength(int tech) throws RemoteException {
-            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-
             return mDeviceHost.getMaxTransceiveLength(tech);
         }
     }
