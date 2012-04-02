@@ -1160,6 +1160,11 @@ public class NfcService extends Application implements DeviceHostListener {
         public int getMaxTransceiveLength(int tech) throws RemoteException {
             return mDeviceHost.getMaxTransceiveLength(tech);
         }
+
+        @Override
+        public boolean getExtendedLengthApdusSupported() throws RemoteException {
+            return mDeviceHost.getExtendedLengthApdusSupported();
+        }
     }
 
     void _nfcEeClose(int callingPid, IBinder binder) throws IOException {

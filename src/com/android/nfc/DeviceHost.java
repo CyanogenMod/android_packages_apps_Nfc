@@ -214,5 +214,7 @@ public interface DeviceHost {
 
     void setP2pTargetModes(int modes);
 
+    boolean getExtendedLengthApdusSupported();
+
     String dump();
 }
