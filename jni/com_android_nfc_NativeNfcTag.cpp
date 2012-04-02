@@ -1162,12 +1162,13 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o, jbyteArray key)
 {
    phLibNfc_Handle handle = 0;
    NFCSTATUS status;
    jboolean result = JNI_FALSE;
    struct nfc_jni_callback_data cb_data;
+   phNfc_sData_t keyBuffer;
 
    CONCURRENCY_LOCK();
 
@@ -1178,10 +1179,12 @@ static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o
    }
 
    handle = nfc_jni_get_connected_handle(e, o);
-
+   keyBuffer.buffer = (uint8_t *)e->GetByteArrayElements(key, NULL);
+   keyBuffer.length = e->GetArrayLength(key);
    TRACE("phLibNfc_ConvertToReadOnlyNdef()");
    REENTRANCE_LOCK();
-   status = phLibNfc_ConvertToReadOnlyNdef(handle, nfc_jni_readonly_callback, (void *)&cb_data);
+   status = phLibNfc_ConvertToReadOnlyNdef(handle, &keyBuffer, nfc_jni_readonly_callback,
+           (void *)&cb_data);
    REENTRANCE_UNLOCK();
 
    if(status != NFCSTATUS_PENDING)
@@ -1204,6 +1207,7 @@ static jboolean com_android_nfc_NativeNfcTag_doMakeReadonly(JNIEnv *e, jobject o
    }
 
 clean_and_return:
+   e->ReleaseByteArrayElements(key, (jbyte *)keyBuffer.buffer, JNI_ABORT);
    nfc_cb_data_deinit(&cb_data);
    CONCURRENCY_UNLOCK();
    return result;
@@ -1237,7 +1241,7 @@ static JNINativeMethod gMethods[] =
       (void *)com_android_nfc_NativeNfcTag_doIsIsoDepNdefFormatable},
    {"doNdefFormat", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doNdefFormat},
-   {"doMakeReadonly", "()Z",
+   {"doMakeReadonly", "([B)Z",
       (void *)com_android_nfc_NativeNfcTag_doMakeReadonly},
 };
 

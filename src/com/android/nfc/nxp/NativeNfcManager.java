@@ -238,7 +238,8 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public boolean canMakeReadOnly(int ndefType) {
-        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2);
+        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2 ||
+                ndefType == Ndef.TYPE_MIFARE_CLASSIC);
     }
 
     @Override

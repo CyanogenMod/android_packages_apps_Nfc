@@ -21,6 +21,7 @@ import com.android.nfc.DeviceHost.TagEndpoint;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.tech.IsoDep;
+import android.nfc.tech.MifareClassic;
 import android.nfc.tech.MifareUltralight;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NfcA;
@@ -350,13 +351,19 @@ public class NativeNfcTag implements TagEndpoint {
         return result;
     }
 
-    native boolean doMakeReadonly();
+    native boolean doMakeReadonly(byte[] key);
     @Override
     public synchronized boolean makeReadOnly() {
         if (mWatchdog != null) {
             mWatchdog.pause();
         }
-        boolean result = doMakeReadonly();
+        boolean result;
+        if (hasTech(TagTechnology.MIFARE_CLASSIC)) {
+            result = doMakeReadonly(MifareClassic.KEY_DEFAULT);
+        } else {
+            // No key needed for other technologies
+            result = doMakeReadonly(new byte[] {});
+        }
         if (mWatchdog != null) {
             mWatchdog.doResume();
         }
