@@ -35,6 +35,7 @@ import android.nfc.INdefPushCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
@@ -97,6 +98,17 @@ interface P2pEventListener {
 public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     static final String TAG = "NfcP2pLinkManager";
     static final boolean DBG = true;
+
+    /** Include this constant as a meta-data entry in the manifest
+     *  of an application to disable beaming the market/AAR link, like this:
+     *  <pre>{@code
+     *  <application ...>
+     *      <meta-data android:name="android.nfc.disable_beam_default"
+     *          android:value="true" />
+     *  </application>
+     *  }</pre>
+     */
+    static final String DISABLE_BEAM_DEFAULT = "android.nfc.disable_beam_default";
 
     /** Enables the LLCP EchoServer, which can be used to test the android
      * LLCP stack against nfcpy.
@@ -266,23 +278,41 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 }
             }
 
-            // fall back to default NDEF for this activity
-            mMessageToSend = createDefaultNdef();
+            // fall back to default NDEF for this activity, unless the
+            // application disabled this explicitly in their manifest.
+            List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
+            if (tasks.size() > 0) {
+                String pkg = tasks.get(0).baseActivity.getPackageName();
+                if (beamDefaultDisabled(pkg)) {
+                    Log.d(TAG, "Disabling default Beam behavior");
+                    mMessageToSend = null;
+                } else {
+                    mMessageToSend = createDefaultNdef(pkg);
+                }
+            } else {
+                mMessageToSend = null;
+            }
         }
     }
 
-    NdefMessage createDefaultNdef() {
-        List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
-        if (tasks.size() > 0) {
-            String pkg = tasks.get(0).baseActivity.getPackageName();
-            NdefRecord appUri = NdefRecord.createUri(Uri.parse(
-                    "http://play.google.com/store/apps/details?id=" + pkg + "&feature=beam"));
-            NdefRecord appRecord = NdefRecord.createApplicationRecord(pkg);
-            return new NdefMessage(new NdefRecord[] { appUri, appRecord });
-        } else {
-            Log.d(TAG, "no foreground activity");
+    boolean beamDefaultDisabled(String pkgName) {
+        try {
+            ApplicationInfo ai = mPackageManager.getApplicationInfo(pkgName,
+                    PackageManager.GET_META_DATA);
+            if (ai == null || ai.metaData == null) {
+                return false;
+            }
+            return ai.metaData.getBoolean(DISABLE_BEAM_DEFAULT);
+        } catch (NameNotFoundException e) {
+            return false;
         }
-        return null;
+    }
+
+    NdefMessage createDefaultNdef(String pkgName) {
+        NdefRecord appUri = NdefRecord.createUri(Uri.parse(
+                "http://play.google.com/store/apps/details?id=" + pkgName + "&feature=beam"));
+        NdefRecord appRecord = NdefRecord.createApplicationRecord(pkgName);
+        return new NdefMessage(new NdefRecord[] { appUri, appRecord });
     }
 
     /**
