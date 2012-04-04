@@ -604,7 +604,7 @@ void emergency_recovery(struct nfc_jni_native_data *nat) {
        // dont recover immediately, so we can debug
        unsigned int t;
        for (t=1; t < 1000000; t <<= 1) {
-           ALOGE("emergency_recovery: NFC stack dead-locked, please show to npelly");
+           ALOGE("emergency_recovery: NFC stack dead-locked");
            sleep(t);
        }
    }
