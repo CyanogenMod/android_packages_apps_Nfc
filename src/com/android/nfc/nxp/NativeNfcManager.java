@@ -279,6 +279,11 @@ public class NativeNfcManager implements DeviceHost {
         doSetP2pTargetModes(modes);
     }
 
+    public boolean getExtendedLengthApdusSupported() {
+        // Not supported on the PN544
+        return false;
+    }
+
     private native String doDump();
     @Override
     public String dump() {
