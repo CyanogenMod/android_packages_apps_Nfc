@@ -17,6 +17,7 @@
 package com.android.nfc;
 
 import com.android.nfc.echoserver.EchoServer;
+import com.android.nfc.handover.HandoverManager;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 import com.android.nfc.snep.SnepClient;
@@ -149,6 +150,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     final Context mContext;
     final P2pEventListener mEventListener;
     final Handler mHandler;
+    final HandoverManager mHandoverManager;
 
     // Locked on NdefP2pManager.this
     int mLinkState;
@@ -156,12 +158,14 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     boolean mIsSendEnabled;
     boolean mIsReceiveEnabled;
     NdefMessage mMessageToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
+    Uri mUriToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
+    String mMimeTypeToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
     INdefPushCallback mCallbackNdef;
     SendTask mSendTask;
     SharedPreferences mPrefs;
     boolean mFirstBeam;
 
-    public P2pLinkManager(Context context) {
+    public P2pLinkManager(Context context, HandoverManager handoverManager) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
         if (ECHOSERVER_ENABLED) {
@@ -180,6 +184,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         mIsReceiveEnabled = false;
         mPrefs = context.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
         mFirstBeam = mPrefs.getBoolean(NfcService.PREF_FIRST_BEAM, true);
+        mHandoverManager = handoverManager;
      }
 
     /**
@@ -238,7 +243,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mEventListener.onP2pInRange();
 
                     prepareMessageToSend();
-                    if (mMessageToSend != null) {
+                    if (mMessageToSend != null || mUriToSend != null) {
                         mSendState = SEND_STATE_NEED_CONFIRMATION;
                         if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
                         mEventListener.onP2pSendConfirmationRequested();
@@ -264,6 +269,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         synchronized (P2pLinkManager.this) {
             if (!mIsSendEnabled) {
                 mMessageToSend = null;
+                mUriToSend = null;
+                mMimeTypeToSend = null;
                 return;
             }
 
@@ -272,6 +279,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (mCallbackNdef != null) {
                 try {
                     mMessageToSend = mCallbackNdef.createMessage();
+                    mUriToSend = mCallbackNdef.getUri();
+                    mMimeTypeToSend = mCallbackNdef.getMimeType();
                     return;
                 } catch (RemoteException e) {
                     // Ignore
@@ -292,6 +301,9 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             } else {
                 mMessageToSend = null;
             }
+            if (DBG) Log.d(TAG, "mMessageToSend = " + mMessageToSend);
+            if (DBG) Log.d(TAG, "mUriToSend = " + mUriToSend);
+            if (DBG) Log.d(TAG, "mMimeTypeToSend = " + mMimeTypeToSend);
         }
     }
 
@@ -372,6 +384,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         @Override
         public Void doInBackground(Void... args) {
             NdefMessage m;
+            Uri uri;
+            String mimeType;
             boolean result;
 
             synchronized (P2pLinkManager.this) {
@@ -379,12 +393,16 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     return null;
                 }
                 m = mMessageToSend;
+                uri = mUriToSend;
+                mimeType = mMimeTypeToSend;
             }
 
             long time = SystemClock.elapsedRealtime();
+
+
             try {
                 if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                result = doSnepProtocol(m);
+                result = doSnepProtocol(mHandoverManager, m, mimeType, uri);
             } catch (IOException e) {
                 Log.i(TAG, "Failed to connect over SNEP, trying NPP");
 
@@ -405,7 +423,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
     }
 
-    static boolean doSnepProtocol(NdefMessage msg) throws IOException {
+    static boolean doSnepProtocol(HandoverManager handoverManager,
+            NdefMessage msg, String mimeType, Uri uri) throws IOException {
         SnepClient snepClient = new SnepClient();
         try {
             snepClient.connect();
@@ -416,7 +435,16 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
 
         try {
-            snepClient.put(msg);
+            if (uri != null) {
+                SnepMessage snepResponse =
+                        snepClient.get(handoverManager.createHandoverRequestMessage());
+                NdefMessage response = snepResponse.getNdefMessage();
+                if (response != null) {
+                    handoverManager.doHandoverUri(mimeType, uri, response);
+                }
+            } else if (msg != null) {
+                snepClient.put(msg);
+            }
             return true;
         } catch (IOException e) {
             // SNEP available but had errors, don't fall back to NPP.
@@ -442,8 +470,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
         @Override
         public SnepMessage doGet(int acceptableLength, NdefMessage msg) {
-            if (DBG) Log.d(TAG, "GET not supported.");
-            return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
+            NdefMessage response = mHandoverManager.tryHandoverRequest(msg);
+
+            if (response != null) {
+                return SnepMessage.getSuccessResponse(response);
+            } else {
+                return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
+            }
         }
     };
 
@@ -481,6 +514,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mLinkState = LINK_STATE_DOWN;
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
                     mMessageToSend = null;
+                    mUriToSend = null;
+                    mMimeTypeToSend = null;
                     if (DBG) Log.d(TAG, "onP2pOutOfRange()");
                     mEventListener.onP2pOutOfRange();
                 }
@@ -629,6 +664,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             pw.println("mCallbackNdef=" + mCallbackNdef);
             pw.println("mMessageToSend=" + mMessageToSend);
+            pw.println("mUriToSend=" + mUriToSend);
+            pw.println("mMimeTypeToSend=" + mMimeTypeToSend);
         }
     }
 }

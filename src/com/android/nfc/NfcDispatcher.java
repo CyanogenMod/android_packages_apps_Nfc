@@ -67,14 +67,14 @@ public class NfcDispatcher {
     IntentFilter[] mOverrideFilters;
     String[][] mOverrideTechLists;
 
-    public NfcDispatcher(Context context, P2pLinkManager p2pManager) {
+    public NfcDispatcher(Context context, HandoverManager handoverManager) {
         mContext = context;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mPackageManager = context.getPackageManager();
         mContentResolver = context.getContentResolver();
-        mHandoverManager = new HandoverManager(context);
+        mHandoverManager = handoverManager;
     }
 
     public synchronized void setForegroundDispatch(PendingIntent intent,

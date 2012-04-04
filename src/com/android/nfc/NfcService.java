@@ -22,6 +22,7 @@ import com.android.nfc.DeviceHost.LlcpServerSocket;
 import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
+import com.android.nfc.handover.HandoverManager;
 import com.android.nfc.nxp.NativeNfcManager;
 import com.android.nfc.nxp.NativeNfcSecureElement;
 
@@ -315,8 +316,9 @@ public class NfcService extends Application implements DeviceHostListener {
         mContext = this;
         mDeviceHost = new NativeNfcManager(this, this);
 
-        mP2pLinkManager = new P2pLinkManager(mContext);
-        mNfcDispatcher = new NfcDispatcher(this, mP2pLinkManager);
+        HandoverManager handoverManager = new HandoverManager(mContext);
+        mNfcDispatcher = new NfcDispatcher(this, handoverManager);
+        mP2pLinkManager = new P2pLinkManager(mContext, handoverManager);
 
         mSecureElement = new NativeNfcSecureElement();
         mEeRoutingState = ROUTE_OFF;

@@ -20,6 +20,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Random;
 
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
@@ -27,6 +28,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.util.Log;
@@ -64,6 +67,96 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP);
     }
 
+    static NdefRecord createCollisionRecord() {
+        byte[] random = new byte[2];
+        new Random().nextBytes(random);
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, new byte[] {0x48, 0x72}, null, random);
+    }
+
+    NdefRecord createBluetoothAlternateCarrierRecord() {
+        byte[] payload = new byte[4];
+        //TODO: Encode 'activating' if BT is not on yet
+        payload[0] = 0x01;  // Carrier Power State: Active
+        payload[1] = 1;   // length of carrier data reference
+        payload[2] = 'b'; // carrier data reference: ID for Bluetooth OOB data record
+        payload[3] = 0;  // Auxiliary data reference count
+        // 0x61, 0x63 is "ac"
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, new byte[] {0x61, 0x63}, null, payload);
+    }
+
+    NdefRecord createBluetoothOobDataRecord() {
+        byte[] payload = new byte[8];
+        payload[0] = 0;
+        payload[1] = (byte)payload.length;
+
+        //TODO: check getAddress() works with BT off
+        String address = mBluetoothAdapter.getAddress();
+        byte[] addressBytes = addressToReverseBytes(address);
+        System.arraycopy(addressBytes, 0, payload, 2, 6);
+        return new NdefRecord(NdefRecord.TNF_MIME_MEDIA, TYPE_BT_OOB, new byte[]{'b'}, payload);
+    }
+
+    public NdefMessage createHandoverRequestMessage() {
+        return new NdefMessage(createHandoverRequestRecord(), createBluetoothOobDataRecord());
+    }
+
+    NdefRecord createHandoverRequestRecord() {
+        ByteBuffer payload = ByteBuffer.allocate(100);  //TODO figure out size
+        payload.put((byte)0x12);  // connection handover v1.2
+
+        //TODO: spec is not clear if we encode each nested NdefRecord as a
+        // a stand-alone message (with MB and ME flags set), or as a combined
+        // message (MB only set on first, ME only set on last). Current
+        // implementation assumes the later.
+        NdefMessage nestedMessage = new NdefMessage(createCollisionRecord(),
+                createBluetoothAlternateCarrierRecord());
+        payload.put(nestedMessage.toByteArray());
+
+        byte[] payloadBytes = new byte[payload.position()];
+        payload.position(0);
+        payload.get(payloadBytes);
+        // 0x48, 0x72 is "Hr"
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, new byte[]{0x48, 0x72}, null, payloadBytes);
+    }
+
+    /**
+     * Return null if message is not a Handover Request,
+     * return the Handover Select response if it is.
+     */
+    public NdefMessage tryHandoverRequest(NdefMessage m) {
+        if (m == null) return null;
+        if (DBG) Log.d(TAG, "tryHandoverRequest():" + m.toString());
+
+        NdefRecord r = m.getRecords()[0];
+        if (r.getTnf() != NdefRecord.TNF_WELL_KNOWN) return null;
+        if (!Arrays.equals(r.getType(), new byte[]{0x48, 0x72})) return null;
+
+        // we have a handover select, look for BT OOB record
+        BluetoothHandoverData bluetoothData = null;
+        for (NdefRecord oob : m.getRecords()) {
+            if (oob.getTnf() == NdefRecord.TNF_MIME_MEDIA &&
+                    Arrays.equals(oob.getType(), TYPE_BT_OOB)) {
+                bluetoothData = parseBtOob(ByteBuffer.wrap(oob.getPayload()));
+                break;
+            }
+        }
+        if (bluetoothData == null) return null;
+
+        // BT OOB found, whitelist it for incoming OPP data
+        whitelistOppDevice(bluetoothData.device);
+
+        // return BT OOB record so they can perform handover
+        //TODO: Should use full Carrier Select form with power state to handle BT enabling...
+        return new NdefMessage(createBluetoothOobDataRecord());
+    }
+
+    void whitelistOppDevice(BluetoothDevice device) {
+        if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
+        Intent intent = new Intent("todo-whitelist");
+        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+        mContext.sendBroadcast(intent);
+    }
+
     public boolean tryHandover(NdefMessage m) {
         if (m == null) return false;
         if (DBG) Log.d(TAG, "tryHandover(): " + m.toString());
@@ -88,6 +181,13 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             mBluetoothHeadsetHandover.start();
         }
         return true;
+    }
+
+    public void doHandoverUri(String mimeType, Uri uri, NdefMessage m) {
+        BluetoothHandoverData data = parse(m);
+        BluetoothOppHandover handover = new BluetoothOppHandover(mContext, data.device,
+                mimeType, uri);
+        handover.start();
     }
 
     BluetoothHandoverData parse(NdefMessage m) {
@@ -188,6 +288,18 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             Log.i(TAG, "BT OOB: payload shorter than expected");
         }
         if (result.valid && result.name == null) result.name = "";
+        return result;
+    }
+
+    static byte[] addressToReverseBytes(String address) {
+        String[] split = address.split(":");
+        byte[] result = new byte[split.length];
+
+        for (int i = 0; i < split.length; i++) {
+            // need to parse as int because parseByte() expects a signed byte
+            result[split.length - 1 - i] = (byte)Integer.parseInt(split[i], 16);
+        }
+
         return result;
     }
 
