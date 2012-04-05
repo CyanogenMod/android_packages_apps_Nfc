@@ -32,11 +32,12 @@ public class BluetoothOppHandover {
      * to begin the BT sequence. Must be called on Main thread.
      */
     public void start() {
-        //TODO: Should call setActivity to make sure it goes to Bluetooth
         //TODO: either open up BluetoothOppLauncherActivity to all MIME types
         //      or gracefully handle mime types that can't be sent
         Log.d(TAG, "Sending handover intent for " + mDevice.getAddress());
         Intent intent = new Intent(Intent.ACTION_SEND);
+        // TODO see if this can be made more robust
+        intent.setPackage("com.android.bluetooth");
         intent.setType(mMimeType);
         intent.putExtra(Intent.EXTRA_STREAM, mUri);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
