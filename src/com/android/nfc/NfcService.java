@@ -684,10 +684,13 @@ public class NfcService extends Application implements DeviceHostListener {
         }
 
         @Override
-        public boolean disable() throws RemoteException {
+        public boolean disable(boolean saveState) throws RemoteException {
             NfcService.enforceAdminPerm(mContext);
 
-            saveNfcOnSetting(false);
+            if (saveState) {
+                saveNfcOnSetting(false);
+            }
+
             new EnableDisableTask().execute(TASK_DISABLE);
 
             return true;
