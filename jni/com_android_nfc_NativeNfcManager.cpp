@@ -608,6 +608,7 @@ void emergency_recovery(struct nfc_jni_native_data *nat) {
            sleep(t);
        }
    }
+   phLibNfc_Mgt_Recovery();
    abort();  // force a noisy crash
 }
 

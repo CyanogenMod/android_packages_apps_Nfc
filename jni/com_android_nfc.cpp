@@ -68,6 +68,7 @@ JNIEnv *nfc_get_env()
     JNIEnv *e;
     if (vm->GetEnv((void **)&e, JNI_VERSION_1_6) != JNI_OK) {
         ALOGE("Current thread is not attached to VM");
+        phLibNfc_Mgt_Recovery();
         abort();
     }
     return e;
