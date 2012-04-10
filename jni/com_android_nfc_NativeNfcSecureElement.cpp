@@ -198,9 +198,16 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    uint8_t              reg_value;
    uint8_t              mask_value;
    struct nfc_jni_callback_data cb_data;
+   struct nfc_jni_callback_data cb_data_SE_Notification;
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
+   {
+      goto clean_and_return;
+   }
+
+   /* Create the local semaphore */
+   if (!nfc_cb_data_init(&cb_data_SE_Notification, NULL))
    {
       goto clean_and_return;
    }
@@ -286,7 +293,9 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
       {
          REENTRANCE_LOCK();
          TRACE("phLibNfc_RemoteDev_NtfRegister()");
-         ret = phLibNfc_RemoteDev_NtfRegister(&registry_info, com_android_nfc_jni_open_secure_element_notification_callback, (void *)&cb_data);
+         ret = phLibNfc_RemoteDev_NtfRegister(&registry_info,
+                 com_android_nfc_jni_open_secure_element_notification_callback,
+                 (void *)&cb_data_SE_Notification);
          REENTRANCE_UNLOCK();
          if(ret != NFCSTATUS_SUCCESS)
          {
@@ -323,13 +332,14 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
 
          TRACE("Waiting for notification");
          /* Wait for callback response */
-         if(sem_wait(&cb_data.sem))
+         if(sem_wait(&cb_data_SE_Notification.sem))
          {
             ALOGE("Secure Element opening error");
             goto clean_and_return;
          }
 
-         if(cb_data.status != NFCSTATUS_SUCCESS && cb_data.status != NFCSTATUS_MULTIPLE_PROTOCOLS)
+         if(cb_data_SE_Notification.status != NFCSTATUS_SUCCESS &&
+                 cb_data_SE_Notification.status != NFCSTATUS_MULTIPLE_PROTOCOLS)
          {
             ALOGE("SE detection failed");
             goto clean_and_return;
@@ -434,7 +444,11 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
             goto clean_and_return;
          }
          CONCURRENCY_UNLOCK();
-         /* Return the Handle of the SecureElement */         
+
+         nfc_cb_data_deinit(&cb_data);
+         nfc_cb_data_deinit(&cb_data_SE_Notification);
+
+         /* Return the Handle of the SecureElement */
          return secureElementHandle;
       }
       else
@@ -450,6 +464,9 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
   }
   
 clean_and_return:
+   nfc_cb_data_deinit(&cb_data);
+   nfc_cb_data_deinit(&cb_data_SE_Notification);
+
    CONCURRENCY_UNLOCK();
    return 0;
 }
@@ -583,6 +600,8 @@ static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, j
    result = JNI_TRUE;
 
 clean_and_return:
+   nfc_cb_data_deinit(&cb_data);
+
    CONCURRENCY_UNLOCK();
    return result;
 }
@@ -674,6 +693,8 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
    }
 
 clean_and_return:
+   nfc_cb_data_deinit(&cb_data);
+
    if(transceive_info.sRecvData.buffer != NULL)
    {
       free(transceive_info.sRecvData.buffer);
