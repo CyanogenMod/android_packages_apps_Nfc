@@ -38,7 +38,7 @@ public class NativeNfcManager implements DeviceHost {
 
     private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/vendor/firmware/libpn544_fw.so";
 
-    private static final String PREF = "NxpDeviceHost";
+    static final String PREF = "NxpDeviceHost";
 
     private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
     private static final long FIRMWARE_MODTIME_DEFAULT = -1;
@@ -112,11 +112,36 @@ public class NativeNfcManager implements DeviceHost {
         }
     }
 
-    @Override
-    public native boolean initialize();
+    private native boolean doInitialize();
 
     @Override
-    public native boolean deinitialize();
+    public boolean initialize() {
+        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+
+        if (prefs.getBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false)) {
+            try {
+                Thread.sleep (12000);
+                editor.putBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false);
+                editor.apply();
+            } catch (InterruptedException e) { }
+        }
+
+        return doInitialize();
+    }
+
+    private native boolean doDeinitialize();
+
+    @Override
+    public boolean deinitialize() {
+        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+
+        editor.putBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false);
+        editor.apply();
+
+        return doDeinitialize();
+    }
 
     @Override
     public native void enableDiscovery();

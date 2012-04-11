@@ -16,6 +16,8 @@
 
 package com.android.nfc.nxp;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 
 
 /**
@@ -24,16 +26,42 @@ package com.android.nfc.nxp;
  * {@hide}
  */
 public class NativeNfcSecureElement {
-    
-    public NativeNfcSecureElement() { }
-    
-    public native int doOpenSecureElementConnection();
-        
-    public native boolean doDisconnect(int handle);
-    
+
+    static final String PREF_SE_WIRED = "se_wired";
+
+    private final Context mContext;
+
+    SharedPreferences mPrefs;
+    SharedPreferences.Editor mPrefsEditor;
+
+    public NativeNfcSecureElement(Context context) {
+        mContext = context;
+
+        mPrefs = mContext.getSharedPreferences(NativeNfcManager.PREF, Context.MODE_PRIVATE);
+        mPrefsEditor = mPrefs.edit();
+    }
+
+    private native int doNativeOpenSecureElementConnection();
+
+    public int doOpenSecureElementConnection() {
+        mPrefsEditor.putBoolean(PREF_SE_WIRED, true);
+        mPrefsEditor.apply();
+
+        return doNativeOpenSecureElementConnection();
+    }
+
+    private native boolean doNativeDisconnectSecureElementConnection(int handle);
+
+    public boolean doDisconnect(int handle) {
+        mPrefsEditor.putBoolean(PREF_SE_WIRED, false);
+        mPrefsEditor.apply();
+
+        return doNativeDisconnectSecureElementConnection(handle);
+    }
+
     public native byte[] doTransceive(int handle, byte[] data);
-    
+
     public native int[] doGetTechList(int handle);
-    
+
     public native byte [] doGetUid(int handle);
 }

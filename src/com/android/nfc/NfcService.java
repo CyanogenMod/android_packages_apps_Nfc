@@ -320,7 +320,7 @@ public class NfcService extends Application implements DeviceHostListener {
         mNfcDispatcher = new NfcDispatcher(this, handoverManager);
         mP2pLinkManager = new P2pLinkManager(mContext, handoverManager);
 
-        mSecureElement = new NativeNfcSecureElement();
+        mSecureElement = new NativeNfcSecureElement(mContext);
         mEeRoutingState = ROUTE_OFF;
 
         mNfceeAccessControl = new NfceeAccessControl(this);

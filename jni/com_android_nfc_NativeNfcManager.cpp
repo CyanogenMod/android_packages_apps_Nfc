@@ -2541,10 +2541,10 @@ static JNINativeMethod gMethods[] =
    {"initializeNativeStructure", "()Z",
       (void *)com_android_nfc_NfcManager_init_native_struc},
 
-   {"initialize", "()Z",
+   {"doInitialize", "()Z",
       (void *)com_android_nfc_NfcManager_initialize},
  
-   {"deinitialize", "()Z",
+   {"doDeinitialize", "()Z",
       (void *)com_android_nfc_NfcManager_deinitialize},
       
    {"enableDiscovery", "()V",

@@ -727,9 +727,9 @@ static jintArray com_android_nfc_NativeNfcSecureElement_doGetTechList(JNIEnv *e,
  */
 static JNINativeMethod gMethods[] =
 {
-   {"doOpenSecureElementConnection", "()I",
+   {"doNativeOpenSecureElementConnection", "()I",
       (void *)com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection},
-   {"doDisconnect", "(I)Z",
+   {"doNativeDisconnectSecureElementConnection", "(I)Z",
       (void *)com_android_nfc_NativeNfcSecureElement_doDisconnect},
    {"doTransceive", "(I[B)[B",
       (void *)com_android_nfc_NativeNfcSecureElement_doTransceive},
