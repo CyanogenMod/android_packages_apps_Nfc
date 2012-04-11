@@ -32,6 +32,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
 
+import com.android.nfc.handover.HandoverManager.HandoverPowerManager;
+
 /**
  * Connects / Disconnects from a Bluetooth headset (or any device that
  * might implement BT HSP, HFP or A2DP sink) when touched with NFC.
@@ -41,8 +43,8 @@ import android.widget.Toast;
  * designed to be re-used after the sequence has completed or timed out.
  * Subsequent NFC interactions should use new objects.
  *
- * TODO: enable Bluetooth without causing auto-connection to *other* devices
- * TOOD: disable Bluetooth when disconnecting if it was enabled for this device
+ * TODO: prevent auto-connecting to other devices and other incoming a2dp/hsp
+ * connects.
  * TODO: il8n / UI review
  */
 public class BluetoothHeadsetHandover {
@@ -70,7 +72,7 @@ public class BluetoothHeadsetHandover {
     final Context mContext;
     final BluetoothDevice mDevice;
     final String mName;
-    final BluetoothAdapter mAdapter;
+    final HandoverPowerManager mHandoverPowerManager;
     final BluetoothA2dp mA2dp;
     final BluetoothHeadset mHeadset;
     final Callback mCallback;
@@ -82,17 +84,17 @@ public class BluetoothHeadsetHandover {
     int mA2dpResult; // used only in STATE_CONNECTING and STATE_DISCONNETING
 
     public interface Callback {
-        public void onBluetoothHeadsetHandoverComplete();
+        public void onBluetoothHeadsetHandoverComplete(boolean connected);
     }
 
     public BluetoothHeadsetHandover(Context context, BluetoothDevice device, String name,
-            BluetoothAdapter adapter, BluetoothA2dp a2dp, BluetoothHeadset headset,
+            HandoverPowerManager powerManager, BluetoothA2dp a2dp, BluetoothHeadset headset,
             Callback callback) {
         checkMainThread();  // mHandler must get get constructed on Main Thread for toasts to work
         mContext = context;
         mDevice = device;
         mName = name;
-        mAdapter = adapter;
+        mHandoverPowerManager = powerManager;
         mA2dp = a2dp;
         mHeadset = headset;
         mCallback = callback;
@@ -166,7 +168,7 @@ public class BluetoothHeadsetHandover {
                 if (mA2dpResult == RESULT_DISCONNECTED && mHfpResult == RESULT_DISCONNECTED) {
                     toast("Disconnected " + mName);
                 }
-                complete();
+                complete(false);
                 break;
         }
     }
@@ -174,8 +176,14 @@ public class BluetoothHeadsetHandover {
     void nextStepConnect() {
         switch (mState) {
             case STATE_INIT:
-                if (!mAdapter.isEnabled()) {
-                    startEnabling();
+                if (!mHandoverPowerManager.isBluetoothEnabled()) {
+                    if (mHandoverPowerManager.enableBluetooth()) {
+                        // Bluetooth is being enabled
+                        mState = STATE_TURNING_ON;
+                    } else {
+                        toast("Failed to enable Bluetooth");
+                        complete(false);
+                    }
                     break;
                 }
                 // fall-through
@@ -215,20 +223,12 @@ public class BluetoothHeadsetHandover {
                     // we'll take either as success
                     toast("Connected " + mName);
                     if (mA2dpResult == RESULT_CONNECTED) startTheMusic();
+                    complete(true);
                 } else {
                     toast ("Failed to connect " + mName);
+                    complete(false);
                 }
-                complete();
                 break;
-        }
-    }
-
-    void startEnabling() {
-        mState = STATE_TURNING_ON;
-        toast("Enabling Bluetooth...");
-        if (!mAdapter.enable()) {
-            toast("Failed to enable Bluetooth");
-            complete();
         }
     }
 
@@ -237,7 +237,7 @@ public class BluetoothHeadsetHandover {
         toast("Pairing " + mName + "...");
         if (!mDevice.createBond()) {
             toast("Failed to pair " + mName);
-            complete();
+            complete(false);
         }
     }
 
@@ -249,7 +249,7 @@ public class BluetoothHeadsetHandover {
                 nextStepConnect();
             } else if (state == BluetoothAdapter.STATE_OFF) {
                 toast("Failed to enable Bluetooth");
-                complete();
+                complete(false);
             }
             return;
         }
@@ -265,7 +265,7 @@ public class BluetoothHeadsetHandover {
                 nextStepConnect();
             } else if (bond == BluetoothDevice.BOND_NONE) {
                 toast("Failed to pair " + mName);
-                complete();
+                complete(false);
             }
         } else if (BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED.equals(action) &&
                 (mState == STATE_CONNECTING || mState == STATE_DISCONNECTING)) {
@@ -290,12 +290,12 @@ public class BluetoothHeadsetHandover {
         }
     }
 
-    void complete() {
+    void complete(boolean connected) {
         if (DBG) Log.d(TAG, "complete()");
         mState = STATE_COMPLETE;
         mContext.unregisterReceiver(mReceiver);
         mHandler.removeMessages(MSG_TIMEOUT);
-        mCallback.onBluetoothHeadsetHandoverComplete();
+        mCallback.onBluetoothHeadsetHandoverComplete(connected);
     }
 
     void toast(CharSequence text) {
@@ -319,7 +319,7 @@ public class BluetoothHeadsetHandover {
                 case MSG_TIMEOUT:
                     if (mState == STATE_COMPLETE) return;
                     Log.i(TAG, "Timeout completing BT handover");
-                    complete();
+                    complete(false);
                     break;
             }
         }

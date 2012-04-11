@@ -16,23 +16,35 @@
 
 package com.android.nfc.handover;
 
+import java.io.File;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Random;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Notification.Builder;
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
 import android.bluetooth.BluetoothProfile;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
+import android.os.Handler;
+import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
+import android.util.Pair;
 
 /**
  * Manages handover of NFC to other technologies.
@@ -46,13 +58,66 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static final byte[] TYPE_BT_OOB = "application/vnd.bluetooth.ep.oob".
             getBytes(Charset.forName("US_ASCII"));
 
+    public static final String ACTION_BT_OPP_TRANSFER_PROGRESS =
+            "android.btopp.intent.action.BT_OPP_TRANSFER_PROGRESS";
+
+    public static final String ACTION_BT_OPP_TRANSFER_DONE =
+            "android.btopp.intent.action.BT_OPP_TRANSFER_DONE";
+
+    public static final String EXTRA_BT_OPP_TRANSFER_STATUS =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_STATUS";
+
+    public static final int HANDOVER_TRANSFER_STATUS_SUCCESS = 0;
+
+    public static final int HANDOVER_TRANSFER_STATUS_FAILURE = 1;
+
+    public static final String EXTRA_BT_OPP_TRANSFER_DIRECTION =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_DIRECTION";
+
+    public static final int DIRECTION_BLUETOOTH_INCOMING = 0;
+
+    public static final int DIRECTION_BLUETOOTH_OUTGOING = 1;
+
+    public static final String EXTRA_BT_OPP_TRANSFER_ID =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_ID";
+
+    public static final String EXTRA_BT_OPP_TRANSFER_PROGRESS =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_PROGRESS";
+
+    public static final String EXTRA_BT_OPP_TRANSFER_URI =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_URI";
+
+    // permission needed to be able to receive handover status requests
+    public static final String HANDOVER_STATUS_PERMISSION =
+            "com.android.permission.HANDOVER_STATUS";
+
+    static final int MSG_HANDOVER_POWER_CHECK = 0;
+
+    // We poll whether we can safely disable BT every POWER_CHECK_MS
+    static final int POWER_CHECK_MS = 20000;
+
+    public static final String ACTION_WHITELIST_DEVICE =
+            "android.btopp.intent.action.WHITELIST_DEVICE";
+
+    public static final int SOURCE_BLUETOOTH_INCOMING = 0;
+
+    public static final int SOURCE_BLUETOOTH_OUTGOING = 1;
+
+
     final Context mContext;
     final BluetoothAdapter mBluetoothAdapter;
+    final NotificationManager mNotificationManager;
+    final HandoverPowerManager mHandoverPowerManager;
 
     // synchronized on HandoverManager.this
     BluetoothHeadset mBluetoothHeadset;
     BluetoothA2dp mBluetoothA2dp;
     BluetoothHeadsetHandover mBluetoothHeadsetHandover;
+    boolean mBluetoothHeadsetConnected;
+
+    int mNotificationId;
+    // TODO regular cleanup of finished transfers.
+    HashMap<Pair<Integer, Integer>, HandoverTransfer> mTransfers;
 
     static class BluetoothHandoverData {
         public boolean valid = false;
@@ -60,11 +125,193 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         public String name;
     }
 
+    class HandoverPowerManager implements Handler.Callback {
+        // TODO stop monitoring if BT is turned off by the user
+        final Handler handler;
+        final Context context;
+
+        public HandoverPowerManager(Context context) {
+            this.handler = new Handler(this);
+            this.context = context;
+        }
+
+        /**
+         * Enables Bluetooth and will automatically disable it
+         * when there is no Bluetooth activity intitiated by NFC
+         * anymore.
+         */
+        boolean enableBluetooth() {
+            // Enable BT
+            boolean result = mBluetoothAdapter.enable();
+
+            if (result) {
+                // Start polling for BT activity to make sure we eventually disable
+                // it again.
+                handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
+            }
+            return result;
+        }
+
+        boolean isBluetoothEnabled() {
+            return mBluetoothAdapter.isEnabled();
+        }
+
+        @Override
+        public boolean handleMessage(Message msg) {
+            switch (msg.what) {
+                case MSG_HANDOVER_POWER_CHECK:
+                    // Check for any alive transfers
+                    boolean transferAlive = false;
+                    synchronized (HandoverManager.this) {
+                        for (HandoverTransfer transfer : mTransfers.values()) {
+                            if (transfer.isRunning()) {
+                                transferAlive = true;
+                            }
+                        }
+
+                        if (!transferAlive && !mBluetoothHeadsetConnected) {
+                            mBluetoothAdapter.disable();
+                            handler.removeMessages(MSG_HANDOVER_POWER_CHECK);
+                        } else {
+                            handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
+                        }
+                    }
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    class HandoverTransfer {
+        static final int STATE_NEW = 0;
+        static final int STATE_IN_PROGRESS = 1;
+        static final int STATE_FAILED = 2;
+        static final int STATE_SUCCESS = 3;
+
+        // We need to receive an update within this time period
+        // to still consider this transfer to be "alive" (ie
+        // a reason to keep the handover transport enabled).
+        static final int ALIVE_CHECK_MS = 20000;
+
+        int notificationId; // Unique ID of this transfer used for notifications
+        Long lastUpdate; // Last time an event occurred for this transfer
+        float progress; // Progress in range [0..1]
+        int state;
+        Uri uri;
+        boolean incoming; // whether this is an incoming transfer
+
+        public HandoverTransfer(boolean incoming) {
+            synchronized (HandoverManager.this) {
+                this.notificationId = mNotificationId++;
+            }
+            this.lastUpdate = SystemClock.elapsedRealtime();
+            this.progress = 0.0f;
+            this.state = STATE_NEW;
+            this.uri = null;
+            this.incoming = incoming;
+        }
+
+        synchronized void updateTransferProgress(float progress) {
+            this.state = STATE_IN_PROGRESS;
+            this.progress = progress;
+            this.lastUpdate = SystemClock.elapsedRealtime();
+
+            updateNotification();
+        }
+
+        synchronized void finishTransfer(boolean success, Uri uri) {
+            if (success && uri != null) {
+                this.state = STATE_SUCCESS;
+                this.uri = uri;
+            } else {
+                this.state = STATE_FAILED;
+            }
+            this.lastUpdate = SystemClock.elapsedRealtime();
+
+            updateNotification();
+        }
+
+        synchronized boolean isRunning() {
+            if (state != STATE_IN_PROGRESS) return false;
+
+            // Check that we've made progress
+            Long currentTime = SystemClock.elapsedRealtime();
+            if (currentTime - lastUpdate > ALIVE_CHECK_MS) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        synchronized void updateNotification() {
+            if (!incoming) return; // No notifications for outgoing transfers
+
+            Builder notBuilder = new Notification.Builder(mContext);
+
+            if (state == STATE_IN_PROGRESS) {
+                int progressInt = (int) (progress * 100);
+                notBuilder.setAutoCancel(false);
+                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
+                notBuilder.setTicker("Beam incoming...");
+                notBuilder.setContentTitle("Beam incoming...");
+                notBuilder.setProgress(100, progressInt, progress == -1);
+            } else if (state == STATE_SUCCESS) {
+                notBuilder.setAutoCancel(true);
+                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+                notBuilder.setTicker("Beam complete.");
+                notBuilder.setContentTitle("Beam complete");
+                notBuilder.setContentText("Touch to view");
+
+                Intent notificationIntent = new Intent(Intent.ACTION_VIEW);
+                String mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
+                notificationIntent.setDataAndType(uri, mimeType);
+                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, notificationIntent, 0);
+
+                notBuilder.setContentIntent(contentIntent);
+            } else if (state == STATE_FAILED) {
+                notBuilder.setAutoCancel(true);
+                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+                notBuilder.setTicker("Beam failed.");
+                notBuilder.setContentTitle("Beam failed");
+                // TODO content text
+            } else {
+                return;
+            }
+
+            mNotificationManager.notify(mNotificationId, notBuilder.getNotification());
+        }
+    }
+
+    synchronized HandoverTransfer getHandoverTransfer(int source, int id) {
+        Pair<Integer, Integer> key = new Pair<Integer, Integer>(source,id);
+        if (!mTransfers.containsKey(key)) {
+            boolean incoming = false;
+            if (source == SOURCE_BLUETOOTH_INCOMING) {
+                incoming = true;
+            }
+            HandoverTransfer transfer = new HandoverTransfer(incoming);
+            mTransfers.put(key, transfer);
+            return transfer;
+        } else {
+            return mTransfers.get(key);
+        }
+    }
+
     public HandoverManager(Context context) {
         mContext = context;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.HEADSET);
         mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP);
+
+        mNotificationManager = (NotificationManager) mContext.getSystemService(
+                Context.NOTIFICATION_SERVICE);
+
+        mTransfers = new HashMap<Pair<Integer, Integer>, HandoverTransfer>();
+        mHandoverPowerManager = new HandoverPowerManager(context);
+
+        IntentFilter filter = new IntentFilter(ACTION_BT_OPP_TRANSFER_DONE);
+        filter.addAction(ACTION_BT_OPP_TRANSFER_PROGRESS);
+        mContext.registerReceiver(mReceiver, filter, HANDOVER_STATUS_PERMISSION, null);
     }
 
     static NdefRecord createCollisionRecord() {
@@ -142,6 +389,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         }
         if (bluetoothData == null) return null;
 
+        if (!mHandoverPowerManager.isBluetoothEnabled()) {
+            mHandoverPowerManager.enableBluetooth();
+            // TODO determine how to deal with failure (toast?)
+        }
+
         // BT OOB found, whitelist it for incoming OPP data
         whitelistOppDevice(bluetoothData.device);
 
@@ -152,7 +404,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     void whitelistOppDevice(BluetoothDevice device) {
         if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
-        Intent intent = new Intent("todo-whitelist");
+        Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
         mContext.sendBroadcast(intent);
     }
@@ -177,7 +429,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 return true;
             }
             mBluetoothHeadsetHandover = new BluetoothHeadsetHandover(mContext, handover.device,
-                    handover.name, mBluetoothAdapter, mBluetoothA2dp, mBluetoothHeadset, this);
+                    handover.name, mHandoverPowerManager, mBluetoothA2dp, mBluetoothHeadset, this);
             mBluetoothHeadsetHandover.start();
         }
         return true;
@@ -185,9 +437,10 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     // This starts sending an Uri over BT
     public void doHandoverUri(Uri[] uris, NdefMessage m) {
+
         BluetoothHandoverData data = parse(m);
         BluetoothOppHandover handover = new BluetoothOppHandover(mContext, data.device,
-                uris);
+                uris, mHandoverPowerManager);
         handover.start();
     }
 
@@ -211,7 +464,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 }
             }
         }
-
         // Check for Nokia BT record, found on some Nokia BH-505 Headsets
         if (tnf == NdefRecord.TNF_EXTERNAL_TYPE && Arrays.equals(type, TYPE_NOKIA)) {
             return parseNokia(ByteBuffer.wrap(r.getPayload()));
@@ -333,9 +585,46 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     }
 
     @Override
-    public void onBluetoothHeadsetHandoverComplete() {
+    public void onBluetoothHeadsetHandoverComplete(boolean connected) {
         synchronized (HandoverManager.this) {
             mBluetoothHeadsetHandover = null;
+            mBluetoothHeadsetConnected = connected;
         }
     }
+
+    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            int direction = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_DIRECTION, -1);
+            int id = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_ID, -1);
+            if (direction == -1 || id == -1) return;
+            int source = (direction == DIRECTION_BLUETOOTH_INCOMING) ?
+                    SOURCE_BLUETOOTH_INCOMING : SOURCE_BLUETOOTH_OUTGOING;
+            HandoverTransfer transfer = getHandoverTransfer(source, id);
+            if (transfer == null) return;
+
+            if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
+                int handoverStatus = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_STATUS,
+                        HANDOVER_TRANSFER_STATUS_FAILURE);
+
+                if (handoverStatus == HANDOVER_TRANSFER_STATUS_SUCCESS) {
+                    String uriString = intent.getStringExtra(EXTRA_BT_OPP_TRANSFER_URI);
+                    Uri uri = Uri.parse(uriString);
+                    if (uri.getScheme() == null) {
+                        uri = Uri.fromFile(new File(uri.getPath()));
+                    }
+                    transfer.finishTransfer(true, uri);
+                } else {
+                    transfer.finishTransfer(false, null);
+                }
+            } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS)) {
+                float progress = intent.getFloatExtra(EXTRA_BT_OPP_TRANSFER_PROGRESS, 0.0f);
+                transfer.updateTransferProgress(progress);
+            }
+        }
+
+    };
+
+
 }
