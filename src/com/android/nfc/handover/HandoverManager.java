@@ -183,10 +183,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         return true;
     }
 
-    public void doHandoverUri(String mimeType, Uri uri, NdefMessage m) {
+    // This starts sending an Uri over BT
+    public void doHandoverUri(Uri[] uris, NdefMessage m) {
         BluetoothHandoverData data = parse(m);
         BluetoothOppHandover handover = new BluetoothOppHandover(mContext, data.device,
-                mimeType, uri);
+                uris);
         handover.start();
     }
 

@@ -158,8 +158,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     boolean mIsSendEnabled;
     boolean mIsReceiveEnabled;
     NdefMessage mMessageToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
-    Uri mUriToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
-    String mMimeTypeToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
+    Uri[] mUrisToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
     INdefPushCallback mCallbackNdef;
     SendTask mSendTask;
     SharedPreferences mPrefs;
@@ -243,7 +242,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mEventListener.onP2pInRange();
 
                     prepareMessageToSend();
-                    if (mMessageToSend != null || mUriToSend != null) {
+                    if (mMessageToSend != null || mUrisToSend != null) {
                         mSendState = SEND_STATE_NEED_CONFIRMATION;
                         if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
                         mEventListener.onP2pSendConfirmationRequested();
@@ -269,8 +268,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         synchronized (P2pLinkManager.this) {
             if (!mIsSendEnabled) {
                 mMessageToSend = null;
-                mUriToSend = null;
-                mMimeTypeToSend = null;
+                mUrisToSend = null;
                 return;
             }
 
@@ -279,8 +277,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (mCallbackNdef != null) {
                 try {
                     mMessageToSend = mCallbackNdef.createMessage();
-                    mUriToSend = mCallbackNdef.getUri();
-                    mMimeTypeToSend = mCallbackNdef.getMimeType();
+                    mUrisToSend = mCallbackNdef.getUris();
                     return;
                 } catch (RemoteException e) {
                     // Ignore
@@ -302,8 +299,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 mMessageToSend = null;
             }
             if (DBG) Log.d(TAG, "mMessageToSend = " + mMessageToSend);
-            if (DBG) Log.d(TAG, "mUriToSend = " + mUriToSend);
-            if (DBG) Log.d(TAG, "mMimeTypeToSend = " + mMimeTypeToSend);
+            if (DBG) Log.d(TAG, "mUrisToSend = " + mUrisToSend);
         }
     }
 
@@ -384,8 +380,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         @Override
         public Void doInBackground(Void... args) {
             NdefMessage m;
-            Uri uri;
-            String mimeType;
+            Uri[] uris;
             boolean result;
 
             synchronized (P2pLinkManager.this) {
@@ -393,8 +388,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     return null;
                 }
                 m = mMessageToSend;
-                uri = mUriToSend;
-                mimeType = mMimeTypeToSend;
+                uris = mUrisToSend;
             }
 
             long time = SystemClock.elapsedRealtime();
@@ -402,7 +396,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             try {
                 if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                result = doSnepProtocol(mHandoverManager, m, mimeType, uri);
+                result = doSnepProtocol(mHandoverManager, m, uris);
             } catch (IOException e) {
                 Log.i(TAG, "Failed to connect over SNEP, trying NPP");
 
@@ -424,7 +418,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     }
 
     static boolean doSnepProtocol(HandoverManager handoverManager,
-            NdefMessage msg, String mimeType, Uri uri) throws IOException {
+            NdefMessage msg, Uri[] uris) throws IOException {
         SnepClient snepClient = new SnepClient();
         try {
             snepClient.connect();
@@ -435,12 +429,12 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
 
         try {
-            if (uri != null) {
+            if (uris != null) {
                 SnepMessage snepResponse =
                         snepClient.get(handoverManager.createHandoverRequestMessage());
                 NdefMessage response = snepResponse.getNdefMessage();
                 if (response != null) {
-                    handoverManager.doHandoverUri(mimeType, uri, response);
+                    handoverManager.doHandoverUri(uris, response);
                 }
             } else if (msg != null) {
                 snepClient.put(msg);
@@ -514,8 +508,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mLinkState = LINK_STATE_DOWN;
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
                     mMessageToSend = null;
-                    mUriToSend = null;
-                    mMimeTypeToSend = null;
+                    mUrisToSend = null;
                     if (DBG) Log.d(TAG, "onP2pOutOfRange()");
                     mEventListener.onP2pOutOfRange();
                 }
@@ -664,8 +657,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             pw.println("mCallbackNdef=" + mCallbackNdef);
             pw.println("mMessageToSend=" + mMessageToSend);
-            pw.println("mUriToSend=" + mUriToSend);
-            pw.println("mMimeTypeToSend=" + mMimeTypeToSend);
+            pw.println("mUrisToSend=" + mUrisToSend);
         }
     }
 }
