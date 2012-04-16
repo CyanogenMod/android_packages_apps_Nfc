@@ -8,5 +8,5 @@
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC 互动完成"</string>
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"接触可向此人发送您的联系人信息。"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC 已启用。"</string>
-    <string name="touch" msgid="4727218133711188355">"触摸可发送"</string>
+    <string name="touch" msgid="4727218133711188355">"触摸即可发送"</string>
 </resources>
