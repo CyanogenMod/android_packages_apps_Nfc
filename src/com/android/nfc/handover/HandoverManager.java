@@ -142,7 +142,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
          */
         boolean enableBluetooth() {
             // Enable BT
-            boolean result = mBluetoothAdapter.enable();
+            boolean result = mBluetoothAdapter.enableNoAutoConnect();
 
             if (result) {
                 // Start polling for BT activity to make sure we eventually disable
