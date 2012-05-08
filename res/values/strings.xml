@@ -18,4 +18,18 @@
     <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_nfc_enabled">NFC enabled.</string>
     <string name="touch">Touch to beam</string>
+
+    <string name="beam_progress">Beam in progress</string>
+    <string name="beam_complete">Beam complete</string>
+    <string name="beam_failed">Beam failed</string>
+    <string name="beam_touch_to_view">Touch to view</string>
+
+    <string name="connecting_headset">Connecting</string>
+    <string name="connected_headset">Connected</string>
+    <string name="connect_headset_failed">Failed to connect</string>
+    <string name="disconnecting_headset">Disconnecting</string>
+    <string name="disconnected_headset">Disconnected</string>
+    <string name="pairing_headset">Pairing</string>
+    <string name="pairing_headset_failed">Failed to pair</string>
+    <string name="failed_to_enable_bt">Failed to enable Bluetooth</string>
 </resources>
