@@ -87,16 +87,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     }
 
     @Override
-    public void onP2pReceiveComplete() {
+    public void onP2pReceiveComplete(boolean playSound) {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        mNfcService.playSound(NfcService.SOUND_END);
+        if (playSound) mNfcService.playSound(NfcService.SOUND_END);
         // TODO we still don't have a nice receive solution
         // The sanest solution right now is just to scale back up what we had
         // and start the new activity. It is not perfect, but at least it is
         // consistent behavior. All other variants involve making the old
         // activity screenshot disappear, and then removing the animation
         // window hoping the new activity has started by then. This just goes
-        // wrong too often and can looks weird.
+        // wrong too often and can look weird.
         mSendUi.finish(SendUi.FINISH_SCALE_UP);
         mNdefReceived = true;
     }
