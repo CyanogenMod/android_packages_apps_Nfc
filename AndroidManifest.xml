@@ -42,5 +42,12 @@
             android:excludeFromRecents="true"
             android:noHistory="true"
         />
+        <activity android:name=".handover.ConfirmConnectActivity"
+            android:finishOnCloseSystemDialogs="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:noHistory="true"
+
+        />
     </application>
 </manifest>
