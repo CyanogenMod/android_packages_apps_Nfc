@@ -79,7 +79,7 @@ interface P2pEventListener {
     /**
      * Called to indicate a receive was successful.
      */
-    public void onP2pReceiveComplete();
+    public void onP2pReceiveComplete(boolean playSound);
 
     /**
      * Indicates the P2P device went out of range.
@@ -123,9 +123,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
     static final int MSG_DEBOUNCE_TIMEOUT = 1;
     static final int MSG_RECEIVE_COMPLETE = 2;
-    static final int MSG_SEND_COMPLETE = 3;
-    static final int MSG_START_ECHOSERVER = 4;
-    static final int MSG_STOP_ECHOSERVER = 5;
+    static final int MSG_RECEIVE_HANDOVER = 3;
+    static final int MSG_SEND_COMPLETE = 4;
+    static final int MSG_START_ECHOSERVER = 5;
+    static final int MSG_STOP_ECHOSERVER = 6;
 
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
@@ -467,12 +468,17 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             NdefMessage response = mHandoverManager.tryHandoverRequest(msg);
 
             if (response != null) {
+                onReceiveHandover();
                 return SnepMessage.getSuccessResponse(response);
             } else {
                 return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
             }
         }
     };
+
+    void onReceiveHandover() {
+        mHandler.obtainMessage(MSG_RECEIVE_HANDOVER).sendToTarget();
+    }
 
     void onReceiveComplete(NdefMessage msg) {
         EventLogTags.writeNfcNdefReceived(getMessageSize(msg), getMessageTnf(msg),
@@ -513,6 +519,20 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mEventListener.onP2pOutOfRange();
                 }
                 break;
+            case MSG_RECEIVE_HANDOVER:
+                // We're going to do a handover request
+                synchronized (this) {
+                    if (mLinkState == LINK_STATE_DOWN) {
+                        break;
+                    }
+                    if (mSendState == SEND_STATE_SENDING) {
+                        cancelSendNdefMessage();
+                    }
+                    mSendState = SEND_STATE_NOTHING_TO_SEND;
+                    if (DBG) Log.d(TAG, "onP2pReceiveComplete()");
+                    mEventListener.onP2pReceiveComplete(false);
+                }
+                break;
             case MSG_RECEIVE_COMPLETE:
                 NdefMessage m = (NdefMessage) msg.obj;
                 synchronized (this) {
@@ -524,7 +544,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     }
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
                     if (DBG) Log.d(TAG, "onP2pReceiveComplete()");
-                    mEventListener.onP2pReceiveComplete();
+                    mEventListener.onP2pReceiveComplete(true);
                     NfcService.getInstance().sendMockNdefTag(m);
                 }
                 break;
