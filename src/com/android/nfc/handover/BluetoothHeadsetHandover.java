@@ -50,14 +50,18 @@ public class BluetoothHeadsetHandover {
     static final String TAG = HandoverManager.TAG;
     static final boolean DBG = HandoverManager.DBG;
 
+    static final String ACTION_ALLOW_CONNECT = "com.android.nfc.handover.action.ALLOW_CONNECT";
+    static final String ACTION_DENY_CONNECT = "com.android.nfc.handover.action.DENY_CONNECT";
+
     static final int TIMEOUT_MS = 20000;
 
     static final int STATE_INIT = 0;
     static final int STATE_TURNING_ON = 1;
-    static final int STATE_BONDING = 2;
-    static final int STATE_CONNECTING = 3;
-    static final int STATE_DISCONNECTING = 4;
-    static final int STATE_COMPLETE = 5;
+    static final int STATE_WAITING_FOR_BOND_CONFIRMATION = 2;
+    static final int STATE_BONDING = 3;
+    static final int STATE_CONNECTING = 4;
+    static final int STATE_DISCONNECTING = 5;
+    static final int STATE_COMPLETE = 6;
 
     static final int RESULT_PENDING = 0;
     static final int RESULT_CONNECTED = 1;
@@ -113,6 +117,9 @@ public class BluetoothHeadsetHandover {
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
         filter.addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED);
         filter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
+        filter.addAction(ACTION_ALLOW_CONNECT);
+        filter.addAction(ACTION_DENY_CONNECT);
+
         mContext.registerReceiver(mReceiver, filter);
 
         if (mA2dp.getConnectedDevices().contains(mDevice) ||
@@ -189,6 +196,13 @@ public class BluetoothHeadsetHandover {
                 // fall-through
             case STATE_TURNING_ON:
                 if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
+                    requestPairConfirmation();
+                    mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
+                    break;
+                }
+                // fall-through
+            case STATE_WAITING_FOR_BOND_CONFIRMATION:
+                if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
                     startBonding();
                     break;
                 }
@@ -258,7 +272,11 @@ public class BluetoothHeadsetHandover {
         BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
         if (!mDevice.equals(device)) return;
 
-        if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action) && mState == STATE_BONDING) {
+        if (ACTION_ALLOW_CONNECT.equals(action)) {
+            nextStepConnect();
+        } else if (ACTION_DENY_CONNECT.equals(action)) {
+            complete(false);
+        } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action) && mState == STATE_BONDING) {
             int bond = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE,
                     BluetoothAdapter.ERROR);
             if (bond == BluetoothDevice.BOND_BONDED) {
@@ -310,6 +328,15 @@ public class BluetoothHeadsetHandover {
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
         mContext.sendOrderedBroadcast(intent, null);
+    }
+
+    void requestPairConfirmation() {
+        Intent dialogIntent = new Intent(mContext, ConfirmConnectActivity.class);
+        dialogIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        dialogIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
+
+        mContext.startActivity(dialogIntent);
     }
 
     final Handler mHandler = new Handler() {
