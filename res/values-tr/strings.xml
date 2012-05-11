@@ -9,4 +9,34 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"Bu kullanıcıya kişi bilgilerinizi vermek için dokunun."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC etkin."</string>
     <string name="touch" msgid="4727218133711188355">"Göndermek için dokunun"</string>
+    <!-- no translation found for beam_progress (5954637499875435191) -->
+    <skip />
+    <!-- no translation found for beam_complete (477026736424637435) -->
+    <skip />
+    <!-- no translation found for beam_failed (5494286126602607727) -->
+    <skip />
+    <!-- no translation found for beam_touch_to_view (7853129156831642630) -->
+    <skip />
+    <!-- no translation found for connecting_headset (3929250919225573008) -->
+    <skip />
+    <!-- no translation found for connected_headset (4047751837023241955) -->
+    <skip />
+    <!-- no translation found for connect_headset_failed (8889260079136001456) -->
+    <skip />
+    <!-- no translation found for disconnecting_headset (868262189044372780) -->
+    <skip />
+    <!-- no translation found for disconnected_headset (4066109452701733916) -->
+    <skip />
+    <!-- no translation found for pairing_headset (6443461444755646137) -->
+    <skip />
+    <!-- no translation found for pairing_headset_failed (8339085014005090245) -->
+    <skip />
+    <!-- no translation found for failed_to_enable_bt (8446791573739966158) -->
+    <skip />
+    <!-- no translation found for confirm_pairing (4112568077038265363) -->
+    <skip />
+    <!-- no translation found for pair_yes (3525614878559994448) -->
+    <skip />
+    <!-- no translation found for pair_no (5022308368904055020) -->
+    <skip />
 </resources>
