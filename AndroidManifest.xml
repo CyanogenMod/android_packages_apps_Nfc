@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.READ_FRAME_BUFFER" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="com.android.permission.WHITELIST_BLUETOOTH_DEVICE" />
     <uses-permission android:name="com.android.permission.HANDOVER_STATUS" />
 
