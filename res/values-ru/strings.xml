@@ -9,34 +9,19 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"Нажмите, чтобы передать свои контактные данные."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"Служба NFC включена"</string>
     <string name="touch" msgid="4727218133711188355">"Нажмите, чтобы передать данные"</string>
-    <!-- no translation found for beam_progress (5954637499875435191) -->
-    <skip />
-    <!-- no translation found for beam_complete (477026736424637435) -->
-    <skip />
-    <!-- no translation found for beam_failed (5494286126602607727) -->
-    <skip />
-    <!-- no translation found for beam_touch_to_view (7853129156831642630) -->
-    <skip />
-    <!-- no translation found for connecting_headset (3929250919225573008) -->
-    <skip />
-    <!-- no translation found for connected_headset (4047751837023241955) -->
-    <skip />
-    <!-- no translation found for connect_headset_failed (8889260079136001456) -->
-    <skip />
-    <!-- no translation found for disconnecting_headset (868262189044372780) -->
-    <skip />
-    <!-- no translation found for disconnected_headset (4066109452701733916) -->
-    <skip />
-    <!-- no translation found for pairing_headset (6443461444755646137) -->
-    <skip />
-    <!-- no translation found for pairing_headset_failed (8339085014005090245) -->
-    <skip />
-    <!-- no translation found for failed_to_enable_bt (8446791573739966158) -->
-    <skip />
-    <!-- no translation found for confirm_pairing (4112568077038265363) -->
-    <skip />
-    <!-- no translation found for pair_yes (3525614878559994448) -->
-    <skip />
-    <!-- no translation found for pair_no (5022308368904055020) -->
-    <skip />
+    <string name="beam_progress" msgid="5954637499875435191">"Передача данных…"</string>
+    <string name="beam_complete" msgid="477026736424637435">"Передача данных завершена"</string>
+    <string name="beam_failed" msgid="5494286126602607727">"Не удалось передать данные"</string>
+    <string name="beam_touch_to_view" msgid="7853129156831642630">"Нажмите, чтобы просмотреть"</string>
+    <string name="connecting_headset" msgid="3929250919225573008">"Подключение…"</string>
+    <string name="connected_headset" msgid="4047751837023241955">"Подключено"</string>
+    <string name="connect_headset_failed" msgid="8889260079136001456">"Сбой соединения"</string>
+    <string name="disconnecting_headset" msgid="868262189044372780">"Отключение…"</string>
+    <string name="disconnected_headset" msgid="4066109452701733916">"Отключено"</string>
+    <string name="pairing_headset" msgid="6443461444755646137">"Подключение…"</string>
+    <string name="pairing_headset_failed" msgid="8339085014005090245">"Ошибка подключения"</string>
+    <string name="failed_to_enable_bt" msgid="8446791573739966158">"Не удалось включить Bluetooth"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"Подключить Bluetooth-устройство <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
+    <string name="pair_yes" msgid="3525614878559994448">"Да"</string>
+    <string name="pair_no" msgid="5022308368904055020">"Нет"</string>
 </resources>
