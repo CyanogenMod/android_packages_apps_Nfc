@@ -60,7 +60,9 @@ public class BluetoothOppHandover implements Handler.Callback {
         mState = STATE_INIT;
     }
 
-    public static String getMimeTypeForUri(Context context, Uri uri) {
+    public static String getMimeTypeForUri(Context context, Uri uri)  {
+        if (uri.getScheme() == null) return null;
+
         if (uri.getScheme().equals(ContentResolver.SCHEME_CONTENT)) {
             ContentResolver cr = context.getContentResolver();
             return cr.getType(uri);
