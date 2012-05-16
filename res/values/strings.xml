@@ -19,7 +19,7 @@
     <string name="accessibility_nfc_enabled">NFC enabled.</string>
     <string name="touch">Touch to beam</string>
 
-    <string name="beam_progress">Beam in progress</string>
+    <string name="beam_progress">Incoming beam...</string>
     <string name="beam_complete">Beam complete</string>
     <string name="beam_failed">Beam failed</string>
     <string name="beam_touch_to_view">Touch to view</string>

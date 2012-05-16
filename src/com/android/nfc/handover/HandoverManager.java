@@ -20,7 +20,10 @@ import java.io.File;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -36,20 +39,21 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
 import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Pair;
-import android.widget.Toast;
-
 import com.android.nfc.NfcService;
 import com.android.nfc.R;
 
@@ -74,6 +78,12 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     static final String EXTRA_BT_OPP_TRANSFER_STATUS =
             "android.btopp.intent.extra.BT_OPP_TRANSFER_STATUS";
+
+    static final String EXTRA_BT_OPP_TRANSFER_MIMETYPE =
+            "android.btopp.intent.extra.BT_OPP_TRANSFER_MIMETYPE";
+
+    static final String EXTRA_BT_OPP_ADDRESS =
+            "android.btopp.intent.extra.BT_OPP_ADDRESS";
 
     static final int HANDOVER_TRANSFER_STATUS_SUCCESS = 0;
 
@@ -129,7 +139,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     String mLocalBluetoothAddress;
     int mNotificationId;
-    HashMap<Pair<Integer, Integer>, HandoverTransfer> mTransfers;
+    HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
 
     static class BluetoothHandoverData {
         public boolean valid = false;
@@ -152,7 +162,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
          * when there is no Bluetooth activity intitiated by NFC
          * anymore.
          */
-        boolean enableBluetooth() {
+        synchronized boolean enableBluetooth() {
             // Enable BT
             boolean result = mBluetoothAdapter.enableNoAutoConnect();
 
@@ -164,8 +174,15 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             return result;
         }
 
-        boolean isBluetoothEnabled() {
+        synchronized boolean isBluetoothEnabled() {
             return mBluetoothAdapter.isEnabled();
+        }
+
+        synchronized void resetTimer() {
+            if (handler.hasMessages(MSG_HANDOVER_POWER_CHECK)) {
+                handler.removeMessages(MSG_HANDOVER_POWER_CHECK);
+                handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
+            }
         }
 
         void stopMonitoring() {
@@ -198,57 +215,122 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         }
     }
 
-    class HandoverTransfer {
+    /**
+     * A HandoverTransfer object represents a set of files
+     * that were received through NFC connection handover
+     * from the same source address.
+     *
+     * For Bluetooth, files are received through OPP, and
+     * we have no knowledge how many files will be transferred
+     * as part of a single transaction.
+     * Hence, a transfer has a notion of being "alive": if
+     * the last update to a transfer was within WAIT_FOR_NEXT_TRANSFER_MS
+     * milliseconds, we consider a new file transfer from the
+     * same source address as part of the same transfer.
+     * The corresponding URIs will be grouped in a single folder.
+     *
+     */
+    class HandoverTransfer implements Handler.Callback,
+            MediaScannerConnection.OnScanCompletedListener {
         static final int STATE_NEW = 0;
         static final int STATE_IN_PROGRESS = 1;
-        static final int STATE_FAILED = 2;
-        static final int STATE_SUCCESS = 3;
+        static final int STATE_W4_NEXT_TRANSFER = 2;
+        static final int STATE_W4_MEDIA_SCANNER = 3;
+        static final int STATE_FAILED = 4;
+        static final int STATE_SUCCESS = 5;
+        static final int STATE_CANCELLED = 6;
+
+        static final int MSG_NEXT_TRANSFER_TIMER = 0;
 
         // We need to receive an update within this time period
         // to still consider this transfer to be "alive" (ie
         // a reason to keep the handover transport enabled).
         static final int ALIVE_CHECK_MS = 20000;
 
-        int notificationId; // Unique ID of this transfer used for notifications
+        // The amount of time to wait for a new transfer
+        // once the current one completes.
+        static final int WAIT_FOR_NEXT_TRANSFER_MS = 4000;
+
+        static final String BEAM_DIR = "beam";
+
+        final BluetoothDevice device;
+        final String sourceAddress;
+        final boolean incoming;  // whether this is an incoming transfer
+        final int notificationId; // Unique ID of this transfer used for notifications
+        final Handler handler;
+
+        int state;
         Long lastUpdate; // Last time an event occurred for this transfer
         float progress; // Progress in range [0..1]
-        int state;
-        Uri uri;
-        boolean incoming; // whether this is an incoming transfer
+        ArrayList<Uri> btUris; // Received uris from Bluetooth OPP
+        ArrayList<String> btMimeTypes; // Mime-types received from Bluetooth OPP
 
-        public HandoverTransfer(boolean incoming) {
+        ArrayList<String> paths; // Raw paths on the filesystem for Beam-stored files
+        HashMap<String, String> mimeTypes; // Mime-types associated with each path
+        HashMap<String, Uri> mediaUris; // URIs found by the media scanner for each path
+        int urisScanned;
+
+        public HandoverTransfer(String sourceAddress, boolean incoming) {
             synchronized (HandoverManager.this) {
                 this.notificationId = mNotificationId++;
             }
             this.lastUpdate = SystemClock.elapsedRealtime();
             this.progress = 0.0f;
             this.state = STATE_NEW;
-            this.uri = null;
+            this.btUris = new ArrayList<Uri>();
+            this.btMimeTypes = new ArrayList<String>();
+            this.paths = new ArrayList<String>();
+            this.mimeTypes = new HashMap<String, String>();
+            this.mediaUris = new HashMap<String, Uri>();
+            this.sourceAddress = sourceAddress;
             this.incoming = incoming;
+            this.handler = new Handler(mContext.getMainLooper(), this);
+            this.urisScanned = 0;
+            this.device = mBluetoothAdapter.getRemoteDevice(sourceAddress);
         }
 
-        synchronized void updateTransferProgress(float progress) {
-            this.state = STATE_IN_PROGRESS;
+        public synchronized void updateFileProgress(float progress) {
+            if (!isRunning()) return; // Ignore when we're no longer running
+
+            handler.removeMessages(MSG_NEXT_TRANSFER_TIMER);
+
             this.progress = progress;
-            this.lastUpdate = SystemClock.elapsedRealtime();
 
-            updateNotification();
+            // We're still receiving data from this device - keep it in
+            // the whitelist for a while longer
+            if (incoming) whitelistOppDevice(device);
+
+            updateStateAndNotification(STATE_IN_PROGRESS);
         }
 
-        synchronized void finishTransfer(boolean success, Uri uri) {
+        public synchronized void finishTransfer(boolean success, Uri uri, String mimeType) {
+            if (!isRunning()) return; // Ignore when we're no longer running
+
             if (success && uri != null) {
-                this.state = STATE_SUCCESS;
-                this.uri = uri;
+                if (DBG) Log.d(TAG, "Transfer success, uri " + uri + " mimeType " + mimeType);
+                this.progress = 1.0f;
+                if (mimeType == null) {
+                    mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
+                }
+                if (mimeType != null) {
+                    btUris.add(uri);
+                    btMimeTypes.add(mimeType);
+                } else {
+                    if (DBG) Log.d(TAG, "Could not get mimeType for file.");
+                }
             } else {
-                this.state = STATE_FAILED;
+                Log.e(TAG, "Handover transfer failed");
+                // Do wait to see if there's another file coming.
             }
-            this.lastUpdate = SystemClock.elapsedRealtime();
-
-            updateNotification();
+            handler.removeMessages(MSG_NEXT_TRANSFER_TIMER);
+            handler.sendEmptyMessageDelayed(MSG_NEXT_TRANSFER_TIMER, WAIT_FOR_NEXT_TRANSFER_MS);
+            updateStateAndNotification(STATE_W4_NEXT_TRANSFER);
         }
 
-        synchronized boolean isRunning() {
-            if (state != STATE_IN_PROGRESS) return false;
+        public synchronized boolean isRunning() {
+            if (state != STATE_NEW && state != STATE_IN_PROGRESS && state != STATE_W4_NEXT_TRANSFER) {
+                return false;
+            }
 
             // Check that we've made progress
             Long currentTime = SystemClock.elapsedRealtime();
@@ -264,13 +346,16 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
             Builder notBuilder = new Notification.Builder(mContext);
 
-            if (state == STATE_IN_PROGRESS) {
-                int progressInt = (int) (progress * 100);
+            if (state == STATE_NEW || state == STATE_IN_PROGRESS ||
+                    state == STATE_W4_NEXT_TRANSFER || state == STATE_W4_MEDIA_SCANNER) {
                 notBuilder.setAutoCancel(false);
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
                 notBuilder.setTicker(mContext.getString(R.string.beam_progress));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_progress));
-                notBuilder.setProgress(100, progressInt, progress == -1);
+                // We do have progress indication on a per-file basis, but in a multi-file
+                // transfer we don't know the total progress. So for now, just show an
+                // indeterminate progress bar.
+                notBuilder.setProgress(100, 0, true);
             } else if (state == STATE_SUCCESS) {
                 notBuilder.setAutoCancel(true);
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
@@ -278,10 +363,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
 
-                Intent notificationIntent = new Intent(Intent.ACTION_VIEW);
-                String mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
-                notificationIntent.setDataAndType(uri, mimeType);
-                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, notificationIntent, 0);
+                Intent viewIntent = buildViewIntent();
+                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
 
                 notBuilder.setContentIntent(contentIntent);
 
@@ -298,21 +381,151 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
             mNotificationManager.notify(mNotificationId, notBuilder.build());
         }
+
+        synchronized void updateStateAndNotification(int newState) {
+            this.state = newState;
+            this.lastUpdate = SystemClock.elapsedRealtime();
+            updateNotification();
+        }
+
+        synchronized void processFiles() {
+            // Check the amount of files we received in this transfer;
+            // If more than one, create a separate directory for it.
+            String extRoot = Environment.getExternalStorageDirectory().getPath();
+            File beamPath = new File(extRoot + "/" + BEAM_DIR);
+
+            if (!checkMediaStorage(beamPath) || btUris.size() == 0) {
+                Log.e(TAG, "Media storage not valid or no uris received.");
+                updateStateAndNotification(STATE_FAILED);
+                return;
+            }
+
+            if (btUris.size() > 1) {
+                beamPath = generateMultiplePath(extRoot + "/" + BEAM_DIR + "/");
+                if (!beamPath.isDirectory() && !beamPath.mkdir()) {
+                    Log.e(TAG, "Failed to create multiple path " + beamPath.toString());
+                    updateStateAndNotification(STATE_FAILED);
+                    return;
+                }
+            }
+
+            for (int i = 0; i < btUris.size(); i++) {
+                Uri uri = btUris.get(i);
+                String mimeType = btMimeTypes.get(i);
+
+                File srcFile = new File(uri.getPath());
+                File dstFile = new File(beamPath + "/" + uri.getLastPathSegment());
+                if (!srcFile.renameTo(dstFile)) {
+                    if (DBG) Log.d(TAG, "Failed to rename from " + srcFile + " to " + dstFile);
+                    srcFile.delete();
+                    return;
+                } else {
+                    paths.add(dstFile.getAbsolutePath());
+                    mimeTypes.put(dstFile.getAbsolutePath(), mimeType);
+                    if (DBG) Log.d(TAG, "Did successful rename from " + srcFile + " to " + dstFile);
+                }
+            }
+
+            // We can either add files to the media provider, or provide an ACTION_VIEW
+            // intent to the file directly. We base this decision on the mime type
+            // of the first file; if it's media the platform can deal with,
+            // use the media provider, if it's something else, just launch an ACTION_VIEW
+            // on the file.
+            String mimeType = mimeTypes.get(paths.get(0));
+            if (mimeType.startsWith("image/") || mimeType.startsWith("video/") ||
+                    mimeType.startsWith("audio/")) {
+                String[] arrayPaths = new String[paths.size()];
+                MediaScannerConnection.scanFile(mContext, paths.toArray(arrayPaths), null, this);
+                updateStateAndNotification(STATE_W4_MEDIA_SCANNER);
+            } else {
+                // We're done.
+                updateStateAndNotification(STATE_SUCCESS);
+            }
+
+        }
+
+        public boolean handleMessage(Message msg) {
+            if (msg.what == MSG_NEXT_TRANSFER_TIMER) {
+                // We didn't receive a new transfer in time, finalize this one
+                processFiles();
+                return true;
+            }
+            return false;
+        }
+
+        public synchronized void onScanCompleted(String path, Uri uri) {
+            if (DBG) Log.d(TAG, "Scan completed, path " + path + " uri " + uri);
+            if (uri != null) {
+                mediaUris.put(path, uri);
+            }
+            urisScanned++;
+            if (urisScanned == paths.size()) {
+                // We're done
+                updateStateAndNotification(STATE_SUCCESS);
+            }
+        }
+
+        boolean checkMediaStorage(File path) {
+            if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+                if (!path.isDirectory() && !path.mkdir()) {
+                    Log.e(TAG, "Not dir or not mkdir " + path.getAbsolutePath());
+                    return false;
+                }
+                return true;
+            } else {
+                Log.e(TAG, "External storage not mounted, can't store file.");
+                return false;
+            }
+        }
+
+        synchronized Intent buildViewIntent() {
+            if (paths.size() == 0) return null;
+
+            Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+
+            String filePath = paths.get(0);
+            Uri mediaUri = mediaUris.get(filePath);
+            Uri uri =  mediaUri != null ? mediaUri :
+                Uri.parse(ContentResolver.SCHEME_FILE + "://" + filePath);
+            viewIntent.setDataAndTypeAndNormalize(uri, mimeTypes.get(filePath));
+
+            return viewIntent;
+        }
+
+        synchronized File generateMultiplePath(String beamRoot) {
+            // Generate a unique directory with the date
+            String format = "yyyy-MM-dd";
+            SimpleDateFormat sdf = new SimpleDateFormat(format);
+            String newPath = beamRoot + "beam-" + sdf.format(new Date());
+            File newFile = new File(newPath);
+            int count = 0;
+            while (newFile.exists()) {
+                newPath = beamRoot + "beam-" + sdf.format(new Date()) + "-" +
+                        Integer.toString(count);
+                newFile = new File(newPath);
+                count++;
+            }
+
+            return newFile;
+        }
+
+
     }
 
-    synchronized HandoverTransfer getHandoverTransfer(int source, int id) {
-        Pair<Integer, Integer> key = new Pair<Integer, Integer>(source,id);
-        if (!mTransfers.containsKey(key)) {
-            boolean incoming = false;
-            if (source == SOURCE_BLUETOOTH_INCOMING) {
-                incoming = true;
+    synchronized HandoverTransfer getHandoverTransfer(String sourceAddress, boolean incoming) {
+        Pair<String, Boolean> key = new Pair<String, Boolean>(sourceAddress, incoming);
+        if (mTransfers.containsKey(key)) {
+            HandoverTransfer transfer = mTransfers.get(key);
+            if (transfer.isRunning()) {
+                return transfer;
+            } else {
+                // Remove old transfer; new one will be created below
+                mTransfers.remove(key);
             }
-            HandoverTransfer transfer = new HandoverTransfer(incoming);
-            mTransfers.put(key, transfer);
-            return transfer;
-        } else {
-            return mTransfers.get(key);
         }
+        HandoverTransfer transfer = new HandoverTransfer(sourceAddress, incoming);
+        mTransfers.put(key, transfer);
+        return transfer;
     }
 
     public HandoverManager(Context context) {
@@ -324,7 +537,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
 
-        mTransfers = new HashMap<Pair<Integer, Integer>, HandoverTransfer>();
+        mTransfers = new HashMap<Pair<String, Boolean>, HandoverTransfer>();
         mHandoverPowerManager = new HandoverPowerManager(context);
 
         IntentFilter filter = new IntentFilter(ACTION_BT_OPP_TRANSFER_DONE);
@@ -334,9 +547,9 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     }
 
     synchronized void cleanupTransfers() {
-        Iterator<Map.Entry<Pair<Integer, Integer>, HandoverTransfer>> it = mTransfers.entrySet().iterator();
+        Iterator<Map.Entry<Pair<String, Boolean>, HandoverTransfer>> it = mTransfers.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<Pair<Integer, Integer>, HandoverTransfer> pair = it.next();
+            Map.Entry<Pair<String, Boolean>, HandoverTransfer> pair = it.next();
             HandoverTransfer transfer = pair.getValue();
             if (!transfer.isRunning()) {
                 it.remove();
@@ -442,12 +655,20 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
         boolean bluetoothActivating = false;
 
-        if (!mHandoverPowerManager.isBluetoothEnabled()) {
-            if (!mHandoverPowerManager.enableBluetooth()) {
-                toast(mContext.getString(R.string.beam_failed));
-                return null;
+        synchronized(HandoverManager.this) {
+            if (!mHandoverPowerManager.isBluetoothEnabled()) {
+                if (!mHandoverPowerManager.enableBluetooth()) {
+                    return null;
+                }
+                bluetoothActivating = true;
+            } else {
+                mHandoverPowerManager.resetTimer();
             }
-            bluetoothActivating = true;
+
+            // Create the initial transfer object
+            HandoverTransfer transfer = getHandoverTransfer(bluetoothData.device.getAddress(),
+                    true);
+            transfer.updateNotification();
         }
 
         // BT OOB found, whitelist it for incoming OPP data
@@ -695,10 +916,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         }
     }
 
-    void toast(CharSequence text) {
-        Toast.makeText(mContext,  text, Toast.LENGTH_SHORT).show();
-    }
-
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -718,10 +935,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
                 int direction = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_DIRECTION, -1);
                 int id = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_ID, -1);
-                if (direction == -1 || id == -1) return;
-                int source = (direction == DIRECTION_BLUETOOTH_INCOMING) ?
-                        SOURCE_BLUETOOTH_INCOMING : SOURCE_BLUETOOTH_OUTGOING;
-                HandoverTransfer transfer = getHandoverTransfer(source, id);
+                String sourceAddress = intent.getStringExtra(EXTRA_BT_OPP_ADDRESS);
+
+                if (direction == -1 || id == -1 || sourceAddress == null) return;
+                boolean incoming = (direction == DIRECTION_BLUETOOTH_INCOMING);
+                HandoverTransfer transfer = getHandoverTransfer(sourceAddress, incoming);
                 if (transfer == null) return;
 
                 if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
@@ -730,17 +948,18 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
                     if (handoverStatus == HANDOVER_TRANSFER_STATUS_SUCCESS) {
                         String uriString = intent.getStringExtra(EXTRA_BT_OPP_TRANSFER_URI);
+                        String mimeType = intent.getStringExtra(EXTRA_BT_OPP_TRANSFER_MIMETYPE);
                         Uri uri = Uri.parse(uriString);
                         if (uri.getScheme() == null) {
                             uri = Uri.fromFile(new File(uri.getPath()));
                         }
-                        transfer.finishTransfer(true, uri);
+                        transfer.finishTransfer(true, uri, mimeType);
                     } else {
-                        transfer.finishTransfer(false, null);
+                        transfer.finishTransfer(false, null, null);
                     }
                 } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS)) {
                     float progress = intent.getFloatExtra(EXTRA_BT_OPP_TRANSFER_PROGRESS, 0.0f);
-                    transfer.updateTransferProgress(progress);
+                    transfer.updateFileProgress(progress);
                 }
             }
         }
