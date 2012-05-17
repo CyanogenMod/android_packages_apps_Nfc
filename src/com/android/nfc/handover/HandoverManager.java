@@ -117,6 +117,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static final String ACTION_WHITELIST_DEVICE =
             "android.btopp.intent.action.WHITELIST_DEVICE";
 
+    static final String ACTION_CANCEL_HANDOVER_TRANSFER =
+            "com.android.nfc.handover.action.CANCEL_HANDOVER_TRANSFER";
+    static final String EXTRA_SOURCE_ADDRESS =
+            "com.android.nfc.handover.extra.SOURCE_ADDRESS";
+
     static final int SOURCE_BLUETOOTH_INCOMING = 0;
 
     static final int SOURCE_BLUETOOTH_OUTGOING = 1;
@@ -131,7 +136,9 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     final NotificationManager mNotificationManager;
     final HandoverPowerManager mHandoverPowerManager;
 
-    // synchronized on HandoverManager.this
+    // Variables below synchronized on HandoverManager.this
+    final HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
+
     BluetoothHeadset mBluetoothHeadset;
     BluetoothA2dp mBluetoothA2dp;
     BluetoothHeadsetHandover mBluetoothHeadsetHandover;
@@ -139,7 +146,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     String mLocalBluetoothAddress;
     int mNotificationId;
-    HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
 
     static class BluetoothHandoverData {
         public boolean valid = false;
@@ -232,20 +238,24 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
      */
     class HandoverTransfer implements Handler.Callback,
             MediaScannerConnection.OnScanCompletedListener {
+        // In the states below we still accept new file transfer
         static final int STATE_NEW = 0;
         static final int STATE_IN_PROGRESS = 1;
         static final int STATE_W4_NEXT_TRANSFER = 2;
+
+        // In the states below no new files are accepted.
         static final int STATE_W4_MEDIA_SCANNER = 3;
         static final int STATE_FAILED = 4;
         static final int STATE_SUCCESS = 5;
         static final int STATE_CANCELLED = 6;
 
         static final int MSG_NEXT_TRANSFER_TIMER = 0;
+        static final int MSG_TRANSFER_TIMEOUT = 1;
 
         // We need to receive an update within this time period
         // to still consider this transfer to be "alive" (ie
         // a reason to keep the handover transport enabled).
-        static final int ALIVE_CHECK_MS = 20000;
+        static final int ALIVE_CHECK_MS = 10000;
 
         // The amount of time to wait for a new transfer
         // once the current one completes.
@@ -258,6 +268,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         final boolean incoming;  // whether this is an incoming transfer
         final int notificationId; // Unique ID of this transfer used for notifications
         final Handler handler;
+        final PendingIntent cancelIntent;
 
         int state;
         Long lastUpdate; // Last time an event occurred for this transfer
@@ -285,8 +296,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             this.sourceAddress = sourceAddress;
             this.incoming = incoming;
             this.handler = new Handler(mContext.getMainLooper(), this);
+            this.cancelIntent = buildCancelIntent();
             this.urisScanned = 0;
             this.device = mBluetoothAdapter.getRemoteDevice(sourceAddress);
+
+            handler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
         }
 
         public synchronized void updateFileProgress(float progress) {
@@ -330,15 +344,21 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         public synchronized boolean isRunning() {
             if (state != STATE_NEW && state != STATE_IN_PROGRESS && state != STATE_W4_NEXT_TRANSFER) {
                 return false;
-            }
-
-            // Check that we've made progress
-            Long currentTime = SystemClock.elapsedRealtime();
-            if (currentTime - lastUpdate > ALIVE_CHECK_MS) {
-                return false;
             } else {
                 return true;
             }
+        }
+
+        synchronized void cancel() {
+            if (!isRunning()) return;
+
+            // Delete all files received so far
+            for (Uri uri : btUris) {
+                File file = new File(uri.getPath());
+                if (file.exists()) file.delete();
+            }
+
+            updateStateAndNotification(STATE_CANCELLED);
         }
 
         synchronized void updateNotification() {
@@ -352,6 +372,10 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
                 notBuilder.setTicker(mContext.getString(R.string.beam_progress));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_progress));
+                notBuilder.addAction(R.drawable.ic_menu_cancel_holo_dark,
+                        mContext.getString(R.string.cancel), cancelIntent);
+                notBuilder.setDeleteIntent(cancelIntent);
+                notBuilder.setWhen(0);
                 // We do have progress indication on a per-file basis, but in a multi-file
                 // transfer we don't know the total progress. So for now, just show an
                 // indeterminate progress bar.
@@ -362,6 +386,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setTicker(mContext.getString(R.string.beam_complete));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
+                notBuilder.setWhen(0);
 
                 Intent viewIntent = buildViewIntent();
                 PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
@@ -371,10 +396,17 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 // Play Beam success sound
                 NfcService.getInstance().playSound(NfcService.SOUND_END);
             } else if (state == STATE_FAILED) {
-                notBuilder.setAutoCancel(true);
+                notBuilder.setAutoCancel(false);
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
                 notBuilder.setTicker(mContext.getString(R.string.beam_failed));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
+                notBuilder.setWhen(0);
+            } else if (state == STATE_CANCELLED) {
+                notBuilder.setAutoCancel(false);
+                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+                notBuilder.setTicker(mContext.getString(R.string.beam_canceled));
+                notBuilder.setContentTitle(mContext.getString(R.string.beam_canceled));
+                notBuilder.setWhen(0);
             } else {
                 return;
             }
@@ -385,6 +417,12 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         synchronized void updateStateAndNotification(int newState) {
             this.state = newState;
             this.lastUpdate = SystemClock.elapsedRealtime();
+
+            if (handler.hasMessages(MSG_TRANSFER_TIMEOUT)) {
+                // Update timeout timer
+                handler.removeMessages(MSG_TRANSFER_TIMEOUT);
+                handler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
+            }
             updateNotification();
         }
 
@@ -447,8 +485,18 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         public boolean handleMessage(Message msg) {
             if (msg.what == MSG_NEXT_TRANSFER_TIMER) {
                 // We didn't receive a new transfer in time, finalize this one
-                processFiles();
+                if (incoming) {
+                    processFiles();
+                } else {
+                    updateStateAndNotification(STATE_SUCCESS);
+                }
                 return true;
+            } else if (msg.what == MSG_TRANSFER_TIMEOUT) {
+                // No update on this transfer for a while, check
+                // to see if it's still running, and fail it if it is.
+                if (isRunning()) {
+                    updateStateAndNotification(STATE_FAILED);
+                }
             }
             return false;
         }
@@ -492,6 +540,14 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             return viewIntent;
         }
 
+        PendingIntent buildCancelIntent() {
+            Intent intent = new Intent(ACTION_CANCEL_HANDOVER_TRANSFER);
+            intent.putExtra(EXTRA_SOURCE_ADDRESS, sourceAddress);
+            PendingIntent pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
+
+            return pi;
+        }
+
         synchronized File generateMultiplePath(String beamRoot) {
             // Generate a unique directory with the date
             String format = "yyyy-MM-dd";
@@ -508,24 +564,27 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
             return newFile;
         }
-
-
     }
 
-    synchronized HandoverTransfer getHandoverTransfer(String sourceAddress, boolean incoming) {
+    synchronized HandoverTransfer getOrCreateHandoverTransfer(String sourceAddress, boolean incoming,
+            boolean create) {
         Pair<String, Boolean> key = new Pair<String, Boolean>(sourceAddress, incoming);
         if (mTransfers.containsKey(key)) {
             HandoverTransfer transfer = mTransfers.get(key);
             if (transfer.isRunning()) {
                 return transfer;
             } else {
-                // Remove old transfer; new one will be created below
-                mTransfers.remove(key);
+                if (create) mTransfers.remove(key); // new one created below
             }
         }
-        HandoverTransfer transfer = new HandoverTransfer(sourceAddress, incoming);
-        mTransfers.put(key, transfer);
-        return transfer;
+        if (create) {
+            HandoverTransfer transfer = new HandoverTransfer(sourceAddress, incoming);
+            mTransfers.put(key, transfer);
+
+            return transfer;
+        } else {
+            return null;
+        }
     }
 
     public HandoverManager(Context context) {
@@ -543,6 +602,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         IntentFilter filter = new IntentFilter(ACTION_BT_OPP_TRANSFER_DONE);
         filter.addAction(ACTION_BT_OPP_TRANSFER_PROGRESS);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(ACTION_CANCEL_HANDOVER_TRANSFER);
         mContext.registerReceiver(mReceiver, filter, HANDOVER_STATUS_PERMISSION, null);
     }
 
@@ -666,8 +726,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             }
 
             // Create the initial transfer object
-            HandoverTransfer transfer = getHandoverTransfer(bluetoothData.device.getAddress(),
-                    true);
+            HandoverTransfer transfer = getOrCreateHandoverTransfer(
+                    bluetoothData.device.getAddress(), true, true);
             transfer.updateNotification();
         }
 
@@ -715,6 +775,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     public void doHandoverUri(Uri[] uris, NdefMessage m) {
         BluetoothHandoverData data = parse(m);
         if (data != null && data.valid) {
+            // Register a new handover transfer object
+            getOrCreateHandoverTransfer(data.device.getAddress(), false, true);
             BluetoothOppHandover handover = new BluetoothOppHandover(mContext, data.device,
                 uris, mHandoverPowerManager, data.carrierActivating);
             handover.start();
@@ -928,9 +990,16 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 }
 
                 return;
+            } else if (action.equals(ACTION_CANCEL_HANDOVER_TRANSFER)) {
+                String sourceAddress = intent.getStringExtra(EXTRA_SOURCE_ADDRESS);
+                HandoverTransfer transfer = getOrCreateHandoverTransfer(sourceAddress, true,
+                        false);
+                if (transfer != null) {
+                    transfer.cancel();
+                }
             } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS) ||
                     action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
-                // Clean up old transfers in progress
+                // Clean up old transfers no longer in progress
                 cleanupTransfers();
 
                 int direction = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_DIRECTION, -1);
@@ -939,8 +1008,18 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
                 if (direction == -1 || id == -1 || sourceAddress == null) return;
                 boolean incoming = (direction == DIRECTION_BLUETOOTH_INCOMING);
-                HandoverTransfer transfer = getHandoverTransfer(sourceAddress, incoming);
-                if (transfer == null) return;
+
+                HandoverTransfer transfer = getOrCreateHandoverTransfer(sourceAddress, incoming,
+                        false);
+                if (transfer == null) {
+                    // There is no transfer running for this source address; most likely
+                    // the transfer was cancelled. We need to tell BT OPP to stop transferring
+                    // in case this was an incoming transfer
+                    Intent cancelIntent = new Intent("android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
+                    cancelIntent.putExtra(EXTRA_BT_OPP_TRANSFER_ID, id);
+                    mContext.sendBroadcast(cancelIntent);
+                    return;
+                }
 
                 if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
                     int handoverStatus = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_STATUS,
@@ -963,8 +1042,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 }
             }
         }
-
     };
-
 
 }
