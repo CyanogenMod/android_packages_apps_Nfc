@@ -51,7 +51,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
                 Context.NOTIFICATION_SERVICE);
 
         mSending = false;
-        mSendUi = new SendUi(context, this);
+        final int uiModeType = mContext.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_TYPE_MASK;
+        if (uiModeType == Configuration.UI_MODE_TYPE_APPLIANCE) {
+            // "Appliances" don't intrinsically have a way of confirming this, so we
+            // don't use the UI and just autoconfirm where necessary.
+            // Don't instantiate SendUi or else we'll use memory and never reclaim it.
+            mSendUi = null;
+        } else {
+            mSendUi = new SendUi(context, this);
+        }
     }
 
     @Override
@@ -61,19 +70,17 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         mNdefReceived = false;
 
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        mSendUi.takeScreenshot();
+        if (mSendUi != null) {
+            mSendUi.takeScreenshot();
+        }
     }
 
     @Override
     public void onP2pSendConfirmationRequested() {
-        final int uiModeType = mContext.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_TYPE_MASK;
-        if (uiModeType == Configuration.UI_MODE_TYPE_APPLIANCE) {
-            // "Appliances" don't intrinsically have a way of confirming this, so we
-            // will just auto-confirm.
-            mCallback.onP2pSendConfirmed();
-        } else {
+        if (mSendUi != null) {
             mSendUi.showPreSend();
+        } else {
+            mCallback.onP2pSendConfirmed();
         }
     }
 
@@ -81,7 +88,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     public void onP2pSendComplete() {
         mNfcService.playSound(NfcService.SOUND_END);
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
-        mSendUi.finish(SendUi.FINISH_SEND_SUCCESS);
+        if (mSendUi != null) {
+            mSendUi.finish(SendUi.FINISH_SEND_SUCCESS);
+        }
         mSending = false;
         mNdefSent = true;
     }
@@ -90,14 +99,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     public void onP2pReceiveComplete(boolean playSound) {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         if (playSound) mNfcService.playSound(NfcService.SOUND_END);
-        // TODO we still don't have a nice receive solution
-        // The sanest solution right now is just to scale back up what we had
-        // and start the new activity. It is not perfect, but at least it is
-        // consistent behavior. All other variants involve making the old
-        // activity screenshot disappear, and then removing the animation
-        // window hoping the new activity has started by then. This just goes
-        // wrong too often and can look weird.
-        mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        if (mSendUi != null) {
+            // TODO we still don't have a nice receive solution
+            // The sanest solution right now is just to scale back up what we had
+            // and start the new activity. It is not perfect, but at least it is
+            // consistent behavior. All other variants involve making the old
+            // activity screenshot disappear, and then removing the animation
+            // window hoping the new activity has started by then. This just goes
+            // wrong too often and can look weird.
+            mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        }
         mNdefReceived = true;
     }
 
@@ -107,7 +118,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
             mNfcService.playSound(NfcService.SOUND_ERROR);
             mSending = false;
         }
-        if (!mNdefSent && !mNdefReceived) {
+        if (!mNdefSent && !mNdefReceived && mSendUi != null) {
             mSendUi.finish(SendUi.FINISH_SCALE_UP);
         }
     }
@@ -115,7 +126,9 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     @Override
     public void onSendConfirmed() {
         if (!mSending) {
-            mSendUi.showStartSend();
+            if (mSendUi != null) {
+                mSendUi.showStartSend();
+            }
             mCallback.onP2pSendConfirmed();
         }
         mSending = true;
