@@ -190,7 +190,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
                 | hwAccelerationFlags
-                | WindowManager.LayoutParams.FLAG_KEEP_SURFACE_WHILE_ANIMATING
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.token = new Binder();
