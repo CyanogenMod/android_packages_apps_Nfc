@@ -405,7 +405,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     return null;
                 }
 
-                result = new NdefPushClient().push(m);
+                if (m != null) {
+                    result = new NdefPushClient().push(m);
+                } else {
+                    result = false;
+                }
             }
             time = SystemClock.elapsedRealtime() - time;
 
