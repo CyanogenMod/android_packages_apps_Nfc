@@ -554,6 +554,14 @@ public class NfcService extends Application implements DeviceHostListener {
 
             mP2pLinkManager.enableDisable(false, false);
 
+            synchronized (NfcService.this) {
+                if (mOpenEe != null) {
+                    try {
+                        _nfcEeClose(-1, mOpenEe.binder);
+                    } catch (IOException e) { }
+                }
+            }
+
             // Stop watchdog if tag present
             // A convenient way to stop the watchdog properly consists of
             // disconnecting the tag. The polling loop shall be stopped before
@@ -1178,7 +1186,7 @@ public class NfcService extends Application implements DeviceHostListener {
         // operations. However this is not supported by current hardware.
 
         synchronized (NfcService.this) {
-            if (!isNfcEnabled()) {
+            if (!isNfcEnabledOrShuttingDown()) {
                 throw new IOException("NFC adapter is disabled");
             }
             if (mOpenEe == null) {
