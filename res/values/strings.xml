@@ -22,6 +22,8 @@
     <string name="beam_progress">Incoming beam...</string>
     <string name="beam_complete">Beam complete</string>
     <string name="beam_failed">Beam failed</string>
+    <string name="beam_canceled">Beam canceled</string>
+    <string name="cancel">Cancel</string>
     <string name="beam_touch_to_view">Touch to view</string>
 
     <string name="connecting_headset">Connecting</string>

@@ -2,6 +2,7 @@ package com.android.nfc.handover;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -116,11 +117,9 @@ public class BluetoothOppHandover implements Handler.Callback {
     void sendIntent() {
         //TODO: either open up BluetoothOppLauncherActivity to all MIME types
         //      or gracefully handle mime types that can't be sent
-        Log.d(TAG, "Sending handover intent for " + mDevice.getAddress());
         Intent intent = new Intent();
         intent.setPackage("com.android.bluetooth");
         String mimeType = getMimeTypeForUri(mContext, mUris[0]);
-        Log.d(TAG, "Determined mime type as " + mimeType);
         intent.setType(mimeType);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
         if (mUris.length == 1) {
@@ -133,8 +132,11 @@ public class BluetoothOppHandover implements Handler.Callback {
         }
         intent.putExtra(EXTRA_CONNECTION_HANDOVER, true);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        mContext.startActivity(intent);
-
+        try {
+            mContext.startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            Log.e(TAG, "Failed to handover file to bluetooth, mimeType not allowed.");
+        }
         complete();
     }
 
