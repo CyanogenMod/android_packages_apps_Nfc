@@ -255,7 +255,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         // We need to receive an update within this time period
         // to still consider this transfer to be "alive" (ie
         // a reason to keep the handover transport enabled).
-        static final int ALIVE_CHECK_MS = 10000;
+        static final int ALIVE_CHECK_MS = 20000;
 
         // The amount of time to wait for a new transfer
         // once the current one completes.
@@ -452,7 +452,9 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 String mimeType = btMimeTypes.get(i);
 
                 File srcFile = new File(uri.getPath());
-                File dstFile = new File(beamPath + "/" + uri.getLastPathSegment());
+
+                File dstFile = generateUniqueDestination(beamPath + "/" +
+                        uri.getLastPathSegment());
                 if (!srcFile.renameTo(dstFile)) {
                     if (DBG) Log.d(TAG, "Failed to rename from " + srcFile + " to " + dstFile);
                     srcFile.delete();
@@ -546,6 +548,17 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             PendingIntent pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
 
             return pi;
+        }
+
+        synchronized File generateUniqueDestination(String baseFileName) {
+            File dstFile = new File(baseFileName);
+            int count = 0;
+            while (dstFile.exists()) {
+                dstFile = new File(baseFileName + "-" + Integer.toString(count));
+                count++;
+            }
+
+            return dstFile;
         }
 
         synchronized File generateMultiplePath(String beamRoot) {
