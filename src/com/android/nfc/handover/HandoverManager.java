@@ -375,7 +375,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.addAction(R.drawable.ic_menu_cancel_holo_dark,
                         mContext.getString(R.string.cancel), cancelIntent);
                 notBuilder.setDeleteIntent(cancelIntent);
-                notBuilder.setWhen(0);
                 // We do have progress indication on a per-file basis, but in a multi-file
                 // transfer we don't know the total progress. So for now, just show an
                 // indeterminate progress bar.
@@ -386,7 +385,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setTicker(mContext.getString(R.string.beam_complete));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
-                notBuilder.setWhen(0);
 
                 Intent viewIntent = buildViewIntent();
                 PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
@@ -400,13 +398,11 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
                 notBuilder.setTicker(mContext.getString(R.string.beam_failed));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
-                notBuilder.setWhen(0);
             } else if (state == STATE_CANCELLED) {
                 notBuilder.setAutoCancel(false);
                 notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
                 notBuilder.setTicker(mContext.getString(R.string.beam_canceled));
                 notBuilder.setContentTitle(mContext.getString(R.string.beam_canceled));
-                notBuilder.setWhen(0);
             } else {
                 return;
             }
