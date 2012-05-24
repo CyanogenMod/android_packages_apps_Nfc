@@ -25,6 +25,7 @@
     <string name="beam_canceled">Beam canceled</string>
     <string name="cancel">Cancel</string>
     <string name="beam_touch_to_view">Touch to view</string>
+    <string name="beam_handover_not_supported">The receiver\'s device doesn\'t support large file transfer via beam.</string>
 
     <string name="connecting_headset">Connecting</string>
     <string name="connected_headset">Connected</string>
