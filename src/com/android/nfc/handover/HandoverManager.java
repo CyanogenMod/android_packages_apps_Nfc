@@ -54,6 +54,7 @@ import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Pair;
+
 import com.android.nfc.NfcService;
 import com.android.nfc.R;
 
@@ -449,7 +450,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
                 File srcFile = new File(uri.getPath());
 
-                File dstFile = generateUniqueDestination(beamPath + "/" +
+                File dstFile = generateUniqueDestination(beamPath.getAbsolutePath(),
                         uri.getLastPathSegment());
                 if (!srcFile.renameTo(dstFile)) {
                     if (DBG) Log.d(TAG, "Failed to rename from " + srcFile + " to " + dstFile);
@@ -546,14 +547,24 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             return pi;
         }
 
-        synchronized File generateUniqueDestination(String baseFileName) {
-            File dstFile = new File(baseFileName);
+        synchronized File generateUniqueDestination(String path, String fileName) {
+            int dotIndex = fileName.lastIndexOf(".");
+            String extension = null;
+            String fileNameWithoutExtension = null;
+            if (dotIndex < 0) {
+                extension = "";
+                fileNameWithoutExtension = fileName;
+            } else {
+                extension = fileName.substring(dotIndex);
+                fileNameWithoutExtension = fileName.substring(0, dotIndex);
+            }
+            File dstFile = new File(path + File.separator + fileName);
             int count = 0;
             while (dstFile.exists()) {
-                dstFile = new File(baseFileName + "-" + Integer.toString(count));
+                dstFile = new File(path + File.separator + fileNameWithoutExtension + "-" +
+                        Integer.toString(count) + extension);
                 count++;
             }
-
             return dstFile;
         }
 
