@@ -9,18 +9,26 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"Zum Weitergeben Ihrer Kontaktinformationen an diese Person tippen"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC aktiviert"</string>
     <string name="touch" msgid="4727218133711188355">"Zum Beamen berühren"</string>
-    <string name="beam_progress" msgid="5954637499875435191">"Beamen läuft"</string>
+    <string name="beam_progress" msgid="7453634884807323920">"Beam wird empfangen..."</string>
     <string name="beam_complete" msgid="477026736424637435">"Beamen abgeschlossen"</string>
-    <string name="beam_failed" msgid="5494286126602607727">"Fehler beim Beamen"</string>
-    <string name="beam_touch_to_view" msgid="7853129156831642630">"Zum Ansehen berühren"</string>
+    <!-- no translation found for beam_failed (5116241718189888630) -->
+    <skip />
+    <!-- no translation found for beam_canceled (5425192751826544741) -->
+    <skip />
+    <!-- no translation found for cancel (61873902552555096) -->
+    <skip />
+    <string name="beam_touch_to_view" msgid="7853129156831642630">"Zum Anzeigen berühren"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Verbindung wird hergestellt"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Verbunden"</string>
-    <string name="connect_headset_failed" msgid="8889260079136001456">"Verbindung konnte nicht aufgebaut werden."</string>
+    <!-- no translation found for connect_headset_failed (7500801585498094863) -->
+    <skip />
     <string name="disconnecting_headset" msgid="868262189044372780">"Verbindung wird aufgehoben"</string>
     <string name="disconnected_headset" msgid="4066109452701733916">"Verbindung getrennt"</string>
     <string name="pairing_headset" msgid="6443461444755646137">"Pairing erfolgt"</string>
-    <string name="pairing_headset_failed" msgid="8339085014005090245">"Fehler beim Pairing"</string>
-    <string name="failed_to_enable_bt" msgid="8446791573739966158">"Bluetooth konnte nicht aktiviert werden."</string>
+    <!-- no translation found for pairing_headset_failed (6509629663883514688) -->
+    <skip />
+    <!-- no translation found for failed_to_enable_bt (7229153323594758077) -->
+    <skip />
     <string name="confirm_pairing" msgid="4112568077038265363">"Möchten Sie das Bluetooth-Gerät <xliff:g id="DEVICE_NAME">%1$s</xliff:g> wirklich koppeln?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Ja"</string>
     <string name="pair_no" msgid="5022308368904055020">"Nein"</string>

@@ -9,34 +9,27 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"이 사람에게 내 연락처 정보를 제공하려면 터치하세요."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC 사용"</string>
     <string name="touch" msgid="4727218133711188355">"공유하기"</string>
-    <!-- no translation found for beam_progress (5954637499875435191) -->
+    <string name="beam_progress" msgid="7453634884807323920">"수신 빔..."</string>
+    <string name="beam_complete" msgid="477026736424637435">"Beam 완료"</string>
+    <!-- no translation found for beam_failed (5116241718189888630) -->
     <skip />
-    <!-- no translation found for beam_complete (477026736424637435) -->
+    <!-- no translation found for beam_canceled (5425192751826544741) -->
     <skip />
-    <!-- no translation found for beam_failed (5494286126602607727) -->
+    <!-- no translation found for cancel (61873902552555096) -->
     <skip />
-    <!-- no translation found for beam_touch_to_view (7853129156831642630) -->
+    <string name="beam_touch_to_view" msgid="7853129156831642630">"터치하여 보기"</string>
+    <string name="connecting_headset" msgid="3929250919225573008">"연결 중"</string>
+    <string name="connected_headset" msgid="4047751837023241955">"연결됨"</string>
+    <!-- no translation found for connect_headset_failed (7500801585498094863) -->
     <skip />
-    <!-- no translation found for connecting_headset (3929250919225573008) -->
+    <string name="disconnecting_headset" msgid="868262189044372780">"연결을 끊는 중"</string>
+    <string name="disconnected_headset" msgid="4066109452701733916">"연결 끊김"</string>
+    <string name="pairing_headset" msgid="6443461444755646137">"페어링 중"</string>
+    <!-- no translation found for pairing_headset_failed (6509629663883514688) -->
     <skip />
-    <!-- no translation found for connected_headset (4047751837023241955) -->
+    <!-- no translation found for failed_to_enable_bt (7229153323594758077) -->
     <skip />
-    <!-- no translation found for connect_headset_failed (8889260079136001456) -->
-    <skip />
-    <!-- no translation found for disconnecting_headset (868262189044372780) -->
-    <skip />
-    <!-- no translation found for disconnected_headset (4066109452701733916) -->
-    <skip />
-    <!-- no translation found for pairing_headset (6443461444755646137) -->
-    <skip />
-    <!-- no translation found for pairing_headset_failed (8339085014005090245) -->
-    <skip />
-    <!-- no translation found for failed_to_enable_bt (8446791573739966158) -->
-    <skip />
-    <!-- no translation found for confirm_pairing (4112568077038265363) -->
-    <skip />
-    <!-- no translation found for pair_yes (3525614878559994448) -->
-    <skip />
-    <!-- no translation found for pair_no (5022308368904055020) -->
-    <skip />
+    <string name="confirm_pairing" msgid="4112568077038265363">"블루투스 기기 <xliff:g id="DEVICE_NAME">%1$s</xliff:g>을(를) 페어링하시겠습니까?"</string>
+    <string name="pair_yes" msgid="3525614878559994448">"예"</string>
+    <string name="pair_no" msgid="5022308368904055020">"아니요"</string>
 </resources>
