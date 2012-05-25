@@ -77,6 +77,11 @@ interface P2pEventListener {
     public void onP2pSendComplete();
 
     /**
+     * Called to indicate the remote device does not support connection handover
+     */
+    public void onP2pHandoverNotSupported();
+
+    /**
      * Called to indicate a receive was successful.
      */
     public void onP2pReceiveComplete(boolean playSound);
@@ -127,6 +132,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int MSG_SEND_COMPLETE = 4;
     static final int MSG_START_ECHOSERVER = 5;
     static final int MSG_STOP_ECHOSERVER = 6;
+    static final int MSG_HANDOVER_NOT_SUPPORTED = 7;
 
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
@@ -138,6 +144,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int SEND_STATE_NEED_CONFIRMATION = 2;
     static final int SEND_STATE_SENDING = 3;
 
+    // return values for doSnepProtocol
+    static final int SNEP_SUCCESS = 0;
+    static final int SNEP_FAILURE = 1;
+    static final int SNEP_HANDOVER_UNSUPPORTED = 2;
 
     static final Uri PROFILE_URI = Profile.CONTENT_VCARD_URI.buildUpon().
             appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
@@ -349,6 +359,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
          }
      }
 
+    void onHandoverUnsupported() {
+        mHandler.sendEmptyMessage(MSG_HANDOVER_NOT_SUPPORTED);
+    }
+
     void onSendComplete(NdefMessage msg, long elapsedRealtime) {
         if (mFirstBeam) {
             EventLogTags.writeNfcFirstShare();
@@ -397,7 +411,22 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             try {
                 if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-                result = doSnepProtocol(mHandoverManager, m, uris);
+
+                int snepResult = doSnepProtocol(mHandoverManager, m, uris);
+
+                switch (snepResult) {
+                    case SNEP_HANDOVER_UNSUPPORTED:
+                        onHandoverUnsupported();
+                        return null;
+                    case SNEP_SUCCESS:
+                        result = true;
+                        break;
+                    case SNEP_FAILURE:
+                        result = false;
+                        break;
+                    default:
+                        result = false;
+                }
             } catch (IOException e) {
                 Log.i(TAG, "Failed to connect over SNEP, trying NPP");
 
@@ -422,7 +451,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
     }
 
-    static boolean doSnepProtocol(HandoverManager handoverManager,
+    static int doSnepProtocol(HandoverManager handoverManager,
             NdefMessage msg, Uri[] uris) throws IOException {
         SnepClient snepClient = new SnepClient();
         try {
@@ -440,17 +469,26 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 NdefMessage response = snepResponse.getNdefMessage();
                 if (response != null) {
                     handoverManager.doHandoverUri(uris, response);
+                } else if (msg != null) {
+                    // For backwards-compatibility to pre-J devices,
+                    // try to push an NDEF message (if any) if the handover GET
+                    // does not work.
+                    snepClient.put(msg);
+                } else {
+                    // We had a failed handover and no alternate message to
+                    // send; indicate remote device doesn't support handover.
+                    return SNEP_HANDOVER_UNSUPPORTED;
                 }
             } else if (msg != null) {
                 snepClient.put(msg);
             }
-            return true;
+            return SNEP_SUCCESS;
         } catch (IOException e) {
             // SNEP available but had errors, don't fall back to NPP.
         } finally {
             snepClient.close();
         }
-        return false;
+        return SNEP_FAILURE;
     }
 
     final NdefPushServer.Callback mNppCallback = new NdefPushServer.Callback() {
@@ -552,6 +590,18 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     NfcService.getInstance().sendMockNdefTag(m);
                 }
                 break;
+            case MSG_HANDOVER_NOT_SUPPORTED:
+                synchronized (P2pLinkManager.this) {
+                    mSendTask = null;
+
+                    if (mLinkState == LINK_STATE_DOWN || mSendState != SEND_STATE_SENDING) {
+                        break;
+                    }
+                    mSendState = SEND_STATE_NOTHING_TO_SEND;
+                    if (DBG) Log.d(TAG, "onP2pHandoverNotSupported()");
+                    mEventListener.onP2pHandoverNotSupported();
+                }
+                break;
             case MSG_SEND_COMPLETE:
                 synchronized (P2pLinkManager.this) {
                     mSendTask = null;
@@ -567,7 +617,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                             mCallbackNdef.onNdefPushComplete();
                         } catch (RemoteException e) { }
                     }
-                    mSendTask = null;
                 }
                 break;
         }

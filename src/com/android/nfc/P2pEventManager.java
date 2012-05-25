@@ -96,6 +96,16 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     }
 
     @Override
+    public void onP2pHandoverNotSupported() {
+        mNfcService.playSound(NfcService.SOUND_ERROR);
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        mSendUi.finishAndToast(SendUi.FINISH_SCALE_UP,
+                mContext.getString(R.string.beam_handover_not_supported));
+        mSending = false;
+        mNdefSent = false;
+    }
+
+    @Override
     public void onP2pReceiveComplete(boolean playSound) {
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         if (playSound) mNfcService.playSound(NfcService.SOUND_END);
