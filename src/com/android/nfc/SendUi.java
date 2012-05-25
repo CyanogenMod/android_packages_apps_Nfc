@@ -45,6 +45,7 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * This class is responsible for handling the UI animation
@@ -139,6 +140,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final boolean mHardwareAccelerated;
     final FireflyRenderer mFireflyRenderer;
 
+    String mToastString;
     Bitmap mScreenshotBitmap;
 
     boolean mAttached;
@@ -305,6 +307,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Disable statusbar pull-down
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
+        mToastString = null;
         mSending = false;
         mAttached = true;
 
@@ -327,6 +330,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         mSlowSendAnimator.setValues(postX, postY);
         mSlowSendAnimator.start();
+    }
+
+    public void finishAndToast(int finishMode, String toast) {
+        if (!mAttached) return;
+        mToastString = toast;
+
+        finish(finishMode);
     }
 
     /** Return to initial state */
@@ -389,6 +399,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mWindowManager.removeView(mScreenshotLayout);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
         releaseScreenshot();
+        if (mToastString != null) {
+            Toast.makeText(mContext, mToastString, Toast.LENGTH_LONG).show();
+        }
+        mToastString = null;
     }
 
     public void releaseScreenshot() {
