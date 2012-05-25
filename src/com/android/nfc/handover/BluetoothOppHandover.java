@@ -35,8 +35,11 @@ public class BluetoothOppHandover implements Handler.Callback {
 
     static final int REMOTE_BT_ENABLE_DELAY_MS = 3000;
 
-    public static final String EXTRA_CONNECTION_HANDOVER =
-            "com.android.intent.extra.CONNECTION_HANDOVER";
+    static final String ACTION_HANDOVER_SEND =
+            "android.btopp.intent.action.HANDOVER_SEND";
+
+    static final String ACTION_HANDOVER_SEND_MULTIPLE =
+            "android.btopp.intent.action.HANDOVER_SEND_MULTIPLE";
 
     final Context mContext;
     final BluetoothDevice mDevice;
@@ -115,28 +118,22 @@ public class BluetoothOppHandover implements Handler.Callback {
     }
 
     void sendIntent() {
-        //TODO: either open up BluetoothOppLauncherActivity to all MIME types
-        //      or gracefully handle mime types that can't be sent
         Intent intent = new Intent();
         intent.setPackage("com.android.bluetooth");
         String mimeType = getMimeTypeForUri(mContext, mUris[0]);
         intent.setType(mimeType);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
         if (mUris.length == 1) {
-            intent.setAction(Intent.ACTION_SEND);
+            intent.setAction(ACTION_HANDOVER_SEND);
             intent.putExtra(Intent.EXTRA_STREAM, mUris[0]);
         } else {
             ArrayList<Uri> uris = new ArrayList<Uri>(Arrays.asList(mUris));
-            intent.setAction(Intent.ACTION_SEND_MULTIPLE);
+            intent.setAction(ACTION_HANDOVER_SEND_MULTIPLE);
             intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
         }
-        intent.putExtra(EXTRA_CONNECTION_HANDOVER, true);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            mContext.startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            Log.e(TAG, "Failed to handover file to bluetooth, mimeType not allowed.");
-        }
+
+        mContext.sendBroadcast(intent);
+
         complete();
     }
 
