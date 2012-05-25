@@ -9,34 +9,27 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"このユーザーに連絡先情報を提供するにはタッチします。"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFCは有効です。"</string>
     <string name="touch" msgid="4727218133711188355">"タップしてビーム"</string>
-    <!-- no translation found for beam_progress (5954637499875435191) -->
+    <string name="beam_progress" msgid="7453634884807323920">"ビームを受信しています..."</string>
+    <string name="beam_complete" msgid="477026736424637435">"ビーム完了"</string>
+    <!-- no translation found for beam_failed (5116241718189888630) -->
     <skip />
-    <!-- no translation found for beam_complete (477026736424637435) -->
+    <!-- no translation found for beam_canceled (5425192751826544741) -->
     <skip />
-    <!-- no translation found for beam_failed (5494286126602607727) -->
+    <!-- no translation found for cancel (61873902552555096) -->
     <skip />
-    <!-- no translation found for beam_touch_to_view (7853129156831642630) -->
+    <string name="beam_touch_to_view" msgid="7853129156831642630">"タップして表示"</string>
+    <string name="connecting_headset" msgid="3929250919225573008">"接続中"</string>
+    <string name="connected_headset" msgid="4047751837023241955">"接続されました"</string>
+    <!-- no translation found for connect_headset_failed (7500801585498094863) -->
     <skip />
-    <!-- no translation found for connecting_headset (3929250919225573008) -->
+    <string name="disconnecting_headset" msgid="868262189044372780">"切断中"</string>
+    <string name="disconnected_headset" msgid="4066109452701733916">"切断されました"</string>
+    <string name="pairing_headset" msgid="6443461444755646137">"ペア設定"</string>
+    <!-- no translation found for pairing_headset_failed (6509629663883514688) -->
     <skip />
-    <!-- no translation found for connected_headset (4047751837023241955) -->
+    <!-- no translation found for failed_to_enable_bt (7229153323594758077) -->
     <skip />
-    <!-- no translation found for connect_headset_failed (8889260079136001456) -->
-    <skip />
-    <!-- no translation found for disconnecting_headset (868262189044372780) -->
-    <skip />
-    <!-- no translation found for disconnected_headset (4066109452701733916) -->
-    <skip />
-    <!-- no translation found for pairing_headset (6443461444755646137) -->
-    <skip />
-    <!-- no translation found for pairing_headset_failed (8339085014005090245) -->
-    <skip />
-    <!-- no translation found for failed_to_enable_bt (8446791573739966158) -->
-    <skip />
-    <!-- no translation found for confirm_pairing (4112568077038265363) -->
-    <skip />
-    <!-- no translation found for pair_yes (3525614878559994448) -->
-    <skip />
-    <!-- no translation found for pair_no (5022308368904055020) -->
-    <skip />
+    <string name="confirm_pairing" msgid="4112568077038265363">"Bluetoothデバイス<xliff:g id="DEVICE_NAME">%1$s</xliff:g>をペアに設定してもよろしいですか？"</string>
+    <string name="pair_yes" msgid="3525614878559994448">"はい"</string>
+    <string name="pair_no" msgid="5022308368904055020">"いいえ"</string>
 </resources>
