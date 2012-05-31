@@ -15,8 +15,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"Boriti imeghairiwa"</string>
     <string name="cancel" msgid="61873902552555096">"Ghairi"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Gusa ili utazame"</string>
-    <!-- no translation found for beam_handover_not_supported (4083165921751489015) -->
-    <skip />
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Kifaa cha upokeaji hakitegemezi uhamishaji wa faili kubwa kupitia kwenye boriti."</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Inaunganisha"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Imeunganishwa"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Haikuweza kuunganisha"</string>
