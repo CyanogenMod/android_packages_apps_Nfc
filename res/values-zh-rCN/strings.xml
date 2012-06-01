@@ -15,8 +15,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"Beam 发送已取消"</string>
     <string name="cancel" msgid="61873902552555096">"取消"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"触摸即可查看"</string>
-    <!-- no translation found for beam_handover_not_supported (4083165921751489015) -->
-    <skip />
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"接收者的设备不支持通过 Beam 传输较大的文件。"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"正在连接"</string>
     <string name="connected_headset" msgid="4047751837023241955">"已连接"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"无法连接"</string>
