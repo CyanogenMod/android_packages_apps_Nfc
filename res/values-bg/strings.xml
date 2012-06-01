@@ -18,8 +18,7 @@
     <!-- no translation found for cancel (61873902552555096) -->
     <skip />
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Докоснете, за да видите"</string>
-    <!-- no translation found for beam_handover_not_supported (4083165921751489015) -->
-    <skip />
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Устройството на получателя не поддържа прехвърляне на големи файлове чрез излъчване."</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Свързва се"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Има връзка"</string>
     <!-- no translation found for connect_headset_failed (7500801585498094863) -->
