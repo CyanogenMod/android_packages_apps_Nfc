@@ -1407,62 +1407,69 @@ public class NfcService extends Application implements DeviceHostListener {
                 // PN544 cannot be reconfigured while EE is open
                 return;
             }
+            WatchDogThread watchDog = new WatchDogThread();
 
-            if (PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE && mScreenState == SCREEN_STATE_OFF) {
-                /* TODO undo this after the LLCP stack is fixed.
-                 * Use a different sequence when turning the screen off to
-                 * workaround race conditions in pn544 libnfc. The race occurs
-                 * when we change routing while there is a P2P target connect.
-                 * The async LLCP callback will crash since the routing code
-                 * is overwriting globals it relies on.
-                 */
-                if (POLLING_MODE > SCREEN_STATE_OFF) {
-                    if (force || mNfcPollingEnabled) {
-                        Log.d(TAG, "NFC-C OFF, disconnect");
-                        mNfcPollingEnabled = false;
-                        mDeviceHost.disableDiscovery();
-                        maybeDisconnectTarget();
+            try {
+                watchDog.start();
+
+                if (PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE && mScreenState == SCREEN_STATE_OFF) {
+                    /* TODO undo this after the LLCP stack is fixed.
+                     * Use a different sequence when turning the screen off to
+                     * workaround race conditions in pn544 libnfc. The race occurs
+                     * when we change routing while there is a P2P target connect.
+                     * The async LLCP callback will crash since the routing code
+                     * is overwriting globals it relies on.
+                     */
+                    if (POLLING_MODE > SCREEN_STATE_OFF) {
+                        if (force || mNfcPollingEnabled) {
+                            Log.d(TAG, "NFC-C OFF, disconnect");
+                            mNfcPollingEnabled = false;
+                            mDeviceHost.disableDiscovery();
+                            maybeDisconnectTarget();
+                        }
                     }
+                    if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
+                        if (force || mNfceeRouteEnabled) {
+                            Log.d(TAG, "NFC-EE OFF");
+                            mNfceeRouteEnabled = false;
+                            mDeviceHost.doDeselectSecureElement();
+                        }
+                    }
+                    return;
                 }
-                if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                    if (force || mNfceeRouteEnabled) {
+
+                // configure NFC-EE routing
+                if (mScreenState >= SCREEN_STATE_ON_LOCKED &&
+                        mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
+                    if (force || !mNfceeRouteEnabled) {
+                        Log.d(TAG, "NFC-EE ON");
+                        mNfceeRouteEnabled = true;
+                        mDeviceHost.doSelectSecureElement();
+                    }
+                } else {
+                    if (force ||  mNfceeRouteEnabled) {
                         Log.d(TAG, "NFC-EE OFF");
                         mNfceeRouteEnabled = false;
                         mDeviceHost.doDeselectSecureElement();
                     }
                 }
-                return;
-            }
 
-            // configure NFC-EE routing
-            if (mScreenState >= SCREEN_STATE_ON_LOCKED &&
-                    mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                if (force || !mNfceeRouteEnabled) {
-                    Log.d(TAG, "NFC-EE ON");
-                    mNfceeRouteEnabled = true;
-                    mDeviceHost.doSelectSecureElement();
+                // configure NFC-C polling
+                if (mScreenState >= POLLING_MODE) {
+                    if (force || !mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C ON");
+                        mNfcPollingEnabled = true;
+                        mDeviceHost.enableDiscovery();
+                    }
+                } else {
+                    if (force || mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C OFF");
+                        mNfcPollingEnabled = false;
+                        mDeviceHost.disableDiscovery();
+                    }
                 }
-            } else {
-                if (force ||  mNfceeRouteEnabled) {
-                    Log.d(TAG, "NFC-EE OFF");
-                    mNfceeRouteEnabled = false;
-                    mDeviceHost.doDeselectSecureElement();
-                }
-            }
-
-            // configure NFC-C polling
-            if (mScreenState >= POLLING_MODE) {
-                if (force || !mNfcPollingEnabled) {
-                    Log.d(TAG, "NFC-C ON");
-                    mNfcPollingEnabled = true;
-                    mDeviceHost.enableDiscovery();
-                }
-            } else {
-                if (force || mNfcPollingEnabled) {
-                    Log.d(TAG, "NFC-C OFF");
-                    mNfcPollingEnabled = false;
-                    mDeviceHost.disableDiscovery();
-                }
+            } finally {
+                watchDog.cancel();
             }
         }
     }
