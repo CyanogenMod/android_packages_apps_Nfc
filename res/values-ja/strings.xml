@@ -15,7 +15,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"ビームをキャンセルしました"</string>
     <string name="cancel" msgid="61873902552555096">"キャンセル"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"タップして表示"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"受信側の端末は、ビームを介す大量のファイル転送をサポートしていません。"</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"受信側の端末は、ビーム経由のサイズの大きなファイルの転送をサポートしていません。"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"接続中"</string>
     <string name="connected_headset" msgid="4047751837023241955">"接続されました"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"接続できませんでした"</string>
