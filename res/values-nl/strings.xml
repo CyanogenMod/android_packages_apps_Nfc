@@ -15,7 +15,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"Beam geannuleerd"</string>
     <string name="cancel" msgid="61873902552555096">"Annuleren"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Raak aan om te bekijken"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteund de overdracht van grote bestanden via beam niet."</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteunt de overdracht van grote bestanden via beam niet."</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Verbinding maken"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Verbonden"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Kan niet verbinden"</string>
