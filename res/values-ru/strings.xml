@@ -22,7 +22,7 @@
     <string name="disconnecting_headset" msgid="868262189044372780">"Отключение…"</string>
     <string name="disconnected_headset" msgid="4066109452701733916">"Отключено"</string>
     <string name="pairing_headset" msgid="6443461444755646137">"Подключение…"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Не удалось связать"</string>
+    <string name="pairing_headset_failed" msgid="6509629663883514688">"Не удалось установить связь"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Не удалось включить Bluetooth"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"Подключить Bluetooth-устройство <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Да"</string>
