@@ -15,7 +15,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"Emitiranje otkazano"</string>
     <string name="cancel" msgid="61873902552555096">"Odustani"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Dodirnite za prikaz"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Uređaj prijamnika ne podržava prijenos velikih datoteka putem emitiranja."</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Uređaj prijamnika ne podržava prijenos velikih datoteka emitiranjem."</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Povezivanje"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Povezan"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Spajanje nije bilo moguće"</string>
