@@ -253,7 +253,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mEventListener.onP2pInRange();
 
                     prepareMessageToSend();
-                    if (mMessageToSend != null || mUrisToSend != null) {
+                    if (mMessageToSend != null ||
+                            (mUrisToSend != null && mHandoverManager.isHandoverSupported())) {
                         mSendState = SEND_STATE_NEED_CONFIRMATION;
                         if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
                         mEventListener.onP2pSendConfirmationRequested();
@@ -464,9 +465,12 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
         try {
             if (uris != null) {
-                SnepMessage snepResponse =
-                        snepClient.get(handoverManager.createHandoverRequestMessage());
-                NdefMessage response = snepResponse.getNdefMessage();
+                NdefMessage response = null;
+                NdefMessage request = handoverManager.createHandoverRequestMessage();
+                if (request != null) {
+                    SnepMessage snepResponse = snepClient.get(request);
+                    response = snepResponse.getNdefMessage();
+                } // else, handover not supported
                 if (response != null) {
                     handoverManager.doHandoverUri(uris, response);
                 } else if (msg != null) {
