@@ -610,8 +610,10 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     public HandoverManager(Context context) {
         mContext = context;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.HEADSET);
-        mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP);
+        if (mBluetoothAdapter != null) {
+            mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.HEADSET);
+            mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP);
+        }
 
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
@@ -670,7 +672,13 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         return new NdefRecord(NdefRecord.TNF_MIME_MEDIA, TYPE_BT_OOB, new byte[]{'b'}, payload);
     }
 
+    public boolean isHandoverSupported() {
+        return (mBluetoothAdapter != null);
+    }
+
     public NdefMessage createHandoverRequestMessage() {
+        if (mBluetoothAdapter == null) return null;
+
         return new NdefMessage(createHandoverRequestRecord(), createBluetoothOobDataRecord());
     }
 
@@ -716,6 +724,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
      */
     public NdefMessage tryHandoverRequest(NdefMessage m) {
         if (m == null) return null;
+        if (mBluetoothAdapter == null) return null;
+
         if (DBG) Log.d(TAG, "tryHandoverRequest():" + m.toString());
 
         NdefRecord r = m.getRecords()[0];
@@ -767,6 +777,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     public boolean tryHandover(NdefMessage m) {
         if (m == null) return false;
+        if (mBluetoothAdapter == null) return false;
+
         if (DBG) Log.d(TAG, "tryHandover(): " + m.toString());
 
         BluetoothHandoverData handover = parse(m);
@@ -793,6 +805,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     // This starts sending an Uri over BT
     public void doHandoverUri(Uri[] uris, NdefMessage m) {
+        if (mBluetoothAdapter == null) return;
+
         BluetoothHandoverData data = parse(m);
         if (data != null && data.valid) {
             // Register a new handover transfer object
