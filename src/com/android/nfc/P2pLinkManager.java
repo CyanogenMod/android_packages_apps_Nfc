@@ -17,7 +17,9 @@
 package com.android.nfc;
 
 import com.android.nfc.echoserver.EchoServer;
+import com.android.nfc.handover.HandoverClient;
 import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.handover.HandoverServer;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
 import com.android.nfc.snep.SnepClient;
@@ -123,6 +125,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
     // TODO dynamically assign SAP values
     static final int NDEFPUSH_SAP = 0x10;
+    static final int HANDOVER_SAP = 0x14;
 
     static final int LINK_DEBOUNCE_MS = 750;
 
@@ -155,6 +158,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
+    final HandoverServer mHandoverServer;
     final EchoServer mEchoServer;
     final ActivityManager mActivityManager;
     final PackageManager mPackageManager;
@@ -178,6 +182,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     public P2pLinkManager(Context context, HandoverManager handoverManager) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
+        mHandoverServer = new HandoverServer(HANDOVER_SAP, handoverManager, mHandoverCallback);
+
         if (ECHOSERVER_ENABLED) {
             mEchoServer = new EchoServer();
         } else {
@@ -206,12 +212,14 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (!mIsReceiveEnabled && receiveEnable) {
                 mDefaultSnepServer.start();
                 mNdefPushServer.start();
+                mHandoverServer.start();
                 if (mEchoServer != null) {
                     mHandler.sendEmptyMessage(MSG_START_ECHOSERVER);
                 }
             } else if (mIsReceiveEnabled && !receiveEnable) {
                 mDefaultSnepServer.stop();
                 mNdefPushServer.stop();
+                mHandoverServer.stop();
                 if (mEchoServer != null) {
                     mHandler.sendEmptyMessage(MSG_STOP_ECHOSERVER);
                 }
@@ -465,11 +473,20 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
         try {
             if (uris != null) {
+                HandoverClient handoverClient = new HandoverClient();
+
                 NdefMessage response = null;
                 NdefMessage request = handoverManager.createHandoverRequestMessage();
                 if (request != null) {
-                    SnepMessage snepResponse = snepClient.get(request);
-                    response = snepResponse.getNdefMessage();
+                    response = handoverClient.sendHandoverRequest(request);
+
+                    if (response == null) {
+                        // Remote device may not support handover service,
+                        // try the (deprecated) SNEP GET implementation
+                        // for devices running Android 4.1
+                        SnepMessage snepResponse = snepClient.get(request);
+                        response = snepResponse.getNdefMessage();
+                    }
                 } // else, handover not supported
                 if (response != null) {
                     handoverManager.doHandoverUri(uris, response);
@@ -495,6 +512,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         return SNEP_FAILURE;
     }
 
+    final HandoverServer.Callback mHandoverCallback = new HandoverServer.Callback() {
+        @Override
+        public void onHandoverRequestReceived() {
+            onReceiveHandover();
+        }
+    };
+
     final NdefPushServer.Callback mNppCallback = new NdefPushServer.Callback() {
         @Override
         public void onMessageReceived(NdefMessage msg) {
@@ -511,13 +535,17 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
         @Override
         public SnepMessage doGet(int acceptableLength, NdefMessage msg) {
+            // The NFC Forum Default SNEP server is not allowed to respond to
+            // SNEP GET requests - see SNEP 1.0 TS section 6.1. However,
+            // since Android 4.1 used the NFC Forum default server to
+            // implement connection handover, we will support this
+            // until we can deprecate it.
             NdefMessage response = mHandoverManager.tryHandoverRequest(msg);
-
             if (response != null) {
                 onReceiveHandover();
                 return SnepMessage.getSuccessResponse(response);
             } else {
-                return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_FOUND);
+                return SnepMessage.getMessage(SnepMessage.RESPONSE_NOT_IMPLEMENTED);
             }
         }
     };
