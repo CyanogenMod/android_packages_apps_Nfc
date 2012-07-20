@@ -657,8 +657,12 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     NdefRecord createBluetoothOobDataRecord() {
         byte[] payload = new byte[8];
-        payload[0] = 0;
-        payload[1] = (byte)payload.length;
+        // Note: this field should be little-endian per the BTSSP spec
+        // The Android 4.1 implementation used big-endian order here.
+        // No single Android implementation has ever interpreted this
+        // length field when parsing this record though.
+        payload[0] = (byte) (payload.length & 0xFF);
+        payload[1] = (byte) ((payload.length >> 8) & 0xFF);
 
         synchronized (HandoverManager.this) {
             if (mLocalBluetoothAddress == null) {
