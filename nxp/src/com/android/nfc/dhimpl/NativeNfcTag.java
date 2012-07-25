@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc.nxp;
+package com.android.nfc.dhimpl;
 
 import com.android.nfc.DeviceHost.TagEndpoint;
 
