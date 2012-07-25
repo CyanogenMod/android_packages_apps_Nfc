@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc.dhimpl;
+package com.android.nfc.nxp;
 
 import android.content.Context;
 import android.content.SharedPreferences;

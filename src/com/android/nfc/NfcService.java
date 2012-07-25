@@ -23,8 +23,8 @@ import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.handover.HandoverManager;
-import com.android.nfc.dhimpl.NativeNfcManager;
-import com.android.nfc.dhimpl.NativeNfcSecureElement;
+import com.android.nfc.nxp.NativeNfcManager;
+import com.android.nfc.nxp.NativeNfcSecureElement;
 
 import android.app.Application;
 import android.app.KeyguardManager;

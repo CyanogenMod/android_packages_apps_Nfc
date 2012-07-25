@@ -6,14 +6,6 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := \
         $(call all-java-files-under, src)
 
-ifeq ($(NFC_USE_NCI_STACK), true)
-    LOCAL_SRC_FILES += \
-        $(call all-java-files-under, nci)
-else
-    LOCAL_SRC_FILES += \
-        $(call all-java-files-under, nxp)
-endif
-
 LOCAL_PACKAGE_NAME := Nfc
 LOCAL_CERTIFICATE := platform
 
