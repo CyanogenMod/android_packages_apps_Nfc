@@ -763,7 +763,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeNfcSecureElement(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/nxp/NativeNfcSecureElement",
+      "com/android/nfc/dhimpl/NativeNfcSecureElement",
       gMethods, NELEM(gMethods));
 }
 

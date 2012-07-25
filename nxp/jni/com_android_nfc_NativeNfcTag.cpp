@@ -1248,7 +1248,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeNfcTag(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/nxp/NativeNfcTag",
+      "com/android/nfc/dhimpl/NativeNfcTag",
       gMethods, NELEM(gMethods));
 }
 
