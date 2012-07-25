@@ -462,7 +462,7 @@ static JNINativeMethod gMethods[] =
 int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e)
 {
    return jniRegisterNativeMethods(e,
-      "com/android/nfc/nxp/NativeLlcpSocket",gMethods, NELEM(gMethods));
+      "com/android/nfc/dhimpl/NativeLlcpSocket",gMethods, NELEM(gMethods));
 }
 
 } // namespace android
