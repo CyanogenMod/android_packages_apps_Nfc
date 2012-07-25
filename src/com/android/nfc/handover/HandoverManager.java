@@ -71,6 +71,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static final byte[] TYPE_BT_OOB = "application/vnd.bluetooth.ep.oob".
             getBytes(Charset.forName("US_ASCII"));
 
+    static final byte[] RTD_COLLISION_RESOLUTION = {0x63, 0x72}; // "cr";
+
     static final String ACTION_BT_OPP_TRANSFER_PROGRESS =
             "android.btopp.intent.action.BT_OPP_TRANSFER_PROGRESS";
 
@@ -642,7 +644,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static NdefRecord createCollisionRecord() {
         byte[] random = new byte[2];
         new Random().nextBytes(random);
-        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_HANDOVER_REQUEST, null, random);
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, RTD_COLLISION_RESOLUTION, null, random);
     }
 
     NdefRecord createBluetoothAlternateCarrierRecord(boolean activating) {
