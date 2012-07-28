@@ -43,22 +43,8 @@ public class NativeNfcManager implements DeviceHost {
     private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
     private static final long FIRMWARE_MODTIME_DEFAULT = -1;
 
-    //TODO: dont hardcode this
-    private static final byte[][] EE_WIPE_APDUS = {
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
-        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
-        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-    };
-
-
     static {
-        System.loadLibrary("nfc_jni");
+        System.loadLibrary("nfc_nci_jni");
     }
 
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
@@ -75,6 +61,8 @@ public class NativeNfcManager implements DeviceHost {
         initializeNativeStructure();
         mContext = context;
     }
+
+    public static native boolean doSetScreenState(boolean state);
 
     public native boolean initializeNativeStructure();
 
@@ -277,8 +265,7 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public boolean canMakeReadOnly(int ndefType) {
-        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2 ||
-                ndefType == Ndef.TYPE_MIFARE_CLASSIC);
+        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2);
     }
 
     @Override
@@ -289,7 +276,10 @@ public class NativeNfcManager implements DeviceHost {
             case (TagTechnology.MIFARE_ULTRALIGHT):
                 return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
             case (TagTechnology.NFC_B):
-                return 0; // PN544 does not support transceive of raw NfcB
+                /////////////////////////////////////////////////////////////////
+                // Broadcom: Since BCM2079x supports this, set NfcB max size.
+                //return 0; // PN544 does not support transceive of raw NfcB
+                return 253; // PN544 does not support transceive of raw NfcB
             case (TagTechnology.NFC_V):
                 return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
             case (TagTechnology.ISO_DEP):
@@ -320,16 +310,16 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     public boolean getExtendedLengthApdusSupported() {
-        // Not supported on the PN544
+        // TODO check BCM support
         return false;
     }
 
     public boolean enablePN544Quirks() {
-        return true;
+        return false;
     }
 
     public byte[][] getWipeApdus() {
-        return EE_WIPE_APDUS;
+        return null;
     }
 
     private native String doDump();

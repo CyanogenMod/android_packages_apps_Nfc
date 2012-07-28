@@ -216,5 +216,9 @@ public interface DeviceHost {
 
     boolean getExtendedLengthApdusSupported();
 
+    boolean enablePN544Quirks();
+
+    byte[][] getWipeApdus();
+
     String dump();
 }
