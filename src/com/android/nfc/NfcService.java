@@ -101,8 +101,6 @@ public class NfcService extends Application implements DeviceHostListener {
     static final String PREF_FIRST_BOOT = "first_boot";
     static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
 
-    static final boolean PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE = true;
-
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
@@ -159,19 +157,6 @@ public class NfcService extends Application implements DeviceHostListener {
         "com.android.nfc_extras.action.MIFARE_ACCESS_DETECTED";
     public static final String EXTRA_MIFARE_BLOCK =
         "com.android.nfc_extras.extra.MIFARE_BLOCK";
-
-    //TODO: dont hardcode this
-    private static final byte[][] EE_WIPE_APDUS = {
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
-        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
-        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-    };
 
     // NFC Execution Environment
     // fields below are protected by this
@@ -585,7 +570,12 @@ public class NfcService extends Application implements DeviceHostListener {
 
         void executeEeWipe() {
             // TODO: read SE reset list from /system/etc
-            byte[][]apdus = EE_WIPE_APDUS;
+            byte[][]apdus = mDeviceHost.getWipeApdus();
+
+            if (apdus == null) {
+                Log.d(TAG, "No wipe APDUs found");
+                return;
+            }
 
             boolean tempEnable = mState == NfcAdapter.STATE_OFF;
             if (tempEnable) {
@@ -1412,7 +1402,7 @@ public class NfcService extends Application implements DeviceHostListener {
             try {
                 watchDog.start();
 
-                if (PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE && mScreenState == SCREEN_STATE_OFF) {
+                if (mDeviceHost.enablePN544Quirks() && mScreenState == SCREEN_STATE_OFF) {
                     /* TODO undo this after the LLCP stack is fixed.
                      * Use a different sequence when turning the screen off to
                      * workaround race conditions in pn544 libnfc. The race occurs
