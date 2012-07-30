@@ -58,9 +58,6 @@ PeerToPeer::PeerToPeer ()
     memset (mClients, 0, sizeof(mClients));
     if (GetNumValue ("APPL_TRACE_LEVEL", &num, sizeof (num)))
         mAppLogLevel = num;
-        
-    if (GetNumValue ("P2P_LISTEN_TECH_MASK", &num, sizeof (num)))
-        mP2pListenTechMask = num;
 }
 
 
@@ -107,6 +104,11 @@ void PeerToPeer::initialize (long jniVersion)
 {
     ALOGD ("PeerToPeer::initialize");
     mJniVersion = jniVersion;
+
+    unsigned long num = 0;
+
+    if (GetNumValue ("P2P_LISTEN_TECH_MASK", &num, sizeof (num)))
+        mP2pListenTechMask = num;
 }
 
 
@@ -260,7 +262,7 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
     if (sSnepServiceName.compare(serviceName) == 0)
         serverSap = LLCP_SAP_SNEP; //LLCP_SAP_SNEP == 4
 
-    SyncEventGuard guard (pSrv->mListenEvent);
+    SyncEventGuard guard (pSrv->mRegServerEvent);
     stat = NFA_P2pRegisterServer (serverSap, NFA_P2P_DLINK_TYPE, const_cast<char*>(serviceName), nfaServerCallback);
     if (stat != NFA_STATUS_OK)
     {
@@ -269,8 +271,8 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
         return (false);
     }
     ALOGD ("%s: wait for listen-completion event", fn);
-    // Wait for NFA_P2P_LISTEN_EVT
-    pSrv->mListenEvent.wait ();
+    // Wait for NFA_P2P_REG_SERVER_EVT
+    pSrv->mRegServerEvent.wait ();
 
     if (pSrv->mNfaP2pServerHandle == NFA_HANDLE_INVALID)
     {
@@ -566,7 +568,7 @@ bool PeerToPeer::deregisterServer (tBRCM_JNI_HANDLE jniHandle)
 
     if ((pSrv = findServer (jniHandle)) == NULL)
     {
-        ALOGE ("%s: NFA_P2P_LISTEN_EVT for unknown service handle: %u", fn, jniHandle);
+        ALOGE ("%s: unknown service handle: %u", fn, jniHandle);
         return (false);
     }
 
@@ -1153,6 +1155,10 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
     static const char fn [] = "PeerToPeer::receive";
     ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: enter; jniHandle: %u  bufferLen: %u", fn, jniHandle, bufferLen);
     NfaConn *pConn = NULL;
+    tNFA_STATUS stat = NFA_STATUS_FAILED;
+    UINT32 actualDataLen2 = 0;
+    BOOLEAN isMoreData = TRUE;
+    bool retVal = false;
 
     if (jniHandle == mRcvFakeNppJniHandle)
         return (feedNppFromSnep(buffer, bufferLen, actualLen));
@@ -1165,28 +1171,24 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
 
     ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: jniHandle: %u  nfaHandle: 0x%04X  buf len=%u", fn, pConn->mJniHandle, pConn->mNfaConnHandle, bufferLen);
 
-    // Only wait for data if data queue is empty.
-    if (pConn->mInboundQ.isEmpty())
+    while (pConn->mNfaConnHandle != NFA_HANDLE_INVALID)
     {
-        // And don't wait if we're disconnected.
-        if (pConn->mNfaConnHandle != NFA_HANDLE_INVALID)
+        stat = NFA_P2pReadData (pConn->mNfaConnHandle, bufferLen, &actualDataLen2, buffer, &isMoreData);
+        if ((stat == NFA_STATUS_OK) && (actualDataLen2 > 0)) //received some data
         {
-            ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: waiting for data...", fn);
+            actualLen = (UINT16) actualDataLen2;
+            retVal = true;
+            break;
+        }
+        ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: waiting for data...", fn);
+        {
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.wait();
         }
+    } //while
 
-        // If the connection was disconnected while we were blocked...
-        if (pConn->mNfaConnHandle == NFA_HANDLE_INVALID)
-        {
-            ALOGD ("%s: already disconnected while waiting", fn);
-            return (false);
-        }
-    }
-
-    bool stat = pConn->mInboundQ.dequeue (buffer, bufferLen, actualLen);
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: exit; client h=0x%X stat=%u  actual len=%u", fn, pConn->mNfaConnHandle, stat, actualLen);
-    return stat;
+    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: exit; nfa h: 0x%X  ok: %u  actual len: %u", fn, pConn->mNfaConnHandle, retVal, actualLen);
+    return retVal;
 }
 
 
@@ -1520,19 +1522,19 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
 
     switch (p2pEvent)
     {
-    case NFA_P2P_LISTEN_EVT:  // NFA_P2pRegisterServer() has started to listen
-        ALOGD ("%s: NFA_P2P_LISTEN_EVT; handle: 0x%04x; service sap=0x%02x  name: %s", fn,
-              eventData->listen.server_handle, eventData->listen.server_sap, eventData->listen.service_name);
+    case NFA_P2P_REG_SERVER_EVT:  // NFA_P2pRegisterServer() has started to listen
+        ALOGD ("%s: NFA_P2P_REG_SERVER_EVT; handle: 0x%04x; service sap=0x%02x  name: %s", fn,
+              eventData->reg_server.server_handle, eventData->reg_server.server_sap, eventData->reg_server.service_name);
 
-        if ((pSrv = sP2p.findServer(eventData->listen.service_name)) == NULL)
+        if ((pSrv = sP2p.findServer(eventData->reg_server.service_name)) == NULL)
         {
-            ALOGE ("%s: NFA_P2P_LISTEN_EVT for unknown service: %s", fn, eventData->listen.service_name);
+            ALOGE ("%s: NFA_P2P_REG_SERVER_EVT for unknown service: %s", fn, eventData->reg_server.service_name);
         }
         else
         {
-            SyncEventGuard guard (pSrv->mListenEvent);
-            pSrv->mNfaP2pServerHandle = eventData->listen.server_handle;
-            pSrv->mListenEvent.notifyOne(); //unblock registerServer()
+            SyncEventGuard guard (pSrv->mRegServerEvent);
+            pSrv->mNfaP2pServerHandle = eventData->reg_server.server_handle;
+            pSrv->mRegServerEvent.notifyOne(); //unblock registerServer()
         }
         break;
 
@@ -1619,18 +1621,6 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         {
             ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
                     eventData->data.handle, eventData->data.remote_sap);
-            const int maxBufSize  = 2 * 1024;
-            UINT8 buffer [maxBufSize];
-            UINT32 actualDataLen = 0;
-            BOOLEAN isMoreData = TRUE;
-            while (isMoreData)
-            {
-                actualDataLen = 0;
-                isMoreData = FALSE;
-                tNFA_STATUS stat = NFA_P2pReadData (eventData->data.handle, maxBufSize, &actualDataLen, buffer, &isMoreData);
-                if ((stat == NFA_STATUS_OK) && (actualDataLen > 0))
-                    pConn->mInboundQ.enqueue (buffer, actualDataLen);
-            }
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.notifyOne();
         }
@@ -1783,18 +1773,6 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         {
             ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
                     eventData->data.handle, eventData->data.remote_sap);
-            const int maxBufSize  = 2 * 1024;
-            UINT8 buffer [maxBufSize];
-            UINT32 actualDataLen = 0;
-            BOOLEAN isMoreData = TRUE;
-            while (isMoreData)
-            {
-                actualDataLen = 0;
-                isMoreData = FALSE;
-                tNFA_STATUS stat = NFA_P2pReadData (eventData->data.handle, maxBufSize, &actualDataLen, buffer, &isMoreData);
-                if ((stat == NFA_STATUS_OK) && (actualDataLen > 0))
-                    pConn->mInboundQ.enqueue (buffer, actualDataLen);
-            }
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.notifyOne();
         }

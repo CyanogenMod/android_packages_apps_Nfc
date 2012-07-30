@@ -67,12 +67,12 @@ SecureElement::SecureElement ()
     mCommandStatus (NFA_STATUS_OK),
     mIsPiping (false),
     mCurrentRouteSelection (NoRoute),
-    mTransDataSize(0)
+    mActualResponseSize(0)
 {
     memset (&mEeInfo, 0, sizeof(mEeInfo));
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
     memset (&mHciCfg, 0, sizeof(mHciCfg));
-    memset (mTransData, 0, MAX_TRANS_RECV_SIZE);
+    memset (mResponseData, 0, sizeof(mResponseData));
 }
 
 
@@ -189,7 +189,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
             SyncEventGuard guard (mHciRegisterEvent); 
 
-            nfaStat = NFA_HciRegister ("brcm_jni", nfaHciCallback, TRUE, MAX_TRANS_RECV_SIZE, mHciBufferForStack);
+            nfaStat = NFA_HciRegister ("brcm_jni", nfaHciCallback, TRUE);
             if (nfaStat != NFA_STATUS_OK)
             {
                 ALOGE ("%s: fail hci register; error=0x%X", fn, nfaStat);
@@ -810,15 +810,16 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
     bool isSuccess = false;
     bool waitOk = false;
     
-    ALOGD ("%s: enter; xmitBufferSize=%ld; recvBufferMaxSize=%ld; timeout=%d", fn, xmitBufferSize, recvBufferMaxSize, timeoutMillisec);
+    ALOGD ("%s: enter; xmitBufferSize=%ld; recvBufferMaxSize=%ld; timeout=%ld", fn, xmitBufferSize, recvBufferMaxSize, timeoutMillisec);
 
     {    
         SyncEventGuard guard (mTransceiveEvent);    
-        mTransDataSize = 0;
+        mActualResponseSize = 0;
+        memset (mResponseData, 0, sizeof(mResponseData));
         if ((mNewPipeId == STATIC_PIPE_0x70) || (mNewPipeId == STATIC_PIPE_0x71))
-            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, EVT_SEND_DATA, xmitBufferSize, xmitBuffer);
+            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, EVT_SEND_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData);
         else
-            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, NFA_HCI_EVT_POST_DATA, xmitBufferSize, xmitBuffer);
+            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, NFA_HCI_EVT_POST_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData);
     
         if (nfaStat == NFA_STATUS_OK)
         {
@@ -836,12 +837,12 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
         }
     }
 
-    if (mTransDataSize > recvBufferMaxSize)
+    if (mActualResponseSize > recvBufferMaxSize)
         recvBufferActualSize = recvBufferMaxSize;
     else
-        recvBufferActualSize = mTransDataSize;
+        recvBufferActualSize = mActualResponseSize;
 
-    memcpy(recvBuffer, mTransData, recvBufferActualSize);    
+    memcpy (recvBuffer, mResponseData, recvBufferActualSize);
     isSuccess = true;
     
 TheEnd:    
@@ -1668,12 +1669,14 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
         ALOGD ("%s: NFA_HCI_EVENT_SENT_EVT; status=0x%X", fn, eventData->evt_sent.status);
         break;
     
-    case NFA_HCI_RSP_RCVD_EVT:
-        ALOGD ("%s: NFA_HCI_RSP_RCVD_EVT; status:0x%X, pipe=0x%X, rsp_code:0x%X, rsp_len=%u", fn, 
-            eventData->rsp_rcvd.status, eventData->rsp_rcvd.pipe, 
-            eventData->rsp_rcvd.rsp_code, eventData->rsp_rcvd.rsp_len);
+    case NFA_HCI_RSP_RCVD_EVT: //response received from secure element
+        {
+            tNFA_HCI_RSP_RCVD& rsp_rcvd = eventData->rsp_rcvd;
+            ALOGD ("%s: NFA_HCI_RSP_RCVD_EVT; status: 0x%X; code: 0x%X; pipe: 0x%X; len: %u", fn,
+                    rsp_rcvd.status, rsp_rcvd.rsp_code, rsp_rcvd.pipe, rsp_rcvd.rsp_len);
+        }
         break;
-    
+
     case NFA_HCI_GET_REG_RSP_EVT :
         ALOGD ("%s: NFA_HCI_GET_REG_RSP_EVT; status: 0x%X; pipe: 0x%X, len: %d", fn,
                 eventData->registry.status, eventData->registry.pipe, eventData->registry.data_len);
@@ -1689,54 +1692,30 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
         break;
 
     case NFA_HCI_EVENT_RCVD_EVT:
-        ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; code: 0x%X; pipe: 0x%X", fn,
-                eventData->rcvd_evt.evt_code, eventData->rcvd_evt.pipe);
-        	if ((eventData->rcvd_evt.pipe == STATIC_PIPE_0x70) || (eventData->rcvd_evt.pipe == STATIC_PIPE_0x71))
-        	{
-        	    //ISO7816 APDU arrived from sec elem's static pipes 
-        	    ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; %u bytes from static pipe", fn, eventData->rcvd_evt.evt_len);
-        	    sSecElem.mTransDataSize = (eventData->rcvd_evt.evt_len > MAX_TRANS_RECV_SIZE) ? MAX_TRANS_RECV_SIZE : eventData->rcvd_evt.evt_len;
-            memcpy (sSecElem.mTransData, eventData->rcvd_evt.p_evt_buf, sSecElem.mTransDataSize);
-            SyncEventGuard guard (sSecElem.mTransceiveEvent);
-            sSecElem.mTransceiveEvent.notifyOne ();
-            break;
-        	}
-        switch (eventData->rcvd_evt.evt_code)
+        ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; code: 0x%X; pipe: 0x%X; data len: %u", fn,
+                eventData->rcvd_evt.evt_code, eventData->rcvd_evt.pipe, eventData->rcvd_evt.evt_len);
+        if ((eventData->rcvd_evt.pipe == STATIC_PIPE_0x70) || (eventData->rcvd_evt.pipe == STATIC_PIPE_0x71))
         {
-        case NFA_HCI_EVT_POST_DATA:
-            {
-                ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; NFA_HCI_EVT_POST_DATA; len=%u", fn, eventData->rcvd_evt.evt_len);
-                sSecElem.mTransDataSize = (eventData->rcvd_evt.evt_len > MAX_TRANS_RECV_SIZE) ? MAX_TRANS_RECV_SIZE : eventData->rcvd_evt.evt_len;
-                memcpy(sSecElem.mTransData, eventData->rcvd_evt.p_evt_buf, sSecElem.mTransDataSize);
-                SyncEventGuard guard (sSecElem.mTransceiveEvent);
-                sSecElem.mTransceiveEvent.notifyOne ();
-            }
-            break;
-
-        case NFA_HCI_EVT_HCI_END_OF_OPERATION:
-            break;
-
-        case NFA_HCI_EVT_HOT_PLUG:
-            break;
-
-        case NFA_HCI_EVT_CONNECTIVITY:
-            break;
-
-        case NFA_HCI_EVT_TRANSACTION:
+            ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; data from static pipe", fn);
+            SyncEventGuard guard (sSecElem.mTransceiveEvent);
+            sSecElem.mActualResponseSize = (eventData->rcvd_evt.evt_len > MAX_RESPONSE_SIZE) ? MAX_RESPONSE_SIZE : eventData->rcvd_evt.evt_len;
+            sSecElem.mTransceiveEvent.notifyOne ();
+        }
+        else if (eventData->rcvd_evt.evt_code == NFA_HCI_EVT_POST_DATA)
+        {
+            ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; NFA_HCI_EVT_POST_DATA", fn);
+            SyncEventGuard guard (sSecElem.mTransceiveEvent);
+            sSecElem.mActualResponseSize = (eventData->rcvd_evt.evt_len > MAX_RESPONSE_SIZE) ? MAX_RESPONSE_SIZE : eventData->rcvd_evt.evt_len;
+            sSecElem.mTransceiveEvent.notifyOne ();
+        }
+        else if (eventData->rcvd_evt.evt_code == NFA_HCI_EVT_TRANSACTION)
+        {
             ALOGD ("%s: NFA_HCI_EVENT_RCVD_EVT; NFA_HCI_EVT_TRANSACTION", fn);
             // If we got an AID, notify any listeners
             if ((eventData->rcvd_evt.evt_len > 3) && (eventData->rcvd_evt.p_evt_buf[0] == 0x81) )
                 sSecElem.notifyTransactionListenersOfAid (&eventData->rcvd_evt.p_evt_buf[2], eventData->rcvd_evt.p_evt_buf[1]);
-            break;
-
-        case NFA_HCI_EVT_OPERATION_ENDED:
-            break;
-
-        default:
-            ALOGE ("%s: NFA_HCI_EVENT_RCVD_EVT; unknown event 0x%X ????", fn, eventData->rcvd_evt.evt_code);
-            break;
         }
-        break; //case NFA_HCI_EVENT_RCVD_EVT
+        break;
 
     default:
         ALOGE ("%s: unknown event code=0x%X ????", fn, event);
