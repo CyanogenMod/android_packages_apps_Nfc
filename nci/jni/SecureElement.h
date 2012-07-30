@@ -23,7 +23,6 @@ extern "C"
     #include "nfa_ce_api.h"
 }
 
-#define MAX_TRANS_RECV_SIZE 1024
 
 class SecureElement
 {
@@ -340,6 +339,7 @@ public:
 
 
 private:
+    static const unsigned int MAX_RESPONSE_SIZE = 1024;
     enum RouteSelection {NoRoute, DefaultRoute, SecElemRoute};
     static const int MAX_NUM_EE = 5;    //max number of EE's
     static const UINT8 STATIC_PIPE_0x70 = 0x70; //Broadcom's proprietary static pipe
@@ -362,7 +362,7 @@ private:
     tNFA_STATUS mCommandStatus;     //completion status of the last command
     bool    mIsPiping;              //is a pipe connected to the controller?
     RouteSelection mCurrentRouteSelection;
-    int     mTransDataSize;
+    int     mActualResponseSize;         //number of bytes in the response received from secure element
     tNFA_EE_INFO mEeInfo [MAX_NUM_EE];  //actual size stored in mActualNumEe
     tNFA_EE_DISCOVER_REQ mUiccInfo;
     tNFA_HCI_GET_GATE_PIPE_LIST mHciCfg;
@@ -381,8 +381,7 @@ private:
     SyncEvent       mTransceiveEvent;
     SyncEvent       mVerInfoEvent;
     UINT8           mVerInfo [3];
-    UINT8           mTransData [MAX_TRANS_RECV_SIZE];
-    UINT8           mHciBufferForStack [MAX_TRANS_RECV_SIZE];
+    UINT8           mResponseData [MAX_RESPONSE_SIZE];
     RouteDataSet    mRouteDataSet; //routing data
     std::vector<std::string> mUsedAids; //AID's that are used in current routes
 
