@@ -10,7 +10,6 @@
 *****************************************************************************/
 #pragma once
 #include "SyncEvent.h"
-#include "DataQueue.h"
 #include "NfcJniUtil.h"
 #include <string>
 extern "C"
@@ -595,7 +594,6 @@ public:
     UINT8               mRecvWindow;
     UINT16              mRemoteMaxInfoUnit;
     UINT8               mRemoteRecvWindow;
-    DataQueue           mInboundQ;              // store inbound data
     SyncEvent           mReadEvent;             // event for reading
     SyncEvent           mCongEvent;             // event for congestion
     SyncEvent           mDisconnectingEvent;     // event for disconnecting
@@ -626,7 +624,7 @@ class P2pServer
 public:
     tNFA_HANDLE     mNfaP2pServerHandle;    // NFA p2p handle of local server
     tBRCM_JNI_HANDLE mJniHandle;            // JNI Handle
-    SyncEvent       mListenEvent;           // for NFA_P2pRegisterServer()
+    SyncEvent       mRegServerEvent;        // for NFA_P2pRegisterServer()
     SyncEvent       mConnRequestEvent;      // for accept()
     std::string     mServiceName;
     NfaConn         *mServerConn[MAX_NFA_CONNS_PER_SERVER];

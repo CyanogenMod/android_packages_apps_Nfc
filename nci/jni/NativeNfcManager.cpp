@@ -40,7 +40,7 @@ extern "C"
 extern UINT8 *p_nfa_dm_lptd_cfg;
 extern UINT8 *p_nfa_dm_start_up_cfg;
 extern const UINT8 nfca_version_string [];
-extern "C" void nfa_app_post_nci_reset ();
+extern "C" void nfa_app_post_nci_reset (UINT32 brcm_hw_id);
 namespace android
 {
     extern bool gIsTagDeactivating;
@@ -513,28 +513,6 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
         return JNI_FALSE;
     }
 
-    unsigned long num = 0;
-
-    if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
-        nat->tech_mask = num;
-    else
-        nat->tech_mask = DEFAULT_TECH_MASK;
-
-    ALOGD ("%s: tag polling tech mask=0x%X", __FUNCTION__, nat->tech_mask);
-    
-    // Always restore LPTD Configuration to the stack default.
-    if (sOriginalLptdCfg != NULL)
-        p_nfa_dm_lptd_cfg = sOriginalLptdCfg;
-    else
-        sOriginalLptdCfg = p_nfa_dm_lptd_cfg;
-    
-    // Override LPTD from the config file if it is found.
-    if (GetStrValue(NAME_LPTD_CFG, (char*)&sNewLptdCfg[0], sizeof(sNewLptdCfg)))
-    {
-        // Set stack pointer to use value.
-        p_nfa_dm_lptd_cfg = &sNewLptdCfg[0];
-    }
-
     PowerSwitch::getInstance ().initialize (PowerSwitch::FULL_POWER);
     
     ALOGD ("%s: exit", __FUNCTION__);
@@ -717,6 +695,23 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
 
                 /////////////////////////////////////////////////////////////////////////////////
                 // Add extra configuration here (work-arounds, etc.)
+
+                struct nfc_jni_native_data *nat = getNative(e, o);
+
+                if ( nat )
+                {
+                    if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
+                        nat->tech_mask = num;
+                    else
+                        nat->tech_mask = DEFAULT_TECH_MASK;
+
+                    ALOGD ("%s: tag polling tech mask=0x%X", __FUNCTION__, nat->tech_mask);
+                }
+                
+                // Always restore LPTD Configuration to the stack default.
+                if (sOriginalLptdCfg != NULL)
+                    p_nfa_dm_lptd_cfg = sOriginalLptdCfg;
+                
 
                 // if this value is not set or set and non-zero, enable multi-technology responses.
                 if (!GetNumValue(NAME_NFA_DM_MULTI_TECH_RESP, &num, sizeof(num)) || (num != 0))
@@ -1678,7 +1673,8 @@ bool nfcManager_isNfcActive()
 *******************************************************************************/
 void nfaBrcmInitCallback (UINT32 brcm_hw_id)
 {
-    nfa_app_post_nci_reset ();
+    ALOGD ("%s: enter; brcm_hw_id=0x%X", __FUNCTION__, brcm_hw_id);
+    nfa_app_post_nci_reset (brcm_hw_id);
 }
 
 
