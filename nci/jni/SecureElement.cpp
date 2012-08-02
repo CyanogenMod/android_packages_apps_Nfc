@@ -1031,8 +1031,6 @@ void SecureElement::adjustRoutes (RouteSelection selection)
 
     if (db->empty())
     {
-        if (selection == DefaultRoute)
-            HostAidRouter::getInstance ().addPpseRoute ();
         ALOGD ("%s: no route configuration", fn);
         goto TheEnd;
     }
