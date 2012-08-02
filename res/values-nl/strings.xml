@@ -1,24 +1,38 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2012 The CyanogenMod Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+ -->
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="78565911793142902">"NFC-service"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"NFC"</string>
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Contact ontvangen via NFC"</string>
-    <string name="inbound_me_profile_text" msgid="2342757196108092923">"Raak aan om deze persoon toe te voegen als contact."</string>
+    <string name="inbound_me_profile_text" msgid="2342757196108092923">"Tik om deze persoon toe te voegen als contact."</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-interactie voltooid"</string>
-    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Raak aan om deze persoon uw contactgegevens te geven."</string>
+    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Tik om deze persoon uw contactgegevens te geven."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC ingeschakeld."</string>
     <string name="touch" msgid="4727218133711188355">"Tikken om uit te zenden"</string>
-    <string name="beam_progress" msgid="7453634884807323920">"Inkomende beam..."</string>
+    <string name="beam_progress" msgid="7453634884807323920">"Inkomende beam\u2026"</string>
     <string name="beam_complete" msgid="477026736424637435">"Beam voltooid"</string>
-    <string name="beam_failed" msgid="5116241718189888630">"Beam niet voltooid"</string>
+    <string name="beam_failed" msgid="5116241718189888630">"Beam mislukt"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Beam geannuleerd"</string>
     <string name="cancel" msgid="61873902552555096">"Annuleren"</string>
-    <string name="beam_touch_to_view" msgid="7853129156831642630">"Raak aan om te bekijken"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteunt de overdracht van grote bestanden via beam niet."</string>
+    <string name="beam_touch_to_view" msgid="7853129156831642630">"Tik om te bekijken"</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteunt de overdracht van grote bestanden via Beam niet."</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Verbinding maken"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Verbonden"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Kan niet verbinden"</string>
+    <string name="connect_headset_failed" msgid="7500801585498094863">"Kan geen verbinding maken"</string>
     <string name="disconnecting_headset" msgid="868262189044372780">"Loskoppelen"</string>
     <string name="disconnected_headset" msgid="4066109452701733916">"Losgekoppeld"</string>
     <string name="pairing_headset" msgid="6443461444755646137">"Koppelen"</string>
