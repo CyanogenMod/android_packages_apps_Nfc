@@ -186,7 +186,10 @@ public class NfcService extends Application implements DeviceHostListener {
     private DeviceHost mDeviceHost;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
-    private PowerManager.WakeLock mWakeLock;
+    private PowerManager.WakeLock mRoutingWakeLock;
+    private PowerManager.WakeLock mOpenWakeLock;
+    private PowerManager.WakeLock mDisconnectWakeLock;
+    private PowerManager.WakeLock mTransceiveWakeLock;
     int mStartSound;
     int mEndSound;
     int mErrorSound;
@@ -320,7 +323,17 @@ public class NfcService extends Application implements DeviceHostListener {
 
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-        mWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
+        // TODO(mikey|maco): consolidate as a single wakelock when individual
+        // stats are no longer useful.
+        mRoutingWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mRoutingWakeLock");
+        mOpenWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mOpenWakeLock");
+        mDisconnectWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mDisconnectWakeLock");
+        mTransceiveWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mTransceiveWakeLock");
+
         mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         mScreenState = checkScreenState();
 
@@ -400,6 +413,37 @@ public class NfcService extends Application implements DeviceHostListener {
             return SCREEN_STATE_ON_LOCKED;
         } else {
             return SCREEN_STATE_ON_UNLOCKED;
+        }
+    }
+
+    int doOpenSecureElementConnection() {
+        mOpenWakeLock.acquire();
+        try {
+            return mSecureElement.doOpenSecureElementConnection();
+        } finally {
+            mOpenWakeLock.release();
+        }
+    }
+
+    byte[] doTransceive(int handle, byte[] cmd) {
+        mTransceiveWakeLock.acquire();
+        try {
+            return doTransceiveNoLock(handle, cmd);
+        } finally {
+            mTransceiveWakeLock.release();
+        }
+    }
+
+    byte[] doTransceiveNoLock(int handle, byte[] cmd) {
+        return mSecureElement.doTransceive(handle, cmd);
+    }
+
+    void doDisconnect(int handle) {
+        mDisconnectWakeLock.acquire();
+        try {
+            mSecureElement.doDisconnect(handle);
+        } finally {
+            mDisconnectWakeLock.release();
         }
     }
 
@@ -587,7 +631,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
             }
             Log.i(TAG, "Executing SE wipe");
-            int handle = mSecureElement.doOpenSecureElementConnection();
+            int handle = doOpenSecureElementConnection();
             if (handle == 0) {
                 Log.w(TAG, "Could not open the secure element");
                 if (tempEnable) {
@@ -596,18 +640,26 @@ public class NfcService extends Application implements DeviceHostListener {
                 return;
             }
 
-            mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+            try {
+                mTransceiveWakeLock.acquire();
+                try {
+                    mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
 
-            for (byte[] cmd : apdus) {
-                byte[] resp = mSecureElement.doTransceive(handle, cmd);
-                if (resp == null) {
-                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
-                    break;
+                    for (byte[] cmd : apdus) {
+                        byte[] resp = doTransceiveNoLock(handle, cmd);
+                        if (resp == null) {
+                            Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
+                            break;
+                        }
+                    }
+
+                    mDeviceHost.resetTimeouts();
+                } finally {
+                    mTransceiveWakeLock.release();
                 }
+            } finally {
+                doDisconnect(handle);
             }
-
-            mDeviceHost.resetTimeouts();
-            mSecureElement.doDisconnect(handle);
 
             if (tempEnable) {
                 disableInternal();
@@ -1189,7 +1241,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
             binder.unlinkToDeath(mOpenEe, 0);
             mDeviceHost.resetTimeouts();
-            mSecureElement.doDisconnect(mOpenEe.handle);
+            doDisconnect(mOpenEe.handle);
             mOpenEe = null;
 
             applyRouting(true);
@@ -1232,7 +1284,7 @@ public class NfcService extends Application implements DeviceHostListener {
                     throw new IOException("NFC EE already open");
                 }
 
-                int handle = mSecureElement.doOpenSecureElementConnection();
+                int handle = doOpenSecureElementConnection();
                 if (handle == 0) {
                     throw new IOException("NFC EE failed to open");
                 }
@@ -1296,7 +1348,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
             }
 
-            return mSecureElement.doTransceive(mOpenEe.handle, data);
+            return doTransceive(mOpenEe.handle, data);
         }
 
         @Override
@@ -1796,13 +1848,11 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
                 mScreenState = params[0].intValue();
 
-                boolean needWakelock = mScreenState == SCREEN_STATE_OFF;
-                if (needWakelock) {
-                    mWakeLock.acquire();
-                }
-                applyRouting(false);
-                if (needWakelock) {
-                    mWakeLock.release();
+                mRoutingWakeLock.acquire();
+                try {
+                    applyRouting(false);
+                } finally {
+                    mRoutingWakeLock.release();
                 }
                 return null;
             }
