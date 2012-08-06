@@ -106,6 +106,7 @@ static SyncEvent            sNfaEnableEvent;  //event for NFA_Enable()
 static SyncEvent            sNfaDisableEvent;  //event for NFA_Disable()
 static SyncEvent            sNfaEnableDisablePollingEvent;  //event for NFA_EnablePolling(), NFA_DisablePolling()
 static SyncEvent            sNfaSetConfigEvent;  // event for Set_Config....
+static SyncEvent            sNfaBuildInfoEvent;
 static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
@@ -626,7 +627,17 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
     case NFA_DM_PWR_MODE_CHANGE_EVT:
         PowerSwitch::getInstance ().deviceManagementCallback (dmEvent, eventData);
         break;
-        
+    case NFA_DM_FIRMWARE_BUILD_INFO_EVT:
+        {
+            tNFA_BRCM_FW_BUILD_INFO* bldInfo =
+                    (tNFA_BRCM_FW_BUILD_INFO*) eventData->p_vs_evt_data;
+            if (bldInfo != NULL) {
+                ALOGD("BCM2079x NFC FW version %d.%d", bldInfo->patch.major_ver,
+                        bldInfo->patch.minor_ver);
+            }
+            sNfaBuildInfoEvent.notifyOne();
+        }
+        break;
     default:
         ALOGD ("%s: unhandled event", __FUNCTION__);
         break;
@@ -666,7 +677,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
             
         NFA_Init();
         NFA_BrcmInit (nfaBrcmInitCallback);
-
         stat = NFA_Enable (nfaDeviceManagementCallback, nfaConnectionCallback);
         if (stat == NFA_STATUS_OK)
         {
@@ -687,6 +697,14 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
             //sIsNfaEnabled indicates whether stack started successfully
             if (sIsNfaEnabled)
             {
+                {
+                    SyncEventGuard versionGuard (sNfaBuildInfoEvent);
+                    stat = NFA_BrcmGetFirmwareBuildInfo();
+                    if (stat == NFA_STATUS_OK) {
+                        sNfaBuildInfoEvent.wait();
+                    }
+                }
+
                 SecureElement::getInstance().initialize (getNative(e, o));
                 nativeNfcTag_registerNdefTypeHandler ();
                 NfcTag::getInstance().initialize (getNative(e, o));
