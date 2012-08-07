@@ -29,7 +29,8 @@ public final class SnepClient {
     private static final String TAG = "SnepClient";
     private static final boolean DBG = false;
     private static final int DEFAULT_ACCEPTABLE_LENGTH = 100*1024;
-    private static final int MIU = 128;
+    private static final int DEFAULT_MIU = 128;
+    private static final int DEFAULT_RWSIZE = 1;
     SnepMessenger mMessenger = null;
     private final Object mTransmissionLock = new Object();
 
@@ -38,6 +39,8 @@ public final class SnepClient {
     private int  mState = DISCONNECTED;
     private final int mAcceptableLength;
     private final int mFragmentLength;
+    private final int mMiu;
+    private final int mRwSize;
 
     private static final int DISCONNECTED = 0;
     private static final int CONNECTING = 1;
@@ -48,6 +51,8 @@ public final class SnepClient {
         mPort = SnepServer.DEFAULT_PORT;
         mAcceptableLength = DEFAULT_ACCEPTABLE_LENGTH;
         mFragmentLength = -1;
+        mMiu = DEFAULT_MIU;
+        mRwSize = DEFAULT_RWSIZE;
     }
 
     public SnepClient(String serviceName) {
@@ -55,6 +60,17 @@ public final class SnepClient {
         mPort = -1;
         mAcceptableLength = DEFAULT_ACCEPTABLE_LENGTH;
         mFragmentLength = -1;
+        mMiu = DEFAULT_MIU;
+        mRwSize = DEFAULT_RWSIZE;
+    }
+
+    public SnepClient(int miu, int rwSize) {
+        mServiceName = SnepServer.DEFAULT_SERVICE_NAME;
+        mPort = SnepServer.DEFAULT_PORT;
+        mAcceptableLength = DEFAULT_ACCEPTABLE_LENGTH;
+        mFragmentLength = -1;
+        mMiu = miu;
+        mRwSize = rwSize;
     }
 
     SnepClient(String serviceName, int fragmentLength) {
@@ -62,6 +78,8 @@ public final class SnepClient {
         mPort = -1;
         mAcceptableLength = DEFAULT_ACCEPTABLE_LENGTH;
         mFragmentLength = fragmentLength;
+        mMiu = DEFAULT_MIU;
+        mRwSize = DEFAULT_RWSIZE;
     }
 
     SnepClient(String serviceName, int acceptableLength, int fragmentLength) {
@@ -69,6 +87,8 @@ public final class SnepClient {
         mPort = -1;
         mAcceptableLength = acceptableLength;
         mFragmentLength = fragmentLength;
+        mMiu = DEFAULT_MIU;
+        mRwSize = DEFAULT_RWSIZE;
     }
 
     public void put(NdefMessage msg) throws IOException {
@@ -122,7 +142,7 @@ public final class SnepClient {
         try {
             if (DBG) Log.d(TAG, "about to create socket");
             // Connect to the snep server on the remote side
-            socket = NfcService.getInstance().createLlcpSocket(0, MIU, 1, 1024);
+            socket = NfcService.getInstance().createLlcpSocket(0, mMiu, mRwSize, 1024);
             if (socket == null) {
                 throw new IOException("Could not connect to socket.");
             }

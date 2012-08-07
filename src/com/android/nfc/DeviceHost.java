@@ -220,5 +220,9 @@ public interface DeviceHost {
 
     byte[][] getWipeApdus();
 
+    int getDefaultLlcpMiu();
+
+    int getDefaultLlcpRwSize();
+
     String dump();
 }

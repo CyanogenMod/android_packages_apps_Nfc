@@ -28,14 +28,15 @@ import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
 
-import java.io.File;
-
 /**
  * Native interface to the NFC Manager functions
  */
 public class NativeNfcManager implements DeviceHost {
     private static final String TAG = "NativeNfcManager";
     static final String PREF = "NciDeviceHost";
+
+    static final int DEFAULT_LLCP_MIU = 1980;
+    static final int DEFAULT_LLCP_RWSIZE = 2;
 
     static {
         System.loadLibrary("nfc_nci_jni");
@@ -262,18 +263,30 @@ public class NativeNfcManager implements DeviceHost {
     public void setP2pTargetModes(int modes) {
         doSetP2pTargetModes(modes);
     }
-
+    @Override
     public boolean getExtendedLengthApdusSupported() {
         // TODO check BCM support
         return false;
     }
 
+    @Override
     public boolean enablePN544Quirks() {
         return false;
     }
 
+    @Override
     public byte[][] getWipeApdus() {
         return null;
+    }
+
+    @Override
+    public int getDefaultLlcpMiu() {
+        return DEFAULT_LLCP_MIU;
+    }
+
+    @Override
+    public int getDefaultLlcpRwSize() {
+        return DEFAULT_LLCP_RWSIZE;
     }
 
     private native String doDump();
@@ -336,4 +349,5 @@ public class NativeNfcManager implements DeviceHost {
     private void notifySeMifareAccess(byte[] block) {
         mListener.onSeMifareAccess(block);
     }
+
 }

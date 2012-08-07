@@ -43,6 +43,9 @@ public class NativeNfcManager implements DeviceHost {
     private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
     private static final long FIRMWARE_MODTIME_DEFAULT = -1;
 
+    static final int DEFAULT_LLCP_MIU = 128;
+    static final int DEFAULT_LLCP_RWSIZE = 1;
+
     //TODO: dont hardcode this
     private static final byte[][] EE_WIPE_APDUS = {
         {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
@@ -319,17 +322,30 @@ public class NativeNfcManager implements DeviceHost {
         doSetP2pTargetModes(modes);
     }
 
+    @Override
     public boolean getExtendedLengthApdusSupported() {
         // Not supported on the PN544
         return false;
     }
 
+    @Override
     public boolean enablePN544Quirks() {
         return true;
     }
 
+    @Override
     public byte[][] getWipeApdus() {
         return EE_WIPE_APDUS;
+    }
+
+    @Override
+    public int getDefaultLlcpMiu() {
+        return DEFAULT_LLCP_MIU;
+    }
+
+    @Override
+    public int getDefaultLlcpRwSize() {
+        return DEFAULT_LLCP_RWSIZE;
     }
 
     private native String doDump();
@@ -392,4 +408,5 @@ public class NativeNfcManager implements DeviceHost {
     private void notifySeMifareAccess(byte[] block) {
         mListener.onSeMifareAccess(block);
     }
+
 }
