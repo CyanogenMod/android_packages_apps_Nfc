@@ -860,10 +860,6 @@ public class NfcService extends Application implements DeviceHostListener {
                 return ErrorCodes.ERROR_DISCONNECT;
             }
 
-            if (technology == TagTechnology.NFC_B) {
-                return ErrorCodes.ERROR_NOT_SUPPORTED;
-            }
-
             // Note that on most tags, all technologies are behind a single
             // handle. This means that the connect at the lower levels
             // will do nothing, as the tag is already connected to that handle.
