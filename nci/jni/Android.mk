@@ -20,7 +20,9 @@ endef
 LOCAL_SRC_FILES:= $(call all-cpp-files-under, .)
 
 LOCAL_C_INCLUDES += \
-    external/astl/include \
+    bionic \
+    bionic/libstdc++ \
+    external/stlport/stlport \
     external/libxml2/include \
     external/icu4c/common \
     $(NFA)/include \
@@ -37,7 +39,8 @@ LOCAL_SHARED_LIBRARIES := \
     libnativehelper \
     libcutils \
     libutils \
-    libnfc-nci
+    libnfc-nci \
+    libstlport
     
 LOCAL_STATIC_LIBRARIES := libxml2
 
