@@ -167,6 +167,9 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     final Handler mHandler;
     final HandoverManager mHandoverManager;
 
+    final int mDefaultMiu;
+    final int mDefaultRwSize;
+
     // Locked on NdefP2pManager.this
     int mLinkState;
     int mSendState;  // valid during LINK_STATE_UP or LINK_STATE_DEBOUNCE
@@ -179,9 +182,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     SharedPreferences mPrefs;
     boolean mFirstBeam;
 
-    public P2pLinkManager(Context context, HandoverManager handoverManager) {
+    public P2pLinkManager(Context context, HandoverManager handoverManager, int defaultMiu,
+            int defaultRwSize) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
-        mDefaultSnepServer = new SnepServer(mDefaultSnepCallback);
+        mDefaultSnepServer = new SnepServer(mDefaultSnepCallback, defaultMiu, defaultRwSize);
         mHandoverServer = new HandoverServer(HANDOVER_SAP, handoverManager, mHandoverCallback);
 
         if (ECHOSERVER_ENABLED) {
@@ -201,6 +205,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         mPrefs = context.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
         mFirstBeam = mPrefs.getBoolean(NfcService.PREF_FIRST_BEAM, true);
         mHandoverManager = handoverManager;
+        mDefaultMiu = defaultMiu;
+        mDefaultRwSize = defaultRwSize;
      }
 
     /**
@@ -417,11 +423,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
             long time = SystemClock.elapsedRealtime();
 
-
             try {
                 if (DBG) Log.d(TAG, "Sending ndef via SNEP");
 
-                int snepResult = doSnepProtocol(mHandoverManager, m, uris);
+                int snepResult = doSnepProtocol(mHandoverManager, m, uris,
+                        mDefaultMiu, mDefaultRwSize);
 
                 switch (snepResult) {
                     case SNEP_HANDOVER_UNSUPPORTED:
@@ -461,8 +467,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     }
 
     static int doSnepProtocol(HandoverManager handoverManager,
-            NdefMessage msg, Uri[] uris) throws IOException {
-        SnepClient snepClient = new SnepClient();
+            NdefMessage msg, Uri[] uris, int miu, int rwSize) throws IOException {
+        SnepClient snepClient = new SnepClient(miu, rwSize);
         try {
             snepClient.connect();
         } catch (IOException e) {
