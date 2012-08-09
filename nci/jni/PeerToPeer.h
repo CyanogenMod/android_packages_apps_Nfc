@@ -285,6 +285,18 @@ public:
 
     /*******************************************************************************
     **
+    ** Function:        setP2pListenMask
+    **
+    ** Description:     Sets the p2p listen technology mask.
+    **                  p2pListenMask: the p2p listen mask to be set?
+    **
+    ** Returns:         None
+    **
+    *******************************************************************************/
+    void setP2pListenMask (tNFA_TECHNOLOGY_MASK p2pListenMask);
+
+    /*******************************************************************************
+    **
     ** Function:        enableP2pListening
     **
     ** Description:     Start/stop polling/listening to peer that supports P2P.

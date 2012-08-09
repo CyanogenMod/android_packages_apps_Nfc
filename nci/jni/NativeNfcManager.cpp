@@ -1431,6 +1431,17 @@ static jstring nfcManager_doDump(JNIEnv *e, jobject o)
 static void nfcManager_doSetP2pInitiatorModes (JNIEnv *e, jobject o, jint modes)
 {
     ALOGD ("%s: modes=0x%X", __FUNCTION__, modes);
+    struct nfc_jni_native_data *nat = getNative(e, o);
+
+    tNFA_TECHNOLOGY_MASK mask = 0;
+    if (modes & 0x01) mask |= NFA_TECHNOLOGY_MASK_A;
+    if (modes & 0x02) mask |= NFA_TECHNOLOGY_MASK_F;
+    if (modes & 0x04) mask |= NFA_TECHNOLOGY_MASK_F;
+    if (modes & 0x08) mask |= NFA_TECHNOLOGY_MASK_A_ACTIVE;
+    if (modes & 0x10) mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
+    if (modes & 0x20) mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
+    nat->tech_mask = mask;
+
     //this function is not called by the NFC service nor exposed by public API.
 }
 
@@ -1450,6 +1461,14 @@ static void nfcManager_doSetP2pInitiatorModes (JNIEnv *e, jobject o, jint modes)
 static void nfcManager_doSetP2pTargetModes (JNIEnv *e, jobject o, jint modes)
 {
     ALOGD ("%s: modes=0x%X", __FUNCTION__, modes);
+    // Map in the right modes
+    tNFA_TECHNOLOGY_MASK mask = 0;
+    if (modes & 0x01) mask |= NFA_TECHNOLOGY_MASK_A;
+    if (modes & 0x02) mask |= NFA_TECHNOLOGY_MASK_F;
+    if (modes & 0x04) mask |= NFA_TECHNOLOGY_MASK_F;
+    if (modes & 0x08) mask |= NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE;
+
+    PeerToPeer::getInstance().setP2pListenMask(mask);
     //this function is not called by the NFC service nor exposed by public API.
 }
 
