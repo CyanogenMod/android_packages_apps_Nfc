@@ -1342,6 +1342,19 @@ UINT8 PeerToPeer::getRemoteRecvWindow (tBRCM_JNI_HANDLE jniHandle)
     return pConn->mRemoteRecvWindow;
 }
 
+/*******************************************************************************
+**
+** Function:        setP2pListenMask
+**
+** Description:     Sets the p2p listen technology mask.
+**                  p2pListenMask: the p2p listen mask to be set?
+**
+** Returns:         None
+**
+*******************************************************************************/
+void PeerToPeer::setP2pListenMask (tNFA_TECHNOLOGY_MASK p2pListenMask) {
+    mP2pListenTechMask = p2pListenMask;
+}
 
 /*******************************************************************************
 **
