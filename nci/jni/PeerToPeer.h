@@ -35,57 +35,57 @@ typedef unsigned int                tBRCM_JNI_HANDLE;
 class PeerToPeer
 {
 public:
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        PeerToPeer
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     PeerToPeer ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        ~PeerToPeer
     **
     ** Description:     Free all resources.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     ~PeerToPeer ();
 
-    
+
     /*******************************************************************************
     **
     ** Function:        getInstance
     **
     ** Description:     Get the singleton PeerToPeer object.
-    **                  
+    **
     ** Returns:         Singleton PeerToPeer object.
     **
     *******************************************************************************/
     static PeerToPeer& getInstance();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        initialize
     **
     ** Description:     Initialize member variables.
     **                  jniVersion: JNI version.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void initialize (long jniVersion);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        llcpActivatedHandler
@@ -93,13 +93,13 @@ public:
     ** Description:     Receive LLLCP-activated event from stack.
     **                  nat: JVM-related data.
     **                  activated: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void llcpActivatedHandler (nfc_jni_native_data* nativeData, tNFA_LLCP_ACTIVATED& activated);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        llcpDeactivatedHandler
@@ -107,13 +107,13 @@ public:
     ** Description:     Receive LLLCP-deactivated event from stack.
     **                  nat: JVM-related data.
     **                  deactivated: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void llcpDeactivatedHandler (nfc_jni_native_data* nativeData, tNFA_LLCP_DEACTIVATED& deactivated);
-    
-        
+
+
     /*******************************************************************************
     **
     ** Function:        connectionEventHandler
@@ -121,13 +121,13 @@ public:
     ** Description:     Receive events from the stack.
     **                  event: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        registerServer
@@ -135,25 +135,25 @@ public:
     ** Description:     Let a server start listening for peer's connection request.
     **                  jniHandle: Connection handle.
     **                  serviceName: Server's service name.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool registerServer (tBRCM_JNI_HANDLE jniHandle, const char* serviceName);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        deregisterServer
     **
     ** Description:     Stop a P2pServer from listening for peer.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool deregisterServer (tBRCM_JNI_HANDLE jniHandle);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        accept
@@ -163,13 +163,13 @@ public:
     **                  connJniHandle: Connection handle.
     **                  maxInfoUnit: Maximum information unit.
     **                  recvWindow: Receive window size.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool accept (tBRCM_JNI_HANDLE serverJniHandle, tBRCM_JNI_HANDLE connJniHandle, int maxInfoUnit, int recvWindow);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        createClient
@@ -178,13 +178,13 @@ public:
     **                  jniHandle: Connection handle.
     **                  miu: Maximum information unit.
     **                  rw: Receive window size.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool createClient (tBRCM_JNI_HANDLE jniHandle, UINT16 miu, UINT8 rw);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        connectConnOriented
@@ -192,13 +192,13 @@ public:
     ** Description:     Estabish a connection-oriented connection to a peer.
     **                  jniHandle: Connection handle.
     **                  serviceName: Peer's service name.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* serviceName);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        connectConnOriented
@@ -206,13 +206,13 @@ public:
     ** Description:     Estabish a connection-oriented connection to a peer.
     **                  jniHandle: Connection handle.
     **                  destinationSap: Peer's service access point.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool connectConnOriented (tBRCM_JNI_HANDLE jniHandle, UINT8 destinationSap);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        send
@@ -221,13 +221,13 @@ public:
     **                  jniHandle: Handle of connection.
     **                  buffer: Buffer of data.
     **                  bufferLen: Length of data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool send (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        receive
@@ -237,7 +237,7 @@ public:
     **                  buffer: Buffer to store data.
     **                  bufferLen: Max length of buffer.
     **                  actualLen: Actual length received.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -250,7 +250,7 @@ public:
     **
     ** Description:     Disconnect a connection-oriented connection with peer.
     **                  jniHandle: Handle of connection.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -263,7 +263,7 @@ public:
     **
     ** Description:     Get peer's max information unit.
     **                  jniHandle: Handle of the connection.
-    **                  
+    **
     ** Returns:         Peer's max information unit.
     **
     *******************************************************************************/
@@ -276,7 +276,7 @@ public:
     **
     ** Description:     Get peer's receive window size.
     **                  jniHandle: Handle of the connection.
-    **                  
+    **
     ** Returns:         Peer's receive window size.
     **
     *******************************************************************************/
@@ -301,7 +301,7 @@ public:
     **
     ** Description:     Start/stop polling/listening to peer that supports P2P.
     **                  isEnable: Is enable polling/listening?
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -314,24 +314,12 @@ public:
     **
     ** Description:     Handle events related to turning NFC on/off by the user.
     **                  isOn: Is NFC turning on?
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void handleNfcOnOff (bool isOn);
-    
 
-    /*******************************************************************************
-    **
-    ** Function:        getLogLevel
-    **
-    ** Description:     Get the diagnostic logging level.
-    **                  
-    ** Returns:         Log level; 0=no logging; 1=error only; 5=debug
-    **
-    *******************************************************************************/
-    UINT32 getLogLevel ();
-    
 private:
     static const int sMax = 10;
     static PeerToPeer sP2p;
@@ -339,7 +327,7 @@ private:
     static const std::string sNppServiceName;
     UINT16          mRemoteWKS;                 // Peer's well known services
     bool            mIsP2pListening;            // If P2P listening is enabled or not
-    tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask    
+    tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask
     tBRCM_JNI_HANDLE    mJniHandleSendingNppViaSnep;
     tNFA_HANDLE     mSnepRegHandle;
     tBRCM_JNI_HANDLE    mRcvFakeNppJniHandle;
@@ -347,7 +335,6 @@ private:
     UINT32          mNppTotalLen;
     UINT32          mNppReadSoFar;
     tNFA_HANDLE     mNdefTypeHandlerHandle;
-    UINT32          mAppLogLevel;
     long            mJniVersion;
 
     P2pServer       *mServers [sMax];
@@ -356,36 +343,36 @@ private:
     SyncEvent       mSnepDefaultServerStartStopEvent; // completion event for NFA_SnepStartDefaultServer(), NFA_SnepStopDefaultServer()
     SyncEvent       mSnepRegisterEvent;         // completion event for NFA_SnepRegisterClient()
     Mutex           mDisconnectMutex;           // synchronize the disconnect operation
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        nfaServerCallback
     **
     ** Description:     Receive LLCP-related events from the stack.
     **                  p2pEvent: Event code.
-    **                  eventData: Event data. 
-    **                  
+    **                  eventData: Event data.
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     static void nfaServerCallback  (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA *eventData);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        nfaClientCallback
     **
     ** Description:     Receive LLCP-related events from the stack.
     **                  p2pEvent: Event code.
-    **                  eventData: Event data. 
-    **                  
+    **                  eventData: Event data.
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     static void nfaClientCallback  (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA *eventData);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        snepClientCallback
@@ -393,13 +380,13 @@ private:
     ** Description:     Receive SNEP-related events from the stack.
     **                  snepEvent: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     static void snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA *eventData);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        ndefTypeCallback
@@ -407,20 +394,20 @@ private:
     ** Description:     Receive NDEF-related events from the stack.
     **                  ndefEvent: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     static void ndefTypeCallback   (tNFA_NDEF_EVT event, tNFA_NDEF_EVT_DATA *evetnData);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        findServer
     **
     ** Description:     Find a PeerToPeer object by connection handle.
     **                  nfaP2pServerHandle: Connectin handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -433,7 +420,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object by connection handle.
     **                  serviceName: service name.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -446,7 +433,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object by service name
     **                  serviceName: service name.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -459,7 +446,7 @@ private:
     **
     ** Description:     Free resources related to a server.
     **                  jniHandle: Connection handle.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -472,7 +459,7 @@ private:
     **
     ** Description:     Free resources related to a connection.
     **                  jniHandle: Connection handle.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -487,7 +474,7 @@ private:
     **                  jniHandle: Connection handle.
     **                  serviceName: Peer's service name.
     **                  destinationSap: Peer's service access point.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -500,7 +487,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object with a client connection handle.
     **                  nfaConnHandle: Connection handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -513,7 +500,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object with a client connection handle.
     **                  jniHandle: Connection handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -526,7 +513,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object with a client connection handle.
     **                  nfaConnHandle: Connection handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -539,7 +526,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object with a connection handle.
     **                  nfaConnHandle: Connection handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -552,7 +539,7 @@ private:
     **
     ** Description:     Find a PeerToPeer object with a connection handle.
     **                  jniHandle: Connection handle.
-    **                  
+    **
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
@@ -567,7 +554,7 @@ private:
     **                  jniHandle: Handle of connection.
     **                  buffer: Buffer of data.
     **                  dataLen: Length of data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -582,7 +569,7 @@ private:
     **                  buffer: Buffer of data to send.
     **                  bufferLen: Length of data in buffer.
     **                  actualLen: Actual length sent.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -616,7 +603,7 @@ public:
     ** Function:        NfaConn
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -640,13 +627,13 @@ public:
     SyncEvent       mConnRequestEvent;      // for accept()
     std::string     mServiceName;
     NfaConn         *mServerConn[MAX_NFA_CONNS_PER_SERVER];
-    
+
     /*******************************************************************************
     **
     ** Function:        P2pServer
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -659,7 +646,7 @@ public:
     **
     ** Description:     Find a P2pServer that has the handle.
     **                  nfaConnHandle: NFA connection handle.
-    **                  
+    **
     ** Returns:         P2pServer object.
     **
     *******************************************************************************/
@@ -694,7 +681,7 @@ public:
     ** Function:        P2pClient
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -706,7 +693,7 @@ public:
     ** Function:        ~P2pClient
     **
     ** Description:     Free all resources.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/

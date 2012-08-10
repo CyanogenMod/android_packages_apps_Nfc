@@ -8,7 +8,7 @@
 **  Proprietary and confidential.
 **
 *****************************************************************************/
-
+#include "OverrideLog.h"
 #include "NfcTag.h"
 extern "C"
 {
@@ -28,7 +28,7 @@ namespace android
 ** Function:        NfcTag
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -44,7 +44,7 @@ NfcTag::NfcTag ()
     memset (mTechHandles, 0, sizeof(mTechHandles));
     memset (mTechLibNfcTypes, 0, sizeof(mTechLibNfcTypes));
     memset (mTechParams, 0, sizeof(mTechParams));
-    mLastKovioUidLen = 0;    
+    mLastKovioUidLen = 0;
     memset(mLastKovioUid, 0, NFC_KOVIO_MAX_LEN);
 }
 
@@ -54,7 +54,7 @@ NfcTag::NfcTag ()
 ** Function:        getInstance
 **
 ** Description:     Get a reference to the singleton NfcTag object.
-**                  
+**
 ** Returns:         Reference to NfcTag object.
 **
 *******************************************************************************/
@@ -71,7 +71,7 @@ NfcTag& NfcTag::getInstance ()
 **
 ** Description:     Reset member variables.
 **                  native: Native data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -89,10 +89,10 @@ void NfcTag::initialize (nfc_jni_native_data* native)
 
 /*******************************************************************************
 **
-** Function:        abort  
+** Function:        abort
 **
 ** Description:     Unblock all operations.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -108,7 +108,7 @@ void NfcTag::abort ()
 ** Function:        isActivated
 **
 ** Description:     Is tag activated?
-**                  
+**
 ** Returns:         True if tag is activated.
 **
 *******************************************************************************/
@@ -123,7 +123,7 @@ bool NfcTag::isActivated ()
 ** Function:        getProtocol
 **
 ** Description:     Get the protocol of the current tag.
-**                  
+**
 ** Returns:         Protocol number.
 **
 *******************************************************************************/
@@ -249,8 +249,8 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
         {
             // need to look at first byte of uid to find manuf.
             tNFC_RF_TECH_PARAMS tech_params;
-            memcpy (&tech_params, &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));             
-                    
+            memcpy (&tech_params, &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));
+
             if ((tech_params.param.pa.nfcid1[0] == 0x04 && rfDetail.rf_tech_param.param.pa.sel_rsp == 0) ||
                 rfDetail.rf_tech_param.param.pa.sel_rsp == 0x18 ||
                 rfDetail.rf_tech_param.param.pa.sel_rsp == 0x08)
@@ -260,10 +260,10 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
                 mTechHandles [mNumTechList] = rfDetail.rf_disc_id;
                 mTechLibNfcTypes [mNumTechList] = rfDetail.protocol;
                 //save the stack's data structure for interpretation later
-                memcpy (&(mTechParams[mNumTechList]), &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));            
+                memcpy (&(mTechParams[mNumTechList]), &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));
                 if (rfDetail.rf_tech_param.param.pa.sel_rsp == 0)
                     mTechList [mNumTechList] = TARGET_TYPE_MIFARE_UL; //is TagTechnology.MIFARE_ULTRALIGHT by Java API
-                else 
+                else
                     mTechList [mNumTechList] = TARGET_TYPE_MIFARE_CLASSIC; //is TagTechnology.MIFARE_CLASSIC by Java API
             }
         }
@@ -436,11 +436,11 @@ TheEnd:
 **
 ** Function:        createNativeNfcTag
 **
-** Description:     Create a brand new Java NativeNfcTag object; 
+** Description:     Create a brand new Java NativeNfcTag object;
 **                  fill the objects's member variables with data;
 **                  notify NFC service;
 **                  activationData: data from activation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -936,7 +936,7 @@ void NfcTag::fillNativeNfcTagMembers5 (JNIEnv* e, jclass tag_cls, jobject tag, t
 ** Function:        isP2pDiscovered
 **
 ** Description:     Does the peer support P2P?
-**                  
+**
 ** Returns:         True if the peer supports P2P.
 **
 *******************************************************************************/
@@ -965,7 +965,7 @@ bool NfcTag::isP2pDiscovered ()
 ** Function:        selectP2p
 **
 ** Description:     Select the preferred P2P technology if there is a choice.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -973,7 +973,7 @@ void NfcTag::selectP2p()
 {
     static const char fn [] = "NfcTag::selectP2p";
     UINT8 rfDiscoveryId = 0;
-    
+
     for (int i = 0; i < mNumTechList; i++)
     {
         //if remote device does not support P2P, just skip it
@@ -1014,8 +1014,8 @@ void NfcTag::selectP2p()
 **
 ** Function:        resetTechnologies
 **
-** Description:     Clear all data related to the technology, protocol of the tag. 
-**                  
+** Description:     Clear all data related to the technology, protocol of the tag.
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1036,7 +1036,7 @@ void NfcTag::resetTechnologies ()
 ** Function:        selectFirstTag
 **
 ** Description:     When multiple tags are discovered, just select the first one to activate.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1067,7 +1067,7 @@ void NfcTag::selectFirstTag ()
 ** Function:        getT1tMaxMessageSize
 **
 ** Description:     Get the maximum size (octet) that a T1T can store.
-**                  
+**
 ** Returns:         Maximum size in octets.
 **
 *******************************************************************************/
@@ -1090,7 +1090,7 @@ int NfcTag::getT1tMaxMessageSize ()
 **
 ** Description:     Calculate type-1 tag's max message size based on header ROM bytes.
 **                  activate: reference to activation data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1127,7 +1127,7 @@ void NfcTag::calculateT1tMaxMessageSize (tNFA_ACTIVATED& activate)
 ** Function:        isMifareUltralight
 **
 ** Description:     Whether the currently activated tag is Mifare Ultralight.
-**                  
+**
 ** Returns:         True if tag is Mifare Ultralight.
 **
 *******************************************************************************/
@@ -1176,7 +1176,7 @@ bool NfcTag::isMifareUltralight ()
 ** Description:     Handle connection-related events.
 **                  event: event code.
 **                  data: pointer to event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/

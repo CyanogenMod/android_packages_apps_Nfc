@@ -2,7 +2,7 @@
 **
 **  Name:           SecureElement.h
 **
-**  Description:    Communicate with secure elements that are attached 
+**  Description:    Communicate with secure elements that are attached
 **                  to the NFC controller.
 **
 **  Copyright (c) 2012, Broadcom Corp., All Rights Reserved.
@@ -28,19 +28,19 @@ class SecureElement
 {
 public:
     tNFA_HANDLE  mActiveEeHandle;
-    
+
 
     /*******************************************************************************
     **
     ** Function:        getInstance
     **
     ** Description:     Get the SecureElement singleton object.
-    **                  
+    **
     ** Returns:         SecureElement object.
     **
     *******************************************************************************/
     static SecureElement& getInstance ();
-    
+
 
     /*******************************************************************************
     **
@@ -48,24 +48,24 @@ public:
     **
     ** Description:     Initialize all member variables.
     **                  native: Native data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool initialize (nfc_jni_native_data* native);
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        finalize
     **
     ** Description:     Release all resources.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void finalize ();
-    
+
 
     /*******************************************************************************
     **
@@ -73,12 +73,12 @@ public:
     **
     ** Description:     Get the list of handles of all execution environments.
     **                  e: Java Virtual Machine.
-    **                  
+    **
     ** Returns:         List of handles of all execution environments.
     **
     *******************************************************************************/
     jintArray getListOfEeHandles (JNIEnv* e);
-    
+
 
     /*******************************************************************************
     **
@@ -86,20 +86,20 @@ public:
     **
     ** Description:     Turn on the secure element.
     **                  seID: ID of secure element.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool activate (jint seID);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        deactivate
     **
     ** Description:     Turn off the secure element.
     **                  seID: ID of secure element.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -111,7 +111,7 @@ public:
     ** Function:        connectEE
     **
     ** Description:     Connect to the execution environment.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -124,7 +124,7 @@ public:
     **
     ** Description:     Disconnect from the execution environment.
     **                  seID: ID of secure element.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -136,13 +136,13 @@ public:
     ** Function:        transceive
     **
     ** Description:     Send data to the secure element; read it's response.
-    **                  xmitBuffer: Data to transmit. 
+    **                  xmitBuffer: Data to transmit.
     **                  xmitBufferSize: Length of data.
     **                  recvBuffer: Buffer to receive response.
     **                  recvBufferMaxSize: Maximum size of buffer.
     **                  recvBufferActualSize: Actual length of response.
     **                  timeoutMillisec: timeout in millisecond
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -156,7 +156,7 @@ public:
     **
     ** Description:     Notify the NFC service about RF field events from the stack.
     **                  isActive: Whether any secure element is activated.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -169,7 +169,7 @@ public:
     **
     ** Description:     Store a copy of the execution environment information from the stack.
     **                  info: execution environment information.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -183,7 +183,7 @@ public:
     ** Description:     Get the ID of the secure element.
     **                  eeHandle: Handle to the secure element.
     **                  uid: Array to receive the ID.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -197,7 +197,7 @@ public:
     ** Description:     Get all the technologies supported by a secure element.
     **                  eeHandle: Handle of secure element.
     **                  techList: List to receive the technologies.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -211,7 +211,7 @@ public:
     ** Description:     Notify the NFC service about a transaction event from secure element.
     **                  aid: Buffer contains application ID.
     **                  aidLen: Length of application ID.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -240,7 +240,7 @@ public:
     ** Description:     Receive card-emulation related events from stack.
     **                  event: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -253,7 +253,7 @@ public:
     **
     ** Description:     Read route data from XML and apply them again
     **                  to every secure element.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -272,39 +272,39 @@ public:
     *******************************************************************************/
     void setActiveSeOverride (UINT8 activeSeOverride);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        routeToSecureElement
     **
     ** Description:     Adjust controller's listen-mode routing table so transactions
     **                  are routed to the secure elements as specified in route.xml.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool routeToSecureElement ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        routeToDefault
     **
     ** Description:     Adjust controller's listen-mode routing table so transactions
     **                  are routed to the default destination specified in route.xml.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool routeToDefault ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        isBusy
     **
     ** Description:     Whether NFC controller is routing listen-mode events or a pipe is connected.
-    **                  
+    **
     ** Returns:         True if either case is true.
     **
     *******************************************************************************/
@@ -328,7 +328,7 @@ public:
     ** Function         getSeVerInfo
     **
     ** Description      Gets version information and id for a secure element.  The
-    **                  seIndex parmeter is the zero based index of the secure 
+    **                  seIndex parmeter is the zero based index of the secure
     **                  element to get verion info for.  The version infommation
     **                  is returned as a string int the verInfo parameter.
     **
@@ -345,10 +345,10 @@ private:
     static const UINT8 STATIC_PIPE_0x70 = 0x70; //Broadcom's proprietary static pipe
     static const UINT8 STATIC_PIPE_0x71 = 0x71; //Broadcom's proprietary static pipe
     static const UINT8 EVT_SEND_DATA = 0x10;    //see specification ETSI TS 102 622 v9.0.0 (Host Controller Interface); section 9.3.3.3
-    static const tNFA_HANDLE EE_HANDLE_0xF3 = 0x4F3; //handle to secure element in slot 0 
-    static const tNFA_HANDLE EE_HANDLE_0xF4 = 0x4F4; //handle to secure element in slot 1 
+    static const tNFA_HANDLE EE_HANDLE_0xF3 = 0x4F3; //handle to secure element in slot 0
+    static const tNFA_HANDLE EE_HANDLE_0xF4 = 0x4F4; //handle to secure element in slot 1
     static SecureElement sSecElem;
-    
+
     UINT8           mDestinationGate;       //destination gate of the UICC
     tNFA_HANDLE     mNfaHciHandle;          //NFA handle to NFA's HCI component
     nfc_jni_native_data* mNativeData;
@@ -409,7 +409,7 @@ private:
     *******************************************************************************/
     ~SecureElement ();
 
-    
+
     /*******************************************************************************
     **
     ** Function:        nfaEeCallback
@@ -417,7 +417,7 @@ private:
     ** Description:     Receive execution environment-related events from stack.
     **                  event: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -431,7 +431,7 @@ private:
     ** Description:     Receive Host Controller Interface-related events from stack.
     **                  event: Event code.
     **                  eventData: Event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -444,7 +444,7 @@ private:
     **
     ** Description:     Find information about an execution environment.
     **                  eeHandle: Handle to execution environment.
-    **                  
+    **
     ** Returns:         Information about an execution environment.
     **
     *******************************************************************************/
@@ -457,7 +457,7 @@ private:
     **
     ** Description:     Find information about an execution environment.
     **                  eeHandle: Handle of the execution environment.
-    **                  
+    **
     ** Returns:         Information about the execution environment.
     **
     *******************************************************************************/
@@ -469,33 +469,33 @@ private:
     ** Function:        getDefaultEeHandle
     **
     ** Description:     Get the handle to the execution environment.
-    **                  
+    **
     ** Returns:         Handle to the execution environment.
     **
     *******************************************************************************/
     tNFA_HANDLE getDefaultEeHandle ();
 
-    
+
     /*******************************************************************************
     **
     ** Function:        adjustRoutes
     **
     ** Description:     Adjust routes in the controller's listen-mode routing table.
     **                  selection: which set of routes to configure the controller.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void adjustRoutes (RouteSelection selection);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        adjustProtocolRoutes
     **
     ** Description:     Adjust default routing based on protocol in NFC listen mode.
     **                  isRouteToEe: Whether routing to EE (true) or host (false).
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -508,7 +508,7 @@ private:
     **
     ** Description:     Adjust default routing based on technology in NFC listen mode.
     **                  isRouteToEe: Whether routing to EE (true) or host (false).
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -520,12 +520,12 @@ private:
     ** Function:        getEeInfo
     **
     ** Description:     Get latest information about execution environments from stack.
-    **                  
+    **
     ** Returns:         True if at least 1 EE is available.
     **
     *******************************************************************************/
     bool getEeInfo ();
-    
+
 
     /*******************************************************************************
     **
@@ -533,7 +533,7 @@ private:
     **
     ** Description:     Convert status code to status text.
     **                  status: Status code
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/

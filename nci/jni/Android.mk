@@ -41,10 +41,11 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libnfc-nci \
     libstlport
-    
+
 LOCAL_STATIC_LIBRARIES := libxml2
 
 LOCAL_MODULE := libnfc_nci_jni
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+

@@ -15,13 +15,14 @@
  * limitations under the License.
  */
 
+#include "OverrideLog.h"
 #include "NfcJniUtil.h"
 
 
 namespace android
 {
 
-    
+
 extern char* gNativeP2pDeviceClassName;
 
 
@@ -81,7 +82,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/

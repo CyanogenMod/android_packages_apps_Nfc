@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "NfcJniUtil.h"
+#include "OverrideLog.h"
 #include "SecureElement.h"
 #include "nfa_brcm_api.h"
 
@@ -22,7 +22,7 @@
 namespace android
 {
 
-    
+
 extern void com_android_nfc_NfcManager_disableDiscovery (JNIEnv* e, jobject o);
 extern void com_android_nfc_NfcManager_enableDiscovery (JNIEnv* e, jobject o, jint mode);
 extern char* gNativeNfcSecureElementClassName;
@@ -36,7 +36,7 @@ extern int gGeneralTransceiveTimeout;
 ** Description:     Connect to the secure element.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Handle of secure element.  0 is failure.
 **
 *******************************************************************************/
@@ -60,7 +60,7 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, job
         else
             SecureElement::getInstance().deactivate (0);
     }
-    
+
 TheEnd:
     ALOGD("%s: exit; return handle=0x%X", __FUNCTION__, secElemHandle);
     return secElemHandle;
@@ -75,7 +75,7 @@ TheEnd:
 **                  e: JVM environment.
 **                  o: Java object.
 **                  handle: Handle of secure element.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -85,7 +85,7 @@ static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIE
     bool stat = false;
 
     stat = SecureElement::getInstance().disconnectEE (handle);
-    
+
     //if controller is not routing AND there is no pipe connected,
     //then turn off the sec elem
     if (! SecureElement::getInstance().isBusy())
@@ -105,7 +105,7 @@ static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIE
 **                  o: Java object.
 **                  handle: Secure element's handle.
 **                  data: Data to send.
-**                  
+**
 ** Returns:         Buffer of received data.
 **
 *******************************************************************************/
@@ -145,7 +145,7 @@ static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject o, jin
 **                  e: JVM environment.
 **                  o: Java object.
 **                  handle: Handle of secure element.
-**                  
+**
 ** Returns:         Secure element's unique ID.
 **
 *******************************************************************************/
@@ -169,7 +169,7 @@ static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv* e, jobject o, jint ha
 **                  e: JVM environment.
 **                  o: Java object.
 **                  handle: Handle of secure element.
-**                  
+**
 ** Returns:         Array of technologies.
 **
 *******************************************************************************/
@@ -206,7 +206,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/

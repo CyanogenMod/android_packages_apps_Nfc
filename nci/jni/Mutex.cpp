@@ -15,10 +15,10 @@
 
 /*******************************************************************************
 **
-** Function:        Mutex        
+** Function:        Mutex
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -35,10 +35,10 @@ Mutex::Mutex ()
 
 /*******************************************************************************
 **
-** Function:        ~Mutex       
+** Function:        ~Mutex
 **
 ** Description:     Cleanup all resources.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -54,10 +54,10 @@ Mutex::~Mutex ()
 
 /*******************************************************************************
 **
-** Function:        lock    
+** Function:        lock
 **
 ** Description:     Block the thread and try lock the mutex.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -73,10 +73,10 @@ void Mutex::lock ()
 
 /*******************************************************************************
 **
-** Function:        unlock   
+** Function:        unlock
 **
 ** Description:     Unlock a mutex to unblock a thread.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -92,10 +92,10 @@ void Mutex::unlock ()
 
 /*******************************************************************************
 **
-** Function:        tryLock        
+** Function:        tryLock
 **
 ** Description:     Try to lock the mutex.
-**                  
+**
 ** Returns:         True if the mutex is locked.
 **
 *******************************************************************************/
@@ -115,7 +115,7 @@ bool Mutex::tryLock ()
 ** Function:        nativeHandle
 **
 ** Description:     Get the handle of the mutex.
-**                  
+**
 ** Returns:         Handle of the mutex.
 **
 *******************************************************************************/

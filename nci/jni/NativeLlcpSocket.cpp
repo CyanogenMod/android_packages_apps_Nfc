@@ -14,14 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "NfcJniUtil.h"
+#include "OverrideLog.h"
 #include "PeerToPeer.h"
 
 
 namespace android
 {
 
-    
+
 extern char* gNativeLlcpSocketClassName;
 
 
@@ -33,7 +33,7 @@ extern char* gNativeLlcpSocketClassName;
 **                  e: JVM environment.
 **                  o: Java object.
 **                  nSap: Service access point.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -64,7 +64,7 @@ static jboolean nativeLlcpSocket_doConnect (JNIEnv* e, jobject o, jint nSap)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  sn: Service name.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -97,7 +97,7 @@ static jboolean nativeLlcpSocket_doConnectBy (JNIEnv* e, jobject o, jstring sn)
 ** Description:     Close socket.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -125,13 +125,13 @@ static jboolean nativeLlcpSocket_doClose(JNIEnv *e, jobject o)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  data: Buffer of data.
-**                  
+**
 ** Returns:         True if sent ok.
 **
 *******************************************************************************/
 static jboolean nativeLlcpSocket_doSend (JNIEnv* e, jobject o, jbyteArray data)
 {
-    ALOGD_IF ((PeerToPeer::getInstance ().getLogLevel ()>=BT_TRACE_LEVEL_DEBUG), "%s: enter", __FUNCTION__);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter", __FUNCTION__);
     uint8_t* dataBuffer = (uint8_t*) e->GetByteArrayElements (data, NULL);
     uint32_t dataBufferLen = (uint32_t) e->GetArrayLength (data);
     bool stat = false;
@@ -142,7 +142,7 @@ static jboolean nativeLlcpSocket_doSend (JNIEnv* e, jobject o, jbyteArray data)
 
     e->ReleaseByteArrayElements (data, (jbyte*) dataBuffer, JNI_ABORT);
 
-    ALOGD_IF ((PeerToPeer::getInstance ().getLogLevel ()>=BT_TRACE_LEVEL_DEBUG), "%s: exit", __FUNCTION__);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit", __FUNCTION__);
     return stat ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -155,13 +155,13 @@ static jboolean nativeLlcpSocket_doSend (JNIEnv* e, jobject o, jbyteArray data)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  origBuffer: Buffer to put received data.
-**                  
+**
 ** Returns:         Number of bytes received.
 **
 *******************************************************************************/
 static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray origBuffer)
 {
-    ALOGD_IF ((PeerToPeer::getInstance ().getLogLevel ()>=BT_TRACE_LEVEL_DEBUG), "%s: enter", __FUNCTION__);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter", __FUNCTION__);
     uint8_t* dataBuffer = (uint8_t*) e->GetByteArrayElements (origBuffer, NULL);
     uint32_t dataBufferLen = (uint32_t) e->GetArrayLength (origBuffer);
     uint16_t actualLen = 0;
@@ -180,7 +180,7 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray origBuff
         retval = -1;
 
     e->ReleaseByteArrayElements (origBuffer, (jbyte*) dataBuffer, 0);
-    ALOGD_IF ((PeerToPeer::getInstance ().getLogLevel ()>=BT_TRACE_LEVEL_DEBUG), "%s: exit; actual len=%d", __FUNCTION__, retval);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit; actual len=%d", __FUNCTION__, retval);
     return retval;
 }
 
@@ -192,7 +192,7 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray origBuff
 ** Description:     Get peer's maximum information unit.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Peer's maximum information unit.
 **
 *******************************************************************************/
@@ -218,7 +218,7 @@ static jint nativeLlcpSocket_doGetRemoteSocketMIU (JNIEnv* e, jobject o)
 ** Description:     Get peer's receive window size.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Peer's receive window size.
 **
 *******************************************************************************/
@@ -260,7 +260,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/

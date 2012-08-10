@@ -21,12 +21,7 @@
 #include <jni.h>
 #include <pthread.h>
 #include <sys/queue.h>
-extern "C"
-{
-    #include <cutils/log.h>
-    #include <semaphore.h>
-}
-#include <cutils/properties.h> // for property_get
+#include <semaphore.h>
 
 
 /* Discovery modes -- keep in sync with NFCManager.DISCOVERY_MODE_* */
@@ -48,10 +43,10 @@ extern "C"
 #define PROPERTY_LLCP_WKS                 2
 #define PROPERTY_LLCP_OPT                 3
 #define PROPERTY_NFC_DISCOVERY_A          4
-#define PROPERTY_NFC_DISCOVERY_B          5  
+#define PROPERTY_NFC_DISCOVERY_B          5
 #define PROPERTY_NFC_DISCOVERY_F          6
 #define PROPERTY_NFC_DISCOVERY_15693      7
-#define PROPERTY_NFC_DISCOVERY_NCFIP      8                     
+#define PROPERTY_NFC_DISCOVERY_NCFIP      8
 
 
 /* Error codes */
@@ -119,7 +114,7 @@ struct nfc_jni_native_data
 
    /* Secure Element selected */
    int seId;
-   
+
    /* LLCP params */
    int lto;
    int miu;
@@ -156,4 +151,3 @@ namespace android
     int register_com_android_nfc_NativeLlcpSocket (JNIEnv *e);
     int register_com_android_nfc_NativeNfcSecureElement (JNIEnv *e);
 } // namespace android
-

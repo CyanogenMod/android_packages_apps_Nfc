@@ -158,37 +158,37 @@ public:
     ** Function:        ~RouteDataSet
     **
     ** Description:     Release all resources.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
     ~RouteDataSet ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        initialize
     **
     ** Description:     Initialize resources.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool initialize ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        import
     **
     ** Description:     Import data from an XML file.  Fill the database.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool import ();
-    
-    
+
+
     /*******************************************************************************
     **
     ** Function:        getDatabase
@@ -201,27 +201,27 @@ public:
     *******************************************************************************/
     Database* getDatabase (DatabaseSelection selection);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        saveToFile
     **
     ** Description:     Save XML data from a string into a file.
     **                  routesXml: XML that represents routes.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     static bool saveToFile (const char* routesXml);
-    
-    
+
+
     /*******************************************************************************
     **
-    ** Function:        loadFromFile               
+    ** Function:        loadFromFile
     **
     ** Description:     Load XML data from file into a string.
     **                  routesXml: string to receive XML data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -249,20 +249,20 @@ public:
     **
     *******************************************************************************/
     void printDiagnostic ();
-    
+
 private:
     Database mSecElemRouteDatabase; //routes when NFC service selects sec elem
     Database mDefaultRouteDatabase; //routes when NFC service deselects sec elem
     static const char* sConfigFile;
     static const bool sDebug = false;
 
-    
+
     /*******************************************************************************
     **
     ** Function:        deleteDatabase
     **
     ** Description:     Delete all routes stored in all databases.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/

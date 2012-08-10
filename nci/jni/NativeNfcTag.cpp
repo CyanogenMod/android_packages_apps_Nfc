@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <time.h>
 #include <signal.h>
+#include "OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "NfcTag.h"
 #include "config.h"
@@ -59,10 +60,10 @@ namespace android
 ** private variables and functions
 **
 *****************************************************************************/
-namespace android 
+namespace android
 {
 
-    
+
 // Pre-defined tag type values. These must match the values in
 // framework Ndef.java for Google public NFC API.
 #define NDEF_UNKNOWN_TYPE          -1
@@ -78,7 +79,7 @@ static uint32_t     sCheckNdefCurrentSize = 0;
 static tNFA_STATUS  sCheckNdefStatus = 0; //whether tag already contains a NDEF message
 static bool         sCheckNdefCapable = false; //whether tag has NDEF capability
 static tNFA_HANDLE  sNdefTypeHandlerHandle = NFA_HANDLE_INVALID;
-static tNFA_INTF_TYPE   sCurrentRfInterface = NFA_INTERFACE_ISO_DEP;  
+static tNFA_INTF_TYPE   sCurrentRfInterface = NFA_INTERFACE_ISO_DEP;
 static uint8_t*     sTransceiveData = NULL;
 static uint32_t     sTransceiveDataLen = 0;
 static bool         sWaitingForTransceive = false;
@@ -118,7 +119,7 @@ static bool switchRfInterface(tNFA_INTF_TYPE rfInterface);
 ** Function:        nativeNfcTag_abortWaits
 **
 ** Description:     Unblock all thread synchronization objects.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -151,7 +152,7 @@ void nativeNfcTag_abortWaits ()
 ** Function:        switchBackTimerProc
 **
 ** Description:     Callback function for interval timer.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -169,7 +170,7 @@ static void switchBackTimerProc (union sigval)
 ** Description:     Receive the completion status of read operation.  Called by
 **                  NFA_READ_CPLT_EVT.
 **                  status: Status of operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -200,7 +201,7 @@ void nativeNfcTag_doReadCompleted (tNFA_STATUS status)
 ** Description:     Receive NDEF-message related events from stack.
 **                  event: Event code.
 **                  p_data: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -241,7 +242,7 @@ static void ndefHandlerCallback (tNFA_NDEF_EVT event, tNFA_NDEF_EVT_DATA *eventD
 ** Description:     Read the NDEF message on the tag.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         NDEF message.
 **
 *******************************************************************************/
@@ -302,7 +303,7 @@ static jbyteArray nativeNfcTag_doRead (JNIEnv *e, jobject o)
 ** Description:     Receive the completion status of write operation.  Called
 **                  by NFA_WRITE_CPLT_EVT.
 **                  isWriteOk: Status of operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -324,7 +325,7 @@ void nativeNfcTag_doWriteStatus (jboolean isWriteOk)
 ** Description:     Receive the completion status of format operation.  Called
 **                  by NFA_FORMAT_CPLT_EVT.
 **                  isOk: Status of operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -343,7 +344,7 @@ void nativeNfcTag_formatStatus (bool isOk)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  buf: Contains a NDEF message.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -436,7 +437,7 @@ TheEnd:
 **
 ** Description:     Receive the completion status of connect operation.
 **                  isConnectOk: Status of the operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -457,7 +458,7 @@ void nativeNfcTag_doConnectStatus (jboolean isConnectOk)
 ** Function:        nativeNfcTag_doDeactivateStatus
 **
 ** Description:     Receive the completion status of deactivate operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -478,7 +479,7 @@ void nativeNfcTag_doDeactivateStatus (int status)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  targetHandle: Handle of the tag.
-**                  
+**
 ** Returns:         Must return NXP status code, which NFC service expects.
 **
 *******************************************************************************/
@@ -521,17 +522,17 @@ static jint nativeNfcTag_doConnect (JNIEnv *e, jobject o, jint targetHandle)
 **
 ** Function:        reSelect
 **
-** Description:     Deactivates the tag and re-selects it with the specified 
-**                  rf interface.  
-**                  
-** Returns:         status code, 0 on success, 1 on failure, 
+** Description:     Deactivates the tag and re-selects it with the specified
+**                  rf interface.
+**
+** Returns:         status code, 0 on success, 1 on failure,
 **                  146 (defined in service) on tag lost
 **
 *******************************************************************************/
 static int reSelect (tNFA_INTF_TYPE rfInterface)
 {
     ALOGD ("%s: rf intf = %d", __FUNCTION__, rfInterface);
-    NfcTag& natTag = NfcTag::getInstance ();       
+    NfcTag& natTag = NfcTag::getInstance ();
 
     ALOGD ("%s: NFA_Deactivate()", __FUNCTION__);
     tNFA_STATUS status;
@@ -539,7 +540,7 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
 
     do
     {
-        SyncEventGuard g (sReconnectEvent);        
+        SyncEventGuard g (sReconnectEvent);
         gIsTagDeactivating = true;
         sGotDeactivate = false;
         if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE)))
@@ -548,20 +549,20 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
             break;
         }
 
-        if (sReconnectEvent.wait (1000) == false) //if timeout occured 
+        if (sReconnectEvent.wait (1000) == false) //if timeout occured
         {
-            ALOGE ("%s: timeout waiting for deactivate", __FUNCTION__);           
+            ALOGE ("%s: timeout waiting for deactivate", __FUNCTION__);
         }
 
         if (! NfcTag::getInstance ().isActivated ())
-        {          
+        {
             rVal = STATUS_CODE_TARGET_LOST;
             break;
         }
 
         gIsTagDeactivating = false;
 
-        SyncEventGuard g2 (sReconnectEvent);        
+        SyncEventGuard g2 (sReconnectEvent);
 
         sConnectWaitingForComplete = JNI_TRUE;
         ALOGD ("%s: NFA_Select()", __FUNCTION__);
@@ -573,14 +574,14 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
         }
 
         sConnectOk = false;
-        if (sReconnectEvent.wait (1000) == false) //if timeout occured 
+        if (sReconnectEvent.wait (1000) == false) //if timeout occured
         {
             ALOGE ("%s: wait response timeout", __FUNCTION__);
             break;
         }
         ALOGD("%s: done waiting on NFA_Select() sConnectOk=%d", __FUNCTION__, sConnectOk);
         if (! NfcTag::getInstance ().isActivated ())
-        {          
+        {
             ALOGD("%s: Tag no longer active", __FUNCTION__);
             rVal = STATUS_CODE_TARGET_LOST;
             break;
@@ -600,7 +601,7 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
 **
 ** Description:     Switch controller's RF interface to frame, ISO-DEP, or NFC-DEP.
 **                  rfInterface: Type of RF interface.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -639,7 +640,7 @@ static bool switchRfInterface (tNFA_INTF_TYPE rfInterface)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  targetHandle: Handle of the tag.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -657,17 +658,17 @@ static jboolean nativeNfcTag_doConnect_z (JNIEnv *e, jobject o, jint targetHandl
 ** Description:     Re-connect to the tag in RF field.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Status code.
 **
 *******************************************************************************/
 static jint nativeNfcTag_doReconnect (JNIEnv *e, jobject o)
 {
     ALOGD ("%s", __FUNCTION__);
-    
+
     tNFA_INTF_TYPE intf = NFA_INTERFACE_FRAME;
-    NfcTag& natTag = NfcTag::getInstance ();       
-    
+    NfcTag& natTag = NfcTag::getInstance ();
+
     // this is only supported for type 2 or 4 (ISO_DEP) tags
     if (natTag.mTechLibNfcTypes[0] == NFA_PROTOCOL_ISO_DEP)
         intf = NFA_INTERFACE_ISO_DEP;
@@ -688,7 +689,7 @@ static jint nativeNfcTag_doReconnect (JNIEnv *e, jobject o)
 ** Description:     Re-connect to the tag in RF field.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -708,7 +709,7 @@ static jboolean nativeNfcTag_doReconnect_z (JNIEnv *e, jobject o)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  targetHandle: Handle of the tag.
-**                  
+**
 ** Returns:         Status code.
 **
 *******************************************************************************/
@@ -727,7 +728,7 @@ static jint nativeNfcTag_doHandleReconnect (JNIEnv *e, jobject o, jint targetHan
 **                  e: JVM environment.
 **                  o: Java object.
 **                  targetHandle: Handle of the tag.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -745,7 +746,7 @@ static jboolean nativeNfcTag_doHandleReconnect_z (JNIEnv *e, jobject o, jint tar
 ** Description:     Deactivate the RF field.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -780,7 +781,7 @@ TheEnd:
 ** Description:     Receive the completion status of transceive operation.
 **                  buf: Contains tag's response.
 **                  bufLen: Length of buffer.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -819,7 +820,7 @@ void nativeNfcTag_doTranseiveStatus (uint8_t* buf, uint32_t bufLen)
 **                  o: Java object.
 **                  raw: Not used.
 **                  statusTargetLost: Whether tag responds or times out.
-**                  
+**
 ** Returns:         Response from tag.
 **
 *******************************************************************************/
@@ -828,7 +829,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
     ALOGD ("%s: enter; raw=%u; timeout = %d", __FUNCTION__, raw, gGeneralTransceiveTimeout);
     bool fNeedToSwitchBack = false;
     nfc_jni_native_data *nat = getNative (0, 0);
-    bool waitOk = false; 
+    bool waitOk = false;
     uint8_t *buf = NULL;
     uint32_t bufLen = 0;
     jint *targetLost = NULL;
@@ -846,7 +847,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
         return NULL;
     }
 
-    NfcTag& natTag = NfcTag::getInstance ();    
+    NfcTag& natTag = NfcTag::getInstance ();
     if (natTag.mNumTechList >= 2 && natTag.mTechList[0] == TARGET_TYPE_ISO14443_3A)
     {
         if (natTag.mTechList[1] == TARGET_TYPE_MIFARE_CLASSIC)
@@ -902,7 +903,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
             waitOk = sTransceiveEvent.wait (gGeneralTransceiveTimeout);
         }
 
-        if (waitOk == false) //if timeout occured 
+        if (waitOk == false) //if timeout occured
         {
             ALOGE ("%s: wait response timeout", __FUNCTION__);
             if (targetLost)
@@ -917,7 +918,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
                 *targetLost = 1; //causes NFC service to throw TagLostException
             break;
         }
-        
+
         ALOGD ("%s: response %d bytes", __FUNCTION__, sTransceiveDataLen);
         if (sTransceiveDataLen)
         {
@@ -946,7 +947,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
         // this timer proc will switch us back to ISO_DEP frame interface
         sSwitchBackTimer.set (1500, switchBackTimerProc);
     }
-    
+
     ALOGD ("%s: exit", __FUNCTION__);
     return result;
 }
@@ -961,7 +962,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
 **                  o: Java object.
 **                  libnfcType: Type of tag represented by JNI.
 **                  javaType: Not used.
-**                  
+**
 ** Returns:         Type of tag represented by NFC Service.
 **
 *******************************************************************************/
@@ -1010,7 +1011,7 @@ static jint nativeNfcTag_doGetNdefType (JNIEnv *e, jobject o, jint libnfcType, j
 **                  maxSize: Maximum size of NDEF message.
 **                  currentSize: Current size of NDEF message.
 **                  flags: Indicate various states.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1089,7 +1090,7 @@ void nativeNfcTag_doCheckNdefResult (tNFA_STATUS status, uint32_t maxSize, uint3
 **                  e: JVM environment.
 **                  o: Java object.
 **                  ndefInfo: NDEF info.
-**                  
+**
 ** Returns:         Status code.
 **
 *******************************************************************************/
@@ -1185,7 +1186,7 @@ TheEnd:
 **                  e: JVM environment.
 **                  o: Java object.
 **                  ndefInfo: NDEF info.
-**                  
+**
 ** Returns:         True if tag contains a NDEF message.
 **
 *******************************************************************************/
@@ -1204,7 +1205,7 @@ static bool nativeNfcTag_doCheckNdef_z (JNIEnv *e, jobject o, jintArray ndefInfo
 ** Function:        nativeNfcTag_resetPresenceCheck
 **
 ** Description:     Reset variables related to presence-check.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1220,7 +1221,7 @@ void nativeNfcTag_resetPresenceCheck ()
 **
 ** Description:     Receive the result of presence-check.
 **                  status: Result of presence-check.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1306,7 +1307,7 @@ static jboolean nativeNfcTag_doPresenceCheck (JNIEnv *e, jobject o)
 **                  uidBytes: Tag's unique ID.
 **                  pollBytes: Data from activation.
 **                  actBytes: Data from activation.
-**                  
+**
 ** Returns:         True if formattable.
 **
 *******************************************************************************/
@@ -1340,7 +1341,7 @@ static jboolean nativeNfcTag_doIsNdefFormatable (JNIEnv *e,
 **                  o: Java object.
 **                  pollBytes: Data from activation.
 **                  actBytes: Data from activation.
-**                  
+**
 ** Returns:         True if formattable.
 **
 *******************************************************************************/
@@ -1396,7 +1397,7 @@ static jboolean nativeNfcTag_doNdefFormat (JNIEnv *e, jobject o, jbyteArray key)
 ** Description:     Receive the result of making a tag read-only. Called by the
 **                  NFA_SET_TAG_RO_EVT.
 **                  status: Status of the operation.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1420,7 +1421,7 @@ void nativeNfcTag_doMakeReadonlyResult (tNFA_STATUS status)
 **                  e: JVM environment.
 **                  o: Java object.
 **                  key: Key to access the tag.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1439,7 +1440,7 @@ static jboolean nativeNfcTag_doMakeReadonly (JNIEnv *e, jobject o, jbyteArray ke
     }
 
     sMakeReadonlyWaitingForComplete = JNI_TRUE;
-    
+
     // Hard-lock the tag (cannot be reverted)
     status = NFA_RwSetTagReadOnly(TRUE);
 
@@ -1478,7 +1479,7 @@ TheEnd:
 **
 ** Description:     Register a callback to receive NDEF message from the tag
 **                  from the NFA_NDEF_DATA_EVT.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1497,7 +1498,7 @@ void nativeNfcTag_registerNdefTypeHandler ()
 ** Function:        nativeNfcTag_deregisterNdefTypeHandler
 **
 ** Description:     No longer need to receive NDEF message from the tag.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1511,7 +1512,7 @@ void nativeNfcTag_deregisterNdefTypeHandler ()
 
 /*****************************************************************************
 **
-** JNI functions for Android 4.0.3 
+** JNI functions for Android 4.0.3
 **
 *****************************************************************************/
 static JNINativeMethod gMethods[] =
@@ -1538,7 +1539,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/

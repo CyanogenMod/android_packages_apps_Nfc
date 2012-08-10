@@ -17,6 +17,7 @@
 
 #include <semaphore.h>
 #include <errno.h>
+#include "OverrideLog.h"
 #include "NfcJniUtil.h"
 extern "C"
 {
@@ -25,7 +26,7 @@ extern "C"
 }
 
 
-namespace android 
+namespace android
 {
 
 
@@ -43,7 +44,7 @@ static uint8_t*     sConnlessRecvBuf = NULL;
 static uint32_t     sConnlessRecvLen = 0;
 static uint32_t     sConnlessRecvRemoteSap = 0;
 
-    
+
 /*******************************************************************************
 **
 ** Function:        nativeLlcpConnectionlessSocket_doSendTo
@@ -53,7 +54,7 @@ static uint32_t     sConnlessRecvRemoteSap = 0;
 **                  o: Java object.
 **                  nsap: service access point.
 **                  data: buffer for data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -96,7 +97,7 @@ static jboolean nativeLlcpConnectionlessSocket_doSendTo (JNIEnv *e, jobject o, j
 **                  data: buffer contains data.
 **                  len: length of data.
 **                  remoteSap: remote service access point.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -127,7 +128,7 @@ void nativeLlcpConnectionlessSocket_receiveData (uint8_t* data, uint32_t len, ui
 ** Function:        connectionlessCleanup
 **
 ** Description:     Free resources.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -149,7 +150,7 @@ static jobject connectionlessCleanup ()
 ** Function:        nativeLlcpConnectionlessSocket_abortWait
 **
 ** Description:     Abort current operation and unblock threads.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -167,7 +168,7 @@ void nativeLlcpConnectionlessSocket_abortWait ()
 **                  e: JVM environment.
 **                  o: Java object.
 **                  linkMiu: max info unit
-**                  
+**
 ** Returns:         LlcpPacket Java object.
 **
 *******************************************************************************/
@@ -237,7 +238,7 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv *e, jobject 
     e->SetByteArrayRegion (receivedData, 0, sConnlessRecvLen, (jbyte*) sConnlessRecvBuf);
     e->SetObjectField (llcpPacket, f, receivedData);
 
-TheEnd: 
+TheEnd:
     connectionlessCleanup ();
     if (sem_destroy (&sConnlessRecvSem))
     {
@@ -254,7 +255,7 @@ TheEnd:
 ** Description:     Close socket.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -300,7 +301,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
