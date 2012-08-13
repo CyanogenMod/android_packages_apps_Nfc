@@ -68,8 +68,6 @@ namespace android
 ** public variables and functions
 **
 *****************************************************************************/
-tBRCM_JNI_HANDLE            gNextJniHandle = 1;
-long                        gJniVersion = 411;
 
 namespace android
 {
@@ -470,13 +468,13 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
 
     /* Initialize native cached references */
     gCachedNfcManagerNotifyNdefMessageListeners = e->GetMethodID (cls,
-            "notifyNdefMessageListeners",(gJniVersion >= 401) ? "(Lcom/android/nfc/dhimpl/NativeNfcTag;)V" : "(Lcom/android/nfc/NativeNfcTag;)V");
+            "notifyNdefMessageListeners", "(Lcom/android/nfc/dhimpl/NativeNfcTag;)V");
     gCachedNfcManagerNotifyTransactionListeners = e->GetMethodID (cls,
             "notifyTransactionListeners", "([B)V");
     gCachedNfcManagerNotifyLlcpLinkActivation = e->GetMethodID (cls,
-            "notifyLlcpLinkActivation",(gJniVersion >= 401) ? "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V" : "(Lcom/android/nfc/NativeP2pDevice;)V");
+            "notifyLlcpLinkActivation", "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
     gCachedNfcManagerNotifyLlcpLinkDeactivated = e->GetMethodID (cls,
-            "notifyLlcpLinkDeactivated",(gJniVersion >= 401) ? "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V" : "(Lcom/android/nfc/NativeP2pDevice;)V");
+            "notifyLlcpLinkDeactivated", "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
     sCachedNfcManagerNotifyTargetDeselected = e->GetMethodID (cls,
             "notifyTargetDeselected","()V");
     gCachedNfcManagerNotifySeFieldActivated = e->GetMethodID (cls,
@@ -484,23 +482,14 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
     gCachedNfcManagerNotifySeFieldDeactivated = e->GetMethodID (cls,
             "notifySeFieldDeactivated", "()V");
 
-    if (gJniVersion > 235)
-    {
-        sCachedNfcManagerNotifySeApduReceived = e->GetMethodID(cls,
+    sCachedNfcManagerNotifySeApduReceived = e->GetMethodID(cls,
             "notifySeApduReceived", "([B)V");
 
-        sCachedNfcManagerNotifySeMifareAccess = e->GetMethodID(cls,
+    sCachedNfcManagerNotifySeMifareAccess = e->GetMethodID(cls,
             "notifySeMifareAccess", "([B)V");
 
-        sCachedNfcManagerNotifySeEmvCardRemoval =  e->GetMethodID(cls,
+    sCachedNfcManagerNotifySeEmvCardRemoval =  e->GetMethodID(cls,
             "notifySeEmvCardRemoval", "()V");
-    }
-    else
-    {
-        sCachedNfcManagerNotifySeApduReceived = NULL;
-        sCachedNfcManagerNotifySeMifareAccess = NULL;
-        sCachedNfcManagerNotifySeEmvCardRemoval = NULL;
-    }
 
     if (nfc_jni_cache_object(e,gNativeNfcTagClassName, &(nat->cached_NfcTag)) == -1)
     {
@@ -711,7 +700,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 SecureElement::getInstance().initialize (getNative(e, o));
                 nativeNfcTag_registerNdefTypeHandler ();
                 NfcTag::getInstance().initialize (getNative(e, o));
-                PeerToPeer::getInstance().initialize (gJniVersion);
+                PeerToPeer::getInstance().initialize ();
                 PeerToPeer::getInstance().handleNfcOnOff (true);
 
                 /////////////////////////////////////////////////////////////////////////////////
@@ -939,7 +928,7 @@ static jobject nfcManager_doCreateLlcpServiceSocket (JNIEnv* e, jobject o, jint 
     jobject     serviceSocket = NULL;
     jclass      clsNativeLlcpServiceSocket = NULL;
     jfieldID    f = 0;
-    tBRCM_JNI_HANDLE jniHandle = gNextJniHandle++;
+    tBRCM_JNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
     const char* serviceName = e->GetStringUTFChars (sn, JNI_FALSE); //convert jstring, which is unicode, into char*
     std::string serviceName2 (serviceName);
 
@@ -1090,7 +1079,7 @@ static jobject nfcManager_doCreateLlcpSocket (JNIEnv* e, jobject o, jint nSap, j
     jobject clientSocket = NULL;
     jclass clsNativeLlcpSocket;
     jfieldID f;
-    tBRCM_JNI_HANDLE jniHandle = gNextJniHandle++;
+    tBRCM_JNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
     bool stat = false;
 
     stat = PeerToPeer::getInstance().createClient (jniHandle, miu, rw);
@@ -1582,8 +1571,7 @@ static JNINativeMethod gMethods[] =
 *******************************************************************************/
 int register_com_android_nfc_NativeNfcManager (JNIEnv *e)
 {
-    GetNumValue (NAME_JNI_VERSION, &gJniVersion, sizeof(gJniVersion));
-    ALOGD ("%s: enter, %s=%lu", __FUNCTION__, NAME_JNI_VERSION, gJniVersion);
+    ALOGD ("%s: enter", __FUNCTION__);
     PowerSwitch::getInstance ().initialize (PowerSwitch::UNKNOWN_LEVEL);
     ALOGD ("%s: exit", __FUNCTION__);
     return jniRegisterNativeMethods (e, gNativeNfcManagerClassName, gMethods, NELEM (gMethods));

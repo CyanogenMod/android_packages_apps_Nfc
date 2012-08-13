@@ -15,7 +15,6 @@ extern "C"
     #include "rw_int.h"
 }
 
-extern long gJniVersion;
 
 namespace android
 {
@@ -580,7 +579,7 @@ void NfcTag::fillNativeNfcTagMembers2 (JNIEnv* e, jclass tag_cls, jobject tag, t
     ALOGD ("%s", fn);
     jfieldID f = NULL;
 
-    f = e->GetFieldID (tag_cls, (gJniVersion >= 401) ? "mConnectedTechIndex" : "mConnectedTechnology", "I");
+    f = e->GetFieldID (tag_cls, "mConnectedTechIndex", "I");
     e->SetIntField (tag, f, (jint) 0);
 }
 
