@@ -8,7 +8,7 @@
 **  Proprietary and confidential.
 **
 *****************************************************************************/
- 
+
 #pragma once
 #include "NfcJniUtil.h"
 #include "gki.h"
@@ -21,10 +21,10 @@ class DataQueue
 public:
     /*******************************************************************************
     **
-    ** Function:        DataQueue                
+    ** Function:        DataQueue
     **
-    ** Description:     Initialize member variables.     
-    **                  
+    ** Description:     Initialize member variables.
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
@@ -33,10 +33,10 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        ~DataQueue                
+    ** Function:        ~DataQueue
     **
-    ** Description:      Release all resources.     
-    **                  
+    ** Description:      Release all resources.
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
@@ -45,12 +45,12 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        enqueue                
+    ** Function:        enqueue
     **
     ** Description:     Append data to the queue.
     **                  data: array of bytes
     **                  dataLen: length of the data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -59,13 +59,13 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        dequeue                
+    ** Function:        dequeue
     **
     ** Description:     Retrieve and remove data from the front of the queue.
     **                  buffer: array to store the data.
     **                  bufferMaxLen: maximum size of the buffer.
     **                  actualLen: actual length of the data.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
@@ -74,15 +74,15 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        isEmpty         
+    ** Function:        isEmpty
     **
     ** Description:     Whether the queue is empty.
-    **                  
+    **
     ** Returns:         True if empty.
     **
     *******************************************************************************/
     bool isEmpty();
-    
+
 private:
     struct tHeader
     {

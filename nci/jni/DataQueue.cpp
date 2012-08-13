@@ -14,10 +14,10 @@
 
 /*******************************************************************************
 **
-** Function:        DataQueue                
+** Function:        DataQueue
 **
-** Description:     Initialize member variables.     
-**                  
+** Description:     Initialize member variables.
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -28,10 +28,10 @@ DataQueue::DataQueue ()
 
 /*******************************************************************************
 **
-** Function:        ~DataQueue                
+** Function:        ~DataQueue
 **
-** Description:      Release all resources.     
-**                  
+** Description:      Release all resources.
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -48,8 +48,8 @@ DataQueue::~DataQueue ()
 }
 
 
-bool DataQueue::isEmpty() 
-{ 
+bool DataQueue::isEmpty()
+{
     mMutex.lock ();
     bool retval = mQueue.empty();
     mMutex.unlock ();
@@ -59,12 +59,12 @@ bool DataQueue::isEmpty()
 
 /*******************************************************************************
 **
-** Function:        enqueue                
+** Function:        enqueue
 **
 ** Description:     Append data to the queue.
 **                  data: array of bytes
 **                  dataLen: length of the data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -72,18 +72,18 @@ bool DataQueue::enqueue (UINT8* data, UINT16 dataLen)
 {
     if ((data == NULL) || (dataLen==0))
         return false;
-    
+
     mMutex.lock ();
-    
+
     bool retval = false;
     tHeader* header = (tHeader*) malloc (sizeof(tHeader) + dataLen);
-    
+
     if (header)
     {
         memset (header, 0, sizeof(tHeader));
         header->mDataLen = dataLen;
         memcpy (header+1, data, dataLen);
-        
+
         mQueue.push_back (header);
 
         retval = true;
@@ -99,13 +99,13 @@ bool DataQueue::enqueue (UINT8* data, UINT16 dataLen)
 
 /*******************************************************************************
 **
-** Function:        dequeue                
+** Function:        dequeue
 **
 ** Description:     Retrieve and remove data from the front of the queue.
 **                  buffer: array to store the data.
 **                  bufferMaxLen: maximum size of the buffer.
 **                  actualLen: actual length of the data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/

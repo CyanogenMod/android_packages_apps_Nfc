@@ -10,9 +10,9 @@
 *****************************************************************************/
 
 #include "IntervalTimer.h"
-#include <cutils/log.h>
+#include "OverrideLog.h"
 
- 
+
 IntervalTimer::IntervalTimer()
 {
     mTimerId = NULL;
@@ -73,7 +73,7 @@ bool IntervalTimer::create(TIMER_FUNC cb)
 {
     struct sigevent se;
     int stat = 0;
-    
+
     /*
      * Set the sigevent structure to cause the signal to be
      * delivered by creating a new thread.

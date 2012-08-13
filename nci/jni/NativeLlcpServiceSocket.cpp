@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+#include "OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "NfcAdaptation.h"
 #include "PeerToPeer.h"
@@ -29,7 +30,7 @@ extern tBRCM_JNI_HANDLE  gNextJniHandle;
 namespace android
 {
 
-    
+
 extern char* gNativeLlcpServiceSocketClassName;
 extern char* gNativeLlcpSocketClassName;
 
@@ -44,7 +45,7 @@ extern char* gNativeLlcpSocketClassName;
 **                  miu: Maximum information unit.
 **                  rw: Receive window.
 **                  linearBufferLength: Not used.
-**                  
+**
 ** Returns:         LlcpSocket Java object.
 **
 *******************************************************************************/
@@ -110,7 +111,7 @@ TheEnd:
 ** Description:     Close a server socket.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -147,7 +148,7 @@ static JNINativeMethod gMethods[] =
 **
 ** Description:     Regisgter JNI functions with Java Virtual Machine.
 **                  e: Environment of JVM.
-**                  
+**
 ** Returns:         Status of registration.
 **
 *******************************************************************************/

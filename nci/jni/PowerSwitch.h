@@ -59,54 +59,54 @@ public:
     ** Function:        PowerSwitch
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     PowerSwitch ();
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        ~PowerSwitch
     **
     ** Description:     Release all resources.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     ~PowerSwitch ();
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        getInstance
     **
     ** Description:     Get the singleton of this object.
-    **                  
+    **
     ** Returns:         Reference to this object.
     **
     *******************************************************************************/
     static PowerSwitch& getInstance ();
-  
+
     /*******************************************************************************
     **
     ** Function:        initialize
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void initialize (PowerLevel level);
-  
-    
+
+
     /*******************************************************************************
     **
-    ** Function:        getLevel 
+    ** Function:        getLevel
     **
     ** Description:     Get the current power level of the controller.
-    **                  
+    **
     ** Returns:         Power level.
     **
     *******************************************************************************/
@@ -124,19 +124,19 @@ public:
     *******************************************************************************/
     bool isScreenOn ();
 
-    
+
     /*******************************************************************************
     **
     ** Function:        setLevel
     **
     ** Description:     Set the controller's power level.
     **                  level: power level.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool setLevel (PowerLevel level);
-  
+
     /*******************************************************************************
     **
     ** Function:        setScreenState
@@ -154,13 +154,13 @@ public:
     ** Function:        abort
     **
     ** Description:     Abort and unblock currrent operation.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     void abort ();
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        deviceManagementCallback
@@ -168,19 +168,19 @@ public:
     ** Description:     Callback function for the stack.
     **                  event: event ID.
     **                  eventData: event's data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
     static void deviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA* eventData);
 
-    
+
     /*******************************************************************************
     **
     ** Function:        isPowerOffSleepFeatureEnabled
     **
     ** Description:     Whether power-off-sleep feature is enabled in .conf file.
-    **                  
+    **
     ** Returns:         True if feature is enabled.
     **
     *******************************************************************************/
@@ -194,41 +194,41 @@ private:
     static PowerSwitch sPowerSwitch; //singleton object
     static const UINT8 NFA_DM_PWR_STATE_UNKNOWN = -1; //device management power state power state is unknown
     SyncEvent mPowerStateEvent;
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        setPowerOffSleepState
     **
     ** Description:     Adjust controller's power-off-sleep state.
     **                  sleep: whether to enter sleep state.
-    **                  
+    **
     ** Returns:         True if ok.
     **
     *******************************************************************************/
     bool setPowerOffSleepState (bool sleep);
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        deviceMgtPowerStateToString
     **
-    ** Description:     Decode power level to a string. 
+    ** Description:     Decode power level to a string.
     **                  deviceMgtPowerState: power level.
-    **                  
+    **
     ** Returns:         Text representation of power level.
     **
     *******************************************************************************/
     const char* deviceMgtPowerStateToString (UINT8 deviceMgtPowerState);
-  
-    
+
+
     /*******************************************************************************
     **
     ** Function:        powerLevelToString
     **
     ** Description:     Decode power level to a string.
     **                  level: power level.
-    **                  
+    **
     ** Returns:         Text representation of power level.
     **
     *******************************************************************************/

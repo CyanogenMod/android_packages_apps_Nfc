@@ -32,7 +32,7 @@ public:
     ** Function:        NfcTag
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -44,7 +44,7 @@ public:
     ** Function:        getInstance
     **
     ** Description:     Get a reference to the singleton NfcTag object.
-    **                  
+    **
     ** Returns:         Reference to NfcTag object.
     **
     *******************************************************************************/
@@ -65,10 +65,10 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        abort  
+    ** Function:        abort
     **
     ** Description:     Unblock all operations.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -82,7 +82,7 @@ public:
     ** Description:     Handle connection-related events.
     **                  event: event code.
     **                  data: pointer to event data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -94,7 +94,7 @@ public:
     ** Function:        isActivated
     **
     ** Description:     Is tag activated?
-    **                  
+    **
     ** Returns:         True if tag is activated.
     **
     *******************************************************************************/
@@ -106,7 +106,7 @@ public:
     ** Function:        getProtocol
     **
     ** Description:     Get the protocol of the current tag.
-    **                  
+    **
     ** Returns:         Protocol number.
     **
     *******************************************************************************/
@@ -118,7 +118,7 @@ public:
     ** Function:        isP2pDiscovered
     **
     ** Description:     Does the peer support P2P?
-    **                  
+    **
     ** Returns:         True if the peer supports P2P.
     **
     *******************************************************************************/
@@ -130,7 +130,7 @@ public:
     ** Function:        selectP2p
     **
     ** Description:     Select the preferred P2P technology if there is a choice.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -142,7 +142,7 @@ public:
     ** Function:        selectFirstTag
     **
     ** Description:     When multiple tags are discovered, just select the first one to activate.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -154,7 +154,7 @@ public:
     ** Function:        getT1tMaxMessageSize
     **
     ** Description:     Get the maximum size (octet) that a T1T can store.
-    **                  
+    **
     ** Returns:         Maximum size in octets.
     **
     *******************************************************************************/
@@ -166,7 +166,7 @@ public:
     ** Function:        isMifareUltralight
     **
     ** Description:     Whether the currently activated tag is Mifare Ultralight.
-    **                  
+    **
     ** Returns:         True if tag is Mifare Ultralight.
     **
     *******************************************************************************/
@@ -174,7 +174,7 @@ public:
 
 private:
     nfc_jni_native_data* mNativeData;
-    bool mIsActivated;  
+    bool mIsActivated;
     tNFC_PROTOCOL mProtocol;	
     int mtT1tMaxMessageSize; //T1T max NDEF message size
     tNFA_STATUS mReadCompletedStatus;
@@ -232,11 +232,11 @@ private:
     **
     ** Function:        createNativeNfcTag
     **
-    ** Description:     Create a brand new Java NativeNfcTag object; 
+    ** Description:     Create a brand new Java NativeNfcTag object;
     **                  fill the objects's member variables with data;
     **                  notify NFC service;
     **                  activationData: data from activation.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -334,8 +334,8 @@ private:
     **
     ** Function:        resetTechnologies
     **
-    ** Description:     Clear all data related to the technology, protocol of the tag. 
-    **                  
+    ** Description:     Clear all data related to the technology, protocol of the tag.
+    **
     ** Returns:         None
     **
     *******************************************************************************/
@@ -348,7 +348,7 @@ private:
     **
     ** Description:     Calculate type-1 tag's max message size based on header ROM bytes.
     **                  activate: reference to activation data.
-    **                  
+    **
     ** Returns:         None
     **
     *******************************************************************************/

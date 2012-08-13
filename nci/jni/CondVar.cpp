@@ -19,7 +19,7 @@
 ** Function:        CondVar
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -39,7 +39,7 @@ CondVar::CondVar ()
 ** Function:        ~CondVar
 **
 ** Description:     Cleanup all resources.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -58,13 +58,13 @@ CondVar::~CondVar ()
 ** Function:        wait
 **
 ** Description:     Block the caller and wait for a condition.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
 void CondVar::wait (Mutex& mutex)
 {
-    int const res = pthread_cond_wait (&mCondition, mutex.nativeHandle());    
+    int const res = pthread_cond_wait (&mCondition, mutex.nativeHandle());
     if (res)
     {
         ALOGE ("CondVar::wait: fail wait; error=0x%X", res);
@@ -78,7 +78,7 @@ void CondVar::wait (Mutex& mutex)
 **
 ** Description:     Block the caller and wait for a condition.
 **                  millisec: Timeout in milliseconds.
-**                  
+**
 ** Returns:         True if wait is successful; false if timeout occurs.
 **
 *******************************************************************************/
@@ -103,7 +103,7 @@ bool CondVar::wait (Mutex& mutex, long millisec)
         else
             absoluteTime.tv_nsec = ns;
     }
-    
+
     //pthread_cond_timedwait_monotonic_np() is an Android-specific function
     //declared in /development/ndk/platforms/android-9/include/pthread.h;
     //it uses monotonic clock.
@@ -121,7 +121,7 @@ bool CondVar::wait (Mutex& mutex, long millisec)
 ** Function:        notifyOne
 **
 ** Description:     Unblock the waiting thread.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/

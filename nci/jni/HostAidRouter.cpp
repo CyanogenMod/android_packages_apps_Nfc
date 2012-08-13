@@ -8,6 +8,7 @@
 **  Proprietary and confidential.
 **
 *****************************************************************************/
+#include "OverrideLog.h"
 #include "HostAidRouter.h"
 #include "config.h"
 #include "SecureElement.h"

@@ -25,7 +25,7 @@
 ** Description:     Register all JNI functions with Java Virtual Machine.
 **                  jvm: Java Virtual Machine.
 **                  reserved: Not used.
-**                  
+**
 ** Returns:         JNI version.
 **
 *******************************************************************************/
@@ -65,8 +65,8 @@ namespace android
 **
 ** Function:        nfc_jni_cache_object
 **
-** Description:     
-**                  
+** Description:
+**
 ** Returns:         Status code.
 **
 *******************************************************************************/
@@ -75,14 +75,14 @@ int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
     jclass cls = NULL;
     jobject obj = NULL;
     jmethodID ctor = 0;
-    
+
     cls = e->FindClass (className);
     if(cls == NULL)
     {
         ALOGE ("%s: find class error", __FUNCTION__);
         return -1;
     }
-    
+
     ctor = e->GetMethodID (cls, "<init>", "()V");
     obj = e->NewObject (cls, ctor);
     if (obj == NULL)
@@ -90,7 +90,7 @@ int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
        ALOGE ("%s: create object error", __FUNCTION__);
        return -1;
     }
-    
+
     *cachedObj = e->NewGlobalRef (obj);
     if (*cachedObj == NULL)
     {
@@ -110,7 +110,7 @@ int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
 ** Description:     Get the value of "mHandle" member variable.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Value of mHandle.
 **
 *******************************************************************************/
@@ -118,7 +118,7 @@ int nfc_jni_get_nfc_socket_handle (JNIEnv *e, jobject o)
 {
     jclass c = NULL;
     jfieldID f = 0;
-    
+
     c = e->GetObjectClass (o);
     f = e->GetFieldID (c, "mHandle", "I");
     return e->GetIntField (o, f);
@@ -132,7 +132,7 @@ int nfc_jni_get_nfc_socket_handle (JNIEnv *e, jobject o)
 ** Description:     Get the value of "mNative" member variable.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  
+**
 ** Returns:         Pointer to the value of mNative.
 **
 *******************************************************************************/

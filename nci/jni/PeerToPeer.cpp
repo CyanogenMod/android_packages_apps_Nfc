@@ -8,6 +8,7 @@
 **  Proprietary and confidential.
 **
 *****************************************************************************/
+#include "OverrideLog.h"
 #include "PeerToPeer.h"
 #include "NfcJniUtil.h"
 #include "llcp_defs.h"
@@ -32,16 +33,16 @@ const std::string PeerToPeer::sNppServiceName ("com.android.npp");
 ** Function:        PeerToPeer
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
 PeerToPeer::PeerToPeer ()
 :   mRemoteWKS (0),
     mIsP2pListening (false),
-    mP2pListenTechMask (NFA_TECHNOLOGY_MASK_A 
-                        | NFA_TECHNOLOGY_MASK_F 
-                        | NFA_TECHNOLOGY_MASK_A_ACTIVE 
+    mP2pListenTechMask (NFA_TECHNOLOGY_MASK_A
+                        | NFA_TECHNOLOGY_MASK_F
+                        | NFA_TECHNOLOGY_MASK_A_ACTIVE
                         | NFA_TECHNOLOGY_MASK_F_ACTIVE),
     mJniHandleSendingNppViaSnep (0),
     mSnepRegHandle (NFA_HANDLE_INVALID),
@@ -50,14 +51,11 @@ PeerToPeer::PeerToPeer ()
     mNppTotalLen (0),
     mNppReadSoFar (0),
     mNdefTypeHandlerHandle (NFA_HANDLE_INVALID),
-    mAppLogLevel (1),
     mJniVersion (403)
 {
     unsigned long num = 0;
     memset (mServers, 0, sizeof(mServers));
     memset (mClients, 0, sizeof(mClients));
-    if (GetNumValue ("APPL_TRACE_LEVEL", &num, sizeof (num)))
-        mAppLogLevel = num;
 }
 
 
@@ -66,7 +64,7 @@ PeerToPeer::PeerToPeer ()
 ** Function:        ~PeerToPeer
 **
 ** Description:     Free all resources.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -80,7 +78,7 @@ PeerToPeer::~PeerToPeer ()
 ** Function:        getInstance
 **
 ** Description:     Get the singleton PeerToPeer object.
-**                  
+**
 ** Returns:         Singleton PeerToPeer object.
 **
 *******************************************************************************/
@@ -96,7 +94,7 @@ PeerToPeer& PeerToPeer::getInstance ()
 **
 ** Description:     Initialize member variables.
 **                  jniVersion: JNI version.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -118,7 +116,7 @@ void PeerToPeer::initialize (long jniVersion)
 **
 ** Description:     Find a PeerToPeer object by connection handle.
 **                  nfaP2pServerHandle: Connectin handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -144,7 +142,7 @@ P2pServer *PeerToPeer::findServer (tNFA_HANDLE nfaP2pServerHandle)
 **
 ** Description:     Find a PeerToPeer object by connection handle.
 **                  serviceName: service name.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -170,7 +168,7 @@ P2pServer *PeerToPeer::findServer (tBRCM_JNI_HANDLE jniHandle)
 **
 ** Description:     Find a PeerToPeer object by service name
 **                  serviceName: service name.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -194,7 +192,7 @@ P2pServer *PeerToPeer::findServer (const char *serviceName)
 ** Description:     Let a server start listening for peer's connection request.
 **                  jniHandle: Connection handle.
 **                  serviceName: Server's service name.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -206,7 +204,7 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
     P2pServer       *pSrv = NULL;
     UINT8           serverSap = NFA_P2P_ANY_SAP;
 
-    // Check if already registered 
+    // Check if already registered
     if ((pSrv = findServer(serviceName)) != NULL)
     {
         ALOGD ("%s: service name=%s  already registered, handle: 0x%04x", fn, serviceName, pSrv->mNfaP2pServerHandle);
@@ -247,10 +245,10 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
     - Data link connection timeout (LLCP_DATA_LINK_CONNECTION_TOUT)
     - Delay timeout to send first PDU as initiator (LLCP_DELAY_TIME_TO_SEND_FIRST_PDU)
     ************************/
-    stat = NFA_P2pSetLLCPConfig (LLCP_MIU, 
+    stat = NFA_P2pSetLLCPConfig (LLCP_MIU,
             LLCP_OPT_VALUE,
-            LLCP_WAITING_TIME,      
-            LLCP_LTO_VALUE, 
+            LLCP_WAITING_TIME,
+            LLCP_LTO_VALUE,
             0, //use 0 for infinite timeout for symmetry procedure when acting as initiator
             0, //use 0 for infinite timeout for symmetry procedure when acting as target
             LLCP_DELAY_RESP_TIME,
@@ -294,7 +292,7 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
 **
 ** Description:     Free resources related to a server.
 **                  jniHandle: Connection handle.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -325,7 +323,7 @@ void PeerToPeer::removeServer (tBRCM_JNI_HANDLE jniHandle)
 ** Description:     Receive LLLCP-activated event from stack.
 **                  nat: JVM-related data.
 **                  activated: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -354,31 +352,31 @@ void PeerToPeer::llcpActivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_ACTIV
         ALOGE ("%s: jni env is null", fn);
         return;
     }
-    
+
     ALOGD ("%s: get object class", fn);
     tag_cls = e->GetObjectClass (nat->cached_P2pDevice);
     if (e->ExceptionCheck())
     {
         e->ExceptionClear();
-        ALOGE ("%s: fail get p2p device", fn); 
+        ALOGE ("%s: fail get p2p device", fn);
         goto TheEnd;
-    } 
+    }
 
     ALOGD ("%s: instantiate", fn);
     /* New target instance */
     ctor = e->GetMethodID (tag_cls, "<init>", "()V");
     tag = e->NewObject (tag_cls, ctor);
-    
+
     /* Set P2P Target mode */
-    f = e->GetFieldID (tag_cls, "mMode", "I"); 
-    
+    f = e->GetFieldID (tag_cls, "mMode", "I");
+
     if (activated.is_initiator == TRUE)
     {
         ALOGD ("%s: p2p initiator", fn);
         e->SetIntField (tag, f, (jint) MODE_P2P_INITIATOR);
     }
     else
-    {    
+    {
         ALOGD ("%s: p2p target", fn);
         e->SetIntField (tag, f, (jint) MODE_P2P_TARGET);
     }
@@ -401,7 +399,7 @@ void PeerToPeer::llcpActivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_ACTIV
     {
         e->ExceptionClear();
         ALOGE ("%s: fail notify", fn);
-    }     
+    }
 
     e->DeleteLocalRef (tag);
 
@@ -418,7 +416,7 @@ TheEnd:
 ** Description:     Receive LLLCP-deactivated event from stack.
 **                  nat: JVM-related data.
 **                  deactivated: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -442,14 +440,14 @@ void PeerToPeer::llcpDeactivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_DEA
     {
         e->ExceptionClear();
         ALOGE ("%s: fail notify", fn);
-    }     
+    }
 
     nat->vm->DetachCurrentThread ();
-    
+
     //PeerToPeer no longer needs to handle NDEF data event
     NFA_DeregisterNDefTypeHandler (mNdefTypeHandlerHandle);
     mNdefTypeHandlerHandle = NFA_HANDLE_INVALID;
-    
+
     //let the tag-reading code handle NDEF data event
     android::nativeNfcTag_registerNdefTypeHandler ();
     ALOGD ("%s: exit", fn);
@@ -465,7 +463,7 @@ void PeerToPeer::llcpDeactivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_DEA
 **                  connJniHandle: Connection handle.
 **                  maxInfoUnit: Maximum information unit.
 **                  recvWindow: Receive window size.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -555,7 +553,7 @@ bool PeerToPeer::accept (tBRCM_JNI_HANDLE serverJniHandle, tBRCM_JNI_HANDLE conn
 ** Function:        deregisterServer
 **
 ** Description:     Stop a P2pServer from listening for peer.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -597,7 +595,7 @@ bool PeerToPeer::deregisterServer (tBRCM_JNI_HANDLE jniHandle)
 **                  jniHandle: Connection handle.
 **                  miu: Maximum information unit.
 **                  rw: Receive window size.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -652,7 +650,7 @@ bool PeerToPeer::createClient (tBRCM_JNI_HANDLE jniHandle, UINT16 miu, UINT8 rw)
 **
 ** Description:     Free resources related to a connection.
 **                  jniHandle: Connection handle.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -718,7 +716,7 @@ void PeerToPeer::removeConn(tBRCM_JNI_HANDLE jniHandle)
 ** Description:     Estabish a connection-oriented connection to a peer.
 **                  jniHandle: Connection handle.
 **                  serviceName: Peer's service name.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -778,7 +776,7 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* se
 ** Description:     Estabish a connection-oriented connection to a peer.
 **                  jniHandle: Connection handle.
 **                  destinationSap: Peer's service access point.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -800,7 +798,7 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, UINT8 destinat
 **                  jniHandle: Connection handle.
 **                  serviceName: Peer's service name.
 **                  destinationSap: Peer's service access point.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -858,7 +856,7 @@ bool PeerToPeer::createDataLinkConn (tBRCM_JNI_HANDLE jniHandle, const char* ser
 **
 ** Description:     Find a PeerToPeer object with a client connection handle.
 **                  nfaConnHandle: Connection handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -879,7 +877,7 @@ P2pClient *PeerToPeer::findClient (tNFA_HANDLE nfaConnHandle)
 **
 ** Description:     Find a PeerToPeer object with a client connection handle.
 **                  jniHandle: Connection handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -900,7 +898,7 @@ P2pClient *PeerToPeer::findClient (tBRCM_JNI_HANDLE jniHandle)
 **
 ** Description:     Find a PeerToPeer object with a client connection handle.
 **                  nfaConnHandle: Connection handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -921,7 +919,7 @@ P2pClient *PeerToPeer::findClientCon (tNFA_HANDLE nfaConnHandle)
 **
 ** Description:     Find a PeerToPeer object with a connection handle.
 **                  nfaConnHandle: Connection handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -962,7 +960,7 @@ NfaConn *PeerToPeer::findConnection (tNFA_HANDLE nfaConnHandle)
 **
 ** Description:     Find a PeerToPeer object with a connection handle.
 **                  jniHandle: Connection handle.
-**                  
+**
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
@@ -1005,7 +1003,7 @@ NfaConn *PeerToPeer::findConnection (tBRCM_JNI_HANDLE jniHandle)
 **                  jniHandle: Handle of connection.
 **                  buffer: Buffer of data.
 **                  bufferLen: Length of data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1021,7 +1019,7 @@ bool PeerToPeer::send (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferL
         return (false);
     }
 
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  nfaHandle: 0x%04X  mJniHandleSendingNppViaSnep: %u",
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  nfaHandle: 0x%04X  mJniHandleSendingNppViaSnep: %u",
             fn, pConn->mJniHandle, pConn->mNfaConnHandle, mJniHandleSendingNppViaSnep);
 
     // Is this a SNEP fake-out
@@ -1044,7 +1042,7 @@ bool PeerToPeer::send (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferL
     }
 
     if (nfaStat == NFA_STATUS_OK)
-        ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: exit OK; JNI handle: %u  NFA Handle: 0x%04x", fn, jniHandle, pConn->mNfaConnHandle);
+        ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit OK; JNI handle: %u  NFA Handle: 0x%04x", fn, jniHandle, pConn->mNfaConnHandle);
     else
         ALOGE ("%s: Data not sent; JNI handle: %u  NFA Handle: 0x%04x  error: 0x%04x",
               fn, jniHandle, pConn->mNfaConnHandle, nfaStat);
@@ -1061,7 +1059,7 @@ bool PeerToPeer::send (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferL
 **                  jniHandle: Handle of connection.
 **                  buffer: Buffer of data.
 **                  dataLen: Length of data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1078,7 +1076,7 @@ bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 
         return (false);
     }
 
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  mSnepNdefMsgLen: %lu  mSnepNdefBufLen: %lu  dataLen: %d",
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  mSnepNdefMsgLen: %lu  mSnepNdefBufLen: %lu  dataLen: %d",
           fn, jniHandle, pClient->mSnepNdefMsgLen, pClient->mSnepNdefBufLen, dataLen);
 
     if (pClient->mSnepNdefMsgLen == 0)
@@ -1146,14 +1144,14 @@ bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 
 **                  buffer: Buffer to store data.
 **                  bufferLen: Max length of buffer.
 **                  actualLen: Actual length received.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
 bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen, UINT16& actualLen)
 {
     static const char fn [] = "PeerToPeer::receive";
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: enter; jniHandle: %u  bufferLen: %u", fn, jniHandle, bufferLen);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter; jniHandle: %u  bufferLen: %u", fn, jniHandle, bufferLen);
     NfaConn *pConn = NULL;
     tNFA_STATUS stat = NFA_STATUS_FAILED;
     UINT32 actualDataLen2 = 0;
@@ -1169,7 +1167,7 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
         return (false);
     }
 
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: jniHandle: %u  nfaHandle: 0x%04X  buf len=%u", fn, pConn->mJniHandle, pConn->mNfaConnHandle, bufferLen);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: jniHandle: %u  nfaHandle: 0x%04X  buf len=%u", fn, pConn->mJniHandle, pConn->mNfaConnHandle, bufferLen);
 
     while (pConn->mNfaConnHandle != NFA_HANDLE_INVALID)
     {
@@ -1180,14 +1178,14 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
             retVal = true;
             break;
         }
-        ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: waiting for data...", fn);
+        ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: waiting for data...", fn);
         {
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.wait();
         }
     } //while
 
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: exit; nfa h: 0x%X  ok: %u  actual len: %u", fn, pConn->mNfaConnHandle, retVal, actualLen);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit; nfa h: 0x%X  ok: %u  actual len: %u", fn, pConn->mNfaConnHandle, retVal, actualLen);
     return retVal;
 }
 
@@ -1200,7 +1198,7 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
 **                  buffer: Buffer of data to send.
 **                  bufferLen: Length of data in buffer.
 **                  actualLen: Actual length sent.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1208,7 +1206,7 @@ bool PeerToPeer::feedNppFromSnep (UINT8* buffer, UINT16 bufferLen, UINT16& actua
 {
     static const char fn [] = "PeerToPeer::feedNppFromSnep";
 
-    ALOGD_IF ((mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: mNppTotalLen: %lu  mNppReadSoFar: %lu  bufferLen: %u",
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: mNppTotalLen: %lu  mNppReadSoFar: %lu  bufferLen: %u",
             fn, mNppTotalLen, mNppReadSoFar, bufferLen);
 
     if (bufferLen > (mNppTotalLen - mNppReadSoFar))
@@ -1236,7 +1234,7 @@ bool PeerToPeer::feedNppFromSnep (UINT8* buffer, UINT16 bufferLen, UINT16& actua
 **
 ** Description:     Disconnect a connection-oriented connection with peer.
 **                  jniHandle: Handle of connection.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1299,7 +1297,7 @@ bool PeerToPeer::disconnectConnOriented (tBRCM_JNI_HANDLE jniHandle)
 **
 ** Description:     Get peer's max information unit.
 **                  jniHandle: Handle of the connection.
-**                  
+**
 ** Returns:         Peer's max information unit.
 **
 *******************************************************************************/
@@ -1324,7 +1322,7 @@ UINT16 PeerToPeer::getRemoteMaxInfoUnit (tBRCM_JNI_HANDLE jniHandle)
 **
 ** Description:     Get peer's receive window size.
 **                  jniHandle: Handle of the connection.
-**                  
+**
 ** Returns:         Peer's receive window size.
 **
 *******************************************************************************/
@@ -1362,7 +1360,7 @@ void PeerToPeer::setP2pListenMask (tNFA_TECHNOLOGY_MASK p2pListenMask) {
 **
 ** Description:     Start/stop polling/listening to peer that supports P2P.
 **                  isEnable: Is enable polling/listening?
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1382,7 +1380,7 @@ void PeerToPeer::enableP2pListening (bool isEnable)
             mSetTechEvent.wait ();
             mIsP2pListening = true;
         }
-        else           
+        else
             ALOGE ("%s: fail enable listen; error=0x%X", fn, nfaStat);
     }
     else if ( (isEnable == false) && (mIsP2pListening == true) )
@@ -1396,7 +1394,7 @@ void PeerToPeer::enableP2pListening (bool isEnable)
         }
         else
             ALOGE ("%s: fail disable listen; error=0x%X", fn, nfaStat);
-    }    
+    }
     ALOGD ("%s: exit; mIsP2pListening: %u", fn, mIsP2pListening);
 }
 
@@ -1407,7 +1405,7 @@ void PeerToPeer::enableP2pListening (bool isEnable)
 **
 ** Description:     Handle events related to turning NFC on/off by the user.
 **                  isOn: Is NFC turning on?
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1433,16 +1431,16 @@ void PeerToPeer::handleNfcOnOff (bool isOn)
                 SyncEventGuard guard (mSnepDefaultServerStartStopEvent);
                 stat = NFA_SnepStartDefaultServer (snepClientCallback);
                 if (stat == NFA_STATUS_OK)
-                    mSnepDefaultServerStartStopEvent.wait (); //wait for NFA_SNEP_DEFAULT_SERVER_STARTED_EVT 
+                    mSnepDefaultServerStartStopEvent.wait (); //wait for NFA_SNEP_DEFAULT_SERVER_STARTED_EVT
                 else
                     ALOGE ("%s: fail start snep server; error=0x%X", fn, stat);
             }
 
-            {            
+            {
                 SyncEventGuard guard (mSnepRegisterEvent);
                 stat = NFA_SnepRegisterClient (snepClientCallback);
                 if (stat == NFA_STATUS_OK)
-                    mSnepRegisterEvent.wait (); //wait for NFA_SNEP_REG_EVT 
+                    mSnepRegisterEvent.wait (); //wait for NFA_SNEP_REG_EVT
                 else
                     ALOGE ("%s: fail register snep client; error=0x%X", fn, stat);
             }
@@ -1520,8 +1518,8 @@ void PeerToPeer::handleNfcOnOff (bool isOn)
 **
 ** Description:     Receive LLCP-related events from the stack.
 **                  p2pEvent: Event code.
-**                  eventData: Event data. 
-**                  
+**                  eventData: Event data.
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1531,7 +1529,7 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
     P2pServer   *pSrv = NULL;
     NfaConn     *pConn = NULL;
 
-    ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: enter; event=0x%X", fn, p2pEvent);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter; event=0x%X", fn, p2pEvent);
 
     switch (p2pEvent)
     {
@@ -1554,7 +1552,7 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
     case NFA_P2P_ACTIVATED_EVT: //remote device has activated
         ALOGD ("%s: NFA_P2P_ACTIVATED_EVT; handle: 0x%04x", fn, eventData->activated.handle);
         break;
-        
+
     case NFA_P2P_DEACTIVATED_EVT:
         ALOGD ("%s: NFA_P2P_DEACTIVATED_EVT; handle: 0x%04x", fn, eventData->activated.handle);
         break;
@@ -1632,7 +1630,7 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         }
         else
         {
-            ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
+            ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
                     eventData->data.handle, eventData->data.remote_sap);
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.notifyOne();
@@ -1659,7 +1657,7 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         ALOGE ("%s: unknown event 0x%X ????", fn, p2pEvent);
         break;
     }
-    ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: exit", fn);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit", fn);
 }
 
 
@@ -1669,8 +1667,8 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
 **
 ** Description:     Receive LLCP-related events from the stack.
 **                  p2pEvent: Event code.
-**                  eventData: Event data. 
-**                  
+**                  eventData: Event data.
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1680,7 +1678,7 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
     NfaConn     *pConn = NULL;
     P2pClient   *pClient = NULL;
 
-    ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: enter; event=%u", fn, p2pEvent);
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter; event=%u", fn, p2pEvent);
 
     switch (p2pEvent)
     {
@@ -1784,13 +1782,13 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         }
         else
         {
-            ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
+            ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
                     eventData->data.handle, eventData->data.remote_sap);
             SyncEventGuard guard (pConn->mReadEvent);
             pConn->mReadEvent.notifyOne();
         }
         break;
-       
+
     case NFA_P2P_CONGEST_EVT:
         // Look for the connection block
         if ((pConn = sP2p.findConnection(eventData->congest.handle)) == NULL)
@@ -1799,7 +1797,7 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         }
         else
         {
-            ALOGD_IF ((sP2p.mAppLogLevel>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
+            ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
                     eventData->congest.handle, eventData->congest.is_congested);
 
             SyncEventGuard guard (pConn->mCongEvent);
@@ -1821,7 +1819,7 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
 ** Description:     Receive SNEP-related events from the stack.
 **                  snepEvent: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1897,7 +1895,7 @@ void PeerToPeer::snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA
             pClient->mSnepEvent.notifyOne();
         }
         break;
-        
+
     case NFA_SNEP_DEFAULT_SERVER_STARTED_EVT:
         {
             ALOGE ("%s: NFA_SNEP_DEFAULT_SERVER_STARTED_EVT", fn);
@@ -1929,7 +1927,7 @@ void PeerToPeer::snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA
 ** Description:     Receive NDEF-related events from the stack.
 **                  ndefEvent: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1999,27 +1997,12 @@ void PeerToPeer::ndefTypeCallback (tNFA_NDEF_EVT ndefEvent, tNFA_NDEF_EVT_DATA *
 
 /*******************************************************************************
 **
-** Function:        getLogLevel
-**
-** Description:     Get the diagnostic logging level.
-**                  
-** Returns:         Log level; 0=no logging; 1=error only; 5=debug
-**
-*******************************************************************************/
-UINT32 PeerToPeer::getLogLevel ()
-{
-    return mAppLogLevel;
-}
-
-
-/*******************************************************************************
-**
 ** Function:        connectionEventHandler
 **
 ** Description:     Receive events from the stack.
 **                  event: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -2046,7 +2029,7 @@ void PeerToPeer::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* eventD
 ** Function:        P2pServer
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -2064,7 +2047,7 @@ P2pServer::P2pServer()
 **
 ** Description:     Find a P2pServer that has the handle.
 **                  nfaConnHandle: NFA connection handle.
-**                  
+**
 ** Returns:         P2pServer object.
 **
 *******************************************************************************/
@@ -2092,7 +2075,7 @@ NfaConn *P2pServer::findServerConnection (tNFA_HANDLE nfaConnHandle)
 ** Function:        P2pClient
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -2113,7 +2096,7 @@ P2pClient::P2pClient ()
 ** Function:        ~P2pClient
 **
 ** Description:     Free all resources.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -2133,7 +2116,7 @@ P2pClient::~P2pClient ()
 ** Function:        NfaConn
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/

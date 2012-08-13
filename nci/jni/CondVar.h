@@ -22,7 +22,7 @@ public:
     ** Function:        CondVar
     **
     ** Description:     Initialize member variables.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
@@ -34,7 +34,7 @@ public:
     ** Function:        ~CondVar
     **
     ** Description:     Cleanup all resources.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
@@ -46,7 +46,7 @@ public:
     ** Function:        wait
     **
     ** Description:     Block the caller and wait for a condition.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
@@ -59,7 +59,7 @@ public:
     **
     ** Description:     Block the caller and wait for a condition.
     **                  millisec: Timeout in milliseconds.
-    **                  
+    **
     ** Returns:         True if wait is successful; false if timeout occurs.
     **
     *******************************************************************************/
@@ -71,12 +71,12 @@ public:
     ** Function:        notifyOne
     **
     ** Description:     Unblock the waiting thread.
-    **                  
+    **
     ** Returns:         None.
     **
     *******************************************************************************/
     void notifyOne ();
-    
+
 private:
     pthread_cond_t mCondition;
 };

@@ -2,7 +2,7 @@
 **
 **  Name:           SecureElement.cpp
 **
-**  Description:    Communicate with secure elements that are attached 
+**  Description:    Communicate with secure elements that are attached
 **                  to the NFC controller.
 **
 **  Copyright (c) 2012, Broadcom Corp., All Rights Reserved.
@@ -11,6 +11,7 @@
 *****************************************************************************/
 #include <semaphore.h>
 #include <errno.h>
+#include "OverrideLog.h"
 #include "SecureElement.h"
 #include "config.h"
 #include "PowerSwitch.h"
@@ -48,7 +49,7 @@ SecureElement SecureElement::sSecElem;
 ** Function:        SecureElement
 **
 ** Description:     Initialize member variables.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -61,7 +62,7 @@ SecureElement::SecureElement ()
     mActualNumEe (0),
     mNumEePresent(0),
     mbNewEE (true),   // by default we start w/thinking there are new EE
-    mNewPipeId (0), 
+    mNewPipeId (0),
     mNewSourceGate (0),
     mActiveSeOverride(0),
     mCommandStatus (NFA_STATUS_OK),
@@ -81,7 +82,7 @@ SecureElement::SecureElement ()
 ** Function:        ~SecureElement
 **
 ** Description:     Release all resources.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -95,7 +96,7 @@ SecureElement::~SecureElement ()
 ** Function:        getInstance
 **
 ** Description:     Get the SecureElement singleton object.
-**                  
+**
 ** Returns:         SecureElement object.
 **
 *******************************************************************************/
@@ -128,7 +129,7 @@ void SecureElement::setActiveSeOverride(UINT8 activeSeOverride)
 **
 ** Description:     Initialize all member variables.
 **                  native: Native data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -143,12 +144,12 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
     if (GetNumValue("NFA_HCI_DEFAULT_DEST_GATE", &num, sizeof(num)))
         mDestinationGate = num;
-    ALOGD ("%s: Default destination gate: %d", __FUNCTION__, mDestinationGate);
+    ALOGD ("%s: Default destination gate: %d", fn, mDestinationGate);
 
     // active SE, if not set active all SEs
     if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
         mActiveSeOverride = num;
-    ALOGD ("%s: Active SE override: %d", __FUNCTION__, mActiveSeOverride);
+    ALOGD ("%s: Active SE override: %d", fn, mActiveSeOverride);
 
     mActiveEeHandle = NFA_HANDLE_INVALID;
     mNfaHciHandle = NFA_HANDLE_INVALID;
@@ -169,7 +170,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
         return (false);
 
     {
-        SyncEventGuard guard (mEeRegisterEvent); 
+        SyncEventGuard guard (mEeRegisterEvent);
         ALOGD ("%s: try ee register", fn);
         nfaStat = NFA_EeRegister (nfaEeCallback);
         if (nfaStat != NFA_STATUS_OK)
@@ -187,7 +188,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
         {
             ALOGD ("%s: Found HCI network, try hci register", fn);
 
-            SyncEventGuard guard (mHciRegisterEvent); 
+            SyncEventGuard guard (mHciRegisterEvent);
 
             nfaStat = NFA_HciRegister ("brcm_jni", nfaHciCallback, TRUE);
             if (nfaStat != NFA_STATUS_OK)
@@ -203,7 +204,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     mRouteDataSet.initialize ();
     mRouteDataSet.import (); //read XML file
     HostAidRouter::getInstance().initialize ();
-    
+
     mIsInit = true;
     ALOGD ("%s: exit", fn);
     return (true);
@@ -215,7 +216,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 ** Function:        finalize
 **
 ** Description:     Release all resources.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -250,7 +251,7 @@ void SecureElement::finalize ()
 ** Function:        getEeInfo
 **
 ** Description:     Get latest information about execution environments from stack.
-**                  
+**
 ** Returns:         True if at least 1 EE is available.
 **
 *******************************************************************************/
@@ -259,7 +260,7 @@ bool SecureElement::getEeInfo()
     static const char fn [] = "SecureElement::getEeInfo";
     ALOGD ("%s: enter; mbNewEE=%d, mActualNumEe=%d", fn, mbNewEE, mActualNumEe);
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
-    UINT8 xx = 0, yy = 0;    
+    UINT8 xx = 0, yy = 0;
 
     // If mbNewEE is true then there is new EE info.
     if (mbNewEE)
@@ -274,7 +275,7 @@ bool SecureElement::getEeInfo()
         else
         {
             mbNewEE = false;
-            
+
             ALOGD ("%s: num EEs discovered: %u", fn, mActualNumEe);
             if (mActualNumEe != 0)
             {
@@ -308,7 +309,7 @@ bool SecureElement::getEeInfo()
 **
 ** Description:     Get the list of handles of all execution environments.
 **                  e: Java Virtual Machine.
-**                  
+**
 ** Returns:         List of handles of all execution environments.
 **
 *******************************************************************************/
@@ -335,13 +336,13 @@ jintArray SecureElement::getListOfEeHandles (JNIEnv* e)
     int cnt = 0;
     for (int ii = 0; ii < mActualNumEe && cnt < mNumEePresent; ii++)
     {
-        ALOGD ("%s: %u = 0x%X", fn, ii, mEeInfo[ii].ee_handle);            
+        ALOGD ("%s: %u = 0x%X", fn, ii, mEeInfo[ii].ee_handle);
         if ((mEeInfo[ii].num_interface == 0) || (mEeInfo[ii].ee_interface[0] == NCI_NFCEE_INTERFACE_HCI_ACCESS) )
         {
             continue;
         }
 
-        jj = mEeInfo[ii].ee_handle & ~NFA_HANDLE_GROUP_EE;            
+        jj = mEeInfo[ii].ee_handle & ~NFA_HANDLE_GROUP_EE;
         e->SetIntArrayRegion (list, cnt++, 1, &jj);
     }
     //e->DeleteLocalRef (list);
@@ -357,7 +358,7 @@ jintArray SecureElement::getListOfEeHandles (JNIEnv* e)
 **
 ** Description:     Turn on the secure element.
 **                  seID: ID of secure element.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -374,13 +375,13 @@ bool SecureElement::activate (jint seID)
         ALOGE ("%s: not init", fn);
         return false;
     }
-    
+
     if (mActiveEeHandle != NFA_HANDLE_INVALID)
     {
         ALOGD ("%s: already active", fn);
         return true;
     }
-    
+
     // Get Fresh EE info if needed.
     if (! getEeInfo())
     {
@@ -404,7 +405,7 @@ bool SecureElement::activate (jint seID)
     //activate every discovered secure element
     for (int index=0; index < mActualNumEe; index++)
     {
-        tNFA_EE_INFO& eeItem = mEeInfo[index];  
+        tNFA_EE_INFO& eeItem = mEeInfo[index];
 
         if ((eeItem.ee_handle == EE_HANDLE_0xF3) || (eeItem.ee_handle == EE_HANDLE_0xF4))
         {
@@ -417,7 +418,7 @@ bool SecureElement::activate (jint seID)
                 numActivatedEe++;
                 continue;
             }
-            
+
             {
                 SyncEventGuard guard (mEeSetModeEvent);
                 ALOGD ("%s: set EE mode activate; h=0x%X", fn, eeItem.ee_handle);
@@ -435,7 +436,7 @@ bool SecureElement::activate (jint seID)
 
     for (UINT8 xx = 0; xx < mActualNumEe; xx++)
     {
-        if ((mEeInfo[xx].num_interface != 0) && (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) && 
+        if ((mEeInfo[xx].num_interface != 0) && (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) &&
             (mEeInfo[xx].ee_status != NFC_NFCEE_STATUS_INACTIVE))
         {
             mActiveEeHandle = mEeInfo[xx].ee_handle;
@@ -454,7 +455,7 @@ bool SecureElement::activate (jint seID)
 **
 ** Description:     Turn off the secure element.
 **                  seID: ID of secure element.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -576,7 +577,7 @@ TheEnd:
 ** Function:        connectEE
 **
 ** Description:     Connect to the execution environment.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -590,7 +591,7 @@ bool SecureElement::connectEE ()
     char pipeConfName[40];
     tNFA_HANDLE  eeHandle = mActiveEeHandle;
 
-    ALOGD ("%s: enter, mActiveEeHandle: 0x%04x, SEID: 0x%x, pipe_gate_num=%d, use pipe=%d", 
+    ALOGD ("%s: enter, mActiveEeHandle: 0x%04x, SEID: 0x%x, pipe_gate_num=%d, use pipe=%d",
         fn, mActiveEeHandle, gSEId, gGatePipe, gUseStaticPipe);
 
     if (!mIsInit)
@@ -636,7 +637,7 @@ bool SecureElement::connectEE ()
         }
         else
         {
-            ALOGD ("%s: Did not find value '%s' defined in the .conf", __FUNCTION__, pipeConfName);        
+            ALOGD ("%s: Did not find value '%s' defined in the .conf", __FUNCTION__, pipeConfName);
         }
     }
     else
@@ -699,7 +700,7 @@ bool SecureElement::connectEE ()
         if (mNewSourceGate == 0)
         {
             ALOGD ("%s: allocate gate", fn);
-            //allocate a source gate and store in mNewSourceGate 
+            //allocate a source gate and store in mNewSourceGate
             SyncEventGuard guard (mAllocateGateEvent);
             if ((nfaStat = NFA_HciAllocGate (mNfaHciHandle)) != NFA_STATUS_OK)
             {
@@ -723,7 +724,7 @@ bool SecureElement::connectEE ()
             }
             mCreatePipeEvent.wait ();
             if (mCommandStatus != NFA_STATUS_OK)
-               goto TheEnd; 
+               goto TheEnd;
         }
 
         {
@@ -737,14 +738,14 @@ bool SecureElement::connectEE ()
             }
             mPipeOpenedEvent.wait ();
             if (mCommandStatus != NFA_STATUS_OK)
-               goto TheEnd; 
+               goto TheEnd;
         }
     }
-    
+
     retVal = true;
 
 TheEnd:
-    mIsPiping = retVal;    
+    mIsPiping = retVal;
     if (!retVal)
     {
         // if open failed we need to de-allocate the gate
@@ -762,7 +763,7 @@ TheEnd:
 **
 ** Description:     Disconnect from the execution environment.
 **                  seID: ID of secure element.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -792,13 +793,13 @@ bool SecureElement::disconnectEE (jint seID)
 ** Function:        transceive
 **
 ** Description:     Send data to the secure element; read it's response.
-**                  xmitBuffer: Data to transmit. 
+**                  xmitBuffer: Data to transmit.
 **                  xmitBufferSize: Length of data.
 **                  recvBuffer: Buffer to receive response.
 **                  recvBufferMaxSize: Maximum size of buffer.
 **                  recvBufferActualSize: Actual length of response.
 **                  timeoutMillisec: timeout in millisecond.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -809,18 +810,18 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
     bool isSuccess = false;
     bool waitOk = false;
-    
+
     ALOGD ("%s: enter; xmitBufferSize=%ld; recvBufferMaxSize=%ld; timeout=%ld", fn, xmitBufferSize, recvBufferMaxSize, timeoutMillisec);
 
-    {    
-        SyncEventGuard guard (mTransceiveEvent);    
+    {
+        SyncEventGuard guard (mTransceiveEvent);
         mActualResponseSize = 0;
         memset (mResponseData, 0, sizeof(mResponseData));
         if ((mNewPipeId == STATIC_PIPE_0x70) || (mNewPipeId == STATIC_PIPE_0x71))
             nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, EVT_SEND_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData);
         else
             nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, NFA_HCI_EVT_POST_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData);
-    
+
         if (nfaStat == NFA_STATUS_OK)
         {
             waitOk = mTransceiveEvent.wait (timeoutMillisec);
@@ -844,8 +845,8 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
 
     memcpy (recvBuffer, mResponseData, recvBufferActualSize);
     isSuccess = true;
-    
-TheEnd:    
+
+TheEnd:
     ALOGD ("%s: exit; isSuccess: %d; recvBufferActualSize: %ld", fn, isSuccess, recvBufferActualSize);
     return (isSuccess);
 }
@@ -857,7 +858,7 @@ TheEnd:
 **
 ** Description:     Notify the NFC service about RF field events from the stack.
 **                  isActive: Whether any secure element is activated.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -897,7 +898,7 @@ void SecureElement::notifyRfFieldEvent (bool isActive)
 **
 ** Description:     Store a copy of the execution environment information from the stack.
 **                  info: execution environment information.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -905,12 +906,12 @@ void SecureElement::storeUiccInfo (tNFA_EE_DISCOVER_REQ& info)
 {
     static const char fn [] = "SecureElement::storeUiccInfo";
     ALOGD ("%s:  Status: %u   Num EE: %u", fn, info.status, info.num_ee);
-    
+
     SyncEventGuard guard (mUiccInfoEvent);
     memcpy (&mUiccInfo, &info, sizeof(mUiccInfo));
     for (UINT8 xx = 0; xx < info.num_ee; xx++)
     {
-        //for each technology (A, B, F, B'), print the bit field that shows 
+        //for each technology (A, B, F, B'), print the bit field that shows
         //what protocol(s) is support by that technology
         ALOGD ("%s   EE[%u] Handle: 0x%04x  techA: 0x%02x  techB: 0x%02x  techF: 0x%02x  techBprime: 0x%02x",
                 fn, xx, info.ee_disc_info[xx].ee_handle,
@@ -930,7 +931,7 @@ void SecureElement::storeUiccInfo (tNFA_EE_DISCOVER_REQ& info)
 ** Description:     Get the ID of the secure element.
 **                  eeHandle: Handle to the secure element.
 **                  uid: Array to receive the ID.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -950,8 +951,8 @@ bool SecureElement::getUiccId (tNFA_HANDLE eeHandle, jbyteArray& uid)
 
     findUiccByHandle (eeHandle);
     //cannot get UID from the stack; nothing to do
-    
-TheEnd:    
+
+TheEnd:
     mNativeData->vm->DetachCurrentThread ();
     ALOGD ("%s: exit; ret=%u", fn, retval);
     return retval;
@@ -965,7 +966,7 @@ TheEnd:
 ** Description:     Get all the technologies supported by a secure element.
 **                  eeHandle: Handle of secure element.
 **                  techList: List to receive the technologies.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -976,7 +977,7 @@ bool SecureElement::getTechnologyList (tNFA_HANDLE eeHandle, jintArray& techList
     bool retval = false;
     JNIEnv* e = NULL;
     jint theList = 0;
-    
+
     mNativeData->vm->AttachCurrentThread (&e, NULL);
     if (e == NULL)
     {
@@ -996,8 +997,8 @@ bool SecureElement::getTechnologyList (tNFA_HANDLE eeHandle, jintArray& techList
         theList = TARGET_TYPE_ISO14443_3B;
     else
         theList = TARGET_TYPE_UNKNOWN;
-        
-TheEnd:    
+
+TheEnd:
     mNativeData->vm->DetachCurrentThread ();
     ALOGD ("%s: exit; ret=%u", fn, retval);
     return retval;
@@ -1010,7 +1011,7 @@ TheEnd:
 **
 ** Description:     Adjust routes in the controller's listen-mode routing table.
 **                  selection: which set of routes to configure the controller.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1035,7 +1036,7 @@ void SecureElement::adjustRoutes (RouteSelection selection)
         goto TheEnd;
     }
 
-    
+
 TheEnd:
     NFA_EeUpdateNow (); //apply new routes now
     ALOGD ("%s: exit", fn);
@@ -1047,7 +1048,7 @@ TheEnd:
 ** Function:        applyRoutes
 **
 ** Description:     Read route data from file and apply them again.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1070,7 +1071,7 @@ void SecureElement::applyRoutes ()
 **
 ** Description:     Adjust default routing based on protocol in NFC listen mode.
 **                  isRouteToEe: Whether routing to EE (true) or host (false).
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1080,7 +1081,7 @@ void SecureElement::adjustProtocolRoutes (RouteDataSet::Database* db, RouteSelec
     ALOGD ("%s: enter", fn);
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
     const tNFA_PROTOCOL_MASK protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
-    
+
     ///////////////////////
     // delete route to host
     ///////////////////////
@@ -1226,7 +1227,7 @@ void SecureElement::adjustProtocolRoutes (RouteDataSet::Database* db, RouteSelec
 **
 ** Description:     Adjust default routing based on technology in NFC listen mode.
 **                  isRouteToEe: Whether routing to EE (true) or host (false).
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1236,7 +1237,7 @@ void SecureElement::adjustTechnologyRoutes (RouteDataSet::Database* db, RouteSel
     ALOGD ("%s: enter", fn);
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
     const tNFA_TECHNOLOGY_MASK techMask = NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_B;
-    
+
     ///////////////////////
     // delete route to host
     ///////////////////////
@@ -1383,7 +1384,7 @@ void SecureElement::adjustTechnologyRoutes (RouteDataSet::Database* db, RouteSel
 ** Description:     Receive execution environment-related events from stack.
 **                  event: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1412,7 +1413,7 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
                 if (pEE)
                 {
                     pEE->ee_status ^= 1;
-                    ALOGD ("%s: NFA_EE_MODE_SET_EVT; pEE->ee_status: %s (0x%04x)", fn, SecureElement::eeStatusToString(pEE->ee_status), pEE->ee_status);                    
+                    ALOGD ("%s: NFA_EE_MODE_SET_EVT; pEE->ee_status: %s (0x%04x)", fn, SecureElement::eeStatusToString(pEE->ee_status), pEE->ee_status);
                 }
                 else
                     ALOGE ("%s: NFA_EE_MODE_SET_EVT; EE: 0x%04x not found.  mActiveEeHandle: 0x%04x", fn, eventData->mode_set.ee_handle, sSecElem.mActiveEeHandle);
@@ -1421,7 +1422,7 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
             sSecElem.mEeSetModeEvent.notifyOne();
         }
         break;
-        
+
     case NFA_EE_SET_TECH_CFG_EVT:
         {
             ALOGD ("%s: NFA_EE_SET_TECH_CFG_EVT; status=0x%X", fn, eventData->status);
@@ -1437,7 +1438,7 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
             sSecElem.mRoutingEvent.notifyOne ();
         }
         break;
-        
+
     case NFA_EE_ACTION_EVT:
         {
             tNFA_EE_ACTION& action = eventData->action;
@@ -1474,11 +1475,11 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
                 eventData->discover_req.status, eventData->discover_req.num_ee);
         sSecElem.storeUiccInfo (eventData->discover_req);
         break;
-        
+
     case NFA_EE_NO_CB_ERR_EVT:
         ALOGD ("%s: NFA_EE_NO_CB_ERR_EVT  status=%u", fn, eventData->status);
         break;
-    
+
     case NFA_EE_ADD_AID_EVT:
         {
             ALOGD ("%s: NFA_EE_ADD_AID_EVT  status=%u", fn, eventData->status);
@@ -1494,10 +1495,10 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
             sSecElem.mAidAddRemoveEvent.notifyOne ();
         }
         break;
-        
+
     case NFA_EE_NEW_EE_EVT:
         {
-            ALOGD ("%s: NFA_EE_NEW_EE_EVT  h=0x%X; status=%u", fn, 
+            ALOGD ("%s: NFA_EE_NEW_EE_EVT  h=0x%X; status=%u", fn,
                 eventData->new_ee.ee_handle, eventData->new_ee.ee_status);
             // Indicate there are new EE
             sSecElem.mbNewEE = true;
@@ -1515,7 +1516,7 @@ void SecureElement::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventD
 ** Function         getSeVerInfo
 **
 ** Description      Gets version information and id for a secure element.  The
-**                  seIndex parmeter is the zero based index of the secure 
+**                  seIndex parmeter is the zero based index of the secure
 **                  element to get verion info for.  The version infommation
 **                  is returned as a string int the verInfo parameter.
 **
@@ -1537,7 +1538,7 @@ bool SecureElement::getSeVerInfo(int seIndex, char * verInfo, int verInfoSz, UIN
     if ((mEeInfo[seIndex].num_interface == 0) || (mEeInfo[seIndex].ee_interface[0] == NCI_NFCEE_INTERFACE_HCI_ACCESS) )
     {
         return false;
-    }  
+    }
 
     strncpy(verInfo, "Version info not available", verInfoSz-1);
     verInfo[verInfoSz-1] = '\0';
@@ -1556,7 +1557,7 @@ bool SecureElement::getSeVerInfo(int seIndex, char * verInfo, int verInfoSz, UIN
     {
         if (false == mVerInfoEvent.wait(200))
         {
-            ALOGE ("%s: wait response timeout", __FUNCTION__);        
+            ALOGE ("%s: wait response timeout", __FUNCTION__);
         }
         else
         {
@@ -1592,7 +1593,7 @@ UINT8 SecureElement::getActualNumEe()
 ** Description:     Receive Host Controller Interface-related events from stack.
 **                  event: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1631,7 +1632,7 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
             sSecElem.mDeallocateGateEvent.notifyOne();
         }
         break;
-        
+
     case NFA_HCI_GET_GATE_PIPE_LIST_EVT:
         {
             ALOGD ("%s: NFA_HCI_GET_GATE_PIPE_LIST_EVT; status=0x%X; num_pipes: %u  num_gates: %u", fn,
@@ -1666,7 +1667,7 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
     case NFA_HCI_EVENT_SENT_EVT:
         ALOGD ("%s: NFA_HCI_EVENT_SENT_EVT; status=0x%X", fn, eventData->evt_sent.status);
         break;
-    
+
     case NFA_HCI_RSP_RCVD_EVT: //response received from secure element
         {
             tNFA_HCI_RSP_RCVD& rsp_rcvd = eventData->rsp_rcvd;
@@ -1728,7 +1729,7 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
 **
 ** Description:     Find information about an execution environment.
 **                  eeHandle: Handle to execution environment.
-**                  
+**
 ** Returns:         Information about an execution environment.
 **
 *******************************************************************************/
@@ -1748,7 +1749,7 @@ tNFA_EE_INFO *SecureElement::findEeByHandle (tNFA_HANDLE eeHandle)
 ** Function:        getDefaultEeHandle
 **
 ** Description:     Get the handle to the execution environment.
-**                  
+**
 ** Returns:         Handle to the execution environment.
 **
 *******************************************************************************/
@@ -1760,7 +1761,7 @@ tNFA_HANDLE SecureElement::getDefaultEeHandle ()
         if ((mEeInfo[xx].num_interface != 0) && (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) )
             return (mEeInfo[xx].ee_handle);
     }
-    return NFA_HANDLE_INVALID;    
+    return NFA_HANDLE_INVALID;
 }
 
 
@@ -1770,7 +1771,7 @@ tNFA_HANDLE SecureElement::getDefaultEeHandle ()
     **
     ** Description:     Find information about an execution environment.
     **                  eeHandle: Handle of the execution environment.
-    **                  
+    **
     ** Returns:         Information about the execution environment.
     **
     *******************************************************************************/
@@ -1794,7 +1795,7 @@ tNFA_EE_DISCOVER_INFO *SecureElement::findUiccByHandle (tNFA_HANDLE eeHandle)
 **
 ** Description:     Convert status code to status text.
 **                  status: Status code
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1820,7 +1821,7 @@ const char* SecureElement::eeStatusToString (UINT8 status)
 ** Description:     Receive card-emulation related events from stack.
 **                  event: Event code.
 **                  eventData: Event data.
-**                  
+**
 ** Returns:         None
 **
 *******************************************************************************/
@@ -1844,7 +1845,7 @@ void SecureElement::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* eve
 **
 ** Description:     Adjust controller's listen-mode routing table so transactions
 **                  are routed to the secure elements.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1873,9 +1874,9 @@ bool SecureElement::routeToSecureElement ()
         ALOGE ("%s: invalid EE handle", fn);
         return false;
     }
-    
+
     adjustRoutes (SecElemRoute);
-    
+
     {
         unsigned long num = 0;
         if (GetNumValue("UICC_LISTEN_TECH_MASK", &num, sizeof(num)))
@@ -1891,7 +1892,7 @@ bool SecureElement::routeToSecureElement ()
         else
             ALOGE ("%s: fail to start UICC listen", fn);
     }
-    
+
     ALOGD ("%s: exit; ok=%u", fn, retval);
     return retval;
 }
@@ -1903,7 +1904,7 @@ bool SecureElement::routeToSecureElement ()
 **
 ** Description:     Adjust controller's listen-mode routing table so transactions
 **                  are routed to the default destination.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -1939,7 +1940,7 @@ bool SecureElement::routeToDefault ()
     }
 
     adjustRoutes (DefaultRoute);
-    
+
     ALOGD ("%s: exit; ok=%u", fn, retval);
     return retval;
 }
@@ -1951,7 +1952,7 @@ bool SecureElement::routeToDefault ()
 **
 ** Description:     Whether controller is routing listen-mode events to
 **                  secure elements or a pipe is connected.
-**                  
+**
 ** Returns:         True if either case is true.
 **
 *******************************************************************************/

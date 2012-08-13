@@ -8,7 +8,7 @@
 **  Proprietary and confidential.
 **
 *****************************************************************************/
- 
+#include "OverrideLog.h"
 #include "RouteDataSet.h"
 #include "libxml/xmlmemory.h"
 #include <errno.h>
@@ -88,7 +88,7 @@ const char* RouteDataSet::sConfigFile = "/param/route.xml";
 ** Function:        ~RouteDataSet
 **
 ** Description:     Release all resources.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -103,7 +103,7 @@ RouteDataSet::~RouteDataSet ()
 ** Function:        initialize
 **
 ** Description:     Initialize resources.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -124,7 +124,7 @@ bool RouteDataSet::initialize ()
 ** Function:        deleteDatabase
 **
 ** Description:     Delete all routes stored in all databases.
-**                  
+**
 ** Returns:         None.
 **
 *******************************************************************************/
@@ -149,7 +149,7 @@ void RouteDataSet::deleteDatabase ()
 ** Function:        import
 **
 ** Description:     Import data from an XML file.  Fill the databases.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -164,7 +164,7 @@ bool RouteDataSet::import ()
     strFilename += sConfigFile;
 
     deleteDatabase ();
-    
+
     doc = xmlParseFile (strFilename.c_str());
     if (doc == NULL)
     {
@@ -218,7 +218,7 @@ bool RouteDataSet::import ()
         node1 = node1->next;
     } //loop through all elements in <Routes ...
     retval = true;
-    
+
 TheEnd:
     xmlFreeDoc (doc);
     xmlCleanupParser ();
@@ -233,7 +233,7 @@ TheEnd:
 **
 ** Description:     Save XML data from a string into a file.
 **                  routesXml: XML that represents routes.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -244,7 +244,7 @@ bool RouteDataSet::saveToFile (const char* routesXml)
     size_t actualWritten = 0;
     bool retval = false;
     std::string filename (bcm_nfc_location);
-    
+
     filename.append (sConfigFile);
     fh = fopen (filename.c_str (), "w");
     if (fh == NULL)
@@ -252,14 +252,14 @@ bool RouteDataSet::saveToFile (const char* routesXml)
         ALOGE ("%s: fail to open file", fn);
         return false;
     }
-    
-    actualWritten = fwrite (routesXml, sizeof(char), strlen(routesXml), fh); 
+
+    actualWritten = fwrite (routesXml, sizeof(char), strlen(routesXml), fh);
     retval = actualWritten == strlen(routesXml);
     fclose (fh);
     ALOGD ("%s: wrote %u bytes", fn, actualWritten);
     if (retval == false)
         ALOGE ("%s: error during write", fn);
-    
+
     //set file permission to
     //owner read, write; group read; other read
     chmod (filename.c_str (), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -269,11 +269,11 @@ bool RouteDataSet::saveToFile (const char* routesXml)
 
 /*******************************************************************************
 **
-** Function:        loadFromFile               
+** Function:        loadFromFile
 **
 ** Description:     Load XML data from file into a string.
 **                  routesXml: string to receive XML data.
-**                  
+**
 ** Returns:         True if ok.
 **
 *******************************************************************************/
@@ -285,7 +285,7 @@ bool RouteDataSet::loadFromFile (std::string& routesXml)
     char buffer [1024];
     std::string filename (bcm_nfc_location);
 
-    filename.append (sConfigFile);    
+    filename.append (sConfigFile);
     fh = fopen (filename.c_str (), "r");
     if (fh == NULL)
     {
