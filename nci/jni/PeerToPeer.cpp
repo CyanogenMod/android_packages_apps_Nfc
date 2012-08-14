@@ -745,7 +745,7 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* se
         // Save JNI Handle and try to connect to SNEP
         mJniHandleSendingNppViaSnep = jniHandle;
 
-        if (NFA_SnepConnect (mSnepRegHandle, "urn:nfc:sn:snep") == NFA_STATUS_OK)
+        if (NFA_SnepConnect (mSnepRegHandle, const_cast<char*>("urn:nfc:sn:snep")) == NFA_STATUS_OK)
         {
             SyncEventGuard guard (pClient->mSnepEvent);
             pClient->mSnepEvent.wait();
