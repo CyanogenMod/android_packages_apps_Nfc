@@ -671,8 +671,9 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
 
     {
         unsigned long num = 0;
-        tBRCM_DEV_INIT_CONFIG devInitConfig = {0};
+        tBRCM_DEV_INIT_CONFIG devInitConfig;
 
+        memset (&devInitConfig, 0, sizeof(devInitConfig));
         NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
         theInstance.Initialize(); //start GKI, NCI task, NFC task
 
