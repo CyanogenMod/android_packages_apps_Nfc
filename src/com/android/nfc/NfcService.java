@@ -597,7 +597,6 @@ public class NfcService extends Application implements DeviceHostListener {
             // A convenient way to stop the watchdog properly consists of
             // disconnecting the tag. The polling loop shall be stopped before
             // to avoid the tag being discovered again.
-            applyRouting(true);
             maybeDisconnectTarget();
 
             mNfcDispatcher.setForegroundDispatch(null, null, null);
