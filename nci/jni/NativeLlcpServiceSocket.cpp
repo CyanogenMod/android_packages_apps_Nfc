@@ -24,7 +24,6 @@ extern "C"
     #include "nfa_api.h"
     #include "nfa_p2p_api.h"
 }
-extern tBRCM_JNI_HANDLE  gNextJniHandle;
 
 
 namespace android
@@ -56,7 +55,7 @@ static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, 
     jfieldID    f = 0;
     tBRCM_JNI_HANDLE serverHandle; //handle of the local server
     bool        stat = false;
-    tBRCM_JNI_HANDLE connHandle = gNextJniHandle++;
+    tBRCM_JNI_HANDLE connHandle = PeerToPeer::getInstance().getNewJniHandle ();
 
     ALOGD ("%s: enter", __FUNCTION__);
 

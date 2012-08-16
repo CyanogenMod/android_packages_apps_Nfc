@@ -78,12 +78,11 @@ public:
     ** Function:        initialize
     **
     ** Description:     Initialize member variables.
-    **                  jniVersion: JNI version.
     **
     ** Returns:         None
     **
     *******************************************************************************/
-    void initialize (long jniVersion);
+    void initialize ();
 
 
     /*******************************************************************************
@@ -320,6 +319,19 @@ public:
     *******************************************************************************/
     void handleNfcOnOff (bool isOn);
 
+
+    /*******************************************************************************
+    **
+    ** Function:        getNextJniHandle
+    **
+    ** Description:     Get a new JNI handle.
+    **
+    ** Returns:         A new JNI handle.
+    **
+    *******************************************************************************/
+    tBRCM_JNI_HANDLE getNewJniHandle ();
+
+
 private:
     static const int sMax = 10;
     static PeerToPeer sP2p;
@@ -335,7 +347,7 @@ private:
     UINT32          mNppTotalLen;
     UINT32          mNppReadSoFar;
     tNFA_HANDLE     mNdefTypeHandlerHandle;
-    long            mJniVersion;
+    tBRCM_JNI_HANDLE mNextJniHandle;
 
     P2pServer       *mServers [sMax];
     P2pClient       *mClients [sMax];
@@ -343,6 +355,7 @@ private:
     SyncEvent       mSnepDefaultServerStartStopEvent; // completion event for NFA_SnepStartDefaultServer(), NFA_SnepStopDefaultServer()
     SyncEvent       mSnepRegisterEvent;         // completion event for NFA_SnepRegisterClient()
     Mutex           mDisconnectMutex;           // synchronize the disconnect operation
+    Mutex           mNewJniHandleMutex;         // synchronize the creation of a new JNI handle
 
 
     /*******************************************************************************

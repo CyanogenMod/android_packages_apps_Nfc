@@ -51,7 +51,7 @@ PeerToPeer::PeerToPeer ()
     mNppTotalLen (0),
     mNppReadSoFar (0),
     mNdefTypeHandlerHandle (NFA_HANDLE_INVALID),
-    mJniVersion (403)
+    mNextJniHandle (1)
 {
     unsigned long num = 0;
     memset (mServers, 0, sizeof(mServers));
@@ -93,16 +93,13 @@ PeerToPeer& PeerToPeer::getInstance ()
 ** Function:        initialize
 **
 ** Description:     Initialize member variables.
-**                  jniVersion: JNI version.
 **
 ** Returns:         None
 **
 *******************************************************************************/
-void PeerToPeer::initialize (long jniVersion)
+void PeerToPeer::initialize ()
 {
     ALOGD ("PeerToPeer::initialize");
-    mJniVersion = jniVersion;
-
     unsigned long num = 0;
 
     if (GetNumValue ("P2P_LISTEN_TECH_MASK", &num, sizeof (num)))
@@ -1422,29 +1419,6 @@ void PeerToPeer::handleNfcOnOff (bool isOn)
         // Start with no clients or servers
         memset (mServers, 0, sizeof(mServers));
         memset (mClients, 0, sizeof(mClients));
-
-        //Android older than 4.0.3 (Ice Cream Sandwich) do not have SNEP in the
-        //NFC service, so the JNI and stack have to implement SNEP.
-        if (mJniVersion < 403)
-        {
-            {
-                SyncEventGuard guard (mSnepDefaultServerStartStopEvent);
-                stat = NFA_SnepStartDefaultServer (snepClientCallback);
-                if (stat == NFA_STATUS_OK)
-                    mSnepDefaultServerStartStopEvent.wait (); //wait for NFA_SNEP_DEFAULT_SERVER_STARTED_EVT
-                else
-                    ALOGE ("%s: fail start snep server; error=0x%X", fn, stat);
-            }
-
-            {
-                SyncEventGuard guard (mSnepRegisterEvent);
-                stat = NFA_SnepRegisterClient (snepClientCallback);
-                if (stat == NFA_STATUS_OK)
-                    mSnepRegisterEvent.wait (); //wait for NFA_SNEP_REG_EVT
-                else
-                    ALOGE ("%s: fail register snep client; error=0x%X", fn, stat);
-            }
-        }
     }
     else
     {
@@ -2017,6 +1991,26 @@ void PeerToPeer::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* eventD
             break;
         }
     }
+}
+
+
+/*******************************************************************************
+**
+** Function:        getNextJniHandle
+**
+** Description:     Get a new JNI handle.
+**
+** Returns:         A new JNI handle.
+**
+*******************************************************************************/
+tBRCM_JNI_HANDLE PeerToPeer::getNewJniHandle ()
+{
+    tBRCM_JNI_HANDLE newHandle = 0;
+
+    mNewJniHandleMutex.lock ();
+    newHandle = mNextJniHandle++;
+    mNewJniHandleMutex.unlock ();
+    return newHandle;
 }
 
 

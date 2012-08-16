@@ -40,7 +40,6 @@ namespace android
     extern bool nfcManager_isNfcActive();
     extern int gGeneralTransceiveTimeout;
 }
-extern long gJniVersion;
 
 
 /*****************************************************************************
@@ -1545,9 +1544,7 @@ static JNINativeMethod gMethods[] =
 *******************************************************************************/
 int register_com_android_nfc_NativeNfcTag (JNIEnv *e)
 {
-    GetNumValue (NAME_JNI_VERSION, &gJniVersion, sizeof(gJniVersion));
-    ALOGD ("%s: enter, %s=%ld", __FUNCTION__, NAME_JNI_VERSION, gJniVersion);
-    ALOGD ("%s: exit; using %s", __FUNCTION__, gNativeNfcTagClassName);
+    ALOGD ("%s", __FUNCTION__);
     return jniRegisterNativeMethods (e, gNativeNfcTagClassName, gMethods, NELEM (gMethods));
 }
 
