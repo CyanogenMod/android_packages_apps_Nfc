@@ -631,24 +631,6 @@ static bool switchRfInterface (tNFA_INTF_TYPE rfInterface)
     return rVal;
 }
 
-/*******************************************************************************
-**
-** Function:        nativeNfcTag_doConnect_z
-**
-** Description:     Connect to the tag in RF field.
-**                  e: JVM environment.
-**                  o: Java object.
-**                  targetHandle: Handle of the tag.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-static jboolean nativeNfcTag_doConnect_z (JNIEnv *e, jobject o, jint targetHandle)
-{
-    jint result = nativeNfcTag_doConnect (e, o, targetHandle);
-    return result == NFCSTATUS_SUCCESS ? JNI_TRUE : JNI_FALSE;
-}
-
 
 /*******************************************************************************
 **
@@ -681,24 +663,6 @@ static jint nativeNfcTag_doReconnect (JNIEnv *e, jobject o)
     return reSelect(intf);
 }
 
-/*******************************************************************************
-**
-** Function:        nativeNfcTag_doReconnect_z
-**
-** Description:     Re-connect to the tag in RF field.
-**                  e: JVM environment.
-**                  o: Java object.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-static jboolean nativeNfcTag_doReconnect_z (JNIEnv *e, jobject o)
-{
-    ALOGD ("%s", __FUNCTION__);
-    //do nothing as the tag has already been activated
-    return JNI_TRUE;
-}
-
 
 /*******************************************************************************
 **
@@ -716,25 +680,6 @@ static jint nativeNfcTag_doHandleReconnect (JNIEnv *e, jobject o, jint targetHan
 {
     ALOGD ("%s: targetHandle = %d", __FUNCTION__, targetHandle);
     return nativeNfcTag_doConnect (e, o, targetHandle);
-}
-
-
-/*******************************************************************************
-**
-** Function:        nativeNfcTag_doHandleReconnect_z
-**
-** Description:     Re-connect to the tag in RF field.
-**                  e: JVM environment.
-**                  o: Java object.
-**                  targetHandle: Handle of the tag.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-static jboolean nativeNfcTag_doHandleReconnect_z (JNIEnv *e, jobject o, jint targetHandle)
-{
-    ALOGD ("%s: targetHandle = %d", __FUNCTION__, targetHandle);
-    return nativeNfcTag_doConnect_z (e, o, targetHandle);
 }
 
 
@@ -851,7 +796,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
     {
         if (natTag.mTechList[1] == TARGET_TYPE_MIFARE_CLASSIC)
         {
-            // MifareClassic tag, we do not support transeive for this
+            // MifareClassic tag, we do not support transceive for this
             if (statusTargetLost)
             {
                 targetLost = e->GetIntArrayElements (statusTargetLost, 0);
@@ -902,7 +847,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
             waitOk = sTransceiveEvent.wait (gGeneralTransceiveTimeout);
         }
 
-        if (waitOk == false) //if timeout occured
+        if (waitOk == false) //if timeout occurred
         {
             ALOGE ("%s: wait response timeout", __FUNCTION__);
             if (targetLost)
@@ -1174,28 +1119,6 @@ TheEnd:
     sCheckNdefWaitingForComplete = JNI_FALSE;
     ALOGD ("%s: exit; status=%u", __FUNCTION__, status);
     return status;
-}
-
-
-/*******************************************************************************
-**
-** Function:        nativeNfcTag_doCheckNdef_z
-**
-** Description:     Does the tag contain a NDEF message?
-**                  e: JVM environment.
-**                  o: Java object.
-**                  ndefInfo: NDEF info.
-**
-** Returns:         True if tag contains a NDEF message.
-**
-*******************************************************************************/
-static bool nativeNfcTag_doCheckNdef_z (JNIEnv *e, jobject o, jintArray ndefInfo)
-{
-    ALOGD ("%s: enter", __FUNCTION__);
-    jint result = nativeNfcTag_doCheckNdef (e, o, ndefInfo);
-    bool retval = (result == NFA_STATUS_OK) ? JNI_TRUE : JNI_FALSE;
-    ALOGD ("%s: exit; detected NDEF=%u", __FUNCTION__, retval);
-    return retval;
 }
 
 
