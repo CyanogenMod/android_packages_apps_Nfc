@@ -622,7 +622,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
             tNFA_BRCM_FW_BUILD_INFO* bldInfo =
                     (tNFA_BRCM_FW_BUILD_INFO*) eventData->p_vs_evt_data;
             if (bldInfo != NULL) {
-                ALOGD("BCM2079x NFC FW version %d.%d", bldInfo->patch.major_ver,
+                ALOGE("BCM2079x NFC FW version %d.%d", bldInfo->patch.major_ver,
                         bldInfo->patch.minor_ver);
             }
             sNfaBuildInfoEvent.notifyOne();
