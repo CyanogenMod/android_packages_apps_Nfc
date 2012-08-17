@@ -173,7 +173,6 @@ static void switchBackTimerProc (union sigval)
 ** Returns:         None
 **
 *******************************************************************************/
-//called by NFA_READ_CPLT_EVT when NDEF message has been completely read
 void nativeNfcTag_doReadCompleted (tNFA_STATUS status)
 {
     ALOGD ("%s: status=0x%X; is reading=%u", __FUNCTION__, status, sIsReadingNdefMessage);
@@ -260,10 +259,12 @@ static jbyteArray nativeNfcTag_doRead (JNIEnv *e, jobject o)
 
     if (sCheckNdefCurrentSize > 0)
     {
-        SyncEventGuard g (sReadEvent);
-        sIsReadingNdefMessage = true;
-        status = NFA_RwReadNDef ();
-        sReadEvent.wait (); //wait for NFA_READ_CPLT_EVT
+        {
+            SyncEventGuard g (sReadEvent);
+            sIsReadingNdefMessage = true;
+            status = NFA_RwReadNDef ();
+            sReadEvent.wait (); //wait for NFA_READ_CPLT_EVT
+        }
         sIsReadingNdefMessage = false;
 
         if (sReadDataLen > 0) //if stack actually read data from the tag
@@ -539,18 +540,20 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
 
     do
     {
-        SyncEventGuard g (sReconnectEvent);
-        gIsTagDeactivating = true;
-        sGotDeactivate = false;
-        if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE)))
         {
-            ALOGE ("%s: NFA_Deactivate failed, status = %d", __FUNCTION__, status);
-            break;
-        }
+            SyncEventGuard g (sReconnectEvent);
+            gIsTagDeactivating = true;
+            sGotDeactivate = false;
+            if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE)))
+            {
+                ALOGE ("%s: NFA_Deactivate failed, status = %d", __FUNCTION__, status);
+                break;
+            }
 
-        if (sReconnectEvent.wait (1000) == false) //if timeout occured
-        {
-            ALOGE ("%s: timeout waiting for deactivate", __FUNCTION__);
+            if (sReconnectEvent.wait (1000) == false) //if timeout occurred
+            {
+                ALOGE ("%s: timeout waiting for deactivate", __FUNCTION__);
+            }
         }
 
         if (! NfcTag::getInstance ().isActivated ())
@@ -561,23 +564,26 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
 
         gIsTagDeactivating = false;
 
-        SyncEventGuard g2 (sReconnectEvent);
-
-        sConnectWaitingForComplete = JNI_TRUE;
-        ALOGD ("%s: NFA_Select()", __FUNCTION__);
-        gIsSelectingRfInterface = true;
-        if (NFA_STATUS_OK != (status = NFA_Select (natTag.mTechHandles[0], natTag.mTechLibNfcTypes[0], rfInterface)))
         {
-            ALOGE ("%s: NFA_Select failed, status = %d", __FUNCTION__, status);
-            break;
+            SyncEventGuard g2 (sReconnectEvent);
+
+            sConnectWaitingForComplete = JNI_TRUE;
+            ALOGD ("%s: NFA_Select()", __FUNCTION__);
+            gIsSelectingRfInterface = true;
+            if (NFA_STATUS_OK != (status = NFA_Select (natTag.mTechHandles[0], natTag.mTechLibNfcTypes[0], rfInterface)))
+            {
+                ALOGE ("%s: NFA_Select failed, status = %d", __FUNCTION__, status);
+                break;
+            }
+
+            sConnectOk = false;
+            if (sReconnectEvent.wait (1000) == false) //if timeout occured
+            {
+                ALOGE ("%s: wait response timeout", __FUNCTION__);
+                break;
+            }
         }
 
-        sConnectOk = false;
-        if (sReconnectEvent.wait (1000) == false) //if timeout occured
-        {
-            ALOGE ("%s: wait response timeout", __FUNCTION__);
-            break;
-        }
         ALOGD("%s: done waiting on NFA_Select() sConnectOk=%d", __FUNCTION__, sConnectOk);
         if (! NfcTag::getInstance ().isActivated ())
         {

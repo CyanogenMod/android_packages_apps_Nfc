@@ -1681,11 +1681,11 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
                 eventData->registry.status, eventData->registry.pipe, eventData->registry.data_len);
         if (eventData->registry.data_len >= 19 && ((eventData->registry.pipe == STATIC_PIPE_0x70) || (eventData->registry.pipe == STATIC_PIPE_0x71)))
         {
+            SyncEventGuard guard (sSecElem.mVerInfoEvent);
             // Oberthur OS version is in bytes 16,17, and 18
             sSecElem.mVerInfo[0] = eventData->registry.reg_data[16];
             sSecElem.mVerInfo[1] = eventData->registry.reg_data[17];
             sSecElem.mVerInfo[2] = eventData->registry.reg_data[18];
-            SyncEventGuard guard (sSecElem.mVerInfoEvent);
             sSecElem.mVerInfoEvent.notifyOne ();
         }
         break;

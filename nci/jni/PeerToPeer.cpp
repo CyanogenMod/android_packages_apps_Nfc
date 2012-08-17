@@ -257,17 +257,19 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
     if (sSnepServiceName.compare(serviceName) == 0)
         serverSap = LLCP_SAP_SNEP; //LLCP_SAP_SNEP == 4
 
-    SyncEventGuard guard (pSrv->mRegServerEvent);
-    stat = NFA_P2pRegisterServer (serverSap, NFA_P2P_DLINK_TYPE, const_cast<char*>(serviceName), nfaServerCallback);
-    if (stat != NFA_STATUS_OK)
     {
-        ALOGE ("%s: fail register p2p server; error=0x%X", fn, stat);
-        removeServer (jniHandle);
-        return (false);
+        SyncEventGuard guard (pSrv->mRegServerEvent);
+        stat = NFA_P2pRegisterServer (serverSap, NFA_P2P_DLINK_TYPE, const_cast<char*>(serviceName), nfaServerCallback);
+        if (stat != NFA_STATUS_OK)
+        {
+            ALOGE ("%s: fail register p2p server; error=0x%X", fn, stat);
+            removeServer (jniHandle);
+            return (false);
+        }
+        ALOGD ("%s: wait for listen-completion event", fn);
+        // Wait for NFA_P2P_REG_SERVER_EVT
+        pSrv->mRegServerEvent.wait ();
     }
-    ALOGD ("%s: wait for listen-completion event", fn);
-    // Wait for NFA_P2P_REG_SERVER_EVT
-    pSrv->mRegServerEvent.wait ();
 
     if (pSrv->mNfaP2pServerHandle == NFA_HANDLE_INVALID)
     {
@@ -567,9 +569,11 @@ bool PeerToPeer::deregisterServer (tBRCM_JNI_HANDLE jniHandle)
         return (false);
     }
 
-    // Server does not call NFA_P2pDisconnect(), so unblock the accept()
-    SyncEventGuard guard (pSrv->mConnRequestEvent);
-    pSrv->mConnRequestEvent.notifyOne();
+    {
+        // Server does not call NFA_P2pDisconnect(), so unblock the accept()
+        SyncEventGuard guard (pSrv->mConnRequestEvent);
+        pSrv->mConnRequestEvent.notifyOne();
+    }
 
     nfaStat = NFA_P2pDeregister (pSrv->mNfaP2pServerHandle);
     if (nfaStat != NFA_STATUS_OK)
@@ -741,19 +745,20 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* se
 
         // Save JNI Handle and try to connect to SNEP
         mJniHandleSendingNppViaSnep = jniHandle;
-
-        if (NFA_SnepConnect (mSnepRegHandle, const_cast<char*>("urn:nfc:sn:snep")) == NFA_STATUS_OK)
         {
             SyncEventGuard guard (pClient->mSnepEvent);
-            pClient->mSnepEvent.wait();
-
-            // If the connect attempt failed, connection handle is invalid
-            if (pClient->mSnepConnHandle != NFA_HANDLE_INVALID)
+            if (NFA_SnepConnect (mSnepRegHandle, const_cast<char*>("urn:nfc:sn:snep")) == NFA_STATUS_OK)
             {
-                // return true, as if we were connected.
-                pClient->mClientConn.mRemoteMaxInfoUnit = 248;
-                pClient->mClientConn.mRemoteRecvWindow  = 1;
-                return (true);
+                pClient->mSnepEvent.wait();
+
+                // If the connect attempt failed, connection handle is invalid
+                if (pClient->mSnepConnHandle != NFA_HANDLE_INVALID)
+                {
+                    // return true, as if we were connected.
+                    pClient->mClientConn.mRemoteMaxInfoUnit = 248;
+                    pClient->mClientConn.mRemoteRecvWindow  = 1;
+                    return (true);
+                }
             }
         }
         mJniHandleSendingNppViaSnep = 0;
@@ -812,22 +817,26 @@ bool PeerToPeer::createDataLinkConn (tBRCM_JNI_HANDLE jniHandle, const char* ser
         return (false);
     }
 
-    SyncEventGuard guard (pClient->mConnectingEvent);
-    pClient->mIsConnecting = true;
+    {
+        SyncEventGuard guard (pClient->mConnectingEvent);
+        pClient->mIsConnecting = true;
 
-    if (serviceName)
-        nfaStat = NFA_P2pConnectByName (pClient->mNfaP2pClientHandle,
-                const_cast<char*>(serviceName), pClient->mClientConn.mMaxInfoUnit,
-                pClient->mClientConn.mRecvWindow);
-    else if (destinationSap)
-        nfaStat = NFA_P2pConnectBySap (pClient->mNfaP2pClientHandle, destinationSap,
-                pClient->mClientConn.mMaxInfoUnit, pClient->mClientConn.mRecvWindow);
+        if (serviceName)
+            nfaStat = NFA_P2pConnectByName (pClient->mNfaP2pClientHandle,
+                    const_cast<char*>(serviceName), pClient->mClientConn.mMaxInfoUnit,
+                    pClient->mClientConn.mRecvWindow);
+        else if (destinationSap)
+            nfaStat = NFA_P2pConnectBySap (pClient->mNfaP2pClientHandle, destinationSap,
+                    pClient->mClientConn.mMaxInfoUnit, pClient->mClientConn.mRecvWindow);
+        if (nfaStat == NFA_STATUS_OK)
+        {
+            ALOGD ("%s: wait for connected event  mConnectingEvent: 0x%p", fn, pClient);
+            pClient->mConnectingEvent.wait();
+        }
+    }
 
     if (nfaStat == NFA_STATUS_OK)
     {
-        ALOGD ("%s: wait for connected event  mConnectingEvent: 0x%p", fn, pClient);
-        pClient->mConnectingEvent.wait();
-
         if (pClient->mClientConn.mNfaConnHandle == NFA_HANDLE_INVALID)
         {
             removeConn (jniHandle);
@@ -1109,6 +1118,7 @@ bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 
     {
         ALOGD ("%s  GKI_poolcount(2): %u   GKI_poolfreecount(2): %u", fn, GKI_poolcount(2), GKI_poolfreecount(2));
 
+        SyncEventGuard guard (pClient->mSnepEvent);
         nfaStat = NFA_SnepPut (pClient->mSnepConnHandle, pClient->mSnepNdefBufLen, pClient->mSnepNdefBuf);
 
         if (nfaStat != NFA_STATUS_OK)
@@ -1119,8 +1129,6 @@ bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 
             pClient->mSnepNdefBuf = NULL;
             return (false);
         }
-
-        SyncEventGuard guard (pClient->mSnepEvent);
         pClient->mSnepEvent.wait ();
 
         free (pClient->mSnepNdefBuf);
@@ -1168,6 +1176,7 @@ bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 buff
 
     while (pConn->mNfaConnHandle != NFA_HANDLE_INVALID)
     {
+        //NFA_P2pReadData() is synchronous
         stat = NFA_P2pReadData (pConn->mNfaConnHandle, bufferLen, &actualDataLen2, buffer, &isMoreData);
         if ((stat == NFA_STATUS_OK) && (actualDataLen2 > 0)) //received some data
         {
@@ -1831,8 +1840,8 @@ void PeerToPeer::snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA
         {
             ALOGD ("%s  NFA_SNEP_CONNECTED_EVT  mJniHandleSendingNppViaSnep: %u  ConnHandle: 0x%04x", fn, sP2p.mJniHandleSendingNppViaSnep, eventData->connect.conn_handle);
 
-            pClient->mSnepConnHandle = eventData->connect.conn_handle;
             SyncEventGuard guard (pClient->mSnepEvent);
+            pClient->mSnepConnHandle = eventData->connect.conn_handle;
             pClient->mSnepEvent.notifyOne();
         }
         break;
@@ -1863,9 +1872,8 @@ void PeerToPeer::snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA
         else
         {
             ALOGD ("%s  NFA_SNEP_DISC_EVT  mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-            pClient->mSnepConnHandle = NFA_HANDLE_INVALID;
-
             SyncEventGuard guard (pClient->mSnepEvent);
+            pClient->mSnepConnHandle = NFA_HANDLE_INVALID;
             pClient->mSnepEvent.notifyOne();
         }
         break;
