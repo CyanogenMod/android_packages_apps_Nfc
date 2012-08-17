@@ -19,6 +19,7 @@
 #include <errno.h>
 #include "OverrideLog.h"
 #include "NfcJniUtil.h"
+#include "JavaClassConstants.h"
 extern "C"
 {
     #include "nfa_api.h"
@@ -28,9 +29,6 @@ extern "C"
 
 namespace android
 {
-
-
-extern char* gNativeLlcpConnectionlessSocketClassName;
 
 
 /*****************************************************************************

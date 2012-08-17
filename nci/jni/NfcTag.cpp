@@ -10,15 +10,10 @@
 *****************************************************************************/
 #include "OverrideLog.h"
 #include "NfcTag.h"
+#include "JavaClassConstants.h"
 extern "C"
 {
     #include "rw_int.h"
-}
-
-
-namespace android
-{
-    extern jmethodID gCachedNfcManagerNotifyNdefMessageListeners;
 }
 
 

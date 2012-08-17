@@ -17,14 +17,7 @@
 #include "PowerSwitch.h"
 #include "HostAidRouter.h"
 #include "nfa_vs_brcm_api.h"
-
-
-namespace android
-{
-    extern jmethodID gCachedNfcManagerNotifyTransactionListeners;
-    extern jmethodID gCachedNfcManagerNotifySeFieldActivated;
-    extern jmethodID gCachedNfcManagerNotifySeFieldDeactivated;
-}
+#include "JavaClassConstants.h"
 
 
 /*****************************************************************************
@@ -190,7 +183,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
             SyncEventGuard guard (mHciRegisterEvent);
 
-            nfaStat = NFA_HciRegister ("brcm_jni", nfaHciCallback, TRUE);
+            nfaStat = NFA_HciRegister (const_cast<char*>("brcm_jni"), nfaHciCallback, TRUE);
             if (nfaStat != NFA_STATUS_OK)
             {
                 ALOGE ("%s: fail hci register; error=0x%X", fn, nfaStat);
@@ -229,7 +222,7 @@ void SecureElement::finalize ()
     NFA_EeDeregister (nfaEeCallback);
 
     if (mNfaHciHandle != NFA_HANDLE_INVALID)
-        NFA_HciDeregister ("brcm_jni");
+        NFA_HciDeregister (const_cast<char*>("brcm_jni"));
 
     mNfaHciHandle = NFA_HANDLE_INVALID;
     mNativeData   = NULL;

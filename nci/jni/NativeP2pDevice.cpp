@@ -17,13 +17,11 @@
 
 #include "OverrideLog.h"
 #include "NfcJniUtil.h"
+#include "JavaClassConstants.h"
 
 
 namespace android
 {
-
-
-extern char* gNativeP2pDeviceClassName;
 
 
 static jboolean nativeP2pDeviceDoConnect (JNIEnv* e, jobject o)

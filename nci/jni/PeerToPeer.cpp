@@ -13,11 +13,10 @@
 #include "NfcJniUtil.h"
 #include "llcp_defs.h"
 #include "config.h"
+#include "JavaClassConstants.h"
 
 namespace android
 {
-    extern jmethodID gCachedNfcManagerNotifyLlcpLinkActivation;
-    extern jmethodID gCachedNfcManagerNotifyLlcpLinkDeactivated;
     extern void nativeNfcTag_registerNdefTypeHandler ();
     extern void nativeNfcTag_deregisterNdefTypeHandler ();
 }
