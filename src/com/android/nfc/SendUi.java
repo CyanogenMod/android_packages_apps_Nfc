@@ -183,7 +183,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // We're only allowed to use hardware acceleration if
         // isHighEndGfx() returns true - otherwise, we're too limited
         // on resources to do it.
-        mHardwareAccelerated = ActivityManager.isHighEndGfx(mDisplay);
+        mHardwareAccelerated = ActivityManager.isHighEndGfx();
         int hwAccelerationFlags = mHardwareAccelerated ?
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED : 0;
 
