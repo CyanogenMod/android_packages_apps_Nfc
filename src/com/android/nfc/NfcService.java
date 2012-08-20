@@ -37,6 +37,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
@@ -132,7 +133,7 @@ public class NfcService extends Application implements DeviceHostListener {
     static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
 
     /** minimum screen state that enables NFC polling (discovery) */
-    static final int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
+    static int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
 
     // for use with playSound()
     public static final int SOUND_START = 0;
@@ -359,6 +360,8 @@ public class NfcService extends Application implements DeviceHostListener {
         updatePackageCache();
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
+
+        SettingsObserver mSettingsObserver = new SettingsObserver(new Handler());
     }
 
     void initSoundPool() {
@@ -1957,6 +1960,29 @@ public class NfcService extends Application implements DeviceHostListener {
             mNfcDispatcher.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
 
+        }
+    }
+
+    protected class SettingsObserver extends ContentObserver {
+        ContentResolver resolver;
+        SettingsObserver(Handler handler) {
+            super(handler);
+            resolver = mContext.getContentResolver();
+            observe();
+        }
+
+        void observe() {
+            resolver.registerContentObserver(Settings.System
+                    .getUriFor(Settings.System.NFC_POLLING_MODE),
+                    false, this);
+            POLLING_MODE = Settings.System.getInt(resolver,
+                    Settings.System.NFC_POLLING_MODE, SCREEN_STATE_ON_UNLOCKED);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            POLLING_MODE = Settings.System.getInt(resolver,
+                    Settings.System.NFC_POLLING_MODE, SCREEN_STATE_ON_UNLOCKED);
         }
     }
 }
