@@ -838,6 +838,8 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
     if (sDiscoveryEnabled == false)
     {
         ALOGD ("%s: already disabled", __FUNCTION__);
+        if (! sIsSecElemSelected)
+            PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
         goto TheEnd;
     }
 
