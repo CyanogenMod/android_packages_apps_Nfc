@@ -789,6 +789,7 @@ public class NativeNfcTag implements TagEndpoint {
                         getConnectedLibNfcType(),
                         getConnectedTechnology(),
                         supportedNdefLength, cardState);
+                foundFormattable = false;
                 reconnect();
             }
             break;
