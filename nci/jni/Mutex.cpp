@@ -85,7 +85,7 @@ void Mutex::unlock ()
     int res = pthread_mutex_unlock (&mMutex);
     if (res != 0)
     {
-        ALOGE ("Mutex::lock: fail unlock; error=0x%X", res);
+        ALOGE ("Mutex::unlock: fail unlock; error=0x%X", res);
     }
 }
 
@@ -104,7 +104,7 @@ bool Mutex::tryLock ()
     int res = pthread_mutex_trylock (&mMutex);
     if ((res != 0) && (res != EBUSY))
     {
-        ALOGE ("Mutex::lock: fail try-lock; error=0x%X", res);
+        ALOGE ("Mutex::tryLock: error=0x%X", res);
     }
     return res == 0;
 }

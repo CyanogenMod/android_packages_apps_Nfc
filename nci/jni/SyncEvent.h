@@ -28,7 +28,6 @@ public:
     *******************************************************************************/
     ~SyncEvent ()
     {
-        mMutex.unlock ();
     }
 
 
@@ -59,7 +58,6 @@ public:
     void wait ()
     {
         mCondVar.wait (mMutex);
-        end ();
     }
 
 
@@ -76,7 +74,6 @@ public:
     bool wait (long millisec)
     {
         bool retVal = mCondVar.wait (mMutex, millisec);
-        end ();
         return retVal;
     }
 
@@ -93,7 +90,6 @@ public:
     void notifyOne ()
     {
         mCondVar.notifyOne ();
-        end ();
     }
 
 

@@ -625,6 +625,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
                 ALOGE("BCM2079x NFC FW version %d.%d", bldInfo->patch.major_ver,
                         bldInfo->patch.minor_ver);
             }
+            SyncEventGuard versionGuard (sNfaBuildInfoEvent);
             sNfaBuildInfoEvent.notifyOne();
         }
         break;
@@ -666,26 +667,30 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
         theInstance.Initialize(); //start GKI, NCI task, NFC task
 
-        SyncEventGuard guard (sNfaEnableEvent);
+        {
+            SyncEventGuard guard (sNfaEnableEvent);
+            NFA_Init();
+            NFA_BrcmInit (&devInitConfig, nfaBrcmInitCallback);
 
-        NFA_Init();
-        NFA_BrcmInit (&devInitConfig, nfaBrcmInitCallback);
+            stat = NFA_Enable (nfaDeviceManagementCallback, nfaConnectionCallback);
+            if (stat == NFA_STATUS_OK)
+            {
+                num = initializeGlobalAppLogLevel ();
+                CE_SetTraceLevel (num);
+                LLCP_SetTraceLevel (num);
+                NFC_SetTraceLevel (num);
+                NCI_SetTraceLevel (num);
+                RW_SetTraceLevel (num);
+                NFA_SetTraceLevel (num);
+                NFA_ChoSetTraceLevel (num);
+                NFA_P2pSetTraceLevel (num);
+                NFA_SnepSetTraceLevel (num);
+                sNfaEnableEvent.wait(); //wait for NFA command to finish
+            }
+        }
 
-        stat = NFA_Enable (nfaDeviceManagementCallback, nfaConnectionCallback);
         if (stat == NFA_STATUS_OK)
         {
-            num = initializeGlobalAppLogLevel ();
-            CE_SetTraceLevel (num);
-            LLCP_SetTraceLevel (num);
-            NFC_SetTraceLevel (num);
-            NCI_SetTraceLevel (num);
-            RW_SetTraceLevel (num);
-            NFA_SetTraceLevel (num);
-            NFA_ChoSetTraceLevel (num);
-            NFA_P2pSetTraceLevel (num);
-            NFA_SnepSetTraceLevel (num);
-            sNfaEnableEvent.wait(); //wait for NFA command to finish
-
             //sIsNfaEnabled indicates whether stack started successfully
             if (sIsNfaEnabled)
             {
@@ -790,10 +795,10 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
         stat = NFA_EnablePolling (tech_mask);
         if (stat == NFA_STATUS_OK)
         {
-            ALOGD ("%s: Waiting for sNfaEnableDisablePollingEvent", __FUNCTION__);
+            ALOGD ("%s: wait for enable event", __FUNCTION__);
             sDiscoveryEnabled = true;
             sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_START_EVT
-            ALOGD ("%s: Finished Waiting for sNfaEnableDisablePollingEvent", __FUNCTION__);
+            ALOGD ("%s: got enabled event", __FUNCTION__);
         }
         else
         {
@@ -1592,11 +1597,10 @@ int register_com_android_nfc_NativeNfcManager (JNIEnv *e)
 *******************************************************************************/
 void startRfDiscovery(bool isStart)
 {
-    SyncEventGuard guard (sNfaEnableDisablePollingEvent);
     tNFA_STATUS status = NFA_STATUS_FAILED;
 
     ALOGD ("%s: is start=%d", __FUNCTION__, isStart);
-
+    SyncEventGuard guard (sNfaEnableDisablePollingEvent);
     status  = isStart ? NFA_StartRfDiscovery () : NFA_StopRfDiscovery ();
     if (status == NFA_STATUS_OK)
     {
