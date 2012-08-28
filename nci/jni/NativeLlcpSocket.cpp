@@ -16,13 +16,11 @@
  */
 #include "OverrideLog.h"
 #include "PeerToPeer.h"
+#include "JavaClassConstants.h"
 
 
 namespace android
 {
-
-
-extern char* gNativeLlcpSocketClassName;
 
 
 /*******************************************************************************

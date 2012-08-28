@@ -26,6 +26,7 @@
 #include "NfcTag.h"
 #include "config.h"
 #include "PowerSwitch.h"
+#include "JavaClassConstants.h"
 
 extern "C"
 {

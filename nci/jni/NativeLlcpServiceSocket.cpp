@@ -19,6 +19,7 @@
 #include "NfcJniUtil.h"
 #include "NfcAdaptation.h"
 #include "PeerToPeer.h"
+#include "JavaClassConstants.h"
 extern "C"
 {
     #include "nfa_api.h"
@@ -28,10 +29,6 @@ extern "C"
 
 namespace android
 {
-
-
-extern char* gNativeLlcpServiceSocketClassName;
-extern char* gNativeLlcpSocketClassName;
 
 
 /*******************************************************************************

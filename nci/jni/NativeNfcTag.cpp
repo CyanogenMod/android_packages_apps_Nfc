@@ -25,6 +25,7 @@
 #include "config.h"
 #include "Mutex.h"
 #include "IntervalTimer.h"
+#include "JavaClassConstants.h"
 
 extern "C"
 {
@@ -36,7 +37,6 @@ extern "C"
 namespace android
 {
     extern nfc_jni_native_data* getNative(JNIEnv *e, jobject o);
-    extern char* gNativeNfcTagClassName;
     extern bool nfcManager_isNfcActive();
     extern int gGeneralTransceiveTimeout;
 }

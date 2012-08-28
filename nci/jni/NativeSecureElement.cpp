@@ -16,6 +16,7 @@
  */
 #include "OverrideLog.h"
 #include "SecureElement.h"
+#include "JavaClassConstants.h"
 #include "nfa_brcm_api.h"
 
 
@@ -25,7 +26,6 @@ namespace android
 
 extern void com_android_nfc_NfcManager_disableDiscovery (JNIEnv* e, jobject o);
 extern void com_android_nfc_NfcManager_enableDiscovery (JNIEnv* e, jobject o, jint mode);
-extern char* gNativeNfcSecureElementClassName;
 extern int gGeneralTransceiveTimeout;
 
 
