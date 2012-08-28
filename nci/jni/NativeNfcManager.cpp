@@ -133,7 +133,7 @@ static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
 static void startRfDiscovery (bool isStart);
-static void nfaBrcmInitCallback (UINT32 brcm_hw_id);
+static void nfaBrcmInitCallback (UINT32 brcm_hw_id, UINT8 nvm_type);
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
@@ -671,6 +671,14 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         {
             SyncEventGuard guard (sNfaEnableEvent);
             NFA_Init();
+
+            // Initialize the Crystal Frequency if configured.
+            if (GetNumValue((char*)NAME_XTAL_FREQUENCY, &devInitConfig.xtal_freq, sizeof(devInitConfig.xtal_freq)))
+            {
+                ALOGD("%s: setting XTAL Frequency=%d", __FUNCTION__, devInitConfig.xtal_freq);
+                devInitConfig.flags |= BRCM_DEV_INIT_FLAGS_SET_XTAL_FREQ;
+            }
+
             NFA_BrcmInit (&devInitConfig, nfaBrcmInitCallback);
 
             stat = NFA_Enable (nfaDeviceManagementCallback, nfaConnectionCallback);
@@ -732,10 +740,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 // if this value is not set or set and non-zero, enable multi-technology responses.
                 if (!GetNumValue(NAME_NFA_DM_MULTI_TECH_RESP, &num, sizeof(num)) || (num != 0))
                      NFA_SetMultiTechRsp(TRUE);
-
-                // if this value is not set or set and non-zero, enable sleep mode.
-                if (!GetNumValue(NAME_NFA_DM_ENABLE_SLEEP, &num, sizeof(num)) || (num != 0))
-                    NFA_EnableSnoozeMode();
 
                 // Do custom NFCA startup configuration.
                 doStartupConfig();
@@ -1706,9 +1710,9 @@ bool nfcManager_isNfcActive()
 ** Returns:         None.
 **
 *******************************************************************************/
-void nfaBrcmInitCallback (UINT32 brcm_hw_id)
+void nfaBrcmInitCallback (UINT32 brcm_hw_id, UINT8 nvm_type)
 {
-    ALOGD ("%s: enter; brcm_hw_id=0x%lX", __FUNCTION__, brcm_hw_id);
+    ALOGD ("%s: enter; brcm_hw_id=0x%lX; nvm_type=0x%X", __FUNCTION__, brcm_hw_id, nvm_type);
     nfa_app_post_nci_reset (brcm_hw_id);
 }
 
