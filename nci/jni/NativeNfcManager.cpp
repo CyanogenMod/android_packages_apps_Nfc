@@ -504,8 +504,6 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
         return JNI_FALSE;
     }
 
-    PowerSwitch::getInstance ().initialize (PowerSwitch::FULL_POWER);
-
     ALOGD ("%s: exit", __FUNCTION__);
     return JNI_TRUE;
 }
@@ -660,6 +658,8 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         goto TheEnd;
     }
 
+    PowerSwitch::getInstance ().initialize (PowerSwitch::FULL_POWER);
+
     {
         unsigned long num = 0;
         tBRCM_DEV_INIT_CONFIG devInitConfig;
@@ -760,6 +760,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
     }
 
 TheEnd:
+    PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
     ALOGD ("%s: exit", __FUNCTION__);
     return sIsNfaEnabled ? JNI_TRUE : JNI_FALSE;
 }
@@ -852,8 +853,6 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
     if (sDiscoveryEnabled == false)
     {
         ALOGD ("%s: already disabled", __FUNCTION__);
-        if (! sIsSecElemSelected)
-            PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
         goto TheEnd;
     }
 
@@ -874,7 +873,9 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
     }
 
     PeerToPeer::getInstance().enableP2pListening (false);
-    PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
+
+    if (!sIsSecElemSelected)
+        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
 
 TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
@@ -1231,7 +1232,6 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
 {
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = false;
-    bool isPowerLevelChanged = false;
 
     if (! sIsSecElemSelected)
     {
@@ -1257,7 +1257,7 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
 TheEnd:
     //if power level was changed at the top of this method,
     //then restore to low power
-    if (isPowerLevelChanged || (!PowerSwitch::getInstance().isScreenOn() && (sDiscoveryEnabled == false)) )
+    if (!sDiscoveryEnabled)
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
     ALOGD ("%s: exit", __FUNCTION__);
 }
@@ -1635,6 +1635,7 @@ void doStartupConfig()
 {
     unsigned long num = 0;
     struct nfc_jni_native_data *nat = getNative(0, 0);
+    tNFA_STATUS stat = NFA_STATUS_FAILED;
 
     // Enable the "RC workaround" to allow our stack/firmware to work with a retail
     // Nexus S that causes IOP issues.  Only enable if value exists and set to 1.
@@ -1647,14 +1648,20 @@ void doStartupConfig()
 #endif
 
         ALOGD ("%s: Configure RC work-around", __FUNCTION__);
-        NFA_SetConfig(NCI_PARAM_ID_FW_WORKAROUND, sizeof(nfa_dm_rc_workaround), &nfa_dm_rc_workaround[0]);
+        SyncEventGuard guard (sNfaSetConfigEvent);
+        stat = NFA_SetConfig(NCI_PARAM_ID_FW_WORKAROUND, sizeof(nfa_dm_rc_workaround), &nfa_dm_rc_workaround[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
     }
 
     // If polling for Active mode, set the ordering so that we choose Active over Passive mode first.
     if (nat && (nat->tech_mask & (NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE)))
     {
         UINT8  act_mode_order_param[] = { 0x01 };
-        NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param), &act_mode_order_param[0]);
+        SyncEventGuard guard (sNfaSetConfigEvent);
+        stat = NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param), &act_mode_order_param[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
     }
 
     // Set configuration to allow UICC to Power off if there is no traffic.
@@ -1674,7 +1681,10 @@ void doStartupConfig()
         UINT8 * p = &swpcfg_param[12];
         UINT32_TO_STREAM(p, num)
 
-        NFA_SetConfig(NCI_PARAM_ID_SWPCFG, sizeof(swpcfg_param), &swpcfg_param[0]);
+        SyncEventGuard guard (sNfaSetConfigEvent);
+        stat = NFA_SetConfig(NCI_PARAM_ID_SWPCFG, sizeof(swpcfg_param), &swpcfg_param[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
     }
 
     // Set antenna tuning configuration if configured.
@@ -1683,7 +1693,10 @@ void doStartupConfig()
 
     if (GetStrValue(NAME_PREINIT_DSP_CFG, (char*)&preinit_dsp_param[0], sizeof(preinit_dsp_param)))
     {
-        NFA_SetConfig(NCI_PARAM_ID_PREINIT_DSP_CFG, sizeof(preinit_dsp_param), &preinit_dsp_param[0]);
+        SyncEventGuard guard (sNfaSetConfigEvent);
+        stat = NFA_SetConfig(NCI_PARAM_ID_PREINIT_DSP_CFG, sizeof(preinit_dsp_param), &preinit_dsp_param[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
     }
 }
 
