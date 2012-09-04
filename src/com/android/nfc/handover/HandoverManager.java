@@ -390,7 +390,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
 
                 Intent viewIntent = buildViewIntent();
-                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
+                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent,
+                        Intent.FLAG_ACTIVITY_NEW_TASK);
 
                 notBuilder.setContentIntent(contentIntent);
 
