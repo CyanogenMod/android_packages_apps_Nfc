@@ -1033,17 +1033,20 @@ bool PeerToPeer::send (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen)
         return (sendViaSnep(jniHandle, buffer, bufferLen));
     }
 
-    nfaStat = NFA_P2pSendData (pConn->mNfaConnHandle, bufferLen, buffer);
-
-    while (nfaStat == NFA_STATUS_CONGESTED)
+    while (true)
     {
         SyncEventGuard guard (pConn->mCongEvent);
-        pConn->mCongEvent.wait ();
-
-        if (pConn->mNfaConnHandle == NFA_HANDLE_INVALID)
-            return (false);
-
         nfaStat = NFA_P2pSendData (pConn->mNfaConnHandle, bufferLen, buffer);
+        if (nfaStat == NFA_STATUS_CONGESTED)
+            pConn->mCongEvent.wait (); //wait for NFA_P2P_CONGEST_EVT
+        else
+            break;
+
+        if (pConn->mNfaConnHandle == NFA_HANDLE_INVALID) //peer already disconnected
+        {
+            ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: peer disconnected", fn);
+            return (false);
+        }
     }
 
     if (nfaStat == NFA_STATUS_OK)
@@ -1629,9 +1632,11 @@ void PeerToPeer::nfaServerCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
         {
             ALOGD ("%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
                     eventData->congest.handle, eventData->congest.is_congested);
-
-            SyncEventGuard guard (pConn->mCongEvent);
-            pConn->mCongEvent.notifyOne();
+            if (eventData->congest.is_congested == FALSE)
+            {
+                SyncEventGuard guard (pConn->mCongEvent);
+                pConn->mCongEvent.notifyOne();
+            }
         }
         break;
 
