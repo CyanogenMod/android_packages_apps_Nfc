@@ -47,7 +47,7 @@ namespace android
 {
     extern bool gIsTagDeactivating;
     extern bool gIsSelectingRfInterface;
-    extern void nativeNfcTag_doTranseiveStatus (uint8_t * buf, uint32_t buflen);
+    extern void nativeNfcTag_doTransceiveStatus (uint8_t * buf, uint32_t buflen);
     extern void nativeNfcTag_doConnectStatus (jboolean is_connect_ok);
     extern void nativeNfcTag_doDeactivateStatus (int status);
     extern void nativeNfcTag_doWriteStatus (jboolean is_write_ok);
@@ -344,7 +344,7 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
 
     case NFA_DATA_EVT: // Data message received (for non-NDEF reads)
         ALOGD("%s: NFA_DATA_EVT:  len = %d", __FUNCTION__, eventData->data.len);
-        nativeNfcTag_doTranseiveStatus(eventData->data.p_data,eventData->data.len);
+        nativeNfcTag_doTransceiveStatus(eventData->data.p_data,eventData->data.len);
         break;
 
     case NFA_SELECT_CPLT_EVT: // Select completed

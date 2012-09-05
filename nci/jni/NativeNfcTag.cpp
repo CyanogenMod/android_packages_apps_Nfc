@@ -726,7 +726,7 @@ TheEnd:
 
 /*******************************************************************************
 **
-** Function:        nativeNfcTag_doTranseiveStatus
+** Function:        nativeNfcTag_doTransceiveStatus
 **
 ** Description:     Receive the completion status of transceive operation.
 **                  buf: Contains tag's response.
@@ -735,7 +735,7 @@ TheEnd:
 ** Returns:         None
 **
 *******************************************************************************/
-void nativeNfcTag_doTranseiveStatus (uint8_t* buf, uint32_t bufLen)
+void nativeNfcTag_doTransceiveStatus (uint8_t* buf, uint32_t bufLen)
 {
     ALOGD ("%s: data len=%d, waiting for transceive: %d", __FUNCTION__, bufLen, sWaitingForTransceive);
     if (!sWaitingForTransceive)
