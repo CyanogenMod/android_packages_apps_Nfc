@@ -172,10 +172,26 @@ public:
     *******************************************************************************/
     bool isMifareUltralight ();
 
+
+    /*******************************************************************************
+    **
+    ** Function:        isT2tNackResponse
+    **
+    ** Description:     Whether the response is a T2T NACK response.
+    **                  See NFC Digital Protocol Technical Specification (2010-11-17).
+    **                  Chapter 9 (Type 2 Tag Platform), section 9.6 (READ).
+    **                  response: buffer contains T2T response.
+    **                  responseLen: length of the response.
+    **
+    ** Returns:         True if the response is NACK
+    **
+    *******************************************************************************/
+    bool isT2tNackResponse (const UINT8* response, UINT32 responseLen);
+
 private:
     nfc_jni_native_data* mNativeData;
     bool mIsActivated;
-    tNFC_PROTOCOL mProtocol;	
+    tNFC_PROTOCOL mProtocol;
     int mtT1tMaxMessageSize; //T1T max NDEF message size
     tNFA_STATUS mReadCompletedStatus;
     tNFC_RF_TECH_PARAMS mTechParams [MAX_NUM_TECHNOLOGY]; //array of technology parameters

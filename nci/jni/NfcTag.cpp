@@ -1165,6 +1165,36 @@ bool NfcTag::isMifareUltralight ()
 
 /*******************************************************************************
 **
+** Function:        isT2tNackResponse
+**
+** Description:     Whether the response is a T2T NACK response.
+**                  See NFC Digital Protocol Technical Specification (2010-11-17).
+**                  Chapter 9 (Type 2 Tag Platform), section 9.6 (READ).
+**                  response: buffer contains T2T response.
+**                  responseLen: length of the response.
+**
+** Returns:         True if the response is NACK
+**
+*******************************************************************************/
+bool NfcTag::isT2tNackResponse (const UINT8* response, UINT32 responseLen)
+{
+    static const char fn [] = "NfcTag::isT2tNackResponse";
+    bool isNack = false;
+
+    if (responseLen == 1)
+    {
+        if (response[0] == 0xA)
+            isNack = false; //an ACK response, so definitely not a NACK
+        else
+            isNack = true; //assume every value is a NACK
+    }
+    ALOGD ("%s: return %u", fn, isNack);
+    return isNack;
+}
+
+
+/*******************************************************************************
+**
 ** Function:        connectionEventHandler
 **
 ** Description:     Handle connection-related events.
