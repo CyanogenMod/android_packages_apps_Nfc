@@ -22,7 +22,6 @@ class P2pServer;
 class P2pClient;
 class NfaConn;
 #define MAX_NFA_CONNS_PER_SERVER    5
-typedef unsigned int                tBRCM_JNI_HANDLE;
 
 
 /*****************************************************************************
@@ -35,6 +34,7 @@ typedef unsigned int                tBRCM_JNI_HANDLE;
 class PeerToPeer
 {
 public:
+    typedef unsigned int tJNI_HANDLE;
 
 
     /*******************************************************************************
@@ -138,7 +138,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool registerServer (tBRCM_JNI_HANDLE jniHandle, const char* serviceName);
+    bool registerServer (tJNI_HANDLE jniHandle, const char* serviceName);
 
 
     /*******************************************************************************
@@ -150,7 +150,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool deregisterServer (tBRCM_JNI_HANDLE jniHandle);
+    bool deregisterServer (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -166,7 +166,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool accept (tBRCM_JNI_HANDLE serverJniHandle, tBRCM_JNI_HANDLE connJniHandle, int maxInfoUnit, int recvWindow);
+    bool accept (tJNI_HANDLE serverJniHandle, tJNI_HANDLE connJniHandle, int maxInfoUnit, int recvWindow);
 
 
     /*******************************************************************************
@@ -181,7 +181,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool createClient (tBRCM_JNI_HANDLE jniHandle, UINT16 miu, UINT8 rw);
+    bool createClient (tJNI_HANDLE jniHandle, UINT16 miu, UINT8 rw);
 
 
     /*******************************************************************************
@@ -195,7 +195,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* serviceName);
+    bool connectConnOriented (tJNI_HANDLE jniHandle, const char* serviceName);
 
 
     /*******************************************************************************
@@ -209,7 +209,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool connectConnOriented (tBRCM_JNI_HANDLE jniHandle, UINT8 destinationSap);
+    bool connectConnOriented (tJNI_HANDLE jniHandle, UINT8 destinationSap);
 
 
     /*******************************************************************************
@@ -224,7 +224,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool send (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen);
+    bool send (tJNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen);
 
 
     /*******************************************************************************
@@ -240,7 +240,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen, UINT16& actualLen);
+    bool receive (tJNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen, UINT16& actualLen);
 
 
     /*******************************************************************************
@@ -253,7 +253,7 @@ public:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool disconnectConnOriented (tBRCM_JNI_HANDLE jniHandle);
+    bool disconnectConnOriented (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -266,7 +266,7 @@ public:
     ** Returns:         Peer's max information unit.
     **
     *******************************************************************************/
-    UINT16 getRemoteMaxInfoUnit (tBRCM_JNI_HANDLE jniHandle);
+    UINT16 getRemoteMaxInfoUnit (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -279,7 +279,7 @@ public:
     ** Returns:         Peer's receive window size.
     **
     *******************************************************************************/
-    UINT8 getRemoteRecvWindow (tBRCM_JNI_HANDLE jniHandle);
+    UINT8 getRemoteRecvWindow (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -329,7 +329,7 @@ public:
     ** Returns:         A new JNI handle.
     **
     *******************************************************************************/
-    tBRCM_JNI_HANDLE getNewJniHandle ();
+    tJNI_HANDLE getNewJniHandle ();
 
 
 private:
@@ -340,14 +340,14 @@ private:
     UINT16          mRemoteWKS;                 // Peer's well known services
     bool            mIsP2pListening;            // If P2P listening is enabled or not
     tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask
-    tBRCM_JNI_HANDLE    mJniHandleSendingNppViaSnep;
+    tJNI_HANDLE     mJniHandleSendingNppViaSnep;
     tNFA_HANDLE     mSnepRegHandle;
-    tBRCM_JNI_HANDLE    mRcvFakeNppJniHandle;
+    tJNI_HANDLE     mRcvFakeNppJniHandle;
     UINT8           *mNppFakeOutBuffer;
     UINT32          mNppTotalLen;
     UINT32          mNppReadSoFar;
     tNFA_HANDLE     mNdefTypeHandlerHandle;
-    tBRCM_JNI_HANDLE mNextJniHandle;
+    tJNI_HANDLE     mNextJniHandle;
 
     P2pServer       *mServers [sMax];
     P2pClient       *mClients [sMax];
@@ -437,7 +437,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pServer   *findServer (tBRCM_JNI_HANDLE jniHandle);
+    P2pServer   *findServer (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -463,7 +463,7 @@ private:
     ** Returns:         None
     **
     *******************************************************************************/
-    void        removeServer (tBRCM_JNI_HANDLE jniHandle);
+    void        removeServer (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -476,7 +476,7 @@ private:
     ** Returns:         None
     **
     *******************************************************************************/
-    void        removeConn (tBRCM_JNI_HANDLE jniHandle);
+    void        removeConn (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -491,7 +491,7 @@ private:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool        createDataLinkConn (tBRCM_JNI_HANDLE jniHandle, const char* serviceName, UINT8 destinationSap);
+    bool        createDataLinkConn (tJNI_HANDLE jniHandle, const char* serviceName, UINT8 destinationSap);
 
 
     /*******************************************************************************
@@ -517,7 +517,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pClient   *findClient (tBRCM_JNI_HANDLE jniHandle);
+    P2pClient   *findClient (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -556,7 +556,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    NfaConn     *findConnection (tBRCM_JNI_HANDLE jniHandle);
+    NfaConn     *findConnection (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -571,7 +571,7 @@ private:
     ** Returns:         True if ok.
     **
     *******************************************************************************/
-    bool        sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen);
+    bool        sendViaSnep (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen);
 
 
     /*******************************************************************************
@@ -601,7 +601,7 @@ class NfaConn
 {
 public:
     tNFA_HANDLE         mNfaConnHandle;         // NFA handle of the P2P connection
-    tBRCM_JNI_HANDLE    mJniHandle;             // JNI handle of the P2P connection
+    PeerToPeer::tJNI_HANDLE mJniHandle;             // JNI handle of the P2P connection
     UINT16              mMaxInfoUnit;
     UINT8               mRecvWindow;
     UINT16              mRemoteMaxInfoUnit;
@@ -635,7 +635,7 @@ class P2pServer
 {
 public:
     tNFA_HANDLE     mNfaP2pServerHandle;    // NFA p2p handle of local server
-    tBRCM_JNI_HANDLE mJniHandle;            // JNI Handle
+    PeerToPeer::tJNI_HANDLE mJniHandle;            // JNI Handle
     SyncEvent       mRegServerEvent;        // for NFA_P2pRegisterServer()
     SyncEvent       mConnRequestEvent;      // for accept()
     std::string     mServiceName;

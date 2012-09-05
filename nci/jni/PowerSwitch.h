@@ -10,7 +10,6 @@
 *****************************************************************************/
 #pragma once
 #include "nfa_api.h"
-#include "nfa_brcm_api.h"
 #include "SyncEvent.h"
 
 
