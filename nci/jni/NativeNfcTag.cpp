@@ -857,7 +857,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
         {
             ALOGE ("%s: wait response timeout", __FUNCTION__);
             if (targetLost)
-                *targetLost = 2; //causes NFC service to throw IOException
+                *targetLost = 1; //causes NFC service to throw TagLostException
             break;
         }
 
