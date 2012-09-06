@@ -305,7 +305,10 @@ public class NfcDispatcher {
         if (message == null) {
             return false;
         }
-        dispatch.setNdefIntent();
+        Intent intent = dispatch.setNdefIntent();
+
+        // Bail out if the intent does not contain filterable NDEF data
+        if (intent == null) return false;
 
         // Try to start AAR activity with matching filter
         List<String> aarPackages = extractAarPackages(message);
