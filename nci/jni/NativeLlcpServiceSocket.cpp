@@ -50,13 +50,13 @@ static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, 
     jobject     clientSocket = NULL;
     jclass      clsNativeLlcpSocket = NULL;
     jfieldID    f = 0;
-    tBRCM_JNI_HANDLE serverHandle; //handle of the local server
+    PeerToPeer::tJNI_HANDLE serverHandle; //handle of the local server
     bool        stat = false;
-    tBRCM_JNI_HANDLE connHandle = PeerToPeer::getInstance().getNewJniHandle ();
+    PeerToPeer::tJNI_HANDLE connHandle = PeerToPeer::getInstance().getNewJniHandle ();
 
     ALOGD ("%s: enter", __FUNCTION__);
 
-    serverHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e, o);
+    serverHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e, o);
 
     stat = PeerToPeer::getInstance().accept (serverHandle, connHandle, miu, rw);
 
@@ -114,7 +114,7 @@ TheEnd:
 static jboolean nativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o)
 {
     ALOGD ("%s: enter", __FUNCTION__);
-    tBRCM_JNI_HANDLE jniServerHandle = 0;
+    PeerToPeer::tJNI_HANDLE jniServerHandle = 0;
     bool stat = false;
 
     jniServerHandle = nfc_jni_get_nfc_socket_handle (e, o);

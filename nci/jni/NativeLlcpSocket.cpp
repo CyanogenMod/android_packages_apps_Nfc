@@ -42,7 +42,7 @@ static jboolean nativeLlcpSocket_doConnect (JNIEnv* e, jobject o, jint nSap)
 
     ALOGD ("%s: enter; sap=%d", __FUNCTION__, nSap);
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     stat = PeerToPeer::getInstance().connectConnOriented (jniHandle, nSap);
 
@@ -72,7 +72,7 @@ static jboolean nativeLlcpSocket_doConnectBy (JNIEnv* e, jobject o, jstring sn)
     bool stat = false;
     jboolean retVal = JNI_FALSE;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     const char* serviceName = e->GetStringUTFChars (sn, JNI_FALSE); //convert jstring, which is unicode, into char*
 
@@ -105,7 +105,7 @@ static jboolean nativeLlcpSocket_doClose(JNIEnv *e, jobject o)
     bool stat = false;
     jboolean retVal = JNI_FALSE;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     stat = PeerToPeer::getInstance().disconnectConnOriented (jniHandle);
 
@@ -134,7 +134,7 @@ static jboolean nativeLlcpSocket_doSend (JNIEnv* e, jobject o, jbyteArray data)
     uint32_t dataBufferLen = (uint32_t) e->GetArrayLength (data);
     bool stat = false;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     stat = PeerToPeer::getInstance().send (jniHandle, dataBuffer, dataBufferLen);
 
@@ -166,7 +166,7 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray origBuff
     bool stat = false;
     jint retval = 0;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     stat = PeerToPeer::getInstance().receive (jniHandle, dataBuffer, dataBufferLen, actualLen);
 
@@ -199,7 +199,7 @@ static jint nativeLlcpSocket_doGetRemoteSocketMIU (JNIEnv* e, jobject o)
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = false;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
     jint miu = 0;
 
     miu = PeerToPeer::getInstance().getRemoteMaxInfoUnit (jniHandle);
@@ -226,7 +226,7 @@ static jint nativeLlcpSocket_doGetRemoteSocketRW (JNIEnv* e, jobject o)
     bool stat = false;
     jint rw = 0;
 
-    tBRCM_JNI_HANDLE jniHandle = (tBRCM_JNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
+    PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle (e,o);
 
     rw = PeerToPeer::getInstance().getRemoteRecvWindow (jniHandle);
 

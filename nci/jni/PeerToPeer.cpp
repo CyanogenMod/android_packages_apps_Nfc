@@ -142,7 +142,7 @@ P2pServer *PeerToPeer::findServer (tNFA_HANDLE nfaP2pServerHandle)
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
-P2pServer *PeerToPeer::findServer (tBRCM_JNI_HANDLE jniHandle)
+P2pServer *PeerToPeer::findServer (tJNI_HANDLE jniHandle)
 {
     for (int i = 0; i < sMax; i++)
     {
@@ -192,7 +192,7 @@ P2pServer *PeerToPeer::findServer (const char *serviceName)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *serviceName)
+bool PeerToPeer::registerServer (tJNI_HANDLE jniHandle, const char *serviceName)
 {
     static const char fn [] = "PeerToPeer::registerServer";
     ALOGD ("%s: enter; service name: %s  JNI handle: %u", fn, serviceName, jniHandle);
@@ -294,7 +294,7 @@ bool PeerToPeer::registerServer (tBRCM_JNI_HANDLE jniHandle, const char *service
 ** Returns:         None
 **
 *******************************************************************************/
-void PeerToPeer::removeServer (tBRCM_JNI_HANDLE jniHandle)
+void PeerToPeer::removeServer (tJNI_HANDLE jniHandle)
 {
     static const char fn [] = "PeerToPeer::removeServer";
 
@@ -465,7 +465,7 @@ void PeerToPeer::llcpDeactivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_DEA
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::accept (tBRCM_JNI_HANDLE serverJniHandle, tBRCM_JNI_HANDLE connJniHandle, int maxInfoUnit, int recvWindow)
+bool PeerToPeer::accept (tJNI_HANDLE serverJniHandle, tJNI_HANDLE connJniHandle, int maxInfoUnit, int recvWindow)
 {
     static const char fn [] = "PeerToPeer::accept";
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
@@ -555,7 +555,7 @@ bool PeerToPeer::accept (tBRCM_JNI_HANDLE serverJniHandle, tBRCM_JNI_HANDLE conn
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::deregisterServer (tBRCM_JNI_HANDLE jniHandle)
+bool PeerToPeer::deregisterServer (tJNI_HANDLE jniHandle)
 {
     static const char fn [] = "PeerToPeer::deregisterServer";
     ALOGD ("%s: enter; JNI handle: %u", fn, jniHandle);
@@ -599,7 +599,7 @@ bool PeerToPeer::deregisterServer (tBRCM_JNI_HANDLE jniHandle)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::createClient (tBRCM_JNI_HANDLE jniHandle, UINT16 miu, UINT8 rw)
+bool PeerToPeer::createClient (tJNI_HANDLE jniHandle, UINT16 miu, UINT8 rw)
 {
     static const char fn [] = "PeerToPeer::createClient";
     int i = 0;
@@ -654,7 +654,7 @@ bool PeerToPeer::createClient (tBRCM_JNI_HANDLE jniHandle, UINT16 miu, UINT8 rw)
 ** Returns:         None
 **
 *******************************************************************************/
-void PeerToPeer::removeConn(tBRCM_JNI_HANDLE jniHandle)
+void PeerToPeer::removeConn(tJNI_HANDLE jniHandle)
 {
     static const char fn[] = "PeerToPeer::removeConn";
     int ii = 0, jj = 0;
@@ -720,7 +720,7 @@ void PeerToPeer::removeConn(tBRCM_JNI_HANDLE jniHandle)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* serviceName)
+bool PeerToPeer::connectConnOriented (tJNI_HANDLE jniHandle, const char* serviceName)
 {
     static const char fn [] = "PeerToPeer::connectConnOriented";
     ALOGD ("%s: enter; h: %u  service name=%s", fn, jniHandle, serviceName);
@@ -781,7 +781,7 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, const char* se
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, UINT8 destinationSap)
+bool PeerToPeer::connectConnOriented (tJNI_HANDLE jniHandle, UINT8 destinationSap)
 {
     static const char fn [] = "PeerToPeer::connectConnOriented";
     ALOGD ("%s: enter; h: %u  dest sap: 0x%X", fn, jniHandle, destinationSap);
@@ -803,7 +803,7 @@ bool PeerToPeer::connectConnOriented (tBRCM_JNI_HANDLE jniHandle, UINT8 destinat
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::createDataLinkConn (tBRCM_JNI_HANDLE jniHandle, const char* serviceName, UINT8 destinationSap)
+bool PeerToPeer::createDataLinkConn (tJNI_HANDLE jniHandle, const char* serviceName, UINT8 destinationSap)
 {
     static const char fn [] = "PeerToPeer::createDataLinkConn";
     ALOGD ("%s: enter", fn);
@@ -886,7 +886,7 @@ P2pClient *PeerToPeer::findClient (tNFA_HANDLE nfaConnHandle)
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
-P2pClient *PeerToPeer::findClient (tBRCM_JNI_HANDLE jniHandle)
+P2pClient *PeerToPeer::findClient (tJNI_HANDLE jniHandle)
 {
     for (int i = 0; i < sMax; i++)
     {
@@ -969,7 +969,7 @@ NfaConn *PeerToPeer::findConnection (tNFA_HANDLE nfaConnHandle)
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
-NfaConn *PeerToPeer::findConnection (tBRCM_JNI_HANDLE jniHandle)
+NfaConn *PeerToPeer::findConnection (tJNI_HANDLE jniHandle)
 {
     int ii = 0, jj = 0;
 
@@ -1012,7 +1012,7 @@ NfaConn *PeerToPeer::findConnection (tBRCM_JNI_HANDLE jniHandle)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::send (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen)
+bool PeerToPeer::send (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen)
 {
     static const char fn [] = "PeerToPeer::send";
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
@@ -1068,7 +1068,7 @@ bool PeerToPeer::send (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferL
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 dataLen)
+bool PeerToPeer::sendViaSnep (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 dataLen)
 {
     static const char fn [] = "PeerToPeer::sendViaSnep";
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
@@ -1152,7 +1152,7 @@ bool PeerToPeer::sendViaSnep (tBRCM_JNI_HANDLE jniHandle, UINT8 *buffer, UINT16 
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::receive (tBRCM_JNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen, UINT16& actualLen)
+bool PeerToPeer::receive (tJNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen, UINT16& actualLen)
 {
     static const char fn [] = "PeerToPeer::receive";
     ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: enter; jniHandle: %u  bufferLen: %u", fn, jniHandle, bufferLen);
@@ -1243,7 +1243,7 @@ bool PeerToPeer::feedNppFromSnep (UINT8* buffer, UINT16 bufferLen, UINT16& actua
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::disconnectConnOriented (tBRCM_JNI_HANDLE jniHandle)
+bool PeerToPeer::disconnectConnOriented (tJNI_HANDLE jniHandle)
 {
     static const char fn [] = "PeerToPeer::disconnectConnOriented";
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
@@ -1306,7 +1306,7 @@ bool PeerToPeer::disconnectConnOriented (tBRCM_JNI_HANDLE jniHandle)
 ** Returns:         Peer's max information unit.
 **
 *******************************************************************************/
-UINT16 PeerToPeer::getRemoteMaxInfoUnit (tBRCM_JNI_HANDLE jniHandle)
+UINT16 PeerToPeer::getRemoteMaxInfoUnit (tJNI_HANDLE jniHandle)
 {
     static const char fn [] = "PeerToPeer::getRemoteMaxInfoUnit";
     NfaConn *pConn = NULL;
@@ -1331,7 +1331,7 @@ UINT16 PeerToPeer::getRemoteMaxInfoUnit (tBRCM_JNI_HANDLE jniHandle)
 ** Returns:         Peer's receive window size.
 **
 *******************************************************************************/
-UINT8 PeerToPeer::getRemoteRecvWindow (tBRCM_JNI_HANDLE jniHandle)
+UINT8 PeerToPeer::getRemoteRecvWindow (tJNI_HANDLE jniHandle)
 {
     static const char fn [] = "PeerToPeer::getRemoteRecvWindow";
     ALOGD ("%s: client jni handle: %u", fn, jniHandle);
@@ -2010,9 +2010,9 @@ void PeerToPeer::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* eventD
 ** Returns:         A new JNI handle.
 **
 *******************************************************************************/
-tBRCM_JNI_HANDLE PeerToPeer::getNewJniHandle ()
+PeerToPeer::tJNI_HANDLE PeerToPeer::getNewJniHandle ()
 {
-    tBRCM_JNI_HANDLE newHandle = 0;
+    tJNI_HANDLE newHandle = 0;
 
     mNewJniHandleMutex.lock ();
     newHandle = mNextJniHandle++;
