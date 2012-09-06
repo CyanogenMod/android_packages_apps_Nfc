@@ -16,7 +16,6 @@
 #include "RouteDataSet.h"
 extern "C"
 {
-    #include "nfa_brcm_api.h"
     #include "nfa_ee_api.h"
     #include "nfa_hci_api.h"
     #include "nfa_hci_defs.h"

@@ -42,7 +42,7 @@ extern "C"
 extern UINT8 *p_nfa_dm_lptd_cfg;
 extern UINT8 *p_nfa_dm_start_up_cfg;
 extern const UINT8 nfca_version_string [];
-extern "C" void nfa_app_post_nci_reset (UINT32 brcm_hw_id);
+extern "C" void downloadFirmwarePatchFile (UINT32 brcm_hw_id);
 namespace android
 {
     extern bool gIsTagDeactivating;
@@ -940,7 +940,7 @@ static jobject nfcManager_doCreateLlcpServiceSocket (JNIEnv* e, jobject o, jint 
     jobject     serviceSocket = NULL;
     jclass      clsNativeLlcpServiceSocket = NULL;
     jfieldID    f = 0;
-    tBRCM_JNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
+    PeerToPeer::tJNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
     const char* serviceName = e->GetStringUTFChars (sn, JNI_FALSE); //convert jstring, which is unicode, into char*
     std::string serviceName2 (serviceName);
 
@@ -1091,7 +1091,7 @@ static jobject nfcManager_doCreateLlcpSocket (JNIEnv* e, jobject o, jint nSap, j
     jobject clientSocket = NULL;
     jclass clsNativeLlcpSocket;
     jfieldID f;
-    tBRCM_JNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
+    PeerToPeer::tJNI_HANDLE jniHandle = PeerToPeer::getInstance().getNewJniHandle ();
     bool stat = false;
 
     stat = PeerToPeer::getInstance().createClient (jniHandle, miu, rw);
@@ -1713,7 +1713,7 @@ bool nfcManager_isNfcActive()
 void nfaBrcmInitCallback (UINT32 brcm_hw_id, UINT8 nvm_type)
 {
     ALOGD ("%s: enter; brcm_hw_id=0x%lX; nvm_type=0x%X", __FUNCTION__, brcm_hw_id, nvm_type);
-    nfa_app_post_nci_reset (brcm_hw_id);
+    downloadFirmwarePatchFile (brcm_hw_id);
 }
 
 

@@ -17,6 +17,7 @@
 #include "PowerSwitch.h"
 #include "HostAidRouter.h"
 #include "nfa_vs_brcm_api.h"
+#include "nfa_brcm_api.h"
 #include "JavaClassConstants.h"
 
 
@@ -183,7 +184,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
             SyncEventGuard guard (mHciRegisterEvent);
 
-            nfaStat = NFA_HciRegister (const_cast<char*>("brcm_jni"), nfaHciCallback, TRUE);
+            nfaStat = NFA_HciRegister (const_cast<char*>("nfc_jni"), nfaHciCallback, TRUE);
             if (nfaStat != NFA_STATUS_OK)
             {
                 ALOGE ("%s: fail hci register; error=0x%X", fn, nfaStat);
