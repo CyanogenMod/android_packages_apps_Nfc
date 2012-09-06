@@ -340,13 +340,6 @@ private:
     UINT16          mRemoteWKS;                 // Peer's well known services
     bool            mIsP2pListening;            // If P2P listening is enabled or not
     tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask
-    tJNI_HANDLE     mJniHandleSendingNppViaSnep;
-    tNFA_HANDLE     mSnepRegHandle;
-    tJNI_HANDLE     mRcvFakeNppJniHandle;
-    UINT8           *mNppFakeOutBuffer;
-    UINT32          mNppTotalLen;
-    UINT32          mNppReadSoFar;
-    tNFA_HANDLE     mNdefTypeHandlerHandle;
     tJNI_HANDLE     mNextJniHandle;
 
     P2pServer       *mServers [sMax];
@@ -557,36 +550,6 @@ private:
     **
     *******************************************************************************/
     NfaConn     *findConnection (tJNI_HANDLE jniHandle);
-
-
-    /*******************************************************************************
-    **
-    ** Function:        sendViaSnep
-    **
-    ** Description:     Send out-bound data to the stack's SNEP protocol.
-    **                  jniHandle: Handle of connection.
-    **                  buffer: Buffer of data.
-    **                  dataLen: Length of data.
-    **
-    ** Returns:         True if ok.
-    **
-    *******************************************************************************/
-    bool        sendViaSnep (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen);
-
-
-    /*******************************************************************************
-    **
-    ** Function:        feedNppFromSnep
-    **
-    ** Description:     Send incomming data to the NFC service's NDEF Push Protocol.
-    **                  buffer: Buffer of data to send.
-    **                  bufferLen: Length of data in buffer.
-    **                  actualLen: Actual length sent.
-    **
-    ** Returns:         True if ok.
-    **
-    *******************************************************************************/
-    bool        feedNppFromSnep (UINT8* buffer, UINT16 bufferLen, UINT16& actualLen);
 };
 
 
@@ -679,11 +642,6 @@ class P2pClient
 public:
     tNFA_HANDLE         mNfaP2pClientHandle;    // NFA p2p handle of client
     bool                mIsConnecting;          // Set true while connecting
-    tNFA_HANDLE         mSnepConnHandle;
-    UINT32              mSnepNdefMsgLen;        // SNEP total NDEF message length
-    UINT32              mSnepNdefBufLen;        // SNEP NDEF buffer length
-    UINT8              *mSnepNdefBuf;           // SNEP NDEF Message
-    bool                mIsSnepSentOk;          // SNEP transmission status
     NfaConn             mClientConn;
     SyncEvent           mRegisteringEvent;      // For client registration
     SyncEvent           mConnectingEvent;       // for NFA_P2pConnectByName or Sap()

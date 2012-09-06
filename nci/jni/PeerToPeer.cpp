@@ -24,7 +24,6 @@ namespace android
 
 PeerToPeer PeerToPeer::sP2p;
 const std::string PeerToPeer::sSnepServiceName ("urn:nfc:sn:snep");
-const std::string PeerToPeer::sNppServiceName ("com.android.npp");
 
 
 /*******************************************************************************
@@ -43,13 +42,6 @@ PeerToPeer::PeerToPeer ()
                         | NFA_TECHNOLOGY_MASK_F
                         | NFA_TECHNOLOGY_MASK_A_ACTIVE
                         | NFA_TECHNOLOGY_MASK_F_ACTIVE),
-    mJniHandleSendingNppViaSnep (0),
-    mSnepRegHandle (NFA_HANDLE_INVALID),
-    mRcvFakeNppJniHandle (0),
-    mNppFakeOutBuffer (NULL),
-    mNppTotalLen (0),
-    mNppReadSoFar (0),
-    mNdefTypeHandlerHandle (NFA_HANDLE_INVALID),
     mNextJniHandle (1)
 {
     unsigned long num = 0;
@@ -338,10 +330,6 @@ void PeerToPeer::llcpActivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_ACTIV
     //no longer need to receive NDEF message from a tag
     android::nativeNfcTag_deregisterNdefTypeHandler ();
 
-    //register a type handler in case we need to send NDEF messages received from SNEP through NPP
-    mNdefTypeHandlerHandle = NFA_HANDLE_INVALID;
-    NFA_RegisterNDefTypeHandler (TRUE, NFA_TNF_DEFAULT, (UINT8 *)"", 0, ndefTypeCallback);
-
     mRemoteWKS = activated.remote_wks;
 
     nat->vm->AttachCurrentThread (&e, NULL);
@@ -442,10 +430,6 @@ void PeerToPeer::llcpDeactivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_DEA
 
     nat->vm->DetachCurrentThread ();
 
-    //PeerToPeer no longer needs to handle NDEF data event
-    NFA_DeregisterNDefTypeHandler (mNdefTypeHandlerHandle);
-    mNdefTypeHandlerHandle = NFA_HANDLE_INVALID;
-
     //let the tag-reading code handle NDEF data event
     android::nativeNfcTag_registerNdefTypeHandler ();
     ALOGD ("%s: exit", fn);
@@ -510,16 +494,6 @@ bool PeerToPeer::accept (tJNI_HANDLE serverJniHandle, tJNI_HANDLE connJniHandle,
         pSrv->mConnRequestEvent.wait();
         ALOGD ("%s: serverJniHandle: %u; connJniHandle: %u; server conn index: %u; nfa conn h: 0x%X; got incoming connection", fn,
                 serverJniHandle, connJniHandle, ii, pSrv->mServerConn[ii]->mNfaConnHandle);
-    }
-
-    // If we had gotten a message via SNEP, fake it out to be for NPP
-    if (mRcvFakeNppJniHandle == serverJniHandle)
-    {
-        ALOGD ("%s:  server jni handle %u diverted to NPP fake receive on conn jni handle %u", fn, serverJniHandle, connJniHandle);
-        delete (pSrv->mServerConn[ii]);
-        pSrv->mServerConn[ii] = NULL;
-        mRcvFakeNppJniHandle = connJniHandle;
-        return (true);
     }
 
     if (pSrv->mServerConn[ii]->mNfaConnHandle == NFA_HANDLE_INVALID)
@@ -694,18 +668,7 @@ void PeerToPeer::removeConn(tJNI_HANDLE jniHandle)
         }
     }
 
-    if (jniHandle == mRcvFakeNppJniHandle)
-    {
-        ALOGD ("%s: Reset mRcvFakeNppJniHandle: %u", fn, jniHandle);
-        mRcvFakeNppJniHandle = 0;
-        if (mNppFakeOutBuffer != NULL)
-        {
-            free (mNppFakeOutBuffer);
-            mNppFakeOutBuffer = NULL;
-        }
-    }
-    else
-        ALOGE ("%s: could not find handle: %u", fn, jniHandle);
+    ALOGE ("%s: could not find handle: %u", fn, jniHandle);
 }
 
 
@@ -724,46 +687,6 @@ bool PeerToPeer::connectConnOriented (tJNI_HANDLE jniHandle, const char* service
 {
     static const char fn [] = "PeerToPeer::connectConnOriented";
     ALOGD ("%s: enter; h: %u  service name=%s", fn, jniHandle, serviceName);
-
-    // If we are connecting to NPP and the other side supports SNEP, use SNEP
-    if ( (sNppServiceName.compare(serviceName)==0) && (mSnepRegHandle != NFA_HANDLE_INVALID) )
-    {
-        P2pClient   *pClient = NULL;
-
-        if ((pClient = findClient (jniHandle)) == NULL)
-        {
-            ALOGE ("%s: can't find client, JNI handle: %u", fn, jniHandle);
-            return (false);
-        }
-
-        if (mJniHandleSendingNppViaSnep != 0)
-        {
-            ALOGE ("%s: SNEP already active, SNEP JNI handle: %u  new JNI handle: %u", fn, mJniHandleSendingNppViaSnep, jniHandle);
-            return (false);
-        }
-
-        // Save JNI Handle and try to connect to SNEP
-        mJniHandleSendingNppViaSnep = jniHandle;
-        {
-            SyncEventGuard guard (pClient->mSnepEvent);
-            if (NFA_SnepConnect (mSnepRegHandle, const_cast<char*>("urn:nfc:sn:snep")) == NFA_STATUS_OK)
-            {
-                pClient->mSnepEvent.wait();
-
-                // If the connect attempt failed, connection handle is invalid
-                if (pClient->mSnepConnHandle != NFA_HANDLE_INVALID)
-                {
-                    // return true, as if we were connected.
-                    pClient->mClientConn.mRemoteMaxInfoUnit = 248;
-                    pClient->mClientConn.mRemoteRecvWindow  = 1;
-                    return (true);
-                }
-            }
-        }
-        mJniHandleSendingNppViaSnep = 0;
-    }
-
-    // If here, we did not establish a SNEP connection
     bool stat = createDataLinkConn (jniHandle, serviceName, 0);
     ALOGD ("%s: exit; h: %u  stat: %u", fn, jniHandle, stat);
     return stat;
@@ -1024,14 +947,8 @@ bool PeerToPeer::send (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen)
         return (false);
     }
 
-    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  nfaHandle: 0x%04X  mJniHandleSendingNppViaSnep: %u",
-            fn, pConn->mJniHandle, pConn->mNfaConnHandle, mJniHandleSendingNppViaSnep);
-
-    // Is this a SNEP fake-out
-    if (jniHandle == mJniHandleSendingNppViaSnep)
-    {
-        return (sendViaSnep(jniHandle, buffer, bufferLen));
-    }
+    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  nfaHandle: 0x%04X",
+            fn, pConn->mJniHandle, pConn->mNfaConnHandle);
 
     while (true)
     {
@@ -1061,89 +978,6 @@ bool PeerToPeer::send (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 bufferLen)
 
 /*******************************************************************************
 **
-** Function:        sendViaSnep
-**
-** Description:     Send out-bound data to the stack's SNEP protocol.
-**                  jniHandle: Handle of connection.
-**                  buffer: Buffer of data.
-**                  dataLen: Length of data.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-bool PeerToPeer::sendViaSnep (tJNI_HANDLE jniHandle, UINT8 *buffer, UINT16 dataLen)
-{
-    static const char fn [] = "PeerToPeer::sendViaSnep";
-    tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
-    P2pClient   *pClient = NULL;
-
-    if ((pClient = findClient (jniHandle)) == NULL)
-    {
-        ALOGE ("%s: can't find client, JNI handle: %u", fn, jniHandle);
-        mJniHandleSendingNppViaSnep = 0;
-        return (false);
-    }
-
-    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: send data; jniHandle: %u  mSnepNdefMsgLen: %lu  mSnepNdefBufLen: %lu  dataLen: %d",
-          fn, jniHandle, pClient->mSnepNdefMsgLen, pClient->mSnepNdefBufLen, dataLen);
-
-    if (pClient->mSnepNdefMsgLen == 0)
-    {
-        pClient->mSnepNdefMsgLen = (buffer[6] << 24) | (buffer[7] << 16) | (buffer[8] << 8) | buffer[9];
-        if ((pClient->mSnepNdefBuf = (UINT8 *)malloc (pClient->mSnepNdefMsgLen + 1000)) == NULL)
-        {
-            ALOGE ("%s: can't malloc len: %lu", fn, pClient->mSnepNdefMsgLen);
-            mJniHandleSendingNppViaSnep = 0;
-            return (false);
-        }
-        buffer += 10;
-        dataLen -= 10;
-    }
-
-    if ((pClient->mSnepNdefBufLen + dataLen) > pClient->mSnepNdefMsgLen)
-    {
-        ALOGE ("%s: len error mSnepNdefBufLen: %lu  dataLen: %u  mSnepNdefMsgLen: %lu", fn,
-              pClient->mSnepNdefBufLen, dataLen, pClient->mSnepNdefMsgLen);
-        mJniHandleSendingNppViaSnep = 0;
-        free (pClient->mSnepNdefBuf);
-        pClient->mSnepNdefBuf = NULL;
-        return (false);
-    }
-
-    // Save the data in the buffer
-    memcpy (pClient->mSnepNdefBuf + pClient->mSnepNdefBufLen, buffer, dataLen);
-
-    pClient->mSnepNdefBufLen += dataLen;
-
-    // If we got all the data, send it via SNEP
-    if (pClient->mSnepNdefBufLen == pClient->mSnepNdefMsgLen)
-    {
-        ALOGD ("%s  GKI_poolcount(2): %u   GKI_poolfreecount(2): %u", fn, GKI_poolcount(2), GKI_poolfreecount(2));
-
-        SyncEventGuard guard (pClient->mSnepEvent);
-        nfaStat = NFA_SnepPut (pClient->mSnepConnHandle, pClient->mSnepNdefBufLen, pClient->mSnepNdefBuf);
-
-        if (nfaStat != NFA_STATUS_OK)
-        {
-            ALOGE ("%s: NFA_SnepPut failed, code: 0x%04x", fn, nfaStat);
-            mJniHandleSendingNppViaSnep = 0;
-            free (pClient->mSnepNdefBuf);
-            pClient->mSnepNdefBuf = NULL;
-            return (false);
-        }
-        pClient->mSnepEvent.wait ();
-
-        free (pClient->mSnepNdefBuf);
-        pClient->mSnepNdefBuf = NULL;
-        mJniHandleSendingNppViaSnep = 0;
-        return (pClient->mIsSnepSentOk);
-    }
-    return (true);
-}
-
-
-/*******************************************************************************
-**
 ** Function:        receive
 **
 ** Description:     Receive data from peer.
@@ -1164,9 +998,6 @@ bool PeerToPeer::receive (tJNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen
     UINT32 actualDataLen2 = 0;
     BOOLEAN isMoreData = TRUE;
     bool retVal = false;
-
-    if (jniHandle == mRcvFakeNppJniHandle)
-        return (feedNppFromSnep(buffer, bufferLen, actualLen));
 
     if ((pConn = findConnection (jniHandle)) == NULL)
     {
@@ -1195,44 +1026,6 @@ bool PeerToPeer::receive (tJNI_HANDLE jniHandle, UINT8* buffer, UINT16 bufferLen
 
     ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit; nfa h: 0x%X  ok: %u  actual len: %u", fn, pConn->mNfaConnHandle, retVal, actualLen);
     return retVal;
-}
-
-
-/*******************************************************************************
-**
-** Function:        feedNppFromSnep
-**
-** Description:     Send incomming data to the NFC service's NDEF Push Protocol.
-**                  buffer: Buffer of data to send.
-**                  bufferLen: Length of data in buffer.
-**                  actualLen: Actual length sent.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-bool PeerToPeer::feedNppFromSnep (UINT8* buffer, UINT16 bufferLen, UINT16& actualLen)
-{
-    static const char fn [] = "PeerToPeer::feedNppFromSnep";
-
-    ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: mNppTotalLen: %lu  mNppReadSoFar: %lu  bufferLen: %u",
-            fn, mNppTotalLen, mNppReadSoFar, bufferLen);
-
-    if (bufferLen > (mNppTotalLen - mNppReadSoFar))
-        bufferLen = mNppTotalLen - mNppReadSoFar;
-
-    memcpy (buffer, mNppFakeOutBuffer + mNppReadSoFar, bufferLen);
-
-    mNppReadSoFar += bufferLen;
-    actualLen      = bufferLen;
-
-    if (mNppReadSoFar == mNppTotalLen)
-    {
-        ALOGD ("%s: entire message consumed", fn);
-        free (mNppFakeOutBuffer);
-        mNppFakeOutBuffer   = NULL;
-        mRcvFakeNppJniHandle = 0;
-    }
-    return (true);
 }
 
 
@@ -1483,15 +1276,6 @@ void PeerToPeer::handleNfcOnOff (bool isOn)
             }
         } //loop
 
-        mJniHandleSendingNppViaSnep = 0;
-        mRcvFakeNppJniHandle        = 0;
-        mSnepRegHandle              = NFA_HANDLE_INVALID;
-
-        if (mNppFakeOutBuffer != NULL)
-        {
-            free (mNppFakeOutBuffer);
-            mNppFakeOutBuffer = NULL;
-        }
     }
     ALOGD ("%s: exit", fn);
 }
@@ -1801,188 +1585,6 @@ void PeerToPeer::nfaClientCallback (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA* ev
 
 /*******************************************************************************
 **
-** Function:        snepClientCallback
-**
-** Description:     Receive SNEP-related events from the stack.
-**                  snepEvent: Event code.
-**                  eventData: Event data.
-**
-** Returns:         None
-**
-*******************************************************************************/
-void PeerToPeer::snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA *eventData)
-{
-    static const char fn [] = "PeerToPeer::snepClientCallback";
-    P2pClient   *pClient;
-
-    switch (snepEvent)
-    {
-    case NFA_SNEP_REG_EVT:
-        {
-            ALOGD ("%s  NFA_SNEP_REG_EVT  Status: %u  Handle: 0x%X", fn, eventData->reg.status, eventData->reg.reg_handle);
-            SyncEventGuard guard (sP2p.mSnepRegisterEvent);
-            if (eventData->reg.status == NFA_STATUS_OK)
-                sP2p.mSnepRegHandle = eventData->reg.reg_handle;
-            sP2p.mSnepRegisterEvent.notifyOne ();
-            break;
-        }
-
-    case NFA_SNEP_ACTIVATED_EVT:
-        ALOGD ("%s  NFA_SNEP_ACTIVATED_EVT  mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-        break;
-
-    case NFA_SNEP_DEACTIVATED_EVT:
-        ALOGD ("%s  NFA_SNEP_ACTIVATED_EVT  mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-        break;
-
-    case NFA_SNEP_CONNECTED_EVT:
-        if ((pClient = sP2p.findClient (sP2p.mJniHandleSendingNppViaSnep)) == NULL)
-        {
-            ALOGE ("%s: NFA_SNEP_CONNECTED_EVT - can't find SNEP client, mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-        }
-        else
-        {
-            ALOGD ("%s  NFA_SNEP_CONNECTED_EVT  mJniHandleSendingNppViaSnep: %u  ConnHandle: 0x%04x", fn, sP2p.mJniHandleSendingNppViaSnep, eventData->connect.conn_handle);
-
-            SyncEventGuard guard (pClient->mSnepEvent);
-            pClient->mSnepConnHandle = eventData->connect.conn_handle;
-            pClient->mSnepEvent.notifyOne();
-        }
-        break;
-
-    case NFA_SNEP_PUT_RESP_EVT:
-        if ((pClient = sP2p.findClient (sP2p.mJniHandleSendingNppViaSnep)) == NULL)
-        {
-            ALOGE ("%s: NFA_SNEP_PUT_RESP_EVT - can't find SNEP client, mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-        }
-        else
-        {
-            ALOGD ("%s  NFA_SNEP_PUT_RESP_EVT  mJniHandleSendingNppViaSnep: %u  Result: 0x%X", fn, sP2p.mJniHandleSendingNppViaSnep, eventData->put_resp.resp_code);
-
-            pClient->mIsSnepSentOk = (eventData->put_resp.resp_code == NFA_SNEP_RESP_CODE_SUCCESS);
-
-            NFA_SnepDisconnect (eventData->put_resp.conn_handle, FALSE);
-
-            SyncEventGuard guard (pClient->mSnepEvent);
-            pClient->mSnepEvent.notifyOne();
-        }
-        break;
-
-    case NFA_SNEP_DISC_EVT:
-        if ((pClient = sP2p.findClient (sP2p.mJniHandleSendingNppViaSnep)) == NULL)
-        {
-            ALOGE ("%s: NFA_SNEP_DISC_EVT - can't find SNEP client, mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-        }
-        else
-        {
-            ALOGD ("%s  NFA_SNEP_DISC_EVT  mJniHandleSendingNppViaSnep: %u", fn, sP2p.mJniHandleSendingNppViaSnep);
-            SyncEventGuard guard (pClient->mSnepEvent);
-            pClient->mSnepConnHandle = NFA_HANDLE_INVALID;
-            pClient->mSnepEvent.notifyOne();
-        }
-        break;
-
-    case NFA_SNEP_DEFAULT_SERVER_STARTED_EVT:
-        {
-            ALOGE ("%s: NFA_SNEP_DEFAULT_SERVER_STARTED_EVT", fn);
-            SyncEventGuard guard (sP2p.mSnepDefaultServerStartStopEvent);
-            sP2p.mSnepDefaultServerStartStopEvent.notifyOne(); //unblock NFA_SnepStartDefaultServer()
-            break;
-        }
-
-    case NFA_SNEP_DEFAULT_SERVER_STOPPED_EVT:
-        {
-            ALOGE ("%s: NFA_SNEP_DEFAULT_SERVER_STOPPED_EVT", fn);
-            SyncEventGuard guard (sP2p.mSnepDefaultServerStartStopEvent);
-            sP2p.mSnepDefaultServerStartStopEvent.notifyOne(); //unblock NFA_SnepStopDefaultServer()
-            break;
-        }
-        break;
-
-    default:
-        ALOGE ("%s UNKNOWN EVENT: 0x%04x  mJniHandleSendingNppViaSnep: %u", fn, snepEvent, sP2p.mJniHandleSendingNppViaSnep);
-        break;
-    }
-}
-
-
-/*******************************************************************************
-**
-** Function:        ndefTypeCallback
-**
-** Description:     Receive NDEF-related events from the stack.
-**                  ndefEvent: Event code.
-**                  eventData: Event data.
-**
-** Returns:         None
-**
-*******************************************************************************/
-void PeerToPeer::ndefTypeCallback (tNFA_NDEF_EVT ndefEvent, tNFA_NDEF_EVT_DATA *eventData)
-{
-    static const char fn [] = "PeerToPeer::ndefTypeCallback";
-    P2pServer *pSvr = NULL;
-
-    if (ndefEvent == NFA_NDEF_REGISTER_EVT)
-    {
-        tNFA_NDEF_REGISTER& ndef_reg = eventData->ndef_reg;
-        ALOGD ("%s  NFA_NDEF_REGISTER_EVT  Status: %u; h=0x%X", fn, ndef_reg.status, ndef_reg.ndef_type_handle);
-        sP2p.mNdefTypeHandlerHandle = ndef_reg.ndef_type_handle;
-    }
-    else if (ndefEvent == NFA_NDEF_DATA_EVT)
-    {
-        ALOGD ("%s  NFA_NDEF_DATA_EVT  Len: %lu", fn, eventData->ndef_data.len);
-
-        if (sP2p.mRcvFakeNppJniHandle != 0)
-        {
-            ALOGE ("%s  Got NDEF Data while busy, mRcvFakeNppJniHandle: %u", fn, sP2p.mRcvFakeNppJniHandle);
-            return;
-        }
-
-        if ((pSvr = sP2p.findServer ("com.android.npp")) == NULL)
-        {
-            ALOGE ("%s  Got NDEF Data but no NPP server listening", fn);
-            return;
-        }
-
-        if ((sP2p.mNppFakeOutBuffer = (UINT8 *)malloc(eventData->ndef_data.len + 10)) == NULL)
-        {
-            ALOGE ("%s  failed to malloc: %lu bytes", fn, eventData->ndef_data.len + 10);
-            return;
-        }
-
-        sP2p.mNppFakeOutBuffer[0] = 0x01;
-        sP2p.mNppFakeOutBuffer[1] = 0x00;
-        sP2p.mNppFakeOutBuffer[2] = 0x00;
-        sP2p.mNppFakeOutBuffer[3] = 0x00;
-        sP2p.mNppFakeOutBuffer[4] = 0x01;
-        sP2p.mNppFakeOutBuffer[5] = 0x01;
-        sP2p.mNppFakeOutBuffer[6] = (UINT8)(eventData->ndef_data.len >> 24);
-        sP2p.mNppFakeOutBuffer[7] = (UINT8)(eventData->ndef_data.len >> 16);
-        sP2p.mNppFakeOutBuffer[8] = (UINT8)(eventData->ndef_data.len >> 8);
-        sP2p.mNppFakeOutBuffer[9] = (UINT8)(eventData->ndef_data.len);
-
-        memcpy (&sP2p.mNppFakeOutBuffer[10], eventData->ndef_data.p_data, eventData->ndef_data.len);
-
-        ALOGD ("%s  NFA_NDEF_DATA_EVT  Faking NPP on Server Handle: %u", fn, pSvr->mJniHandle);
-
-        sP2p.mRcvFakeNppJniHandle = pSvr->mJniHandle;
-        sP2p.mNppTotalLen         = eventData->ndef_data.len + 10;
-        sP2p.mNppReadSoFar        = 0;
-        {
-            SyncEventGuard guard (pSvr->mConnRequestEvent);
-            pSvr->mConnRequestEvent.notifyOne();
-        }
-    }
-    else
-    {
-        ALOGE ("%s UNKNOWN EVENT: 0x%X", fn, ndefEvent);
-    }
-
-}
-
-
-/*******************************************************************************
-**
 ** Function:        connectionEventHandler
 **
 ** Description:     Receive events from the stack.
@@ -2087,12 +1689,7 @@ NfaConn *P2pServer::findServerConnection (tNFA_HANDLE nfaConnHandle)
 *******************************************************************************/
 P2pClient::P2pClient ()
 :   mNfaP2pClientHandle (NFA_HANDLE_INVALID),
-    mIsConnecting (false),
-    mSnepConnHandle (NFA_HANDLE_INVALID),
-    mSnepNdefMsgLen (0),
-    mSnepNdefBufLen (0),
-    mSnepNdefBuf (NULL),
-    mIsSnepSentOk (false)
+    mIsConnecting (false)
 {
 }
 
@@ -2108,8 +1705,6 @@ P2pClient::P2pClient ()
 *******************************************************************************/
 P2pClient::~P2pClient ()
 {
-    if (mSnepNdefBuf)
-        free (mSnepNdefBuf);
 }
 
 
