@@ -870,6 +870,18 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
         }
 
         ALOGD ("%s: response %d bytes", __FUNCTION__, sTransceiveDataLen);
+
+        if ((natTag.getProtocol () == NFA_PROTOCOL_T2T) &&
+            natTag.isT2tNackResponse (sTransceiveData, sTransceiveDataLen))
+        {
+            if (targetLost)
+            {
+                ALOGD ("%s: t2t nack", __FUNCTION__);
+                *targetLost = 1; //causes NFC service to throw TagLostException
+            }
+            break;
+        }
+
         if (sTransceiveDataLen)
         {
             // marshall data to java for return
