@@ -741,6 +741,10 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 if (!GetNumValue(NAME_NFA_DM_MULTI_TECH_RESP, &num, sizeof(num)) || (num != 0))
                      NFA_SetMultiTechRsp(TRUE);
 
+                // if this value exists, set polling interval.
+                if (GetNumValue(NAME_NFA_DM_DISC_DURATION_POLL, &num, sizeof(num)))
+                    NFA_SetRfDiscoveryDuration(num);
+
                 // Do custom NFCA startup configuration.
                 doStartupConfig();
                 goto TheEnd;
