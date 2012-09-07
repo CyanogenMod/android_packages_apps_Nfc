@@ -390,8 +390,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
 
                 Intent viewIntent = buildViewIntent();
-                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent,
-                        Intent.FLAG_ACTIVITY_NEW_TASK);
+                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
 
                 notBuilder.setContentIntent(contentIntent);
 
@@ -538,7 +537,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
             Uri uri =  mediaUri != null ? mediaUri :
                 Uri.parse(ContentResolver.SCHEME_FILE + "://" + filePath);
             viewIntent.setDataAndTypeAndNormalize(uri, mimeTypes.get(filePath));
-
+            viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             return viewIntent;
         }
 
