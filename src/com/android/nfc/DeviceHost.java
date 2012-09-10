@@ -179,14 +179,6 @@ public interface DeviceHost {
 
     public void disableDiscovery();
 
-    public void enableCE_A();
-
-    public void disableCE_A();
-
-    public void enableCE_B();
-
-    public void disableCE_B();
-
     public int[] doGetSecureElementList();
 
     public void doSelectSecureElement();
