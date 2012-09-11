@@ -36,6 +36,7 @@ bool gUseStaticPipe = false;    // if true, use gGatePipe as static pipe id.  if
 
 
 SecureElement SecureElement::sSecElem;
+const char* SecureElement::APP_NAME = "nfc_jni";
 
 
 /*******************************************************************************
@@ -184,7 +185,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
             SyncEventGuard guard (mHciRegisterEvent);
 
-            nfaStat = NFA_HciRegister (const_cast<char*>("nfc_jni"), nfaHciCallback, TRUE);
+            nfaStat = NFA_HciRegister (const_cast<char*>(APP_NAME), nfaHciCallback, TRUE);
             if (nfaStat != NFA_STATUS_OK)
             {
                 ALOGE ("%s: fail hci register; error=0x%X", fn, nfaStat);
@@ -223,7 +224,7 @@ void SecureElement::finalize ()
     NFA_EeDeregister (nfaEeCallback);
 
     if (mNfaHciHandle != NFA_HANDLE_INVALID)
-        NFA_HciDeregister (const_cast<char*>("brcm_jni"));
+        NFA_HciDeregister (const_cast<char*>(APP_NAME));
 
     mNfaHciHandle = NFA_HANDLE_INVALID;
     mNativeData   = NULL;

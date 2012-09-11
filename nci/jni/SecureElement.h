@@ -347,6 +347,7 @@ private:
     static const tNFA_HANDLE EE_HANDLE_0xF3 = 0x4F3; //handle to secure element in slot 0
     static const tNFA_HANDLE EE_HANDLE_0xF4 = 0x4F4; //handle to secure element in slot 1
     static SecureElement sSecElem;
+    static const char* APP_NAME;
 
     UINT8           mDestinationGate;       //destination gate of the UICC
     tNFA_HANDLE     mNfaHciHandle;          //NFA handle to NFA's HCI component
