@@ -17,7 +17,6 @@
 #include "OverrideLog.h"
 #include "SecureElement.h"
 #include "JavaClassConstants.h"
-#include "nfa_brcm_api.h"
 
 
 namespace android

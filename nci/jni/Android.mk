@@ -30,6 +30,8 @@ LOCAL_C_INCLUDES += \
     $(NFC)/include \
     $(NFC)/brcm \
     $(NFC)/int \
+    $(VOB_COMPONENTS)/hal/include \
+    $(VOB_COMPONENTS)/hal/int \
     $(VOB_COMPONENTS)/include \
     $(VOB_COMPONENTS)/gki/ulinux \
     $(VOB_COMPONENTS)/gki/common

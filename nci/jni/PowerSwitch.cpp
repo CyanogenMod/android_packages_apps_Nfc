@@ -13,7 +13,6 @@
 #include "NfcJniUtil.h"
 #include "config.h"
 #include "SecureElement.h"
-#include "userial.h"
 
 
 namespace android
@@ -226,17 +225,6 @@ bool PowerSwitch::setPowerOffSleepState (bool sleep)
             {
                 mPowerStateEvent.wait ();
                 mCurrLevel = LOW_POWER;
-                ALOGD ("%s: wait for userial close", fn);
-                int count = 0;
-                while (USERIAL_IsClosed() == FALSE)
-                {
-                    //must wait for userial to close completely;
-                    //otherwise there is a race condition when the next operation
-                    //wants to go to full-power again;
-                    count++;
-                    usleep (5000); //5 milliseconds = 5 000 microseconds
-                }
-                ALOGD ("%s: userial close ok; count=%d", fn, count);
             }
             else
             {
