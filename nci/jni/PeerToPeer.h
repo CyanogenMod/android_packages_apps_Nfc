@@ -9,6 +9,8 @@
 **
 *****************************************************************************/
 #pragma once
+#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
 #include "SyncEvent.h"
 #include "NfcJniUtil.h"
 #include <string>
@@ -23,7 +25,6 @@ class P2pClient;
 class NfaConn;
 #define MAX_NFA_CONNS_PER_SERVER    5
 
-
 /*****************************************************************************
 **
 **  Name:           PeerToPeer
@@ -35,7 +36,6 @@ class PeerToPeer
 {
 public:
     typedef unsigned int tJNI_HANDLE;
-
 
     /*******************************************************************************
     **
@@ -331,26 +331,6 @@ public:
     *******************************************************************************/
     tJNI_HANDLE getNewJniHandle ();
 
-
-private:
-    static const int sMax = 10;
-    static PeerToPeer sP2p;
-    static const std::string sSnepServiceName;
-    static const std::string sNppServiceName;
-    UINT16          mRemoteWKS;                 // Peer's well known services
-    bool            mIsP2pListening;            // If P2P listening is enabled or not
-    tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask
-    tJNI_HANDLE     mNextJniHandle;
-
-    P2pServer       *mServers [sMax];
-    P2pClient       *mClients [sMax];
-    SyncEvent       mSetTechEvent;              // completion event for NFA_SetP2pListenTech()
-    SyncEvent       mSnepDefaultServerStartStopEvent; // completion event for NFA_SnepStartDefaultServer(), NFA_SnepStopDefaultServer()
-    SyncEvent       mSnepRegisterEvent;         // completion event for NFA_SnepRegisterClient()
-    Mutex           mDisconnectMutex;           // synchronize the disconnect operation
-    Mutex           mNewJniHandleMutex;         // synchronize the creation of a new JNI handle
-
-
     /*******************************************************************************
     **
     ** Function:        nfaServerCallback
@@ -378,6 +358,31 @@ private:
     *******************************************************************************/
     static void nfaClientCallback  (tNFA_P2P_EVT p2pEvent, tNFA_P2P_EVT_DATA *eventData);
 
+private:
+    static const int sMax = 10;
+    static PeerToPeer sP2p;
+
+    // Variables below only accessed from a single thread
+    UINT16          mRemoteWKS;                 // Peer's well known services
+    bool            mIsP2pListening;            // If P2P listening is enabled or not
+    tNFA_TECHNOLOGY_MASK    mP2pListenTechMask; // P2P Listen mask
+
+    // Variable below is protected by mNewJniHandleMutex
+    tJNI_HANDLE     mNextJniHandle;
+
+    // Variables below protected by mMutex
+    // A note on locking order: mMutex in PeerToPeer is *ALWAYS*
+    // locked before any locks / guards in P2pServer / P2pClient
+    Mutex                    mMutex;
+    android::sp<P2pServer>   mServers [sMax];
+    android::sp<P2pClient>   mClients [sMax];
+
+    // Synchronization variables
+    SyncEvent       mSetTechEvent;              // completion event for NFA_SetP2pListenTech()
+    SyncEvent       mSnepDefaultServerStartStopEvent; // completion event for NFA_SnepStartDefaultServer(), NFA_SnepStopDefaultServer()
+    SyncEvent       mSnepRegisterEvent;         // completion event for NFA_SnepRegisterClient()
+    Mutex           mDisconnectMutex;           // synchronize the disconnect operation
+    Mutex           mNewJniHandleMutex;         // synchronize the creation of a new JNI handle
 
     /*******************************************************************************
     **
@@ -417,7 +422,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pServer   *findServer (tNFA_HANDLE nfaP2pServerHandle);
+    android::sp<P2pServer>   findServerLocked (tNFA_HANDLE nfaP2pServerHandle);
 
 
     /*******************************************************************************
@@ -430,7 +435,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pServer   *findServer (tJNI_HANDLE jniHandle);
+    android::sp<P2pServer>   findServerLocked (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -443,7 +448,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pServer   *findServer (const char *serviceName);
+    android::sp<P2pServer>   findServerLocked (const char *serviceName);
 
 
     /*******************************************************************************
@@ -497,7 +502,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pClient   *findClient (tNFA_HANDLE nfaConnHandle);
+    android::sp<P2pClient>   findClient (tNFA_HANDLE nfaConnHandle);
 
 
     /*******************************************************************************
@@ -510,7 +515,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pClient   *findClient (tJNI_HANDLE jniHandle);
+    android::sp<P2pClient>   findClient (tJNI_HANDLE jniHandle);
 
 
     /*******************************************************************************
@@ -523,7 +528,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    P2pClient   *findClientCon (tNFA_HANDLE nfaConnHandle);
+    android::sp<P2pClient>   findClientCon (tNFA_HANDLE nfaConnHandle);
 
 
     /*******************************************************************************
@@ -536,7 +541,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    NfaConn     *findConnection (tNFA_HANDLE nfaConnHandle);
+    android::sp<NfaConn>     findConnection (tNFA_HANDLE nfaConnHandle);
 
 
     /*******************************************************************************
@@ -549,7 +554,7 @@ private:
     ** Returns:         PeerToPeer object.
     **
     *******************************************************************************/
-    NfaConn     *findConnection (tJNI_HANDLE jniHandle);
+    android::sp<NfaConn>     findConnection (tJNI_HANDLE jniHandle);
 };
 
 
@@ -560,11 +565,11 @@ private:
 **  Description:    Store information about a connection related to a peer.
 **
 *****************************************************************************/
-class NfaConn
+class NfaConn : public android::RefBase
 {
 public:
     tNFA_HANDLE         mNfaConnHandle;         // NFA handle of the P2P connection
-    PeerToPeer::tJNI_HANDLE mJniHandle;             // JNI handle of the P2P connection
+    PeerToPeer::tJNI_HANDLE         mJniHandle;             // JNI handle of the P2P connection
     UINT16              mMaxInfoUnit;
     UINT8               mRecvWindow;
     UINT16              mRemoteMaxInfoUnit;
@@ -594,15 +599,16 @@ public:
 **  Description:    Store information about an in-bound connection from a peer.
 **
 *****************************************************************************/
-class P2pServer
+class P2pServer : public android::RefBase
 {
 public:
+    static const std::string sSnepServiceName;
+
     tNFA_HANDLE     mNfaP2pServerHandle;    // NFA p2p handle of local server
-    PeerToPeer::tJNI_HANDLE mJniHandle;            // JNI Handle
+    PeerToPeer::tJNI_HANDLE     mJniHandle;     // JNI Handle
     SyncEvent       mRegServerEvent;        // for NFA_P2pRegisterServer()
     SyncEvent       mConnRequestEvent;      // for accept()
     std::string     mServiceName;
-    NfaConn         *mServerConn[MAX_NFA_CONNS_PER_SERVER];
 
     /*******************************************************************************
     **
@@ -613,8 +619,45 @@ public:
     ** Returns:         None
     **
     *******************************************************************************/
-    P2pServer ();
+    P2pServer (PeerToPeer::tJNI_HANDLE jniHandle, const char* serviceName);
 
+    /*******************************************************************************
+    **
+    ** Function:        registerWithStack
+    **
+    ** Description:     Register this server with the stack.
+    **
+    ** Returns:         True if ok.
+    **
+    *******************************************************************************/
+    bool registerWithStack();
+
+    /*******************************************************************************
+    **
+    ** Function:        accept
+    **
+    ** Description:     Accept a peer's request to connect.
+    **                  serverJniHandle: Server's handle.
+    **                  connJniHandle: Connection handle.
+    **                  maxInfoUnit: Maximum information unit.
+    **                  recvWindow: Receive window size.
+    **
+    ** Returns:         True if ok.
+    **
+    *******************************************************************************/
+    bool accept (PeerToPeer::tJNI_HANDLE serverJniHandle, PeerToPeer::tJNI_HANDLE connJniHandle,
+            int maxInfoUnit, int recvWindow);
+
+    /*******************************************************************************
+    **
+    ** Function:        unblockAll
+    **
+    ** Description:     Unblocks all server connections
+    **
+    ** Returns:         True if ok.
+    **
+    *******************************************************************************/
+    void unblockAll();
 
     /*******************************************************************************
     **
@@ -626,7 +669,49 @@ public:
     ** Returns:         P2pServer object.
     **
     *******************************************************************************/
-    NfaConn *findServerConnection (tNFA_HANDLE nfaConnHandle);
+    android::sp<NfaConn> findServerConnection (tNFA_HANDLE nfaConnHandle);
+
+    /*******************************************************************************
+    **
+    ** Function:        findServerConnection
+    **
+    ** Description:     Find a P2pServer that has the handle.
+    **                  jniHandle: JNI connection handle.
+    **
+    ** Returns:         P2pServer object.
+    **
+    *******************************************************************************/
+    android::sp<NfaConn> findServerConnection (PeerToPeer::tJNI_HANDLE jniHandle);
+
+    /*******************************************************************************
+    **
+    ** Function:        removeServerConnection
+    **
+    ** Description:     Remove a server connection with the provided handle.
+    **                  jniHandle: JNI connection handle.
+    **
+    ** Returns:         True if connection found and removed.
+    **
+    *******************************************************************************/
+    bool removeServerConnection(PeerToPeer::tJNI_HANDLE jniHandle);
+
+private:
+    Mutex           mMutex;
+    // mServerConn is protected by mMutex
+    android::sp<NfaConn>     mServerConn[MAX_NFA_CONNS_PER_SERVER];
+
+    /*******************************************************************************
+    **
+    ** Function:        allocateConnection
+    **
+    ** Description:     Allocate a new connection to accept on
+    **                  jniHandle: JNI connection handle.
+    **
+    ** Returns:         Allocated connection object
+    **                  NULL if the maximum number of connections was reached
+    **
+    *******************************************************************************/
+    android::sp<NfaConn> allocateConnection (PeerToPeer::tJNI_HANDLE jniHandle);
 };
 
 
@@ -637,15 +722,15 @@ public:
 **  Description:    Store information about an out-bound connection to a peer.
 **
 *****************************************************************************/
-class P2pClient
+class P2pClient : public android::RefBase
 {
 public:
-    tNFA_HANDLE         mNfaP2pClientHandle;    // NFA p2p handle of client
-    bool                mIsConnecting;          // Set true while connecting
-    NfaConn             mClientConn;
-    SyncEvent           mRegisteringEvent;      // For client registration
-    SyncEvent           mConnectingEvent;       // for NFA_P2pConnectByName or Sap()
-    SyncEvent           mSnepEvent;             // To wait for SNEP completion
+    tNFA_HANDLE           mNfaP2pClientHandle;    // NFA p2p handle of client
+    bool                  mIsConnecting;          // Set true while connecting
+    android::sp<NfaConn>  mClientConn;
+    SyncEvent             mRegisteringEvent;      // For client registration
+    SyncEvent             mConnectingEvent;       // for NFA_P2pConnectByName or Sap()
+    SyncEvent             mSnepEvent;             // To wait for SNEP completion
 
     /*******************************************************************************
     **
@@ -669,5 +754,17 @@ public:
     **
     *******************************************************************************/
     ~P2pClient ();
+
+
+    /*******************************************************************************
+    **
+    ** Function:        unblock
+    **
+    ** Description:     Unblocks any threads that are locked on this connection
+    **
+    ** Returns:         None
+    **
+    *******************************************************************************/
+    void unblock();
 };
 

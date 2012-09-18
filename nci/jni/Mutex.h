@@ -87,7 +87,18 @@ public:
     *******************************************************************************/
     pthread_mutex_t* nativeHandle ();
 
+    class Autolock {
+        public:
+            inline Autolock(Mutex& mutex) : mLock(mutex)  { mLock.lock(); }
+            inline Autolock(Mutex* mutex) : mLock(*mutex) { mLock.lock(); }
+            inline ~Autolock() { mLock.unlock(); }
+        private:
+            Mutex& mLock;
+    };
+
+
 private:
     pthread_mutex_t mMutex;
 };
 
+typedef Mutex::Autolock AutoMutex;

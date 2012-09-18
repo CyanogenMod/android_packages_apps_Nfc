@@ -25,6 +25,7 @@ LOCAL_C_INCLUDES += \
     external/stlport/stlport \
     external/libxml2/include \
     external/icu4c/common \
+    frameworks/native/include \
     $(NFA)/include \
     $(NFA)/brcm \
     $(NFC)/include \
