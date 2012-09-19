@@ -187,9 +187,8 @@ public class NfcService extends Application implements DeviceHostListener {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mRoutingWakeLock;
-    private PowerManager.WakeLock mOpenWakeLock;
-    private PowerManager.WakeLock mDisconnectWakeLock;
-    private PowerManager.WakeLock mTransceiveWakeLock;
+    private PowerManager.WakeLock mEeWakeLock;
+
     int mStartSound;
     int mEndSound;
     int mErrorSound;
@@ -323,16 +322,10 @@ public class NfcService extends Application implements DeviceHostListener {
 
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-        // TODO(mikey|maco): consolidate as a single wakelock when individual
-        // stats are no longer useful.
         mRoutingWakeLock = mPowerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mRoutingWakeLock");
-        mOpenWakeLock = mPowerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mOpenWakeLock");
-        mDisconnectWakeLock = mPowerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mDisconnectWakeLock");
-        mTransceiveWakeLock = mPowerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mTransceiveWakeLock");
+        mEeWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mEeWakeLock");
 
         mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         mScreenState = checkScreenState();
@@ -417,20 +410,20 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     int doOpenSecureElementConnection() {
-        mOpenWakeLock.acquire();
+        mEeWakeLock.acquire();
         try {
             return mSecureElement.doOpenSecureElementConnection();
         } finally {
-            mOpenWakeLock.release();
+            mEeWakeLock.release();
         }
     }
 
     byte[] doTransceive(int handle, byte[] cmd) {
-        mTransceiveWakeLock.acquire();
+        mEeWakeLock.acquire();
         try {
             return doTransceiveNoLock(handle, cmd);
         } finally {
-            mTransceiveWakeLock.release();
+            mEeWakeLock.release();
         }
     }
 
@@ -439,11 +432,11 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     void doDisconnect(int handle) {
-        mDisconnectWakeLock.acquire();
+        mEeWakeLock.acquire();
         try {
             mSecureElement.doDisconnect(handle);
         } finally {
-            mDisconnectWakeLock.release();
+            mEeWakeLock.release();
         }
     }
 
@@ -640,7 +633,7 @@ public class NfcService extends Application implements DeviceHostListener {
             }
 
             try {
-                mTransceiveWakeLock.acquire();
+                mEeWakeLock.acquire();
                 try {
                     mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
 
@@ -654,7 +647,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
                     mDeviceHost.resetTimeouts();
                 } finally {
-                    mTransceiveWakeLock.release();
+                    mEeWakeLock.release();
                 }
             } finally {
                 doDisconnect(handle);
