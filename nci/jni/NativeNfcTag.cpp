@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2011 Android Open Source Project
- * Copyright (C) 2012 Broadcom Corporation
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -798,22 +797,6 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
     }
 
     NfcTag& natTag = NfcTag::getInstance ();
-    if (natTag.mNumTechList >= 2 && natTag.mTechList[0] == TARGET_TYPE_ISO14443_3A)
-    {
-        if (natTag.mTechList[1] == TARGET_TYPE_MIFARE_CLASSIC)
-        {
-            // MifareClassic tag, we do not support transceive for this
-            if (statusTargetLost)
-            {
-                targetLost = e->GetIntArrayElements (statusTargetLost, 0);
-                if (targetLost)
-                    *targetLost = 2; //causes NFC service to throw IOException
-                e->ReleaseIntArrayElements (statusTargetLost, targetLost, 0);
-            }
-            ALOGD ("%s: transceive not supported for MifareClassic tag", __FUNCTION__);
-            return NULL;
-        }
-    }
 
     // get input buffer and length from java call
     buf = (uint8_t *) e->GetByteArrayElements (data, NULL);
