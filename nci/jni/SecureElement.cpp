@@ -16,8 +16,6 @@
 #include "config.h"
 #include "PowerSwitch.h"
 #include "HostAidRouter.h"
-#include "nfa_vs_brcm_api.h"
-#include "nfa_brcm_api.h"
 #include "JavaClassConstants.h"
 
 

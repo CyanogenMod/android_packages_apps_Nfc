@@ -32,17 +32,16 @@ extern "C"
 {
     #include "nfa_api.h"
     #include "nfa_p2p_api.h"
-    #include "nfa_dta_api.h"
     #include "rw_api.h"
     #include "nfa_ee_api.h"
-    #include "nfa_brcm_api.h"
+    #include "nfc_brcm_defs.h"
     #include "nfa_cho_api.h"
+    #include "ce_api.h"
 }
 
 extern UINT8 *p_nfa_dm_lptd_cfg;
 extern UINT8 *p_nfa_dm_start_up_cfg;
 extern const UINT8 nfca_version_string [];
-extern "C" void downloadFirmwarePatchFile (UINT32 brcm_hw_id);
 namespace android
 {
     extern bool gIsTagDeactivating;
@@ -106,7 +105,6 @@ static SyncEvent            sNfaEnableEvent;  //event for NFA_Enable()
 static SyncEvent            sNfaDisableEvent;  //event for NFA_Disable()
 static SyncEvent            sNfaEnableDisablePollingEvent;  //event for NFA_EnablePolling(), NFA_DisablePolling()
 static SyncEvent            sNfaSetConfigEvent;  // event for Set_Config....
-static SyncEvent            sNfaBuildInfoEvent;
 static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
@@ -133,7 +131,6 @@ static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
 static void startRfDiscovery (bool isStart);
-static void nfaBrcmInitCallback (UINT32 brcm_hw_id, UINT8 nvm_type);
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
@@ -616,19 +613,6 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
         PowerSwitch::getInstance ().deviceManagementCallback (dmEvent, eventData);
         break;
 
-    case NFA_DM_FIRMWARE_BUILD_INFO_EVT:
-        {
-            tNFA_BRCM_FW_BUILD_INFO* bldInfo =
-                    (tNFA_BRCM_FW_BUILD_INFO*) eventData->p_vs_evt_data;
-            if (bldInfo != NULL) {
-                ALOGE("BCM2079x NFC FW version %d.%d", bldInfo->patch.major_ver,
-                        bldInfo->patch.minor_ver);
-            }
-            SyncEventGuard versionGuard (sNfaBuildInfoEvent);
-            sNfaBuildInfoEvent.notifyOne();
-        }
-        break;
-
     default:
         ALOGD ("%s: unhandled event", __FUNCTION__);
         break;
@@ -662,24 +646,15 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
 
     {
         unsigned long num = 0;
-        tBRCM_DEV_INIT_CONFIG devInitConfig;
 
-        memset (&devInitConfig, 0, sizeof(devInitConfig));
         NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
         theInstance.Initialize(); //start GKI, NCI task, NFC task
 
         {
             SyncEventGuard guard (sNfaEnableEvent);
-            NFA_Init();
+            tHAL_NFC_ENTRY* halFuncEntries = theInstance.GetHalEntryFuncs ();
 
-            // Initialize the Crystal Frequency if configured.
-            if (GetNumValue((char*)NAME_XTAL_FREQUENCY, &devInitConfig.xtal_freq, sizeof(devInitConfig.xtal_freq)))
-            {
-                ALOGD("%s: setting XTAL Frequency=%d", __FUNCTION__, devInitConfig.xtal_freq);
-                devInitConfig.flags |= BRCM_DEV_INIT_FLAGS_SET_XTAL_FREQ;
-            }
-
-            NFA_BrcmInit (&devInitConfig, nfaBrcmInitCallback);
+            NFA_Init (halFuncEntries);
 
             stat = NFA_Enable (nfaDeviceManagementCallback, nfaConnectionCallback);
             if (stat == NFA_STATUS_OK)
@@ -688,7 +663,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 CE_SetTraceLevel (num);
                 LLCP_SetTraceLevel (num);
                 NFC_SetTraceLevel (num);
-                NCI_SetTraceLevel (num);
                 RW_SetTraceLevel (num);
                 NFA_SetTraceLevel (num);
                 NFA_ChoSetTraceLevel (num);
@@ -703,14 +677,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
             //sIsNfaEnabled indicates whether stack started successfully
             if (sIsNfaEnabled)
             {
-                {
-                    SyncEventGuard versionGuard (sNfaBuildInfoEvent);
-                    stat = NFA_BrcmGetFirmwareBuildInfo();
-                    if (stat == NFA_STATUS_OK) {
-                        sNfaBuildInfoEvent.wait();
-                    }
-                }
-
                 SecureElement::getInstance().initialize (getNative(e, o));
                 nativeNfcTag_registerNdefTypeHandler ();
                 NfcTag::getInstance().initialize (getNative(e, o));
@@ -735,11 +701,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 // Always restore LPTD Configuration to the stack default.
                 if (sOriginalLptdCfg != NULL)
                     p_nfa_dm_lptd_cfg = sOriginalLptdCfg;
-
-
-                // if this value is not set or set and non-zero, enable multi-technology responses.
-                if (!GetNumValue(NAME_NFA_DM_MULTI_TECH_RESP, &num, sizeof(num)) || (num != 0))
-                     NFA_SetMultiTechRsp(TRUE);
 
                 // if this value exists, set polling interval.
                 if (GetNumValue(NAME_NFA_DM_DISC_DURATION_POLL, &num, sizeof(num)))
@@ -1713,24 +1674,6 @@ void doStartupConfig()
 bool nfcManager_isNfcActive()
 {
     return sIsNfaEnabled;
-}
-
-
-/*******************************************************************************
-**
-** Function:        nfaBrcmInitCallback
-**
-** Description:     Callback function for application to start device initialization.
-**                  When platform-specific initialization is completed,
-**                  NCI_BrcmDevInitDone() must be called to proceed with stack start up.
-**
-** Returns:         None.
-**
-*******************************************************************************/
-void nfaBrcmInitCallback (UINT32 brcm_hw_id, UINT8 nvm_type)
-{
-    ALOGD ("%s: enter; brcm_hw_id=0x%lX; nvm_type=0x%X", __FUNCTION__, brcm_hw_id, nvm_type);
-    downloadFirmwarePatchFile (brcm_hw_id);
 }
 
 
