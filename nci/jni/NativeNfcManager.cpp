@@ -26,6 +26,7 @@
 #include "config.h"
 #include "PowerSwitch.h"
 #include "JavaClassConstants.h"
+#include "Pn544Interop.h"
 
 extern "C"
 {
@@ -85,6 +86,7 @@ namespace android
     const char*             gNativeNfcManagerClassName                = "com/android/nfc/dhimpl/NativeNfcManager";
     const char*             gNativeNfcSecureElementClassName          = "com/android/nfc/dhimpl/NativeNfcSecureElement";
     void                    doStartupConfig ();
+    void                    startStopPolling (bool isStartPolling);
 }
 
 
@@ -284,6 +286,7 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
 
     case NFA_ACTIVATED_EVT: // NFC link/protocol activated
         ALOGD("%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d", __FUNCTION__, gIsSelectingRfInterface);
+        NfcTag::getInstance().setActivationState ();
         if (gIsSelectingRfInterface)
         {
             nativeNfcTag_doConnectStatus(true);
@@ -294,13 +297,14 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         if (isPeerToPeer(eventData->activated))
         {
             ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
-            break;
         }
-        NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
+        else if (pn544InteropIsBusy() == false)
+            NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
         break;
 
     case NFA_DEACTIVATED_EVT: // NFC link/protocol deactivated
         ALOGD("%s: NFA_DEACTIVATED_EVT   Type: %u, gIsTagDeactivating: %d", __FUNCTION__, eventData->deactivated.type,gIsTagDeactivating);
+        NfcTag::getInstance().setDeactivationState (eventData->deactivated);
         if (gIsTagDeactivating || gIsSelectingRfInterface)
         {
             if (gIsTagDeactivating)
@@ -333,6 +337,7 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
              status,
              eventData->ndef_detect.protocol, eventData->ndef_detect.max_size,
              eventData->ndef_detect.cur_size, eventData->ndef_detect.flags);
+        NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
         nativeNfcTag_doCheckNdefResult(status,
             eventData->ndef_detect.max_size, eventData->ndef_detect.cur_size,
             eventData->ndef_detect.flags);
@@ -768,7 +773,7 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
         {
             ALOGD ("%s: wait for enable event", __FUNCTION__);
             sDiscoveryEnabled = true;
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_START_EVT
+            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
             ALOGD ("%s: got enabled event", __FUNCTION__);
         }
         else
@@ -811,6 +816,7 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
     tNFA_STATUS status = NFA_STATUS_OK;
     ALOGD ("%s: enter;", __FUNCTION__);
 
+    pn544InteropAbortNow ();
     if (sDiscoveryEnabled == false)
     {
         ALOGD ("%s: already disabled", __FUNCTION__);
@@ -827,7 +833,7 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
         if (status == NFA_STATUS_OK)
         {
             sDiscoveryEnabled = false;
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_STOP_EVT
+            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
         }
         else
             ALOGE ("%s: Failed to disable polling; error=0x%X", __FUNCTION__, status);
@@ -995,7 +1001,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv* e, jobject o)
     ALOGD ("%s: enter", __FUNCTION__);
 
     sIsDisabling = true;
-
+    pn544InteropAbortNow ();
     SecureElement::getInstance().finalize ();
 
     if (sIsNfaEnabled)
@@ -1674,6 +1680,57 @@ void doStartupConfig()
 bool nfcManager_isNfcActive()
 {
     return sIsNfaEnabled;
+}
+
+
+/*******************************************************************************
+**
+** Function:        startStopPolling
+**
+** Description:     Start or stop polling.
+**                  isStartPolling: true to start polling; false to stop polling.
+**
+** Returns:         None.
+**
+*******************************************************************************/
+void startStopPolling (bool isStartPolling)
+{
+    ALOGD ("%s: enter; isStart=%u", __FUNCTION__, isStartPolling);
+    tNFA_STATUS stat = NFA_STATUS_FAILED;
+
+    startRfDiscovery (false);
+    if (isStartPolling)
+    {
+        tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
+        unsigned long num = 0;
+        if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
+            tech_mask = num;
+
+        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
+        ALOGD ("%s: enable polling", __FUNCTION__);
+        stat = NFA_EnablePolling (tech_mask);
+        if (stat == NFA_STATUS_OK)
+        {
+            ALOGD ("%s: wait for enable event", __FUNCTION__);
+            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
+        }
+        else
+            ALOGE ("%s: fail enable polling; error=0x%X", __FUNCTION__, stat);
+    }
+    else
+    {
+        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
+        ALOGD ("%s: disable polling", __FUNCTION__);
+        stat = NFA_DisablePolling ();
+        if (stat == NFA_STATUS_OK)
+        {
+            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
+        }
+        else
+            ALOGE ("%s: fail disable polling; error=0x%X", __FUNCTION__, stat);
+    }
+    startRfDiscovery (true);
+    ALOGD ("%s: exit", __FUNCTION__);
 }
 
 

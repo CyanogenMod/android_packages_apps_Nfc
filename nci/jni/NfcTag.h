@@ -30,6 +30,7 @@ extern "C"
 class NfcTag
 {
 public:
+    enum ActivationState {Idle, Sleep, Active};
     static const int MAX_NUM_TECHNOLOGY = 10; //max number of technologies supported by one or more tags
     int mTechList [MAX_NUM_TECHNOLOGY]; //array of NFC technologies according to NFC service
     int mTechHandles [MAX_NUM_TECHNOLOGY]; //array of tag handles according to NFC service
@@ -100,15 +101,39 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        isActivated
+    ** Function:        getActivationState
     **
-    ** Description:     Is tag activated?
+    ** Description:     What is the current state: Idle, Sleep, or Activated.
     **
-    ** Returns:         True if tag is activated.
+    ** Returns:         Idle, Sleep, or Activated.
     **
     *******************************************************************************/
-    bool isActivated ();
+    ActivationState getActivationState ();
 
+
+    /*******************************************************************************
+    **
+    ** Function:        setDeactivationState
+    **
+    ** Description:     Set the current state: Idle or Sleep.
+    **                  deactivated: state of deactivation.
+    **
+    ** Returns:         None.
+    **
+    *******************************************************************************/
+    void setDeactivationState (tNFA_DEACTIVATED& deactivated);
+
+
+    /*******************************************************************************
+    **
+    ** Function:        setActivationState
+    **
+    ** Description:     Set the current state to Active.
+    **
+    ** Returns:         None.
+    **
+    *******************************************************************************/
+    void setActivationState ();
 
     /*******************************************************************************
     **
@@ -197,15 +222,27 @@ public:
     *******************************************************************************/
     bool isT2tNackResponse (const UINT8* response, UINT32 responseLen);
 
+    /*******************************************************************************
+    **
+    ** Function:        isNdefDetectionTimedOut
+    **
+    ** Description:     Whether NDEF-detection algorithm has timed out.
+    **
+    ** Returns:         True if NDEF-detection algorithm timed out.
+    **
+    *******************************************************************************/
+    bool isNdefDetectionTimedOut ();
+
 private:
     nfc_jni_native_data* mNativeData;
-    bool mIsActivated;
+    ActivationState mActivationState;
     tNFC_PROTOCOL mProtocol;
     int mtT1tMaxMessageSize; //T1T max NDEF message size
     tNFA_STATUS mReadCompletedStatus;
+    int mLastKovioUidLen;   // len of uid of last Kovio tag activated
+    bool mNdefDetectionTimedOut; // whether NDEF detection algorithm timed out
     tNFC_RF_TECH_PARAMS mTechParams [MAX_NUM_TECHNOLOGY]; //array of technology parameters
     SyncEvent mReadCompleteEvent;
-    int mLastKovioUidLen;   // len of uid of last Kovio tag activated
     struct timespec mLastKovioTime; // time of last Kovio tag activation
     UINT8 mLastKovioUid[NFC_KOVIO_MAX_LEN]; // uid of last Kovio tag activated
 
