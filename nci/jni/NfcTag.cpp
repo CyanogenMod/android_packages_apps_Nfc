@@ -1,13 +1,22 @@
-/*****************************************************************************
-**
-**  Name:           NfcTag.cpp
-**
-**  Description:    Tag-reading, tag-writing operations.
-**
-**  Copyright (c) 2012, Broadcom Corp., All Rights Reserved.
-**  Proprietary and confidential.
-**
-*****************************************************************************/
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ *  Tag-reading, tag-writing operations.
+ */
 #include "OverrideLog.h"
 #include "NfcTag.h"
 #include "JavaClassConstants.h"
@@ -249,16 +258,15 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
                 rfDetail.rf_tech_param.param.pa.sel_rsp == 0x18 ||
                 rfDetail.rf_tech_param.param.pa.sel_rsp == 0x08)
             {
-                //Mifare Ultralight or mifare Classic
-		        mNumTechList++;
-                mTechHandles [mNumTechList] = rfDetail.rf_disc_id;
-                mTechLibNfcTypes [mNumTechList] = rfDetail.protocol;
-                //save the stack's data structure for interpretation later
-                memcpy (&(mTechParams[mNumTechList]), &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));
                 if (rfDetail.rf_tech_param.param.pa.sel_rsp == 0)
+                {
+                    mNumTechList++;
+                    mTechHandles [mNumTechList] = rfDetail.rf_disc_id;
+                    mTechLibNfcTypes [mNumTechList] = rfDetail.protocol;
+                    //save the stack's data structure for interpretation later
+                    memcpy (&(mTechParams[mNumTechList]), &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));
                     mTechList [mNumTechList] = TARGET_TYPE_MIFARE_UL; //is TagTechnology.MIFARE_ULTRALIGHT by Java API
-                else
-                    mTechList [mNumTechList] = TARGET_TYPE_MIFARE_CLASSIC; //is TagTechnology.MIFARE_CLASSIC by Java API
+                }
             }
         }
         break;
@@ -357,13 +365,14 @@ void NfcTag::discoverTechnologies (tNFA_DISC_RESULT& discoveryData)
     case NFC_PROTOCOL_T2T:
         mTechList [mNumTechList] = TARGET_TYPE_ISO14443_3A;  //is TagTechnology.NFC_A by Java API
         //type-2 tags are identitical to Mifare Ultralight, so Ultralight is also discovered
-		mNumTechList++;
-        mTechHandles [mNumTechList] = discovery_ntf.rf_disc_id;
-        mTechLibNfcTypes [mNumTechList] = discovery_ntf.protocol;
         if (discovery_ntf.rf_tech_param.param.pa.sel_rsp == 0)
+        {
+            // mifare Ultralight
+            mNumTechList++;
+            mTechHandles [mNumTechList] = discovery_ntf.rf_disc_id;
+            mTechLibNfcTypes [mNumTechList] = discovery_ntf.protocol;
             mTechList [mNumTechList] = TARGET_TYPE_MIFARE_UL; //is TagTechnology.MIFARE_ULTRALIGHT by Java API
-        else
-            mTechList [mNumTechList] = TARGET_TYPE_MIFARE_CLASSIC; //is TagTechnology.MIFARE_CLASSIC by Java API
+        }
 
         //save the stack's data structure for interpretation later
         memcpy (&(mTechParams[mNumTechList]), &(discovery_ntf.rf_tech_param), sizeof(discovery_ntf.rf_tech_param));
