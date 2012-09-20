@@ -1,0 +1,50 @@
+
+Copyright (C) 1999-2012 Broadcom Corporation
+
+This license applies to all underlying Broadcom proprietary code and all
+changes thereto committed to the AOSP on or before the
+commit eec15a2576fe8c6abf986996d6be20ae5b6afcfe ("Proprietary Files").
+
+In addition, this license applies to all Broadcom proprietary code that is NOT
+governed by the Apache License, Version 2.0, unless you originally licensed
+such Broadcom proprietary code under a license from Broadcom ("Broadcom SLA").
+If you have a Broadcom SLA, the terms and conditions of such SLA will continue
+to govern your use of the Broadcom proprietary code, including without
+limitation, the Proprietary Files.
+
+These Proprietary Files are the proprietary software of Broadcom Corporation
+and/or its licensors, and may only be duplicated or distributed (through
+multiple tiers) for internal evaluation purposes ("Authorized License"). Any
+commercial redistribution of the Proprietary Files is strictly prohibited.
+
+Except as set forth in this Authorized License, Broadcom grants no license
+(express or implied), right to use, or waiver of any kind with respect to the
+Authorized Files, and Broadcom expressly reserves all rights in and to the
+Authorized Files and all intellectual property rights therein.
+
+Except as expressly set forth in the Authorized License,
+
+1. These Proprietary Files, including its structure, sequence and organization,
+   constitutes the valuable trade secrets of Broadcom, and you shall use all
+   reasonable efforts to protect the confidentiality thereof, and to use this
+   information only for internal evaluation purposes.
+
+2. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THESE PROPRIETARY FILES ARE PROVIDED
+   "AS IS" AND WITH ALL FAULTS AND BROADCOM MAKES NO PROMISES, REPRESENTATIONS
+   OR WARRANTIES, EITHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, WITH
+   RESPECT TO THE PROPRIETARY FILES.  BROADCOM SPECIFICALLY DISCLAIMS ANY AND
+   ALL IMPLIED WARRANTIES OF TITLE, MERCHANTABILITY, NONINFRINGEMENT, FITNESS
+   FOR A PARTICULAR PURPOSE, LACK OF VIRUSES, ACCURACY OR COMPLETENESS, QUIET
+   ENJOYMENT, QUIET POSSESSION OR CORRESPONDENCE TO DESCRIPTION. YOU ASSUME THE
+   ENTIRE RISK ARISING OUT OF YOUR USE OF THE PROPRIETARY FILES UNDER THE
+   AUTHORIZED LICENSE. IF YOU VIOLATE THE AUTHORIZED LICENSE, THIS LICENSE WILL
+   BE IMMEDIATELY RESCINDED AND TERMINATED.
+
+3. TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL BROADCOM OR ITS
+   LICENSORS BE LIABLE FOR (i) CONSEQUENTIAL, INCIDENTAL, SPECIAL, INDIRECT, OR
+   EXEMPLARY DAMAGES WHATSOEVER ARISING OUT OF OR IN ANY WAY RELATING TO YOUR
+   USE OF OR INABILITY TO USE THE PROPRIETARY FILES EVEN IF BROADCOM HAS BEEN
+   ADVISED OF THE POSSIBILITY OF SUCH DAMAGES; OR (ii) ANY AMOUNT IN EXCESS OF
+   THE AMOUNT ACTUALLY PAID FOR THE PROPRIETARY FILES ITSELF OR U.S. $1,
+   WHICHEVER IS GREATER. THESE LIMITATIONS SHALL APPLY NOTWITHSTANDING ANY
+   FAILURE OF ESSENTIAL PURPOSE OF ANY LIMITED REMEDY.
