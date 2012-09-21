@@ -1924,7 +1924,7 @@ bool SecureElement::routeToDefault ()
 
     if (mCurrentRouteSelection == DefaultRoute)
     {
-        ALOGE ("%s: already default route", fn);
+        ALOGD ("%s: already default route", fn);
         return true;
     }
 
