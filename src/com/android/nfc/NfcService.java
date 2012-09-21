@@ -1420,7 +1420,7 @@ public class NfcService extends Application implements DeviceHostListener {
             synchronized (this) {
                 if (!mWatchDogCanceled) {
                     // Trigger watch-dog
-                    Log.e(TAG, "Watch dog triggered");
+                    Log.e(TAG, "--- NFC controller stuck while applying routing ---");
                     mDeviceHost.doAbort();
                 }
             }
@@ -1840,7 +1840,11 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
                 mScreenState = params[0].intValue();
 
-                mRoutingWakeLock.acquire();
+                // HACK: We've seen applying the routing configuration
+                // getting stuck. The operation should normally easily
+                // complete within a minute, so don't hold the wakelock
+                // any longer than that.
+                mRoutingWakeLock.acquire(60000);
                 try {
                     applyRouting(false);
                 } finally {
