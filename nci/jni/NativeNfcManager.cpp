@@ -720,7 +720,8 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
     }
 
 TheEnd:
-    PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
+    if (sIsNfaEnabled)
+        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
     ALOGD ("%s: exit", __FUNCTION__);
     return sIsNfaEnabled ? JNI_TRUE : JNI_FALSE;
 }
