@@ -372,6 +372,8 @@ private:
     bool    mIsPiping;              //is a pipe connected to the controller?
     RouteSelection mCurrentRouteSelection;
     int     mActualResponseSize;         //number of bytes in the response received from secure element
+    bool    mUseOberthurWarmReset;  //whether to use warm-reset command
+    UINT8   mOberthurWarmResetCommand; //warm-reset command byte
     tNFA_EE_INFO mEeInfo [MAX_NUM_EE];  //actual size stored in mActualNumEe
     tNFA_EE_DISCOVER_REQ mUiccInfo;
     tNFA_HCI_GET_GATE_PIPE_LIST mHciCfg;
@@ -389,6 +391,7 @@ private:
     SyncEvent       mAidAddRemoveEvent;
     SyncEvent       mTransceiveEvent;
     SyncEvent       mVerInfoEvent;
+    SyncEvent       mRegistryEvent;
     UINT8           mVerInfo [3];
     UINT8           mResponseData [MAX_RESPONSE_SIZE];
     RouteDataSet    mRouteDataSet; //routing data
