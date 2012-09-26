@@ -1724,38 +1724,20 @@ static void set_CE_A_mode(uint8_t mode, struct nfc_jni_native_data *nat)
                                                   nfc_jni_CEcfg_callback,
                                                   (void *)&cb_data);
      REENTRANCE_UNLOCK();
-     if(status != NFCSTATUS_PENDING)
+     if(status == NFCSTATUS_PENDING)
      {
-        ALOGE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-        goto clean_and_return;
+       sem_wait(&cb_data.sem);
      }
      TRACE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
              nfc_jni_get_status_name(status));
-     /* Wait for callback response */
-     if(sem_wait(&cb_data.sem))
-     {
-        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-        goto clean_and_return;
-     }
      REENTRANCE_LOCK();
      status = phLibNfc_Mgt_SetCE_A_14443_4_ConfigParams(FALSE,
                                                   nfc_jni_CEcfg_callback,
                                                   (void *)&cb_data);
      REENTRANCE_UNLOCK();
-     if(status != NFCSTATUS_PENDING)
+     if(status == NFCSTATUS_PENDING)
      {
-        ALOGE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-        goto clean_and_return;
-     }
-     TRACE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-     /* Wait for callback response */
-     if(sem_wait(&cb_data.sem))
-     {
-        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-        goto clean_and_return;
+        sem_wait(&cb_data.sem);
      }
      ceAOn=FALSE;
 
@@ -1844,6 +1826,26 @@ static void set_CE_A_mode(uint8_t mode, struct nfc_jni_native_data *nat)
 
    if(mode==TURN_CE_ON || (mode==UNBLOCK_CE_CALLBACK && unblocked==TRUE && discoveryOn==TRUE))
    {
+     TRACE("phLibNfc_SE_SetMode()");
+     /* Set SE mode - Default */
+     REENTRANCE_LOCK();
+     status = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeDefault,
+           nfc_jni_se_set_mode_callback, (void *)&cb_data);
+     REENTRANCE_UNLOCK();
+
+     TRACE("phLibNfc_SE_SetMode returned 0x%02x", status);
+     if (status != NFCSTATUS_PENDING) {
+        ALOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto clean_and_return;
+     }
+     TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+     /* Wait for callback response */
+     if (sem_wait(&cb_data.sem)) {
+        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+        goto clean_and_return;
+     }
+
      REENTRANCE_LOCK();
      status = phLibNfc_Mgt_SetCE_A_14443_4_ConfigParams(TRUE,
                                                   nfc_jni_CEcfg_callback,
@@ -1919,38 +1921,18 @@ static void set_CE_B_mode(uint8_t mode, struct nfc_jni_native_data *nat)
                                                   nfc_jni_CEcfg_callback,
                                                   (void *)&cb_data);
      REENTRANCE_UNLOCK();
-     if(status != NFCSTATUS_PENDING)
+     if(status == NFCSTATUS_PENDING)
      {
-        ALOGE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-        goto clean_and_return;
-     }
-     TRACE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-     /* Wait for callback response */
-     if(sem_wait(&cb_data.sem))
-     {
-        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-        goto clean_and_return;
+        sem_wait(&cb_data.sem);
      }
      REENTRANCE_LOCK();
      status = phLibNfc_Mgt_SetCE_B_14443_4_ConfigParams(FALSE,
                                                   nfc_jni_CEcfg_callback,
                                                   (void *)&cb_data);
      REENTRANCE_UNLOCK();
-     if(status != NFCSTATUS_PENDING)
+     if(status == NFCSTATUS_PENDING)
      {
-        ALOGE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-        goto clean_and_return;
-     }
-     TRACE("phLibNfc_Mgt_SetCE_14443_4_ConfigParams returned 0x%04x[%s]", status,
-             nfc_jni_get_status_name(status));
-     /* Wait for callback response */
-     if(sem_wait(&cb_data.sem))
-     {
-        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
-        goto clean_and_return;
+        sem_wait(&cb_data.sem);
      }
      ceBOn=FALSE;
 
@@ -2039,6 +2021,26 @@ static void set_CE_B_mode(uint8_t mode, struct nfc_jni_native_data *nat)
 
    if(mode==TURN_CE_ON || (mode==UNBLOCK_CE_CALLBACK && unblocked==TRUE && discoveryOn==TRUE))
    {
+     TRACE("phLibNfc_SE_SetMode()");
+     /* Set SE mode - Default */
+     REENTRANCE_LOCK();
+     status = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeDefault,
+           nfc_jni_se_set_mode_callback, (void *)&cb_data);
+     REENTRANCE_UNLOCK();
+
+     TRACE("phLibNfc_SE_SetMode returned 0x%02x", status);
+     if (status != NFCSTATUS_PENDING) {
+        ALOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+        goto clean_and_return;
+     }
+     TRACE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
+
+     /* Wait for callback response */
+     if (sem_wait(&cb_data.sem)) {
+        ALOGE("Failed to wait for semaphore (errno=0x%08x)", errno);
+        goto clean_and_return;
+     }
+
      REENTRANCE_LOCK();
      status = phLibNfc_Mgt_SetCE_B_14443_4_ConfigParams(TRUE,
                                                   nfc_jni_CEcfg_callback,
@@ -2625,8 +2627,8 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
     /* Retrieve native structure address */
     nat = nfc_jni_get_nat(e, o);
 
-    set_CE_A_mode(UNBLOCK_CE_CALLBACK, nat);
-    set_CE_B_mode(UNBLOCK_CE_CALLBACK, nat);
+    set_CE_A_mode(TURN_CE_OFF, nat);
+    set_CE_B_mode(TURN_CE_OFF, nat);
 
     /* Create the local semaphore */
     if (!nfc_cb_data_init(&cb_data, NULL)) {
