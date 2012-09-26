@@ -62,8 +62,7 @@ import com.android.nfc.R;
 /**
  * Manages handover of NFC to other technologies.
  */
-public class HandoverManager implements BluetoothProfile.ServiceListener,
-        BluetoothHeadsetHandover.Callback {
+public class HandoverManager implements BluetoothHeadsetHandover.Callback {
     static final String TAG = "NfcHandover";
     static final boolean DBG = true;
 
@@ -142,8 +141,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     // Variables below synchronized on HandoverManager.this
     final HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
 
-    BluetoothHeadset mBluetoothHeadset;
-    BluetoothA2dp mBluetoothA2dp;
     BluetoothHeadsetHandover mBluetoothHeadsetHandover;
     boolean mBluetoothHeadsetConnected;
 
@@ -613,10 +610,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     public HandoverManager(Context context) {
         mContext = context;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (mBluetoothAdapter != null) {
-            mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.HEADSET);
-            mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP);
-        }
 
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
@@ -793,9 +786,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         if (!handover.valid) return true;
 
         synchronized (HandoverManager.this) {
-            if (mBluetoothAdapter == null ||
-                    mBluetoothA2dp == null ||
-                    mBluetoothHeadset == null) {
+            if (mBluetoothAdapter == null) {
                 if (DBG) Log.d(TAG, "BT handover, but BT not available");
                 return true;
             }
@@ -804,7 +795,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
                 return true;
             }
             mBluetoothHeadsetHandover = new BluetoothHeadsetHandover(mContext, handover.device,
-                    handover.name, mHandoverPowerManager, mBluetoothA2dp, mBluetoothHeadset, this);
+                    handover.name, mHandoverPowerManager, this);
             mBluetoothHeadsetHandover.start();
         }
         return true;
@@ -981,34 +972,6 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
         }
 
         return result;
-    }
-
-    @Override
-    public void onServiceConnected(int profile, BluetoothProfile proxy) {
-        synchronized (HandoverManager.this) {
-            switch (profile) {
-                case BluetoothProfile.HEADSET:
-                    mBluetoothHeadset = (BluetoothHeadset) proxy;
-                    break;
-                case BluetoothProfile.A2DP:
-                    mBluetoothA2dp = (BluetoothA2dp) proxy;
-                    break;
-            }
-        }
-    }
-
-    @Override
-    public void onServiceDisconnected(int profile) {
-        synchronized (HandoverManager.this) {
-            switch (profile) {
-                case BluetoothProfile.HEADSET:
-                    mBluetoothHeadset = null;
-                    break;
-                case BluetoothProfile.A2DP:
-                    mBluetoothA2dp = null;
-                    break;
-            }
-        }
     }
 
     @Override
