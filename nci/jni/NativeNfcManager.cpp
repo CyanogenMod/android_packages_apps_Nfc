@@ -109,6 +109,7 @@ static SyncEvent            sNfaSetConfigEvent;  // event for Set_Config....
 static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
+static bool                 sRfEnabled = false; // whether RF discovery is enabled
 #define                     NFA_DM_PWR_STATE_UNKNOWN (-1) // power off sleep state is unkown until is is reported back from NFA...
 static int                  sConnlessSap = 0;
 static int                  sConnlessLinkMiu = 0;
@@ -766,6 +767,11 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
 
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 
+    if (sRfEnabled) {
+        // Stop RF discovery to reconfigure
+        startRfDiscovery(false);
+    }
+
     {
         SyncEventGuard guard (sNfaEnableDisablePollingEvent);
         stat = NFA_EnablePolling (tech_mask);
@@ -1159,11 +1165,12 @@ static void nfcManager_doSelectSecureElement(JNIEnv *e, jobject o)
 {
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = true;
-
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 
-    // Stop RF Discovery.
-    startRfDiscovery (false);
+    if (sRfEnabled) {
+        // Stop RF Discovery if we were polling
+        startRfDiscovery (false);
+    }
 
     if (sIsSecElemSelected)
     {
@@ -1177,7 +1184,6 @@ static void nfcManager_doSelectSecureElement(JNIEnv *e, jobject o)
     sIsSecElemSelected = true;
 
 TheEnd:
-    // Restart RF Discovery.
     startRfDiscovery (true);
 
     ALOGD ("%s: exit", __FUNCTION__);
@@ -1581,6 +1587,7 @@ void startRfDiscovery(bool isStart)
     if (status == NFA_STATUS_OK)
     {
         sNfaEnableDisablePollingEvent.wait (); //wait for NFA_RF_DISCOVERY_xxxx_EVT
+        sRfEnabled = isStart;
     }
     else
     {
