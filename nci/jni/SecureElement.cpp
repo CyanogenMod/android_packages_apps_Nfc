@@ -37,6 +37,10 @@ int gSEId = -1;     // secure element ID to use in connectEE(), -1 means not set
 int gGatePipe = -1; // gate id or static pipe id to use in connectEE(), -1 means not set
 bool gUseStaticPipe = false;    // if true, use gGatePipe as static pipe id.  if false, use as gate id
 
+namespace android
+{
+    extern void startRfDiscovery (bool isStart);
+}
 
 //////////////////////////////////////////////
 //////////////////////////////////////////////
@@ -630,6 +634,9 @@ bool SecureElement::connectEE ()
         return (false);
     }
 
+    // Disable RF discovery completely while the DH is connected
+    android::startRfDiscovery(false);
+
     mNewSourceGate = 0;
 
     if (gGatePipe == -1)
@@ -809,6 +816,11 @@ bool SecureElement::disconnectEE (jint seID)
             ALOGE ("%s: fail dealloc gate; error=0x%X", fn, nfaStat);
     }
     mIsPiping = false;
+    // Re-enable RF discovery
+    // Note that it only effactuates the current configuration,
+    // so if polling/listening were configured OFF (forex because
+    // the screen was off), they will stay OFF with this call.
+    android::startRfDiscovery(true);
     return true;
 }
 

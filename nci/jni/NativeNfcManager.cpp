@@ -87,6 +87,7 @@ namespace android
     const char*             gNativeNfcSecureElementClassName          = "com/android/nfc/dhimpl/NativeNfcSecureElement";
     void                    doStartupConfig ();
     void                    startStopPolling (bool isStartPolling);
+    void                    startRfDiscovery (bool isStart);
 }
 
 
@@ -132,7 +133,6 @@ static UINT32               sConfigUpdated = 0;
 static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
-static void startRfDiscovery (bool isStart);
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
