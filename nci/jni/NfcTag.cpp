@@ -37,17 +37,18 @@ extern "C"
 *******************************************************************************/
 NfcTag::NfcTag ()
 :   mNativeData (NULL),
-    mIsActivated (false),
+    mActivationState (Idle),
     mProtocol(NFC_PROTOCOL_UNKNOWN),
     mNumTechList (0),
     mtT1tMaxMessageSize (0),
-    mReadCompletedStatus (NFA_STATUS_OK)
+    mReadCompletedStatus (NFA_STATUS_OK),
+    mLastKovioUidLen (0),
+    mNdefDetectionTimedOut (false)
 {
     memset (mTechList, 0, sizeof(mTechList));
     memset (mTechHandles, 0, sizeof(mTechHandles));
     memset (mTechLibNfcTypes, 0, sizeof(mTechLibNfcTypes));
     memset (mTechParams, 0, sizeof(mTechParams));
-    mLastKovioUidLen = 0;
     memset(mLastKovioUid, 0, NFC_KOVIO_MAX_LEN);
 }
 
@@ -81,7 +82,7 @@ NfcTag& NfcTag::getInstance ()
 void NfcTag::initialize (nfc_jni_native_data* native)
 {
     mNativeData = native;
-    mIsActivated = false;
+    mActivationState = Idle;
     mProtocol = NFC_PROTOCOL_UNKNOWN;
     mNumTechList = 0;
     mtT1tMaxMessageSize = 0;
@@ -108,16 +109,55 @@ void NfcTag::abort ()
 
 /*******************************************************************************
 **
-** Function:        isActivated
+** Function:        getActivationState
 **
-** Description:     Is tag activated?
+** Description:     What is the current state: Idle, Sleep, or Activated.
 **
-** Returns:         True if tag is activated.
+** Returns:         Idle, Sleep, or Activated.
 **
 *******************************************************************************/
-bool NfcTag::isActivated ()
+NfcTag::ActivationState NfcTag::getActivationState ()
 {
-    return mIsActivated;
+    return mActivationState;
+}
+
+
+/*******************************************************************************
+**
+** Function:        setDeactivationState
+**
+** Description:     Set the current state: Idle or Sleep.
+**                  deactivated: state of deactivation.
+**
+** Returns:         None.
+**
+*******************************************************************************/
+void NfcTag::setDeactivationState (tNFA_DEACTIVATED& deactivated)
+{
+    static const char fn [] = "NfcTag::setDeactivationState";
+    mActivationState = Idle;
+    mNdefDetectionTimedOut = false;
+    if (deactivated.type == NFA_DEACTIVATE_TYPE_SLEEP)
+        mActivationState = Sleep;
+    ALOGD ("%s: state=%u", fn, mActivationState);
+}
+
+
+/*******************************************************************************
+**
+** Function:        setActivationState
+**
+** Description:     Set the current state to Active.
+**
+** Returns:         None.
+**
+*******************************************************************************/
+void NfcTag::setActivationState ()
+{
+    static const char fn [] = "NfcTag::setActivationState";
+    mNdefDetectionTimedOut = false;
+    mActivationState = Active;
+    ALOGD ("%s: state=%u", fn, mActivationState);
 }
 
 
@@ -1204,6 +1244,21 @@ bool NfcTag::isT2tNackResponse (const UINT8* response, UINT32 responseLen)
 
 /*******************************************************************************
 **
+** Function:        isNdefDetectionTimedOut
+**
+** Description:     Whether NDEF-detection algorithm timed out.
+**
+** Returns:         True if NDEF-detection algorithm timed out.
+**
+*******************************************************************************/
+bool NfcTag::isNdefDetectionTimedOut ()
+{
+    return mNdefDetectionTimedOut;
+}
+
+
+/*******************************************************************************
+**
 ** Function:        connectionEventHandler
 **
 ** Description:     Handle connection-related events.
@@ -1215,6 +1270,8 @@ bool NfcTag::isT2tNackResponse (const UINT8* response, UINT32 responseLen)
 *******************************************************************************/
 void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
 {
+    static const char fn [] = "NfcTag::connectionEventHandler";
+
     switch (event)
     {
     case NFA_DISC_RESULT_EVT:
@@ -1236,7 +1293,6 @@ void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
             tNFA_ACTIVATED& activated = data->activated;
             if (IsSameKovio(activated))
                 break;
-            mIsActivated = true;
             mProtocol = activated.activate_ntf.protocol;
             calculateT1tMaxMessageSize (activated);
             discoverTechnologies (activated);
@@ -1245,7 +1301,6 @@ void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
         break;
 
     case NFA_DEACTIVATED_EVT:
-        mIsActivated = false;
         mProtocol = NFC_PROTOCOL_UNKNOWN;
         resetTechnologies ();
         break;
@@ -1257,6 +1312,14 @@ void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
             mReadCompleteEvent.notifyOne ();
         }
         break;
+
+    case NFA_NDEF_DETECT_EVT:
+        {
+            tNFA_NDEF_DETECT& ndef_detect = data->ndef_detect;
+            mNdefDetectionTimedOut = ndef_detect.status == NFA_STATUS_TIMEOUT;
+            if (mNdefDetectionTimedOut)
+                ALOGE ("%s: NDEF detection timed out", fn);
+        }
     }
 }
 

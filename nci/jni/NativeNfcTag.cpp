@@ -25,6 +25,7 @@
 #include "Mutex.h"
 #include "IntervalTimer.h"
 #include "JavaClassConstants.h"
+#include "Pn544Interop.h"
 
 extern "C"
 {
@@ -488,18 +489,28 @@ static jint nativeNfcTag_doConnect (JNIEnv *e, jobject o, jint targetHandle)
     int i = targetHandle;
     struct nfc_jni_native_data *nat = getNative (0, 0);
     NfcTag& natTag = NfcTag::getInstance ();
-    sNeedToSwitchRf = false;
+    int retCode = NFCSTATUS_SUCCESS;
 
+    sNeedToSwitchRf = false;
     if (i >= NfcTag::MAX_NUM_TECHNOLOGY)
     {
         ALOGE ("%s: Handle not found", __FUNCTION__);
-        return NFCSTATUS_FAILED;
+        retCode = NFCSTATUS_FAILED;
+        goto TheEnd;
+    }
+
+    if (natTag.getActivationState() != NfcTag::Active)
+    {
+        ALOGE ("%s: tag already deactivated", __FUNCTION__);
+        retCode = NFCSTATUS_FAILED;
+        goto TheEnd;
     }
 
     if (natTag.mTechLibNfcTypes[i] != NFC_PROTOCOL_ISO_DEP)
     {
         ALOGD ("%s() Nfc type = %d, do nothing for non ISO_DEP", __FUNCTION__, natTag.mTechLibNfcTypes[i]);
-        return NFCSTATUS_SUCCESS;
+        retCode = NFCSTATUS_SUCCESS;
+        goto TheEnd;
     }
 
     if (natTag.mTechList[i] == TARGET_TYPE_ISO14443_3A || natTag.mTechList[i] == TARGET_TYPE_ISO14443_3B)
@@ -514,7 +525,9 @@ static jint nativeNfcTag_doConnect (JNIEnv *e, jobject o, jint targetHandle)
         return (switchRfInterface (NFA_INTERFACE_ISO_DEP) ? NFCSTATUS_SUCCESS : NFCSTATUS_FAILED);
     }
 
-    return NFCSTATUS_SUCCESS;
+TheEnd:
+    ALOGD ("%s: exit 0x%X", __FUNCTION__, retCode);
+    return retCode;
 }
 
 /*******************************************************************************
@@ -530,22 +543,30 @@ static jint nativeNfcTag_doConnect (JNIEnv *e, jobject o, jint targetHandle)
 *******************************************************************************/
 static int reSelect (tNFA_INTF_TYPE rfInterface)
 {
-    ALOGD ("%s: rf intf = %d", __FUNCTION__, rfInterface);
+    ALOGD ("%s: enter; rf intf = %d", __FUNCTION__, rfInterface);
     NfcTag& natTag = NfcTag::getInstance ();
 
-    ALOGD ("%s: NFA_Deactivate()", __FUNCTION__);
     tNFA_STATUS status;
     int rVal = 1;
 
     do
     {
+        //if tag has shutdown, abort this method
+        if (NfcTag::getInstance ().isNdefDetectionTimedOut())
+        {
+            ALOGD ("%s: ndef detection timeout; break", __FUNCTION__);
+            rVal = STATUS_CODE_TARGET_LOST;
+            break;
+        }
+
         {
             SyncEventGuard g (sReconnectEvent);
             gIsTagDeactivating = true;
             sGotDeactivate = false;
-            if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE)))
+            ALOGD ("%s: deactivate to sleep", __FUNCTION__);
+            if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE))) //deactivate to sleep state
             {
-                ALOGE ("%s: NFA_Deactivate failed, status = %d", __FUNCTION__, status);
+                ALOGE ("%s: deactivate failed, status = %d", __FUNCTION__, status);
                 break;
             }
 
@@ -555,8 +576,9 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
             }
         }
 
-        if (! NfcTag::getInstance ().isActivated ())
+        if (NfcTag::getInstance ().getActivationState () != NfcTag::Sleep)
         {
+            ALOGD ("%s: tag is not in sleep", __FUNCTION__);
             rVal = STATUS_CODE_TARGET_LOST;
             break;
         }
@@ -567,7 +589,7 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
             SyncEventGuard g2 (sReconnectEvent);
 
             sConnectWaitingForComplete = JNI_TRUE;
-            ALOGD ("%s: NFA_Select()", __FUNCTION__);
+            ALOGD ("%s: select interface %u", __FUNCTION__, rfInterface);
             gIsSelectingRfInterface = true;
             if (NFA_STATUS_OK != (status = NFA_Select (natTag.mTechHandles[0], natTag.mTechLibNfcTypes[0], rfInterface)))
             {
@@ -578,15 +600,15 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
             sConnectOk = false;
             if (sReconnectEvent.wait (1000) == false) //if timeout occured
             {
-                ALOGE ("%s: wait response timeout", __FUNCTION__);
+                ALOGE ("%s: timeout waiting for select", __FUNCTION__);
                 break;
             }
         }
 
-        ALOGD("%s: done waiting on NFA_Select() sConnectOk=%d", __FUNCTION__, sConnectOk);
-        if (! NfcTag::getInstance ().isActivated ())
+        ALOGD("%s: select completed; sConnectOk=%d", __FUNCTION__, sConnectOk);
+        if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
         {
-            ALOGD("%s: Tag no longer active", __FUNCTION__);
+            ALOGD("%s: tag is not active", __FUNCTION__);
             rVal = STATUS_CODE_TARGET_LOST;
             break;
         }
@@ -596,6 +618,7 @@ static int reSelect (tNFA_INTF_TYPE rfInterface)
     sConnectWaitingForComplete = JNI_FALSE;
     gIsTagDeactivating = false;
     gIsSelectingRfInterface = false;
+    ALOGD ("%s: exit; status=%d", __FUNCTION__, rVal);
     return rVal;
 }
 
@@ -650,22 +673,26 @@ static bool switchRfInterface (tNFA_INTF_TYPE rfInterface)
 *******************************************************************************/
 static jint nativeNfcTag_doReconnect (JNIEnv *e, jobject o)
 {
-    ALOGD ("%s", __FUNCTION__);
-
-    tNFA_INTF_TYPE intf = NFA_INTERFACE_FRAME;
+    ALOGD ("%s: enter", __FUNCTION__);
+    int retCode = NFCSTATUS_SUCCESS;
     NfcTag& natTag = NfcTag::getInstance ();
+
+    if (natTag.getActivationState() != NfcTag::Active)
+    {
+        ALOGE ("%s: tag already deactivated", __FUNCTION__);
+        retCode = NFCSTATUS_FAILED;
+        goto TheEnd;
+    }
 
     // this is only supported for type 2 or 4 (ISO_DEP) tags
     if (natTag.mTechLibNfcTypes[0] == NFA_PROTOCOL_ISO_DEP)
-        intf = NFA_INTERFACE_ISO_DEP;
+        retCode = reSelect(NFA_INTERFACE_ISO_DEP);
     else if (natTag.mTechLibNfcTypes[0] == NFA_PROTOCOL_T2T)
-        intf = NFA_INTERFACE_FRAME;
-    else
-    {
-        return 0;   // success
-    }
+        retCode = reSelect(NFA_INTERFACE_FRAME);
 
-    return reSelect(intf);
+TheEnd:
+    ALOGD ("%s: exit 0x%X", __FUNCTION__, retCode);
+    return retCode;
 }
 
 
@@ -707,9 +734,9 @@ static jboolean nativeNfcTag_doDisconnect (JNIEnv *e, jobject o)
 
     gGeneralTransceiveTimeout = DEFAULT_GENERAL_TRANS_TIMEOUT;
 
-    if (NfcTag::getInstance ().isActivated () == false)
+    if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
     {
-        ALOGD ("%s: tag already deactivated", __FUNCTION__);
+        ALOGE ("%s: tag already deactivated", __FUNCTION__);
         goto TheEnd;
     }
 
@@ -783,7 +810,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
     uint32_t bufLen = 0;
     jint *targetLost = NULL;
 
-    if (! NfcTag::getInstance ().isActivated ())
+    if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
     {
         if (statusTargetLost)
         {
@@ -844,7 +871,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
             break;
         }
 
-        if (! NfcTag::getInstance ().isActivated ())
+        if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
         {
             ALOGE ("%s: already deactivated", __FUNCTION__);
             if (targetLost)
@@ -1036,7 +1063,7 @@ void nativeNfcTag_doCheckNdefResult (tNFA_STATUS status, uint32_t maxSize, uint3
 **                  o: Java object.
 **                  ndefInfo: NDEF info.
 **
-** Returns:         Status code.
+** Returns:         Status code; 0 is success.
 **
 *******************************************************************************/
 static jint nativeNfcTag_doCheckNdef (JNIEnv *e, jobject o, jintArray ndefInfo)
@@ -1053,9 +1080,9 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv *e, jobject o, jintArray ndefInfo)
         return JNI_FALSE;
     }
 
-    if (NfcTag::getInstance ().isActivated () == false)
+    if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
     {
-        ALOGE ("%s: tag not present", __FUNCTION__);
+        ALOGE ("%s: tag already deactivated", __FUNCTION__);
         goto TheEnd;
     }
 
@@ -1065,7 +1092,7 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv *e, jobject o, jintArray ndefInfo)
 
     if (status != NFA_STATUS_OK)
     {
-        ALOGE ("%s: NFA_RwDetectNDef failed, status = %d", __FUNCTION__, status);
+        ALOGE ("%s: NFA_RwDetectNDef failed, status = 0x%X", __FUNCTION__, status);
         goto TheEnd;
     }
 
@@ -1106,9 +1133,15 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv *e, jobject o, jintArray ndefInfo)
         e->ReleaseIntArrayElements (ndefInfo, ndef, 0);
         status = NFA_STATUS_FAILED;
     }
+    else if (sCheckNdefStatus == NFA_STATUS_TIMEOUT)
+    {
+        pn544InteropStopPolling ();
+        status = sCheckNdefStatus;
+    }
     else
     {
         ALOGD ("%s: unknown status 0x%X", __FUNCTION__, sCheckNdefStatus);
+        status = sCheckNdefStatus;
     }
 
 TheEnd:
@@ -1118,7 +1151,7 @@ TheEnd:
         ALOGE ("%s: Failed to destroy check NDEF semaphore (errno=0x%08x)", __FUNCTION__, errno);
     }
     sCheckNdefWaitingForComplete = JNI_FALSE;
-    ALOGD ("%s: exit; status=%u", __FUNCTION__, status);
+    ALOGD ("%s: exit; status=0x%X", __FUNCTION__, status);
     return status;
 }
 
@@ -1183,7 +1216,7 @@ static jboolean nativeNfcTag_doPresenceCheck (JNIEnv *e, jobject o)
         return JNI_FALSE;
     }
 
-    if (NfcTag::getInstance ().isActivated () == false)
+    if (NfcTag::getInstance ().getActivationState () != NfcTag::Active)
     {
         ALOGD ("%s: tag already deactivated", __FUNCTION__);
         return JNI_FALSE;
