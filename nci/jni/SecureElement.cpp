@@ -70,7 +70,9 @@ SecureElement::SecureElement ()
     mCommandStatus (NFA_STATUS_OK),
     mIsPiping (false),
     mCurrentRouteSelection (NoRoute),
-    mActualResponseSize(0)
+    mActualResponseSize(0),
+    mUseOberthurWarmReset (false),
+    mOberthurWarmResetCommand (3)
 {
     memset (&mEeInfo, 0, sizeof(mEeInfo));
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
@@ -152,6 +154,12 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
         mActiveSeOverride = num;
     ALOGD ("%s: Active SE override: %d", fn, mActiveSeOverride);
+
+    if (GetNumValue("OBERTHUR_WARM_RESET_COMMAND", &num, sizeof(num)))
+    {
+        mUseOberthurWarmReset = true;
+        mOberthurWarmResetCommand = (UINT8) num;
+    }
 
     mActiveEeHandle = NFA_HANDLE_INVALID;
     mNfaHciHandle = NFA_HANDLE_INVALID;
@@ -776,6 +784,21 @@ bool SecureElement::disconnectEE (jint seID)
     tNFA_HANDLE eeHandle = seID;
 
     ALOGD("%s: seID=0x%X; handle=0x%04x", fn, seID, eeHandle);
+
+    if (mUseOberthurWarmReset)
+    {
+        //send warm-reset command to Oberthur secure element which deselects the applet;
+        //this is an Oberthur-specific command;
+        ALOGD("%s: try warm-reset on pipe id 0x%X; cmd=0x%X", fn, mNewPipeId, mOberthurWarmResetCommand);
+        SyncEventGuard guard (mRegistryEvent);
+        nfaStat = NFA_HciSetRegistry (mNfaHciHandle, mNewPipeId,
+                1, 1, &mOberthurWarmResetCommand);
+        if (nfaStat == NFA_STATUS_OK)
+        {
+            mRegistryEvent.wait ();
+            ALOGD("%s: completed warm-reset on pipe 0x%X", fn, mNewPipeId);
+        }
+    }
 
     if (mNewSourceGate)
     {
@@ -1717,6 +1740,15 @@ void SecureElement::nfaHciCallback (tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* event
                 sSecElem.notifyTransactionListenersOfAid (&eventData->rcvd_evt.p_evt_buf[2], eventData->rcvd_evt.p_evt_buf[1]);
         }
         break;
+
+    case NFA_HCI_SET_REG_RSP_EVT: //received response to write registry command
+        {
+            tNFA_HCI_REGISTRY& registry = eventData->registry;
+            ALOGD ("%s: NFA_HCI_SET_REG_RSP_EVT; status=0x%X; pipe=0x%X", fn, registry.status, registry.pipe);
+            SyncEventGuard guard (sSecElem.mRegistryEvent);
+            sSecElem.mRegistryEvent.notifyOne ();
+            break;
+        }
 
     default:
         ALOGE ("%s: unknown event code=0x%X ????", fn, event);
