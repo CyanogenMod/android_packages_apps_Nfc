@@ -57,8 +57,6 @@ public class NativeNfcManager implements DeviceHost {
         mContext = context;
     }
 
-    public static native boolean doSetScreenState(boolean state);
-
     public native boolean initializeNativeStructure();
 
     private native boolean doDownload();

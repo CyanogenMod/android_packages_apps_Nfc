@@ -31,6 +31,9 @@ namespace android
 
 
 PowerSwitch PowerSwitch::sPowerSwitch;
+const PowerSwitch::PowerActivity PowerSwitch::DISCOVERY=0x01;
+const PowerSwitch::PowerActivity PowerSwitch::SE_ROUTING=0x02;
+const PowerSwitch::PowerActivity PowerSwitch::SE_CONNECTED=0x04;
 
 /*******************************************************************************
 **
@@ -43,7 +46,7 @@ PowerSwitch PowerSwitch::sPowerSwitch;
 *******************************************************************************/
 PowerSwitch::PowerSwitch ()
 :   mCurrLevel (UNKNOWN_LEVEL),
-    mScreenState (true),
+    mCurrActivity(0),
     mCurrDeviceMgtPowerState (NFA_DM_PWR_STATE_UNKNOWN),
     mDesiredScreenOffPowerState (0)
 {
@@ -176,34 +179,37 @@ bool PowerSwitch::setLevel (PowerLevel newLevel)
 
 /*******************************************************************************
 **
-** Function:        isScreenOn
+** Function:        setModeOff
 **
-** Description:     Get the current platform power level.
+** Description:     Set a mode to be deactive.
 **
-** Returns:         true if screen is on (locked or unlocked).
+** Returns:         True if any mode is still active.
 **
 *******************************************************************************/
-bool PowerSwitch::isScreenOn ()
+bool PowerSwitch::setModeOff (PowerActivity deactivated)
 {
-    return mScreenState;
+    mCurrActivity &= ~deactivated;
+    ALOGD ("PowerSwitch::setModeOff(deactivated=0x%x) : mCurrActivity=0x%x", deactivated, mCurrActivity);
+    return (mCurrActivity != 0);
 }
 
 
 /*******************************************************************************
 **
-** Function:        setScreenState
+** Function:        setModeOn
 **
-** Description:     Set the Platform's screen state
-**                  state: true for screen on, flase for screem off
+** Description:     Set a mode to be active.
 **
-** Returns:         True if ok.
+** Returns:         True if any mode is active.
 **
 *******************************************************************************/
-bool PowerSwitch::setScreenState(bool state)
+bool PowerSwitch::setModeOn (PowerActivity activated)
 {
-    mScreenState = state;
-    return true;
+    mCurrActivity |= activated;
+    ALOGD ("PowerSwitch::setModeOn(activated=0x%x) : mCurrActivity=0x%x", activated, mCurrActivity);
+    return (mCurrActivity != 0);
 }
+
 
 /*******************************************************************************
 **

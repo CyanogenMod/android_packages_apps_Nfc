@@ -16,6 +16,7 @@
 #include "OverrideLog.h"
 #include "SecureElement.h"
 #include "JavaClassConstants.h"
+#include "PowerSwitch.h"
 
 
 namespace android
@@ -44,6 +45,10 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, job
     bool stat = true;
     jint secElemHandle = 0;
 
+    //tell the controller to power up to get ready for sec elem operations
+    PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
+    PowerSwitch::getInstance ().setModeOn (PowerSwitch::SE_CONNECTED);
+
     //if controller is not routing AND there is no pipe connected,
     //then turn on the sec elem
     if (! SecureElement::getInstance().isBusy())
@@ -57,6 +62,13 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, job
             secElemHandle = SecureElement::getInstance().mActiveEeHandle;
         else
             SecureElement::getInstance().deactivate (0);
+    }
+
+    //if code fails to connect to the secure element, and nothing is active, then
+    //tell the controller to power down
+    if ((!stat) && (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::SE_CONNECTED)))
+    {
+        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
     }
 
 TheEnd:
@@ -88,6 +100,10 @@ static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIE
     //then turn off the sec elem
     if (! SecureElement::getInstance().isBusy())
         SecureElement::getInstance().deactivate (handle);
+
+    //if nothing is active after this, then tell the controller to power down
+    if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::SE_CONNECTED))
+        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
 
     ALOGD("%s: exit", __FUNCTION__);
     return stat ? JNI_TRUE : JNI_FALSE;
