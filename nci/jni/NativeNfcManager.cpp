@@ -808,6 +808,8 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
     // Actually start discovery.
     startRfDiscovery (true);
 
+    PowerSwitch::getInstance ().setModeOn (PowerSwitch::DISCOVERY);
+
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
@@ -853,7 +855,8 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
 
     PeerToPeer::getInstance().enableP2pListening (false);
 
-    if (!sIsSecElemSelected)
+    //if nothing is active after this, then tell the controller to power down
+    if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::DISCOVERY))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
 
 TheEnd:
@@ -1171,6 +1174,7 @@ static void nfcManager_doSelectSecureElement(JNIEnv *e, jobject o)
 {
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = true;
+
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 
     if (sRfEnabled) {
@@ -1191,6 +1195,8 @@ static void nfcManager_doSelectSecureElement(JNIEnv *e, jobject o)
 
 TheEnd:
     startRfDiscovery (true);
+
+    PowerSwitch::getInstance ().setModeOn (PowerSwitch::SE_ROUTING);
 
     ALOGD ("%s: exit", __FUNCTION__);
 }
@@ -1234,10 +1240,10 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
         SecureElement::getInstance().deactivate (0xABCDEF);
 
 TheEnd:
-    //if power level was changed at the top of this method,
-    //then restore to low power
-    if (!sDiscoveryEnabled)
+    //if nothing is active after this, then tell the controller to power down
+    if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::SE_ROUTING))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
+
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
@@ -1459,23 +1465,6 @@ static void nfcManager_doSetP2pTargetModes (JNIEnv *e, jobject o, jint modes)
     //this function is not called by the NFC service nor exposed by public API.
 }
 
-/*******************************************************************************
-**
-** Function         nfcManager_doSetScreenState
-**
-** Description      Forward the Screen On/Off state to native code for enhanced
-**                  power saving mode.
-**
-** Returns          true
-**
-*******************************************************************************/
-jboolean nfcManager_doSetScreenState(JNIEnv *e, jobject o, jboolean screenState)
-{
-    ALOGD ("%s(%d)", __FUNCTION__, screenState);
-    PowerSwitch::getInstance().setScreenState(screenState == JNI_TRUE);
-    return JNI_TRUE;
-}
-
 /*****************************************************************************
 **
 ** JNI functions for android-4.0.1_r1
@@ -1548,9 +1537,6 @@ static JNINativeMethod gMethods[] =
 
     {"doDump", "()Ljava/lang/String;",
             (void *)nfcManager_doDump},
-
-    {"doSetScreenState", "(Z)Z",
-            (void *)nfcManager_doSetScreenState},
 };
 
 

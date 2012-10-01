@@ -45,6 +45,18 @@ public:
 
     /*******************************************************************************
     **
+    ** Description:     DISCOVERY: Discovery is enabled
+    **                  SE_ROUTING: Routing to SE is enabled.
+    **                  SE_CONNECTED: SE is connected.
+    **
+    *******************************************************************************/
+    typedef int PowerActivity;
+    static const PowerActivity DISCOVERY;
+    static const PowerActivity SE_ROUTING;
+    static const PowerActivity SE_CONNECTED;
+
+    /*******************************************************************************
+    **
     ** Description:     Platform Power Level, copied from NativeNfcBrcmPowerMode.java.
     **                  UNKNOWN_LEVEL: power level is unknown.
     **                  POWER_OFF: The phone is turned OFF
@@ -123,18 +135,6 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        isScreenOn
-    **
-    ** Description:     Get the current screen state of the platform host.
-    **
-    ** Returns:         true if screen if on, (locked or unlocked).
-    **
-    *******************************************************************************/
-    bool isScreenOn ();
-
-
-    /*******************************************************************************
-    **
     ** Function:        setLevel
     **
     ** Description:     Set the controller's power level.
@@ -145,17 +145,30 @@ public:
     *******************************************************************************/
     bool setLevel (PowerLevel level);
 
+
     /*******************************************************************************
     **
-    ** Function:        setScreenState
+    ** Function:        setModeOff
     **
-    ** Description:     Set the Platform's screen state
-    **                  state: true for screen on, flase for screem off
+    ** Description:     Set a mode to be deactive.
     **
-    ** Returns:         True if ok.
+    ** Returns:         True if any mode is still active.
     **
     *******************************************************************************/
-    bool setScreenState (bool state);
+    bool setModeOff (PowerActivity deactivated);
+
+
+    /*******************************************************************************
+    **
+    ** Function:        setModeOn
+    **
+    ** Description:     Set a mode to be active.
+    **
+    ** Returns:         True if any mode is active.
+    **
+    *******************************************************************************/
+    bool setModeOn (PowerActivity activated);
+
 
     /*******************************************************************************
     **
@@ -202,6 +215,7 @@ private:
     static PowerSwitch sPowerSwitch; //singleton object
     static const UINT8 NFA_DM_PWR_STATE_UNKNOWN = -1; //device management power state power state is unknown
     SyncEvent mPowerStateEvent;
+    PowerActivity mCurrActivity;
 
 
     /*******************************************************************************
