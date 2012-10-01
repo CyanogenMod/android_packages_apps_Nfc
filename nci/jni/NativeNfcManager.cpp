@@ -565,7 +565,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
         ALOGD ("%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __FUNCTION__,
               eventData->rf_field.status, eventData->rf_field.rf_field_status);
 
-        if (eventData->rf_field.status == NFA_STATUS_OK)
+        if (!sIsDisabling && eventData->rf_field.status == NFA_STATUS_OK)
             SecureElement::getInstance().notifyRfFieldEvent (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON);
         break;
 
