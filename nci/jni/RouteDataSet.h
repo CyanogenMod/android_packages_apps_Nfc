@@ -152,7 +152,7 @@ private:
 **  Name:           RouteDataSet
 **
 **  Description:    Import and export general routing data using a XML file.
-**                  See /data/bcmnfc/param/route.xml
+**                  See /data/bcm/param/route.xml
 **
 *****************************************************************************/
 class RouteDataSet

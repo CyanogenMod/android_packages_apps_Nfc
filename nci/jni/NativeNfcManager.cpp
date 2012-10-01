@@ -267,7 +267,10 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         break;
 
     case NFA_SELECT_RESULT_EVT: // NFC link/protocol discovery select response
-        ALOGD("%s: NFA_SELECT_RESULT_EVT: status = %d, gIsSelectingRfInterface = %d", __FUNCTION__, eventData->status, gIsSelectingRfInterface);
+        ALOGD("%s: NFA_SELECT_RESULT_EVT: status = %d, gIsSelectingRfInterface = %d, sIsDisabling=%d", __FUNCTION__, eventData->status, gIsSelectingRfInterface, sIsDisabling);
+
+        if (sIsDisabling)
+            break;
 
         if (eventData->status != NFA_STATUS_OK)
         {
@@ -286,7 +289,10 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         break;
 
     case NFA_ACTIVATED_EVT: // NFC link/protocol activated
-        ALOGD("%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d", __FUNCTION__, gIsSelectingRfInterface);
+        ALOGD("%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d, sIsDisabling=%d", __FUNCTION__, gIsSelectingRfInterface, sIsDisabling);
+        if (sIsDisabling)
+            break;
+
         NfcTag::getInstance().setActivationState ();
         if (gIsSelectingRfInterface)
         {
