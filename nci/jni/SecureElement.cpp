@@ -82,6 +82,7 @@ SecureElement::SecureElement ()
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
     memset (&mHciCfg, 0, sizeof(mHciCfg));
     memset (mResponseData, 0, sizeof(mResponseData));
+    memset (mAidForEmptySelect, 0, sizeof(mAidForEmptySelect));
 }
 
 
@@ -178,6 +179,7 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
     memset (&mHciCfg, 0, sizeof(mHciCfg));
     mUsedAids.clear ();
+    memset(mAidForEmptySelect, 0, sizeof(mAidForEmptySelect));
 
     // Get Fresh EE info.
     if (! getEeInfo())
@@ -218,6 +220,8 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     mRouteDataSet.initialize ();
     mRouteDataSet.import (); //read XML file
     HostAidRouter::getInstance().initialize ();
+
+    GetStrValue(NAME_AID_FOR_EMPTY_SELECT, (char*)&mAidForEmptySelect[0], sizeof(mAidForEmptySelect));
 
     mIsInit = true;
     ALOGD ("%s: exit", fn);
@@ -847,8 +851,50 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
     bool isSuccess = false;
     bool waitOk = false;
+    UINT8 newSelectCmd[NCI_MAX_AID_LEN + 10];
 
     ALOGD ("%s: enter; xmitBufferSize=%ld; recvBufferMaxSize=%ld; timeout=%ld", fn, xmitBufferSize, recvBufferMaxSize, timeoutMillisec);
+
+    // Check if we need to replace an "empty" SELECT command.
+    // 1. Has there been a AID configured, and
+    // 2. Is that AID a valid length (i.e 16 bytes max), and
+    // 3. Is the APDU at least 4 bytes (for header), and
+    // 4. Is INS == 0xA4 (SELECT command), and
+    // 5. Is P1 == 0x04 (SELECT by AID), and
+    // 6. Is the APDU len 4 or 5 bytes.
+    //
+    // Note, the length of the configured AID is in the first
+    //   byte, and AID starts from the 2nd byte.
+    if (mAidForEmptySelect[0]                           // 1
+        && (mAidForEmptySelect[0] <= NCI_MAX_AID_LEN)   // 2
+        && (xmitBufferSize >= 4)                        // 3
+        && (xmitBuffer[1] == 0xA4)                      // 4
+        && (xmitBuffer[2] == 0x04)                      // 5
+        && (xmitBufferSize <= 5))                       // 6
+    {
+        UINT8 idx = 0;
+
+        // Copy APDU command header from the input buffer.
+        memcpy(&newSelectCmd[0], &xmitBuffer[0], 4);
+        idx = 4;
+
+        // Set the Lc value to length of the new AID
+        newSelectCmd[idx++] = mAidForEmptySelect[0];
+
+        // Copy the AID
+        memcpy(&newSelectCmd[idx], &mAidForEmptySelect[1], mAidForEmptySelect[0]);
+        idx += mAidForEmptySelect[0];
+
+        // If there is an Le (5th byte of APDU), add it to the end.
+        if (xmitBufferSize == 5)
+            newSelectCmd[idx++] = xmitBuffer[4];
+
+        // Point to the new APDU
+        xmitBuffer = &newSelectCmd[0];
+        xmitBufferSize = idx;
+
+        ALOGD ("%s: Empty AID SELECT cmd detected, substituting AID from config file, new length=%d", fn, idx);
+    }
 
     {
         SyncEventGuard guard (mTransceiveEvent);
