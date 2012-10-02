@@ -46,9 +46,9 @@ const PowerSwitch::PowerActivity PowerSwitch::SE_CONNECTED=0x04;
 *******************************************************************************/
 PowerSwitch::PowerSwitch ()
 :   mCurrLevel (UNKNOWN_LEVEL),
-    mCurrActivity(0),
     mCurrDeviceMgtPowerState (NFA_DM_PWR_STATE_UNKNOWN),
-    mDesiredScreenOffPowerState (0)
+    mDesiredScreenOffPowerState (0),
+    mCurrActivity(0)
 {
 }
 
@@ -94,8 +94,10 @@ PowerSwitch& PowerSwitch::getInstance ()
 void PowerSwitch::initialize (PowerLevel level)
 {
     static const char fn [] = "PowerSwitch::initialize";
-    ALOGD ("%s: level=%s (%u)", fn, powerLevelToString(level), level);
 
+    mMutex.lock ();
+
+    ALOGD ("%s: level=%s (%u)", fn, powerLevelToString(level), level);
     GetNumValue (NAME_SCREEN_OFF_POWER_STATE, &mDesiredScreenOffPowerState, sizeof(mDesiredScreenOffPowerState));
     ALOGD ("%s: desired screen-off state=%d", fn, mDesiredScreenOffPowerState);
 
@@ -115,6 +117,7 @@ void PowerSwitch::initialize (PowerLevel level)
         ALOGE ("%s: not handled", fn);
         break;
     }
+    mMutex.unlock ();
 }
 
 
@@ -129,7 +132,11 @@ void PowerSwitch::initialize (PowerLevel level)
 *******************************************************************************/
 PowerSwitch::PowerLevel PowerSwitch::getLevel ()
 {
-    return mCurrLevel;
+    PowerLevel level = UNKNOWN_LEVEL;
+    mMutex.lock ();
+    level = mCurrLevel;
+    mMutex.unlock ();
+    return level;
 }
 
 
@@ -146,11 +153,16 @@ PowerSwitch::PowerLevel PowerSwitch::getLevel ()
 bool PowerSwitch::setLevel (PowerLevel newLevel)
 {
     static const char fn [] = "PowerSwitch::setLevel";
-    ALOGD ("%s: level=%s (%u)", fn, powerLevelToString(newLevel), newLevel);
     bool retval = false;
 
+    mMutex.lock ();
+
+    ALOGD ("%s: level=%s (%u)", fn, powerLevelToString(newLevel), newLevel);
     if (mCurrLevel == newLevel)
-        return true;
+    {
+        retval = true;
+        goto TheEnd;
+    }
 
     switch (newLevel)
     {
@@ -174,6 +186,9 @@ bool PowerSwitch::setLevel (PowerLevel newLevel)
         ALOGE ("%s: not handled", fn);
         break;
     }
+
+TheEnd:
+    mMutex.unlock ();
     return retval;
 }
 
@@ -188,9 +203,14 @@ bool PowerSwitch::setLevel (PowerLevel newLevel)
 *******************************************************************************/
 bool PowerSwitch::setModeOff (PowerActivity deactivated)
 {
+    bool retVal = false;
+
+    mMutex.lock ();
     mCurrActivity &= ~deactivated;
+    retVal = mCurrActivity != 0;
     ALOGD ("PowerSwitch::setModeOff(deactivated=0x%x) : mCurrActivity=0x%x", deactivated, mCurrActivity);
-    return (mCurrActivity != 0);
+    mMutex.unlock ();
+    return retVal;
 }
 
 
@@ -205,9 +225,14 @@ bool PowerSwitch::setModeOff (PowerActivity deactivated)
 *******************************************************************************/
 bool PowerSwitch::setModeOn (PowerActivity activated)
 {
+    bool retVal = false;
+
+    mMutex.lock ();
     mCurrActivity |= activated;
+    retVal = mCurrActivity != 0;
     ALOGD ("PowerSwitch::setModeOn(activated=0x%x) : mCurrActivity=0x%x", activated, mCurrActivity);
-    return (mCurrActivity != 0);
+    mMutex.unlock ();
+    return retVal;
 }
 
 
