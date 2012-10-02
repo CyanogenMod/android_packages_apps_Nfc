@@ -396,7 +396,7 @@ private:
     UINT8           mResponseData [MAX_RESPONSE_SIZE];
     RouteDataSet    mRouteDataSet; //routing data
     std::vector<std::string> mUsedAids; //AID's that are used in current routes
-
+    UINT8           mAidForEmptySelect[NCI_MAX_AID_LEN+1];
 
     /*******************************************************************************
     **
