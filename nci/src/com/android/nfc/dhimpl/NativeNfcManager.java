@@ -38,6 +38,8 @@ public class NativeNfcManager implements DeviceHost {
     static final int DEFAULT_LLCP_MIU = 1980;
     static final int DEFAULT_LLCP_RWSIZE = 2;
 
+    static final String DRIVER_NAME = "android-nci";
+
     static {
         System.loadLibrary("nfc_nci_jni");
     }
@@ -96,6 +98,11 @@ public class NativeNfcManager implements DeviceHost {
         editor.apply();
 
         return doDeinitialize();
+    }
+
+    @Override
+    public String getName() {
+        return DRIVER_NAME;
     }
 
     @Override
