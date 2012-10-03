@@ -111,6 +111,7 @@ static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
 static bool                 sRfEnabled = false; // whether RF discovery is enabled
+static bool                 sSeRfActive = false;  // whether RF with SE is likely active
 static int                  sConnlessSap = 0;
 static int                  sConnlessLinkMiu = 0;
 static bool                 sAbortConnlessWait = false;
@@ -132,6 +133,7 @@ static UINT32               sConfigUpdated = 0;
 static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
+static bool isListenMode(tNFA_ACTIVATED& activated);
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
@@ -305,7 +307,19 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
             ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
         }
         else if (pn544InteropIsBusy() == false)
+        {
             NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
+
+            // We know it is not activating for P2P.  If it activated in
+            // listen mode then it is likely for and SE transaction.
+            // Send the RF Event.
+            if (isListenMode(eventData->activated))
+            {
+                sSeRfActive = true;
+                SecureElement::getInstance().notifyRfFieldEvent (true);
+            }
+        }
+
         break;
 
     case NFA_DEACTIVATED_EVT: // NFC link/protocol deactivated
@@ -321,6 +335,16 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
         nativeNfcTag_abortWaits();
         NfcTag::getInstance().abort ();
+
+        // If RF is activated for what we think is a Secure Element transaction
+        // and it is deactivated to either IDLE or DISCOVERY mode, notify w/event.
+        if (sSeRfActive
+            && ((eventData->deactivated.type == NFA_DEACTIVATE_TYPE_IDLE)
+                || (eventData->deactivated.type == NFA_DEACTIVATE_TYPE_DISCOVERY)))
+        {
+            sSeRfActive = false;
+            SecureElement::getInstance().notifyRfFieldEvent (false);
+        }
         break;
 
     case NFA_TLV_DETECT_EVT: // TLV Detection complete
@@ -1262,6 +1286,26 @@ static bool isPeerToPeer (tNFA_ACTIVATED& activated)
     return activated.activate_ntf.protocol == NFA_PROTOCOL_NFC_DEP;
 }
 
+/*******************************************************************************
+**
+** Function:        isListenMode
+**
+** Description:     Indicates whether the activation data indicates it is
+**                  listen mode.
+**
+** Returns:         True if this listen mode.
+**
+*******************************************************************************/
+static bool isListenMode(tNFA_ACTIVATED& activated)
+{
+    return ((NFC_DISCOVERY_TYPE_LISTEN_A == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_B == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_F == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_A_ACTIVE == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_F_ACTIVE == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_ISO15693 == activated.activate_ntf.rf_tech_param.mode)
+            || (NFC_DISCOVERY_TYPE_LISTEN_B_PRIME == activated.activate_ntf.rf_tech_param.mode));
+}
 
 /*******************************************************************************
 **
@@ -1733,4 +1777,3 @@ void startStopPolling (bool isStartPolling)
 
 
 } /* namespace android */
-
