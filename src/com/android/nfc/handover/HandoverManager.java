@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 
@@ -570,7 +571,7 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         synchronized File generateMultiplePath(String beamRoot) {
             // Generate a unique directory with the date
             String format = "yyyy-MM-dd";
-            SimpleDateFormat sdf = new SimpleDateFormat(format);
+            SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.US);
             String newPath = beamRoot + "beam-" + sdf.format(new Date());
             File newFile = new File(newPath);
             int count = 0;
