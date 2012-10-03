@@ -111,7 +111,6 @@ static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
 static bool                 sRfEnabled = false; // whether RF discovery is enabled
-#define                     NFA_DM_PWR_STATE_UNKNOWN (-1) // power off sleep state is unkown until is is reported back from NFA...
 static int                  sConnlessSap = 0;
 static int                  sConnlessLinkMiu = 0;
 static bool                 sAbortConnlessWait = false;
