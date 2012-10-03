@@ -175,6 +175,8 @@ public interface DeviceHost {
 
     public boolean deinitialize();
 
+    public String getName();
+
     public void enableDiscovery();
 
     public void disableDiscovery();

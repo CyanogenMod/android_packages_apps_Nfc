@@ -43,6 +43,8 @@ public class NativeNfcManager implements DeviceHost {
     private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
     private static final long FIRMWARE_MODTIME_DEFAULT = -1;
 
+    static final String DRIVER_NAME = "nxp";
+
     static final int DEFAULT_LLCP_MIU = 128;
     static final int DEFAULT_LLCP_RWSIZE = 1;
 
@@ -158,6 +160,11 @@ public class NativeNfcManager implements DeviceHost {
         editor.apply();
 
         return doDeinitialize();
+    }
+
+    @Override
+    public String getName() {
+        return DRIVER_NAME;
     }
 
     @Override

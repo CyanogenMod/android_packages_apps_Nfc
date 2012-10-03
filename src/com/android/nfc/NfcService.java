@@ -1360,6 +1360,12 @@ public class NfcService extends Application implements DeviceHostListener {
         public void authenticate(String pkg, byte[] token) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
         }
+
+        @Override
+        public String getDriverName(String pkg) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
+            return mDeviceHost.getName();
+        }
     }
 
     /** resources kept while secure element is open */
