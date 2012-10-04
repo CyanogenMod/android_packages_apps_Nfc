@@ -44,24 +44,34 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, job
     ALOGD("%s: enter", __FUNCTION__);
     bool stat = true;
     jint secElemHandle = 0;
+    SecureElement &se = SecureElement::getInstance();
 
+    if (se.isActivatedInListenMode()) {
+        ALOGD("Denying SE open due to SE listen mode active");
+        goto TheEnd;
+    }
+
+    if (se.isRfFieldOn()) {
+        ALOGD("Denying SE open due to SE in active RF field");
+        goto TheEnd;
+    }
     //tell the controller to power up to get ready for sec elem operations
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
     PowerSwitch::getInstance ().setModeOn (PowerSwitch::SE_CONNECTED);
 
     //if controller is not routing AND there is no pipe connected,
     //then turn on the sec elem
-    if (! SecureElement::getInstance().isBusy())
-        stat = SecureElement::getInstance().activate(0);
+    if (! se.isBusy())
+        stat = se.activate(0);
 
     if (stat)
     {
         //establish a pipe to sec elem
-        stat = SecureElement::getInstance().connectEE();
+        stat = se.connectEE();
         if (stat)
-            secElemHandle = SecureElement::getInstance().mActiveEeHandle;
+            secElemHandle = se.mActiveEeHandle;
         else
-            SecureElement::getInstance().deactivate (0);
+            se.deactivate (0);
     }
 
     //if code fails to connect to the secure element, and nothing is active, then

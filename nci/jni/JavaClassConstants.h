@@ -24,6 +24,8 @@ namespace android
     extern jmethodID gCachedNfcManagerNotifyLlcpLinkDeactivated;
     extern jmethodID gCachedNfcManagerNotifySeFieldActivated;
     extern jmethodID gCachedNfcManagerNotifySeFieldDeactivated;
+    extern jmethodID gCachedNfcManagerNotifySeListenActivated;
+    extern jmethodID gCachedNfcManagerNotifySeListenDeactivated;
 
     extern const char* gNativeP2pDeviceClassName;
     extern const char* gNativeLlcpServiceSocketClassName;

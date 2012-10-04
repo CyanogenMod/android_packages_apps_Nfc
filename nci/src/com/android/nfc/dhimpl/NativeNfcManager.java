@@ -336,6 +336,14 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onRemoteFieldDeactivated();
     }
 
+    private void notifySeListenActivated() {
+        mListener.onSeListenActivated();
+    }
+
+    private void notifySeListenDeactivated() {
+        mListener.onSeListenDeactivated();
+    }
+
     private void notifySeApduReceived(byte[] apdu) {
         mListener.onSeApduReceived(apdu);
     }

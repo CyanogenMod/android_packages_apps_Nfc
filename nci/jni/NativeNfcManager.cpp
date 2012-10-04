@@ -78,6 +78,8 @@ namespace android
     jmethodID               gCachedNfcManagerNotifyLlcpLinkDeactivated;
     jmethodID               gCachedNfcManagerNotifySeFieldActivated;
     jmethodID               gCachedNfcManagerNotifySeFieldDeactivated;
+    jmethodID               gCachedNfcManagerNotifySeListenActivated;
+    jmethodID               gCachedNfcManagerNotifySeListenDeactivated;
     const char*             gNativeP2pDeviceClassName                 = "com/android/nfc/dhimpl/NativeP2pDevice";
     const char*             gNativeLlcpServiceSocketClassName         = "com/android/nfc/dhimpl/NativeLlcpServiceSocket";
     const char*             gNativeLlcpConnectionlessSocketClassName  = "com/android/nfc/dhimpl/NativeLlcpConnectionlessSocket";
@@ -112,6 +114,7 @@ static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
 static bool                 sRfEnabled = false; // whether RF discovery is enabled
 static bool                 sSeRfActive = false;  // whether RF with SE is likely active
+static bool                 sP2pActive = false; // whether p2p was last active
 static int                  sConnlessSap = 0;
 static int                  sConnlessLinkMiu = 0;
 static bool                 sAbortConnlessWait = false;
@@ -304,7 +307,18 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         nativeNfcTag_resetPresenceCheck();
         if (isPeerToPeer(eventData->activated))
         {
+            sP2pActive = true;
             ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
+            // Disable RF field events in case of p2p
+            UINT8  nfa_disable_rf_events[] = { 0x00 };
+            ALOGD ("%s: Disabling RF field events", __FUNCTION__);
+            status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_disable_rf_events),
+                    &nfa_disable_rf_events[0]);
+            if (status == NFA_STATUS_OK) {
+                ALOGD ("%s: Disabled RF field events", __FUNCTION__);
+            } else {
+                ALOGE ("%s: Failed to disable RF field events", __FUNCTION__);
+            }
         }
         else if (pn544InteropIsBusy() == false)
         {
@@ -316,7 +330,7 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
             if (isListenMode(eventData->activated))
             {
                 sSeRfActive = true;
-                SecureElement::getInstance().notifyRfFieldEvent (true);
+                SecureElement::getInstance().notifyListenModeState (true);
             }
         }
 
@@ -338,13 +352,30 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
 
         // If RF is activated for what we think is a Secure Element transaction
         // and it is deactivated to either IDLE or DISCOVERY mode, notify w/event.
-        if (sSeRfActive
-            && ((eventData->deactivated.type == NFA_DEACTIVATE_TYPE_IDLE)
-                || (eventData->deactivated.type == NFA_DEACTIVATE_TYPE_DISCOVERY)))
+        if ((eventData->deactivated.type == NFA_DEACTIVATE_TYPE_IDLE)
+                || (eventData->deactivated.type == NFA_DEACTIVATE_TYPE_DISCOVERY))
         {
-            sSeRfActive = false;
-            SecureElement::getInstance().notifyRfFieldEvent (false);
+            if (sSeRfActive) {
+                sSeRfActive = false;
+                SecureElement::getInstance().notifyListenModeState (false);
+            } else if (sP2pActive) {
+                sP2pActive = false;
+                // Make sure RF field events are re-enabled
+                ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
+                // Disable RF field events in case of p2p
+                UINT8  nfa_enable_rf_events[] = { 0x01 };
+
+                ALOGD ("%s: Enabling RF field events", __FUNCTION__);
+                status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_enable_rf_events),
+                        &nfa_enable_rf_events[0]);
+                if (status == NFA_STATUS_OK) {
+                    ALOGD ("%s: Enabled RF field events", __FUNCTION__);
+                } else {
+                    ALOGE ("%s: Failed to enable RF field events", __FUNCTION__);
+                }
+            }
         }
+
         break;
 
     case NFA_TLV_DETECT_EVT: // TLV Detection complete
@@ -513,6 +544,10 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
             "notifySeFieldActivated", "()V");
     gCachedNfcManagerNotifySeFieldDeactivated = e->GetMethodID (cls,
             "notifySeFieldDeactivated", "()V");
+    gCachedNfcManagerNotifySeListenActivated = e->GetMethodID (cls,
+            "notifySeListenActivated", "()V");
+    gCachedNfcManagerNotifySeListenDeactivated = e->GetMethodID (cls,
+            "notifySeListenDeactivated", "()V");
 
     sCachedNfcManagerNotifySeApduReceived = e->GetMethodID(cls,
             "notifySeApduReceived", "([B)V");
