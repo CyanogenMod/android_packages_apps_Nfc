@@ -677,7 +677,9 @@ bool SecureElement::connectEE ()
     // If the .conf file had a static pipe to use, just use it.
     if (mNewPipeId != 0)
     {
-        nfaStat = NFA_HciAddStaticPipe(mNfaHciHandle, mNewPipeId);
+        UINT8 host = (mNewPipeId == STATIC_PIPE_0x70) ? 0x02 : 0x03;
+        UINT8 gate = (mNewPipeId == STATIC_PIPE_0x70) ? 0xF0 : 0xF1;
+        nfaStat = NFA_HciAddStaticPipe(mNfaHciHandle, host, gate, mNewPipeId);
         if (nfaStat != NFA_STATUS_OK)
         {
             ALOGE ("%s: fail create static pipe; error=0x%X", fn, nfaStat);
@@ -1627,8 +1629,10 @@ bool SecureElement::getSeVerInfo(int seIndex, char * verInfo, int verInfoSz, UIN
     verInfo[verInfoSz-1] = '\0';
 
     UINT8 pipe = (mEeInfo[seIndex].ee_handle == EE_HANDLE_0xF3) ? 0x70 : 0x71;
+    UINT8 host = (pipe == STATIC_PIPE_0x70) ? 0x02 : 0x03;
+    UINT8 gate = (pipe == STATIC_PIPE_0x70) ? 0xF0 : 0xF1;
 
-    tNFA_STATUS nfaStat = NFA_HciAddStaticPipe(mNfaHciHandle, pipe);
+    tNFA_STATUS nfaStat = NFA_HciAddStaticPipe(mNfaHciHandle, host, gate, pipe);
     if (nfaStat != NFA_STATUS_OK)
     {
         ALOGE ("%s: NFA_HciAddStaticPipe() failed, pipe = 0x%x, error=0x%X", __FUNCTION__, pipe, nfaStat);
