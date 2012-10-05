@@ -1287,7 +1287,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 if (handle == 0) {
                     throw new IOException("NFC EE failed to open");
                 }
-                mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+                mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 30000);
 
                 mOpenEe = new OpenSecureElement(getCallingPid(), handle, b);
                 try {
