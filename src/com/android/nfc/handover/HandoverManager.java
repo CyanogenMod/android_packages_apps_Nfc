@@ -71,6 +71,8 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static final byte[] TYPE_BT_OOB = "application/vnd.bluetooth.ep.oob".
             getBytes(Charset.forName("US_ASCII"));
 
+    static final byte[] RTD_COLLISION_RESOLUTION = {0x63, 0x72}; // "cr";
+
     static final String ACTION_BT_OPP_TRANSFER_PROGRESS =
             "android.btopp.intent.action.BT_OPP_TRANSFER_PROGRESS";
 
@@ -642,7 +644,7 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
     static NdefRecord createCollisionRecord() {
         byte[] random = new byte[2];
         new Random().nextBytes(random);
-        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_HANDOVER_REQUEST, null, random);
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, RTD_COLLISION_RESOLUTION, null, random);
     }
 
     NdefRecord createBluetoothAlternateCarrierRecord(boolean activating) {
@@ -657,8 +659,12 @@ public class HandoverManager implements BluetoothProfile.ServiceListener,
 
     NdefRecord createBluetoothOobDataRecord() {
         byte[] payload = new byte[8];
-        payload[0] = 0;
-        payload[1] = (byte)payload.length;
+        // Note: this field should be little-endian per the BTSSP spec
+        // The Android 4.1 implementation used big-endian order here.
+        // No single Android implementation has ever interpreted this
+        // length field when parsing this record though.
+        payload[0] = (byte) (payload.length & 0xFF);
+        payload[1] = (byte) ((payload.length >> 8) & 0xFF);
 
         synchronized (HandoverManager.this) {
             if (mLocalBluetoothAddress == null) {
