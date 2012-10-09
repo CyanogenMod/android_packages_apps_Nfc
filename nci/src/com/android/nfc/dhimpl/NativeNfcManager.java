@@ -40,6 +40,18 @@ public class NativeNfcManager implements DeviceHost {
 
     static final String DRIVER_NAME = "android-nci";
 
+    private static final byte[][] EE_WIPE_APDUS = {
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
+                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
+        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
+                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
+        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
+        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
+    };
+
     static {
         System.loadLibrary("nfc_nci_jni");
     }
@@ -281,7 +293,7 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public byte[][] getWipeApdus() {
-        return null;
+        return EE_WIPE_APDUS;
     }
 
     @Override
