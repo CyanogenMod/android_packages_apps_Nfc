@@ -33,11 +33,8 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Notification.Builder;
-import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothHeadset;
-import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -52,6 +49,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.os.UserHandle;
 import android.util.Log;
 import android.util.Pair;
 
@@ -387,7 +385,8 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
 
                 Intent viewIntent = buildViewIntent();
-                PendingIntent contentIntent = PendingIntent.getActivity(mContext, 0, viewIntent, 0);
+                PendingIntent contentIntent = PendingIntent.getActivityAsUser(
+                        mContext, 0, viewIntent, 0, null, UserHandle.CURRENT);
 
                 notBuilder.setContentIntent(contentIntent);
 
@@ -407,7 +406,8 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
                 return;
             }
 
-            mNotificationManager.notify(mNotificationId, notBuilder.build());
+            mNotificationManager.notifyAsUser(null, mNotificationId, notBuilder.build(),
+                    UserHandle.CURRENT);
         }
 
         synchronized void updateStateAndNotification(int newState) {

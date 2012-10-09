@@ -16,6 +16,7 @@
 
 package com.android.nfc.handover;
 
+import android.app.ActivityManager;
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -28,6 +29,7 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.UserHandle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -385,10 +387,10 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
         Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_DOWN,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
+        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
+        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
     }
 
     void requestPairConfirmation() {
@@ -397,7 +399,7 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
 
         dialogIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
 
-        mContext.startActivity(dialogIntent);
+        mContext.startActivityAsUser(dialogIntent, new UserHandle(UserHandle.USER_CURRENT));
     }
 
     final Handler mHandler = new Handler() {

@@ -19,6 +19,7 @@ package com.android.nfc;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -29,6 +30,7 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
+import android.os.UserHandle;
 import android.util.Log;
 
 import java.io.IOException;
@@ -69,12 +71,16 @@ public class RegisteredComponentCache {
         intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
         intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         intentFilter.addDataScheme("package");
-        mContext.registerReceiver(receiver, intentFilter);
+        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, intentFilter, null, null);
         // Register for events related to sdcard installation.
         IntentFilter sdFilter = new IntentFilter();
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
-        mContext.registerReceiver(receiver, sdFilter);
+        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, sdFilter, null, null);
+        // Generate a new list upon switching users as well
+        IntentFilter userFilter = new IntentFilter();
+        userFilter.addAction(Intent.ACTION_USER_SWITCHED);
+        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, userFilter, null, null);
     }
 
     public static class ComponentInfo {
@@ -137,13 +143,21 @@ public class RegisteredComponentCache {
     }
 
     void generateComponentsList() {
-        PackageManager pm = mContext.getPackageManager();
+        PackageManager pm;
+        try {
+            UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
+            pm = mContext.createPackageContextAsUser("android", 0,
+                    currentUser).getPackageManager();
+        } catch (NameNotFoundException e) {
+            Log.e(TAG, "Could not create user package context");
+            return;
+        }
         ArrayList<ComponentInfo> components = new ArrayList<ComponentInfo>();
-        List<ResolveInfo> resolveInfos = pm.queryIntentActivities(new Intent(mAction),
-                PackageManager.GET_META_DATA);
+        List<ResolveInfo> resolveInfos = pm.queryIntentActivitiesAsUser(new Intent(mAction),
+                PackageManager.GET_META_DATA, ActivityManager.getCurrentUser());
         for (ResolveInfo resolveInfo : resolveInfos) {
             try {
-                parseComponentInfo(resolveInfo, components);
+                parseComponentInfo(pm, resolveInfo, components);
             } catch (XmlPullParserException e) {
                 Log.w(TAG, "Unable to load component info " + resolveInfo.toString(), e);
             } catch (IOException e) {
@@ -158,10 +172,9 @@ public class RegisteredComponentCache {
         }
     }
 
-    void parseComponentInfo(ResolveInfo info, ArrayList<ComponentInfo> components)
-            throws XmlPullParserException, IOException {
+    void parseComponentInfo(PackageManager pm, ResolveInfo info,
+            ArrayList<ComponentInfo> components) throws XmlPullParserException, IOException {
         ActivityInfo ai = info.activityInfo;
-        PackageManager pm = mContext.getPackageManager();
 
         XmlResourceParser parser = null;
         try {
