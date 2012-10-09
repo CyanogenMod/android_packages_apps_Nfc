@@ -806,6 +806,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
     bool fNeedToSwitchBack = false;
     nfc_jni_native_data *nat = getNative (0, 0);
     bool waitOk = false;
+    bool isNack = false;
     uint8_t *buf = NULL;
     uint32_t bufLen = 0;
     jint *targetLost = NULL;
@@ -884,24 +885,21 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv *e, jobject o, jbyteArray da
         if ((natTag.getProtocol () == NFA_PROTOCOL_T2T) &&
             natTag.isT2tNackResponse (sTransceiveData, sTransceiveDataLen))
         {
-            if (targetLost)
-            {
-                ALOGD ("%s: t2t nack", __FUNCTION__);
-                *targetLost = 1; //causes NFC service to throw TagLostException
-            }
-            break;
+            isNack = true;
         }
 
         if (sTransceiveDataLen)
         {
-            // marshall data to java for return
-            result = e->NewByteArray (sTransceiveDataLen);
-            if (result != NULL)
-            {
-                e->SetByteArrayRegion (result, 0, sTransceiveDataLen, (jbyte *) sTransceiveData);
-            }
-            else
-                ALOGE ("%s: Failed to allocate java byte array", __FUNCTION__);
+            if (!isNack) {
+                // marshall data to java for return
+                result = e->NewByteArray (sTransceiveDataLen);
+                if (result != NULL)
+                {
+                    e->SetByteArrayRegion (result, 0, sTransceiveDataLen, (jbyte *) sTransceiveData);
+                }
+                else
+                    ALOGE ("%s: Failed to allocate java byte array", __FUNCTION__);
+            } // else a nack is treated as a transceive failure to the upper layers
 
             free (sTransceiveData);
             sTransceiveData = NULL;
