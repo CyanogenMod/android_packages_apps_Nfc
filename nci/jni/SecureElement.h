@@ -157,6 +157,18 @@ public:
     bool transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* recvBuffer,
                      INT32 recvBufferMaxSize, INT32& recvBufferActualSize, INT32 timeoutMillisec);
 
+    /*******************************************************************************
+    **
+    ** Function:        notifyListenModeState
+    **
+    ** Description:     Notify the NFC service about whether the SE was activated
+    **                  in listen mode.
+    **                  isActive: Whether the secure element is activated.
+    **
+    ** Returns:         None
+    **
+    *******************************************************************************/
+    void notifyListenModeState (bool isActivated);
 
     /*******************************************************************************
     **
@@ -346,6 +358,28 @@ public:
     bool getSeVerInfo(int seIndex, char * verInfo, int verInfoSz, UINT8 * seid);
 
 
+    /*******************************************************************************
+    **
+    ** Function:        isActivatedInListenMode
+    **
+    ** Description:     Can be used to determine if the SE is activated in listen mode
+    **
+    ** Returns:         True if the SE is activated in listen mode
+    **
+    *******************************************************************************/
+    bool isActivatedInListenMode();
+
+    /*******************************************************************************
+    **
+    ** Function:        isRfFieldOn
+    **
+    ** Description:     Can be used to determine if the SE is in an RF field
+    **
+    ** Returns:         True if the SE is activated in an RF field
+    **
+    *******************************************************************************/
+    bool isRfFieldOn();
+
 private:
     static const unsigned int MAX_RESPONSE_SIZE = 1024;
     enum RouteSelection {NoRoute, DefaultRoute, SecElemRoute};
@@ -373,6 +407,7 @@ private:
     RouteSelection mCurrentRouteSelection;
     int     mActualResponseSize;         //number of bytes in the response received from secure element
     bool    mUseOberthurWarmReset;  //whether to use warm-reset command
+    bool    mActivatedInListenMode; // whether we're activated in listen mode
     UINT8   mOberthurWarmResetCommand; //warm-reset command byte
     tNFA_EE_INFO mEeInfo [MAX_NUM_EE];  //actual size stored in mActualNumEe
     tNFA_EE_DISCOVER_REQ mUiccInfo;
@@ -397,7 +432,9 @@ private:
     RouteDataSet    mRouteDataSet; //routing data
     std::vector<std::string> mUsedAids; //AID's that are used in current routes
     UINT8           mAidForEmptySelect[NCI_MAX_AID_LEN+1];
-
+    Mutex           mMutex; // protects fields below
+    bool            mRfFieldIsOn; // last known RF field state
+    struct timespec mLastRfFieldToggle; // last time RF field went off
     /*******************************************************************************
     **
     ** Function:        SecureElement
@@ -537,7 +574,6 @@ private:
     **
     *******************************************************************************/
     bool getEeInfo ();
-
 
     /*******************************************************************************
     **

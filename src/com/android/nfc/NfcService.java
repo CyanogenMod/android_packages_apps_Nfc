@@ -113,6 +113,8 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_SE_APDU_RECEIVED = 10;
     static final int MSG_SE_EMV_CARD_REMOVAL = 11;
     static final int MSG_SE_MIFARE_ACCESS = 12;
+    static final int MSG_SE_LISTEN_ACTIVATED = 13;
+    static final int MSG_SE_LISTEN_DEACTIVATED = 14;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -158,6 +160,11 @@ public class NfcService implements DeviceHostListener {
         "com.android.nfc_extras.action.MIFARE_ACCESS_DETECTED";
     public static final String EXTRA_MIFARE_BLOCK =
         "com.android.nfc_extras.extra.MIFARE_BLOCK";
+
+    public static final String ACTION_SE_LISTEN_ACTIVATED =
+            "com.android.nfc_extras.action.SE_LISTEN_ACTIVATED";
+    public static final String ACTION_SE_LISTEN_DEACTIVATED =
+            "com.android.nfc_extras.action.SE_LISTEN_DEACTIVATED";
 
     // NFC Execution Environment
     // fields below are protected by this
@@ -278,6 +285,17 @@ public class NfcService implements DeviceHostListener {
     public void onRemoteFieldDeactivated() {
         sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
     }
+
+    @Override
+    public void onSeListenActivated() {
+        sendMessage(NfcService.MSG_SE_LISTEN_ACTIVATED, null);
+    }
+
+    @Override
+    public void onSeListenDeactivated() {
+        sendMessage(NfcService.MSG_SE_LISTEN_DEACTIVATED, null);
+    }
+
 
     @Override
     public void onSeApduReceived(byte[] apdu) {
@@ -1742,6 +1760,22 @@ public class NfcService implements DeviceHostListener {
                     Intent eventFieldOffIntent = new Intent();
                     eventFieldOffIntent.setAction(ACTION_RF_FIELD_OFF_DETECTED);
                     sendSeBroadcast(eventFieldOffIntent);
+                    break;
+                }
+
+                case MSG_SE_LISTEN_ACTIVATED: {
+                    if (DBG) Log.d(TAG, "SE LISTEN MODE ACTIVATED");
+                    Intent listenModeActivated = new Intent();
+                    listenModeActivated.setAction(ACTION_SE_LISTEN_ACTIVATED);
+                    sendSeBroadcast(listenModeActivated);
+                    break;
+                }
+
+                case MSG_SE_LISTEN_DEACTIVATED: {
+                    if (DBG) Log.d(TAG, "SE LISTEN MODE DEACTIVATED");
+                    Intent listenModeDeactivated = new Intent();
+                    listenModeDeactivated.setAction(ACTION_SE_LISTEN_DEACTIVATED);
+                    sendSeBroadcast(listenModeDeactivated);
                     break;
                 }
 

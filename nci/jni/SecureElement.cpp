@@ -76,13 +76,16 @@ SecureElement::SecureElement ()
     mCurrentRouteSelection (NoRoute),
     mActualResponseSize(0),
     mUseOberthurWarmReset (false),
-    mOberthurWarmResetCommand (3)
+    mActivatedInListenMode (false),
+    mOberthurWarmResetCommand (3),
+    mRfFieldIsOn(false)
 {
     memset (&mEeInfo, 0, sizeof(mEeInfo));
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
     memset (&mHciCfg, 0, sizeof(mHciCfg));
     memset (mResponseData, 0, sizeof(mResponseData));
     memset (mAidForEmptySelect, 0, sizeof(mAidForEmptySelect));
+    memset (&mLastRfFieldToggle, 0, sizeof(mLastRfFieldToggle));
 }
 
 
@@ -320,6 +323,70 @@ bool SecureElement::getEeInfo()
     return (mActualNumEe != 0);
 }
 
+
+/*******************************************************************************
+**
+** Function         TimeDiff
+**
+** Description      Computes time difference in milliseconds.
+**
+** Returns          Time difference in milliseconds
+**
+*******************************************************************************/
+static UINT32 TimeDiff(timespec start, timespec end)
+{
+    end.tv_sec -= start.tv_sec;
+    end.tv_nsec -= start.tv_nsec;
+
+    if (end.tv_nsec < 0) {
+        end.tv_nsec += 10e8;
+        end.tv_sec -=1;
+    }
+
+    return (end.tv_sec * 1000) + (end.tv_nsec / 10e5);
+}
+
+/*******************************************************************************
+**
+** Function:        isRfFieldOn
+**
+** Description:     Can be used to determine if the SE is in an RF field
+**
+** Returns:         True if the SE is activated in an RF field
+**
+*******************************************************************************/
+bool SecureElement::isRfFieldOn() {
+    AutoMutex mutex(mMutex);
+    if (mRfFieldIsOn) {
+        return true;
+    }
+    struct timespec now;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &now);
+    if (ret == -1) {
+        ALOGE("isRfFieldOn(): clock_gettime failed");
+        return false;
+    }
+    if (TimeDiff(mLastRfFieldToggle, now) < 50) {
+        // If it was less than 50ms ago that RF field
+        // was turned off, still return ON.
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/*******************************************************************************
+**
+** Function:        isActivatedInListenMode
+**
+** Description:     Can be used to determine if the SE is activated in listen mode
+**
+** Returns:         True if the SE is activated in listen mode
+**
+*******************************************************************************/
+bool SecureElement::isActivatedInListenMode() {
+    return mActivatedInListenMode;
+}
 
 /*******************************************************************************
 **
@@ -939,6 +1006,48 @@ TheEnd:
 
 /*******************************************************************************
 **
+** Function:        notifyListenModeState
+**
+** Description:     Notify the NFC service about whether the SE was activated
+**                  in listen mode.
+**                  isActive: Whether the secure element is activated.
+**
+** Returns:         None
+**
+*******************************************************************************/
+void SecureElement::notifyListenModeState (bool isActivated) {
+    static const char fn [] = "SecureElement::notifyListenMode";
+    JNIEnv *e = NULL;
+
+    ALOGD ("%s: enter; listen mode active=%u", fn, isActivated);
+    mNativeData->vm->AttachCurrentThread (&e, NULL);
+
+    if (e == NULL)
+    {
+        ALOGE ("%s: jni env is null", fn);
+        return;
+    }
+
+    mActivatedInListenMode = isActivated;
+    if (isActivated) {
+        e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifySeListenActivated);
+    }
+    else {
+        e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifySeListenDeactivated);
+    }
+
+    if (e->ExceptionCheck())
+    {
+        e->ExceptionClear();
+        ALOGE ("%s: fail notify", fn);
+    }
+
+    mNativeData->vm->DetachCurrentThread ();
+    ALOGD ("%s: exit", fn);
+}
+
+/*******************************************************************************
+**
 ** Function:        notifyRfFieldEvent
 **
 ** Description:     Notify the NFC service about RF field events from the stack.
@@ -961,17 +1070,27 @@ void SecureElement::notifyRfFieldEvent (bool isActive)
         return;
     }
 
-    if (isActive)
+    mMutex.lock();
+    int ret = clock_gettime (CLOCK_MONOTONIC, &mLastRfFieldToggle);
+    if (ret == -1) {
+        ALOGE("%s: clock_gettime failed", fn);
+        // There is no good choice here...
+    }
+    if (isActive) {
+        mRfFieldIsOn = true;
         e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifySeFieldActivated);
-    else
+    }
+    else {
+        mRfFieldIsOn = false;
         e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifySeFieldDeactivated);
+    }
+    mMutex.unlock();
 
     if (e->ExceptionCheck())
     {
         e->ExceptionClear();
         ALOGE ("%s: fail notify", fn);
     }
-
     mNativeData->vm->DetachCurrentThread ();
     ALOGD ("%s: exit", fn);
 }

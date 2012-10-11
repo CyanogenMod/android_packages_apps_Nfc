@@ -49,6 +49,16 @@ public interface DeviceHost {
 
         public void onRemoteFieldDeactivated();
 
+        /**
+         * Notifies that the SE has been activated in listen mode
+         */
+        public void onSeListenActivated();
+
+        /**
+         * Notifies that the SE has been deactivated
+         */
+        public void onSeListenDeactivated();
+
         public void onSeApduReceived(byte[] apdu);
 
         public void onSeEmvCardRemoval();
