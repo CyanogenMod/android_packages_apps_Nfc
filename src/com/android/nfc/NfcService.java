@@ -1883,11 +1883,7 @@ public class NfcService implements DeviceHostListener {
                 }
                 mScreenState = params[0].intValue();
 
-                // HACK: We've seen applying the routing configuration
-                // getting stuck. The operation should normally easily
-                // complete within a minute, so don't hold the wakelock
-                // any longer than that.
-                mRoutingWakeLock.acquire(60000);
+                mRoutingWakeLock.acquire();
                 try {
                     applyRouting(false);
                 } finally {

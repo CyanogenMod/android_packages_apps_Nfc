@@ -1385,7 +1385,8 @@ static jboolean nfcManager_doActivateLlcp(JNIEnv *e, jobject o)
 *******************************************************************************/
 static void nfcManager_doAbort(JNIEnv *e, jobject o)
 {
-    ALOGD("%s", __FUNCTION__);
+    ALOGE("%s: abort()", __FUNCTION__);
+    abort();
 }
 
 
