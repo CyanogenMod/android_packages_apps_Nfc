@@ -2129,6 +2129,7 @@ bool SecureElement::routeToDefault ()
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
     bool retval = false;
 
+    ALOGD ("%s: enter", fn);
     if (! mIsInit)
     {
         ALOGE ("%s: not init", fn);
@@ -2141,6 +2142,7 @@ bool SecureElement::routeToDefault ()
         return true;
     }
 
+    if (mActiveEeHandle != NFA_HANDLE_INVALID)
     {
         ALOGD ("%s: stop UICC listen; EE h=0x%X", fn, mActiveEeHandle);
         SyncEventGuard guard (mUiccListenEvent);
@@ -2153,6 +2155,8 @@ bool SecureElement::routeToDefault ()
         else
             ALOGE ("%s: fail to stop UICC listen", fn);
     }
+    else
+        retval = true;
 
     adjustRoutes (DefaultRoute);
 
