@@ -339,16 +339,17 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
     case NFA_DEACTIVATED_EVT: // NFC link/protocol deactivated
         ALOGD("%s: NFA_DEACTIVATED_EVT   Type: %u, gIsTagDeactivating: %d", __FUNCTION__, eventData->deactivated.type,gIsTagDeactivating);
         NfcTag::getInstance().setDeactivationState (eventData->deactivated);
-        if (gIsTagDeactivating || gIsSelectingRfInterface)
+        if (eventData->deactivated.type != NFA_DEACTIVATE_TYPE_SLEEP)
         {
-            if (gIsTagDeactivating)
-                nativeNfcTag_doDeactivateStatus(0);
-            break;
+            nativeNfcTag_resetPresenceCheck();
+            NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
+            nativeNfcTag_abortWaits();
+            NfcTag::getInstance().abort ();
         }
-        nativeNfcTag_resetPresenceCheck();
-        NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
-        nativeNfcTag_abortWaits();
-        NfcTag::getInstance().abort ();
+        else if (gIsTagDeactivating)
+        {
+            nativeNfcTag_doDeactivateStatus(0);
+        }
 
         // If RF is activated for what we think is a Secure Element transaction
         // and it is deactivated to either IDLE or DISCOVERY mode, notify w/event.
