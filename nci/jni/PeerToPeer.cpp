@@ -1590,7 +1590,7 @@ bool P2pServer::registerWithStack()
    - Data link connection timeout (LLCP_DATA_LINK_CONNECTION_TOUT)
    - Delay timeout to send first PDU as initiator (LLCP_DELAY_TIME_TO_SEND_FIRST_PDU)
    ************************/
-   stat = NFA_P2pSetLLCPConfig (LLCP_MIU,
+   stat = NFA_P2pSetLLCPConfig (LLCP_MAX_MIU,
            LLCP_OPT_VALUE,
            LLCP_WAITING_TIME,
            LLCP_LTO_VALUE,
