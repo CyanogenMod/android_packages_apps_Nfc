@@ -194,6 +194,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 | hwAccelerationFlags
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.OPAQUE);
+        mWindowLayoutParams.privateFlags |=
+                WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
         mWindowLayoutParams.token = new Binder();
 
         mFrameCounterAnimator = new TimeAnimator();
