@@ -486,6 +486,11 @@ bool SecureElement::activate (jint seID)
     if (mActiveSeOverride)
         override_se = NFA_HANDLE_GROUP_EE | mActiveSeOverride;
 
+    if (mRfFieldIsOn) {
+        ALOGE("%s: RF field indication still on, resetting", fn);
+        mRfFieldIsOn = false;
+    }
+
     ALOGD ("%s: override seid=0x%X", fn, override_se );
     //activate every discovered secure element
     for (int index=0; index < mActualNumEe; index++)
