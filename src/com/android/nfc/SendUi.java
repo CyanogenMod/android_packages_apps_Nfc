@@ -445,6 +445,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Navbar has different sizes, depending on orientation
         final int navBarHeight = hasNavBar ? mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.navigation_bar_height) : 0;
+        final int navBarHeightLandscape = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+                                        com.android.internal.R.dimen.navigation_bar_height_landscape) : 0;
+
         final int navBarWidth = hasNavBar ? mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.navigation_bar_width) : 0;
 
@@ -485,13 +488,20 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         int newTop = statusBarHeight;
         int newWidth = bitmap.getWidth();
         int newHeight = bitmap.getHeight();
+        float smallestWidth = (float)Math.min(newWidth, newHeight);
+        float smallestWidthDp = smallestWidth / (mDisplayMetrics.densityDpi / 160f);
         if (bitmap.getWidth() < bitmap.getHeight()) {
             // Portrait mode: status bar is at the top, navbar bottom, width unchanged
             newHeight = bitmap.getHeight() - statusBarHeight - navBarHeight;
         } else {
-            // Landscape mode: status bar is at the top, navbar right
-            newHeight = bitmap.getHeight() - statusBarHeight;
-            newWidth = bitmap.getWidth() - navBarWidth;
+            // Landscape mode: status bar is at the top
+            // Navbar: bottom on >599dp width devices, otherwise to the side
+            if (smallestWidthDp > 599) {
+                newHeight = bitmap.getHeight() - statusBarHeight - navBarHeightLandscape;
+            } else {
+                newHeight = bitmap.getHeight() - statusBarHeight;
+                newWidth = bitmap.getWidth() - navBarWidth;
+            }
         }
         bitmap = Bitmap.createBitmap(bitmap, newLeft, newTop, newWidth, newHeight);
 
