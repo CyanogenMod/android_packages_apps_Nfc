@@ -135,6 +135,15 @@ public class NfcService implements DeviceHostListener {
     /** minimum screen state that enables NFC polling (discovery) */
     static final int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
 
+    // Time to wait for NFC controller to initialize before watchdog
+    // goes off. This time is chosen large, because firmware download
+    // may be a part of initialization.
+    static final int INIT_WATCHDOG_MS = 90000;
+
+    // Time to wait for routing to be applied before watchdog
+    // goes off
+    static final int ROUTING_WATCHDOG_MS = 10000;
+
     // for use with playSound()
     public static final int SOUND_START = 0;
     public static final int SOUND_END = 1;
@@ -563,11 +572,21 @@ public class NfcService implements DeviceHostListener {
             Log.i(TAG, "Enabling NFC");
             updateState(NfcAdapter.STATE_TURNING_ON);
 
-
-            if (!mDeviceHost.initialize()) {
-                Log.w(TAG, "Error enabling NFC");
-                updateState(NfcAdapter.STATE_OFF);
-                return false;
+            WatchDogThread watchDog = new WatchDogThread("enableInternal", INIT_WATCHDOG_MS);
+            watchDog.start();
+            try {
+                mRoutingWakeLock.acquire();
+                try {
+                    if (!mDeviceHost.initialize()) {
+                        Log.w(TAG, "Error enabling NFC");
+                        updateState(NfcAdapter.STATE_OFF);
+                        return false;
+                    }
+                } finally {
+                    mRoutingWakeLock.release();
+                }
+            } finally {
+                watchDog.cancel();
             }
 
             synchronized(NfcService.this) {
@@ -600,7 +619,7 @@ public class NfcService implements DeviceHostListener {
              * Implemented with a new thread (instead of a Handler or AsyncTask),
              * because the UI Thread and AsyncTask thread-pools can also get hung
              * when the NFC controller stops responding */
-            WatchDogThread watchDog = new WatchDogThread();
+            WatchDogThread watchDog = new WatchDogThread("disableInternal", ROUTING_WATCHDOG_MS);
             watchDog.start();
 
             mP2pLinkManager.enableDisable(false, false);
@@ -643,53 +662,56 @@ public class NfcService implements DeviceHostListener {
             }
 
             boolean tempEnable = mState == NfcAdapter.STATE_OFF;
-            if (tempEnable) {
-                if (!enableInternal()) {
+            // Hold a wake-lock over the entire wipe procedure
+            mEeWakeLock.acquire();
+            try {
+                if (tempEnable && !enableInternal()) {
                     Log.w(TAG, "Could not enable NFC to wipe NFC-EE");
                     return;
                 }
-            }
-            Log.i(TAG, "Executing SE wipe");
-            int handle = doOpenSecureElementConnection();
-            if (handle == 0) {
-                Log.w(TAG, "Could not open the secure element");
-                if (tempEnable) {
-                    disableInternal();
-                }
-                return;
-            }
-
-
-            // TODO: remove this hack
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-            }
-
-            try {
-                mEeWakeLock.acquire();
                 try {
-                    mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+                    // NFC enabled
+                    int handle = 0;
+                    try {
+                        Log.i(TAG, "Executing SE wipe");
+                        handle = doOpenSecureElementConnection();
+                        if (handle == 0) {
+                            Log.w(TAG, "Could not open the secure element");
+                            return;
+                        }
+                        // TODO: remove this hack
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            // Ignore
+                        }
 
-                    for (byte[] cmd : apdus) {
-                        byte[] resp = doTransceiveNoLock(handle, cmd);
-                        if (resp == null) {
-                            Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
-                            break;
+                        mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+                        try {
+                            for (byte[] cmd : apdus) {
+                                byte[] resp = doTransceiveNoLock(handle, cmd);
+                                if (resp == null) {
+                                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
+                                    break;
+                                }
+                            }
+                        } finally {
+                            mDeviceHost.resetTimeouts();
+                        }
+                    } finally {
+                        if (handle != 0) {
+                            doDisconnect(handle);
                         }
                     }
-
-                    mDeviceHost.resetTimeouts();
                 } finally {
-                    mEeWakeLock.release();
+                    if (tempEnable) {
+                        disableInternal();
+                    }
                 }
             } finally {
-                doDisconnect(handle);
+                mEeWakeLock.release();
             }
-
-            if (tempEnable) {
-                disableInternal();
-            }
+            Log.i(TAG, "SE wipe done");
         }
 
         void updateState(int newState) {
@@ -1442,19 +1464,27 @@ public class NfcService implements DeviceHostListener {
 
     class WatchDogThread extends Thread {
         boolean mWatchDogCanceled = false;
+        final int mTimeout;
+
+        public WatchDogThread(String threadName, int timeout) {
+            super(threadName);
+            mTimeout = timeout;
+        }
+
         @Override
         public void run() {
             boolean slept = false;
             while (!slept) {
                 try {
-                    Thread.sleep(10000);
+                    Thread.sleep(mTimeout);
                     slept = true;
                 } catch (InterruptedException e) { }
             }
             synchronized (this) {
                 if (!mWatchDogCanceled) {
                     // Trigger watch-dog
-                    Log.e(TAG, "--- NFC controller stuck while applying routing ---");
+                    Log.e(TAG, "Watchdog fired: name=" + getName() + " threadId=" +
+                            getId() + " timeout=" + mTimeout);
                     mDeviceHost.doAbort();
                 }
             }
@@ -1473,7 +1503,7 @@ public class NfcService implements DeviceHostListener {
                 // PN544 cannot be reconfigured while EE is open
                 return;
             }
-            WatchDogThread watchDog = new WatchDogThread();
+            WatchDogThread watchDog = new WatchDogThread("applyRouting", ROUTING_WATCHDOG_MS);
 
             try {
                 watchDog.start();
