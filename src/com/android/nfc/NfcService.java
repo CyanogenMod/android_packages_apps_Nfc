@@ -659,6 +659,13 @@ public class NfcService implements DeviceHostListener {
                 return;
             }
 
+
+            // TODO: remove this hack
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
+
             try {
                 mEeWakeLock.acquire();
                 try {
