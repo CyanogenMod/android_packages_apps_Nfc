@@ -1403,7 +1403,16 @@ public class NfcService implements DeviceHostListener {
         public void setCardEmulationRoute(String pkg, int route) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
             mEeRoutingState = route;
-            applyRouting(true);
+            ApplyRoutingTask applyRoutingTask = new ApplyRoutingTask();
+            applyRoutingTask.execute();
+            try {
+                // Block until route is set
+                applyRoutingTask.get();
+            } catch (ExecutionException e) {
+                Log.e(TAG, "failed to set card emulation mode");
+            } catch (InterruptedException e) {
+                Log.e(TAG, "failed to set card emulation mode");
+            }
         }
 
         @Override
