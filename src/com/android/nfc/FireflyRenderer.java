@@ -200,6 +200,7 @@ public class FireflyRenderer {
             for (int i = 0; i < 3; i++) {
                 // Call eglSwapBuffers 3 times - this will allocate the necessary
                 // buffers, and make sure the animation looks smooth from the start.
+                mGL.glClear(GL10.GL_COLOR_BUFFER_BIT);
                 if (!mEgl.eglSwapBuffers(mEglDisplay, mEglSurface)) {
                     Log.e(LOG_TAG, "Could not swap buffers");
                     mFinished = true;

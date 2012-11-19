@@ -16,6 +16,7 @@
 
 package com.android.nfc.handover;
 
+import android.app.ActivityManager;
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -28,6 +29,7 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.UserHandle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -44,9 +46,8 @@ import com.android.nfc.R;
  * designed to be re-used after the sequence has completed or timed out.
  * Subsequent NFC interactions should use new objects.
  *
- * TODO: UI review
  */
-public class BluetoothHeadsetHandover {
+public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListener {
     static final String TAG = HandoverManager.TAG;
     static final boolean DBG = HandoverManager.DBG;
 
@@ -57,28 +58,33 @@ public class BluetoothHeadsetHandover {
 
     static final int STATE_INIT = 0;
     static final int STATE_TURNING_ON = 1;
-    static final int STATE_WAITING_FOR_BOND_CONFIRMATION = 2;
-    static final int STATE_BONDING = 3;
-    static final int STATE_CONNECTING = 4;
-    static final int STATE_DISCONNECTING = 5;
-    static final int STATE_COMPLETE = 6;
+    static final int STATE_WAITING_FOR_PROXIES = 2;
+    static final int STATE_INIT_COMPLETE = 3;
+    static final int STATE_WAITING_FOR_BOND_CONFIRMATION = 4;
+    static final int STATE_BONDING = 5;
+    static final int STATE_CONNECTING = 6;
+    static final int STATE_DISCONNECTING = 7;
+    static final int STATE_COMPLETE = 8;
 
     static final int RESULT_PENDING = 0;
     static final int RESULT_CONNECTED = 1;
     static final int RESULT_DISCONNECTED = 2;
 
+    static final int ACTION_INIT = 0;
     static final int ACTION_DISCONNECT = 1;
     static final int ACTION_CONNECT = 2;
 
     static final int MSG_TIMEOUT = 1;
+    static final int MSG_NEXT_STEP = 2;
 
     final Context mContext;
     final BluetoothDevice mDevice;
     final String mName;
     final HandoverPowerManager mHandoverPowerManager;
-    final BluetoothA2dp mA2dp;
-    final BluetoothHeadset mHeadset;
     final Callback mCallback;
+    final BluetoothAdapter mBluetoothAdapter;
+
+    final Object mLock = new Object();
 
     // only used on main thread
     int mAction;
@@ -86,21 +92,24 @@ public class BluetoothHeadsetHandover {
     int mHfpResult;  // used only in STATE_CONNECTING and STATE_DISCONNETING
     int mA2dpResult; // used only in STATE_CONNECTING and STATE_DISCONNETING
 
+    // protected by mLock
+    BluetoothA2dp mA2dp;
+    BluetoothHeadset mHeadset;
+
     public interface Callback {
         public void onBluetoothHeadsetHandoverComplete(boolean connected);
     }
 
     public BluetoothHeadsetHandover(Context context, BluetoothDevice device, String name,
-            HandoverPowerManager powerManager, BluetoothA2dp a2dp, BluetoothHeadset headset,
-            Callback callback) {
+            HandoverPowerManager powerManager, Callback callback) {
         checkMainThread();  // mHandler must get get constructed on Main Thread for toasts to work
         mContext = context;
         mDevice = device;
         mName = name;
         mHandoverPowerManager = powerManager;
-        mA2dp = a2dp;
-        mHeadset = headset;
         mCallback = callback;
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
         mState = STATE_INIT;
     }
 
@@ -111,6 +120,7 @@ public class BluetoothHeadsetHandover {
     public void start() {
         checkMainThread();
         if (mState != STATE_INIT) return;
+        if (mBluetoothAdapter == null) return;
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
@@ -122,15 +132,8 @@ public class BluetoothHeadsetHandover {
 
         mContext.registerReceiver(mReceiver, filter);
 
-        if (mA2dp.getConnectedDevices().contains(mDevice) ||
-                mHeadset.getConnectedDevices().contains(mDevice)) {
-            Log.i(TAG, "ACTION_DISCONNECT addr=" + mDevice + " name=" + mName);
-            mAction = ACTION_DISCONNECT;
-        } else {
-            Log.i(TAG, "ACTION_CONNECT addr=" + mDevice + " name=" + mName);
-            mAction = ACTION_CONNECT;
-        }
         mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_TIMEOUT), TIMEOUT_MS);
+        mAction = ACTION_INIT;
         nextStep();
     }
 
@@ -138,49 +141,19 @@ public class BluetoothHeadsetHandover {
      * Called to execute next step in state machine
      */
     void nextStep() {
-        if (mAction == ACTION_CONNECT) {
+        if (mAction == ACTION_INIT) {
+            nextStepInit();
+        } else if (mAction == ACTION_CONNECT) {
             nextStepConnect();
         } else {
             nextStepDisconnect();
         }
     }
 
-    void nextStepDisconnect() {
-        switch (mState) {
-            case STATE_INIT:
-                mState = STATE_DISCONNECTING;
-                if (mHeadset.getConnectionState(mDevice) != BluetoothProfile.STATE_DISCONNECTED) {
-                    mHfpResult = RESULT_PENDING;
-                    mHeadset.disconnect(mDevice);
-                } else {
-                    mHfpResult = RESULT_DISCONNECTED;
-                }
-                if (mA2dp.getConnectionState(mDevice) != BluetoothProfile.STATE_DISCONNECTED) {
-                    mA2dpResult = RESULT_PENDING;
-                    mA2dp.disconnect(mDevice);
-                } else {
-                    mA2dpResult = RESULT_DISCONNECTED;
-                }
-                if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
-                    toast(mContext.getString(R.string.disconnecting_headset ) + " " +
-                            mName + "...");
-                    break;
-                }
-                // fall-through
-            case STATE_DISCONNECTING:
-                if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
-                    // still disconnecting
-                    break;
-                }
-                if (mA2dpResult == RESULT_DISCONNECTED && mHfpResult == RESULT_DISCONNECTED) {
-                    toast(mContext.getString(R.string.disconnected_headset) + " " + mName);
-                }
-                complete(false);
-                break;
-        }
-    }
-
-    void nextStepConnect() {
+    /*
+     * Enables bluetooth and gets the profile proxies
+     */
+    void nextStepInit() {
         switch (mState) {
             case STATE_INIT:
                 if (!mHandoverPowerManager.isBluetoothEnabled()) {
@@ -195,9 +168,87 @@ public class BluetoothHeadsetHandover {
                 }
                 // fall-through
             case STATE_TURNING_ON:
+                if (mA2dp == null || mHeadset == null) {
+                    mState = STATE_WAITING_FOR_PROXIES;
+                    if (!getProfileProxys()) {
+                        complete(false);
+                    }
+                    break;
+                }
+                // fall-through
+            case STATE_WAITING_FOR_PROXIES:
+                mState = STATE_INIT_COMPLETE;
+                // Check connected devices and see if we need to disconnect
+                synchronized(mLock) {
+                    if (mA2dp.getConnectedDevices().contains(mDevice) ||
+                            mHeadset.getConnectedDevices().contains(mDevice)) {
+                        Log.i(TAG, "ACTION_DISCONNECT addr=" + mDevice + " name=" + mName);
+                        mAction = ACTION_DISCONNECT;
+                    } else {
+                        Log.i(TAG, "ACTION_CONNECT addr=" + mDevice + " name=" + mName);
+                        mAction = ACTION_CONNECT;
+                    }
+                }
+                nextStep();
+        }
+
+    }
+
+    void nextStepDisconnect() {
+        switch (mState) {
+            case STATE_INIT_COMPLETE:
+                mState = STATE_DISCONNECTING;
+                synchronized (mLock) {
+                    if (mHeadset.getConnectionState(mDevice) != BluetoothProfile.STATE_DISCONNECTED) {
+                        mHfpResult = RESULT_PENDING;
+                        mHeadset.disconnect(mDevice);
+                    } else {
+                        mHfpResult = RESULT_DISCONNECTED;
+                    }
+                    if (mA2dp.getConnectionState(mDevice) != BluetoothProfile.STATE_DISCONNECTED) {
+                        mA2dpResult = RESULT_PENDING;
+                        mA2dp.disconnect(mDevice);
+                    } else {
+                        mA2dpResult = RESULT_DISCONNECTED;
+                    }
+                    if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
+                        toast(mContext.getString(R.string.disconnecting_headset ) + " " +
+                                mName + "...");
+                        break;
+                    }
+                }
+                // fall-through
+            case STATE_DISCONNECTING:
+                if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
+                    // still disconnecting
+                    break;
+                }
+                if (mA2dpResult == RESULT_DISCONNECTED && mHfpResult == RESULT_DISCONNECTED) {
+                    toast(mContext.getString(R.string.disconnected_headset) + " " + mName);
+                }
+                complete(false);
+                break;
+        }
+
+    }
+
+    boolean getProfileProxys() {
+        if(!mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.HEADSET))
+            return false;
+
+        if(!mBluetoothAdapter.getProfileProxy(mContext, this, BluetoothProfile.A2DP))
+            return false;
+
+        return true;
+    }
+
+    void nextStepConnect() {
+        switch (mState) {
+            case STATE_INIT_COMPLETE:
                 if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
                     requestPairConfirmation();
                     mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
+
                     break;
                 }
                 // fall-through
@@ -211,21 +262,23 @@ public class BluetoothHeadsetHandover {
                 // Bluetooth Profile service will correctly serialize
                 // HFP then A2DP connect
                 mState = STATE_CONNECTING;
-                if (mHeadset.getConnectionState(mDevice) != BluetoothProfile.STATE_CONNECTED) {
-                    mHfpResult = RESULT_PENDING;
-                    mHeadset.connect(mDevice);
-                } else {
-                    mHfpResult = RESULT_CONNECTED;
-                }
-                if (mA2dp.getConnectionState(mDevice) != BluetoothProfile.STATE_CONNECTED) {
-                    mA2dpResult = RESULT_PENDING;
-                    mA2dp.connect(mDevice);
-                } else {
-                    mA2dpResult = RESULT_CONNECTED;
-                }
-                if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
-                    toast(mContext.getString(R.string.connecting_headset) + " " + mName + "...");
-                    break;
+                synchronized (mLock) {
+                    if (mHeadset.getConnectionState(mDevice) != BluetoothProfile.STATE_CONNECTED) {
+                        mHfpResult = RESULT_PENDING;
+                        mHeadset.connect(mDevice);
+                    } else {
+                        mHfpResult = RESULT_CONNECTED;
+                    }
+                    if (mA2dp.getConnectionState(mDevice) != BluetoothProfile.STATE_CONNECTED) {
+                        mA2dpResult = RESULT_PENDING;
+                        mA2dp.connect(mDevice);
+                    } else {
+                        mA2dpResult = RESULT_CONNECTED;
+                    }
+                    if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
+                        toast(mContext.getString(R.string.connecting_headset) + " " + mName + "...");
+                        break;
+                    }
                 }
                 // fall-through
             case STATE_CONNECTING:
@@ -260,7 +313,7 @@ public class BluetoothHeadsetHandover {
         if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action) && mState == STATE_TURNING_ON) {
             int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
             if (state == BluetoothAdapter.STATE_ON) {
-                nextStepConnect();
+                nextStep();
             } else if (state == BluetoothAdapter.STATE_OFF) {
                 toast(mContext.getString(R.string.failed_to_enable_bt));
                 complete(false);
@@ -313,6 +366,16 @@ public class BluetoothHeadsetHandover {
         mState = STATE_COMPLETE;
         mContext.unregisterReceiver(mReceiver);
         mHandler.removeMessages(MSG_TIMEOUT);
+        synchronized (mLock) {
+            if (mA2dp != null) {
+                mBluetoothAdapter.closeProfileProxy(BluetoothProfile.A2DP, mA2dp);
+            }
+            if (mHeadset != null) {
+                mBluetoothAdapter.closeProfileProxy(BluetoothProfile.HEADSET, mHeadset);
+            }
+            mA2dp = null;
+            mHeadset = null;
+        }
         mCallback.onBluetoothHeadsetHandoverComplete(connected);
     }
 
@@ -324,10 +387,10 @@ public class BluetoothHeadsetHandover {
         Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_DOWN,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
+        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
+        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
     }
 
     void requestPairConfirmation() {
@@ -336,7 +399,7 @@ public class BluetoothHeadsetHandover {
 
         dialogIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
 
-        mContext.startActivity(dialogIntent);
+        mContext.startActivityAsUser(dialogIntent, new UserHandle(UserHandle.USER_CURRENT));
     }
 
     final Handler mHandler = new Handler() {
@@ -347,6 +410,9 @@ public class BluetoothHeadsetHandover {
                     if (mState == STATE_COMPLETE) return;
                     Log.i(TAG, "Timeout completing BT handover");
                     complete(false);
+                    break;
+                case MSG_NEXT_STEP:
+                    nextStep();
                     break;
             }
         }
@@ -363,5 +429,30 @@ public class BluetoothHeadsetHandover {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             throw new IllegalThreadStateException("must be called on main thread");
         }
+    }
+
+    @Override
+    public void onServiceConnected(int profile, BluetoothProfile proxy) {
+        synchronized (mLock) {
+            switch (profile) {
+                case BluetoothProfile.HEADSET:
+                    mHeadset = (BluetoothHeadset) proxy;
+                    if (mA2dp != null) {
+                        mHandler.sendEmptyMessage(MSG_NEXT_STEP);
+                    }
+                    break;
+                case BluetoothProfile.A2DP:
+                    mA2dp = (BluetoothA2dp) proxy;
+                    if (mHeadset != null) {
+                        mHandler.sendEmptyMessage(MSG_NEXT_STEP);
+                    }
+                    break;
+            }
+        }
+    }
+
+    @Override
+    public void onServiceDisconnected(int profile) {
+        // We can ignore these
     }
 }

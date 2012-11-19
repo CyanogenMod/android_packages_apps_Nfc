@@ -20,6 +20,7 @@ import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.app.PendingIntent;
@@ -30,6 +31,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.nfc.NdefMessage;
@@ -38,6 +40,7 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.Log;
 
 import java.io.FileDescriptor;
@@ -58,7 +61,6 @@ public class NfcDispatcher {
     final Context mContext;
     final IActivityManager mIActivityManager;
     final RegisteredComponentCache mTechListFilters;
-    final PackageManager mPackageManager;
     final ContentResolver mContentResolver;
     final HandoverManager mHandoverManager;
 
@@ -72,7 +74,6 @@ public class NfcDispatcher {
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
-        mPackageManager = context.getPackageManager();
         mContentResolver = context.getContentResolver();
         mHandoverManager = handoverManager;
     }
@@ -157,19 +158,21 @@ public class NfcDispatcher {
             // is not available on Context. Instead, we query the PackageManager beforehand
             // to determine if there is an Activity to handle this intent, and base the
             // result of off that.
-            List<ResolveInfo> activities = packageManager.queryIntentActivities(intent, 0);
+            List<ResolveInfo> activities = packageManager.queryIntentActivitiesAsUser(intent, 0,
+                    ActivityManager.getCurrentUser());
             if (activities.size() > 0) {
-                context.startActivity(rootIntent);
+                context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
                 return true;
             }
             return false;
         }
 
         boolean tryStartActivity(Intent intentToStart) {
-            List<ResolveInfo> activities = packageManager.queryIntentActivities(intentToStart, 0);
+            List<ResolveInfo> activities = packageManager.queryIntentActivitiesAsUser(
+                    intentToStart, 0, ActivityManager.getCurrentUser());
             if (activities.size() > 0) {
                 rootIntent.putExtra(NfcRootActivity.EXTRA_LAUNCH_INTENT, intentToStart);
-                context.startActivity(rootIntent);
+                context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
                 return true;
             }
             return false;
@@ -305,7 +308,10 @@ public class NfcDispatcher {
         if (message == null) {
             return false;
         }
-        dispatch.setNdefIntent();
+        Intent intent = dispatch.setNdefIntent();
+
+        // Bail out if the intent does not contain filterable NDEF data
+        if (intent == null) return false;
 
         // Try to start AAR activity with matching filter
         List<String> aarPackages = extractAarPackages(message);
@@ -320,7 +326,16 @@ public class NfcDispatcher {
         // Try to perform regular launch of the first AAR
         if (aarPackages.size() > 0) {
             String firstPackage = aarPackages.get(0);
-            Intent appLaunchIntent = mPackageManager.getLaunchIntentForPackage(firstPackage);
+            PackageManager pm;
+            try {
+                UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
+                pm = mContext.createPackageContextAsUser("android", 0,
+                        currentUser).getPackageManager();
+            } catch (NameNotFoundException e) {
+                Log.e(TAG, "Could not create user package context");
+                return false;
+            }
+            Intent appLaunchIntent = pm.getLaunchIntentForPackage(firstPackage);
             if (appLaunchIntent != null && dispatch.tryStartActivity(appLaunchIntent)) {
                 if (DBG) Log.i(TAG, "matched AAR to application launch");
                 return true;
@@ -364,11 +379,20 @@ public class NfcDispatcher {
         ArrayList<ResolveInfo> matches = new ArrayList<ResolveInfo>();
         List<ComponentInfo> registered = mTechListFilters.getComponents();
 
+        PackageManager pm;
+        try {
+            UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
+            pm = mContext.createPackageContextAsUser("android", 0,
+                    currentUser).getPackageManager();
+        } catch (NameNotFoundException e) {
+            Log.e(TAG, "Could not create user package context");
+            return false;
+        }
         // Check each registered activity to see if it matches
         for (ComponentInfo info : registered) {
             // Don't allow wild card matching
             if (filterMatch(tagTechs, info.techs) &&
-                    isComponentEnabled(mPackageManager, info.resolveInfo)) {
+                    isComponentEnabled(pm, info.resolveInfo)) {
                 // Add the activity as a match if it's not already in the list
                 if (!matches.contains(info.resolveInfo)) {
                     matches.add(info.resolveInfo);
