@@ -144,4 +144,17 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         mSending = true;
 
     }
+
+    @Override
+    public void onP2pSendDebounce() {
+        mNfcService.playSound(NfcService.SOUND_ERROR);
+        mSendUi.showSendHint();
+    }
+
+    @Override
+    public void onP2pResumeSend() {
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        mNfcService.playSound(NfcService.SOUND_START);
+        mSendUi.showStartSend();
+    }
 }

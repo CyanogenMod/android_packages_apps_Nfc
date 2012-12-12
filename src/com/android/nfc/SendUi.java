@@ -43,6 +43,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -90,6 +91,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     static final int SLIDE_OUT_DURATION_MS = 300;
 
+    static final float[] BLACK_LAYER_ALPHA_DOWN_RANGE = {0.9f, 0.0f};
+    static final float[] BLACK_LAYER_ALPHA_UP_RANGE = {0.0f, 0.9f};
+
     static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
     static final int TEXT_HINT_ALPHA_START_DELAY_MS = 300;
@@ -108,8 +112,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final StatusBarManager mStatusBarManager;
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
+    final ImageView mBlackLayer;
     final TextureView mTextureView;
     final TextView mTextHint;
+    final TextView mTextRetry;
     final Callback mCallback;
 
     // The mFrameCounter animation is purely used to count down a certain
@@ -129,6 +135,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final ObjectAnimator mFadeInAnimator;
     final ObjectAnimator mHintAnimator;
     final ObjectAnimator mScaleUpAnimator;
+    final ObjectAnimator mAlphaDownAnimator;
+    final ObjectAnimator mAlphaUpAnimator;
     final AnimatorSet mSuccessAnimatorSet;
 
     // Besides animating the screenshot, the Beam UI also renders
@@ -177,7 +185,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotLayout.setFocusable(true);
 
         mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
-
+        mTextRetry = (TextView) mScreenshotLayout.findViewById(R.id.retrytext);
+        mBlackLayer = (ImageView) mScreenshotLayout.findViewById(R.id.blacklayer);
         mTextureView = (TextureView) mScreenshotLayout.findViewById(R.id.fireflies);
         mTextureView.setSurfaceTextureListener(this);
 
@@ -245,6 +254,16 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mHintAnimator.setDuration(TEXT_HINT_ALPHA_DURATION_MS);
         mHintAnimator.setStartDelay(TEXT_HINT_ALPHA_START_DELAY_MS);
 
+        alphaDown = PropertyValuesHolder.ofFloat("alpha", BLACK_LAYER_ALPHA_DOWN_RANGE);
+        mAlphaDownAnimator = ObjectAnimator.ofPropertyValuesHolder(mBlackLayer, alphaDown);
+        mAlphaDownAnimator.setInterpolator(new DecelerateInterpolator());
+        mAlphaDownAnimator.setDuration(400);
+
+        alphaUp = PropertyValuesHolder.ofFloat("alpha", BLACK_LAYER_ALPHA_UP_RANGE);
+        mAlphaUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mBlackLayer, alphaUp);
+        mAlphaUpAnimator.setInterpolator(new DecelerateInterpolator());
+        mAlphaUpAnimator.setDuration(200);
+
         mSuccessAnimatorSet = new AnimatorSet();
         mSuccessAnimatorSet.playSequentially(mFastSendAnimator, mFadeInAnimator);
 
@@ -271,6 +290,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (mScreenshotBitmap == null || mAttached) {
             return;
         }
+        mBlackLayer.setVisibility(View.GONE);
+        mBlackLayer.setAlpha(0f);
         mScreenshotView.setOnTouchListener(this);
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotView.setTranslationX(0f);
@@ -279,6 +300,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         mScreenshotLayout.requestFocus();
 
+        mTextHint.setText(mContext.getResources().getString(R.string.touch));
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
         mHintAnimator.start();
@@ -323,6 +345,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     public void showStartSend() {
         if (!mAttached) return;
 
+        mTextRetry.setVisibility(View.GONE);
         // Update the starting scale - touchscreen-mashers may trigger
         // this before the pre-animation completes.
         float currentScale = mScreenshotView.getScaleX();
@@ -332,6 +355,14 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 new float[] {currentScale, 0.0f});
 
         mSlowSendAnimator.setValues(postX, postY);
+
+        float currentAlpha = mBlackLayer.getAlpha();
+        if (mBlackLayer.isShown() && currentAlpha > 0.0f) {
+            PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
+                    new float[] {currentAlpha, 0.0f});
+            mAlphaDownAnimator.setValues(alphaDown);
+            mAlphaDownAnimator.start();
+        }
         mSlowSendAnimator.start();
     }
 
@@ -352,11 +383,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         }
 
         mTextHint.setVisibility(View.GONE);
+        mTextRetry.setVisibility(View.GONE);
 
         float currentScale = mScreenshotView.getScaleX();
         float currentAlpha = mScreenshotView.getAlpha();
 
         if (finishMode == FINISH_SCALE_UP) {
+            mBlackLayer.setVisibility(View.GONE);
             PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
                     new float[] {currentScale, 1.0f});
             PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
@@ -373,7 +406,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
                     new float[] {currentScale, 0.0f});
             PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {1.0f, 0.0f});
+                    new float[] {currentAlpha, 0.0f});
             mFastSendAnimator.setValues(postX, postY, alpha);
 
             // Reset the fadeIn parameters to start from alpha 1
@@ -399,6 +432,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mFastSendAnimator.cancel();
         mSuccessAnimatorSet.cancel();
         mScaleUpAnimator.cancel();
+        mAlphaUpAnimator.cancel();
+        mAlphaDownAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
         releaseScreenshot();
@@ -595,4 +630,24 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) { }
 
+    public void showSendHint() {
+        if (mAlphaDownAnimator.isRunning()) {
+           mAlphaDownAnimator.cancel();
+        }
+        if (mSlowSendAnimator.isRunning()) {
+            mSlowSendAnimator.cancel();
+        }
+        mBlackLayer.setScaleX(mScreenshotView.getScaleX());
+        mBlackLayer.setScaleY(mScreenshotView.getScaleY());
+        mBlackLayer.setVisibility(View.VISIBLE);
+        mTextHint.setVisibility(View.GONE);
+
+        mTextRetry.setText(mContext.getResources().getString(R.string.beam_try_again));
+        mTextRetry.setVisibility(View.VISIBLE);
+
+        PropertyValuesHolder alphaUp = PropertyValuesHolder.ofFloat("alpha",
+                new float[] {mBlackLayer.getAlpha(), 0.9f});
+        mAlphaUpAnimator.setValues(alphaUp);
+        mAlphaUpAnimator.start();
+    }
 }
