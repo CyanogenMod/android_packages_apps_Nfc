@@ -1472,8 +1472,9 @@ public class NfcService implements DeviceHostListener {
     }
 
     class WatchDogThread extends Thread {
-        boolean mWatchDogCanceled = false;
+        final Object mCancelWaiter = new Object();
         final int mTimeout;
+        boolean mCanceled = false;
 
         public WatchDogThread(String threadName, int timeout) {
             super(threadName);
@@ -1482,24 +1483,27 @@ public class NfcService implements DeviceHostListener {
 
         @Override
         public void run() {
-            boolean slept = false;
-            while (!slept) {
-                try {
-                    Thread.sleep(mTimeout);
-                    slept = true;
-                } catch (InterruptedException e) { }
-            }
-            synchronized (this) {
-                if (!mWatchDogCanceled) {
-                    // Trigger watch-dog
-                    Log.e(TAG, "Watchdog fired: name=" + getName() + " threadId=" +
-                            getId() + " timeout=" + mTimeout);
-                    mDeviceHost.doAbort();
+            try {
+                synchronized (mCancelWaiter) {
+                    mCancelWaiter.wait(mTimeout);
+                    if (mCanceled) {
+                        return;
+                    }
                 }
+            } catch (InterruptedException e) {
+                // Should not happen; fall-through to abort.
+                Log.w(TAG, "Watchdog thread interruped.");
+                interrupt();
             }
+            Log.e(TAG, "Watchdog triggered, aborting.");
+            mDeviceHost.doAbort();
         }
+
         public synchronized void cancel() {
-            mWatchDogCanceled = true;
+            synchronized (mCancelWaiter) {
+                mCanceled = true;
+                mCancelWaiter.notify();
+            }
         }
     }
 
