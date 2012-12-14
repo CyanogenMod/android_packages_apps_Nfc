@@ -63,6 +63,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -75,7 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-public class NfcService extends Application implements DeviceHostListener {
+public class NfcService implements DeviceHostListener {
     private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
 
     static final boolean DBG = false;
@@ -101,8 +102,6 @@ public class NfcService extends Application implements DeviceHostListener {
     static final String PREF_FIRST_BOOT = "first_boot";
     static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
 
-    static final boolean PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE = true;
-
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
@@ -114,6 +113,8 @@ public class NfcService extends Application implements DeviceHostListener {
     static final int MSG_SE_APDU_RECEIVED = 10;
     static final int MSG_SE_EMV_CARD_REMOVAL = 11;
     static final int MSG_SE_MIFARE_ACCESS = 12;
+    static final int MSG_SE_LISTEN_ACTIVATED = 13;
+    static final int MSG_SE_LISTEN_DEACTIVATED = 14;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -133,6 +134,15 @@ public class NfcService extends Application implements DeviceHostListener {
 
     /** minimum screen state that enables NFC polling (discovery) */
     static final int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
+
+    // Time to wait for NFC controller to initialize before watchdog
+    // goes off. This time is chosen large, because firmware download
+    // may be a part of initialization.
+    static final int INIT_WATCHDOG_MS = 90000;
+
+    // Time to wait for routing to be applied before watchdog
+    // goes off
+    static final int ROUTING_WATCHDOG_MS = 10000;
 
     // for use with playSound()
     public static final int SOUND_START = 0;
@@ -160,18 +170,10 @@ public class NfcService extends Application implements DeviceHostListener {
     public static final String EXTRA_MIFARE_BLOCK =
         "com.android.nfc_extras.extra.MIFARE_BLOCK";
 
-    //TODO: dont hardcode this
-    private static final byte[][] EE_WIPE_APDUS = {
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
-        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
-        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-    };
+    public static final String ACTION_SE_LISTEN_ACTIVATED =
+            "com.android.nfc_extras.action.SE_LISTEN_ACTIVATED";
+    public static final String ACTION_SE_LISTEN_DEACTIVATED =
+            "com.android.nfc_extras.action.SE_LISTEN_DEACTIVATED";
 
     // NFC Execution Environment
     // fields below are protected by this
@@ -184,6 +186,8 @@ public class NfcService extends Application implements DeviceHostListener {
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
+    // mSePackages holds packages that accessed the SE, but only for the owner user,
+    // as SE access is not granted for non-owner users.
     HashSet<String> mSePackages = new HashSet<String>();
     int mScreenState;
     boolean mIsNdefPushEnabled;
@@ -201,7 +205,9 @@ public class NfcService extends Application implements DeviceHostListener {
     private DeviceHost mDeviceHost;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
-    private PowerManager.WakeLock mWakeLock;
+    private PowerManager.WakeLock mRoutingWakeLock;
+    private PowerManager.WakeLock mEeWakeLock;
+
     int mStartSound;
     int mEndSound;
     int mErrorSound;
@@ -232,6 +238,9 @@ public class NfcService extends Application implements DeviceHostListener {
         if (!mNfceeAccessControl.check(Binder.getCallingUid(), pkg)) {
             throw new SecurityException(NfceeAccessControl.NFCEE_ACCESS_PATH +
                     " denies NFCEE access to " + pkg);
+        }
+        if (UserHandle.getCallingUserId() != UserHandle.USER_OWNER) {
+            throw new SecurityException("only the owner is allowed to call SE APIs");
         }
     }
 
@@ -287,6 +296,17 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     @Override
+    public void onSeListenActivated() {
+        sendMessage(NfcService.MSG_SE_LISTEN_ACTIVATED, null);
+    }
+
+    @Override
+    public void onSeListenDeactivated() {
+        sendMessage(NfcService.MSG_SE_LISTEN_DEACTIVATED, null);
+    }
+
+
+    @Override
     public void onSeApduReceived(byte[] apdu) {
         sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
     }
@@ -301,10 +321,7 @@ public class NfcService extends Application implements DeviceHostListener {
         sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
     }
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
-
+    public NfcService(Application nfcApplication) {
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
         mExtrasService = new NfcAdapterExtrasService();
@@ -313,48 +330,60 @@ public class NfcService extends Application implements DeviceHostListener {
 
         sService = this;
 
-        mContext = this;
-        mDeviceHost = new NativeNfcManager(this, this);
+        mContext = nfcApplication;
+        mDeviceHost = new NativeNfcManager(mContext, this);
 
         HandoverManager handoverManager = new HandoverManager(mContext);
-        mNfcDispatcher = new NfcDispatcher(this, handoverManager);
-        mP2pLinkManager = new P2pLinkManager(mContext, handoverManager);
+        mNfcDispatcher = new NfcDispatcher(mContext, handoverManager);
+
+        mP2pLinkManager = new P2pLinkManager(mContext, handoverManager,
+                mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
         mSecureElement = new NativeNfcSecureElement(mContext);
         mEeRoutingState = ROUTE_OFF;
 
-        mNfceeAccessControl = new NfceeAccessControl(this);
+        mNfceeAccessControl = new NfceeAccessControl(mContext);
 
-        mPrefs = getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
         mState = NfcAdapter.STATE_OFF;
         mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
 
-        mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mPowerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
 
-        mWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NfcService");
-        mKeyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        mRoutingWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mRoutingWakeLock");
+        mEeWakeLock = mPowerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mEeWakeLock");
+
+        mKeyguard = (KeyguardManager) mContext.getSystemService(Context.KEYGUARD_SERVICE);
         mScreenState = checkScreenState();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
+        // Intents only for owner
+        IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
+        ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        ownerFilter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
+
+        mContext.registerReceiver(mOwnerReceiver, ownerFilter);
+
+        ownerFilter = new IntentFilter();
+        ownerFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        ownerFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        ownerFilter.addDataScheme("package");
+
+        mContext.registerReceiver(mOwnerReceiver, ownerFilter);
+
+        // Intents for all users
         IntentFilter filter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
-        filter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
         filter.addAction(Intent.ACTION_USER_PRESENT);
-        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
-        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         registerForAirplaneMode(filter);
-        registerReceiver(mReceiver, filter);
-
-        filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
-        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-        filter.addDataScheme("package");
-
-        registerReceiver(mReceiver, filter);
+        mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         updatePackageCache();
 
@@ -365,9 +394,9 @@ public class NfcService extends Application implements DeviceHostListener {
         synchronized(this) {
             if (mSoundPool == null) {
                 mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
-                mStartSound = mSoundPool.load(this, R.raw.start, 1);
-                mEndSound = mSoundPool.load(this, R.raw.end, 1);
-                mErrorSound = mSoundPool.load(this, R.raw.error, 1);
+                mStartSound = mSoundPool.load(mContext, R.raw.start, 1);
+                mEndSound = mSoundPool.load(mContext, R.raw.end, 1);
+                mErrorSound = mSoundPool.load(mContext, R.raw.error, 1);
             }
         }
     }
@@ -399,8 +428,8 @@ public class NfcService extends Application implements DeviceHostListener {
     }
 
     void updatePackageCache() {
-        PackageManager pm = getPackageManager();
-        List<PackageInfo> packages = pm.getInstalledPackages(0);
+        PackageManager pm = mContext.getPackageManager();
+        List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_OWNER);
         synchronized (this) {
             mInstalledPackages = packages;
         }
@@ -413,6 +442,37 @@ public class NfcService extends Application implements DeviceHostListener {
             return SCREEN_STATE_ON_LOCKED;
         } else {
             return SCREEN_STATE_ON_UNLOCKED;
+        }
+    }
+
+    int doOpenSecureElementConnection() {
+        mEeWakeLock.acquire();
+        try {
+            return mSecureElement.doOpenSecureElementConnection();
+        } finally {
+            mEeWakeLock.release();
+        }
+    }
+
+    byte[] doTransceive(int handle, byte[] cmd) {
+        mEeWakeLock.acquire();
+        try {
+            return doTransceiveNoLock(handle, cmd);
+        } finally {
+            mEeWakeLock.release();
+        }
+    }
+
+    byte[] doTransceiveNoLock(int handle, byte[] cmd) {
+        return mSecureElement.doTransceive(handle, cmd);
+    }
+
+    void doDisconnect(int handle) {
+        mEeWakeLock.acquire();
+        try {
+            mSecureElement.doDisconnect(handle);
+        } finally {
+            mEeWakeLock.release();
         }
     }
 
@@ -512,11 +572,21 @@ public class NfcService extends Application implements DeviceHostListener {
             Log.i(TAG, "Enabling NFC");
             updateState(NfcAdapter.STATE_TURNING_ON);
 
-
-            if (!mDeviceHost.initialize()) {
-                Log.w(TAG, "Error enabling NFC");
-                updateState(NfcAdapter.STATE_OFF);
-                return false;
+            WatchDogThread watchDog = new WatchDogThread("enableInternal", INIT_WATCHDOG_MS);
+            watchDog.start();
+            try {
+                mRoutingWakeLock.acquire();
+                try {
+                    if (!mDeviceHost.initialize()) {
+                        Log.w(TAG, "Error enabling NFC");
+                        updateState(NfcAdapter.STATE_OFF);
+                        return false;
+                    }
+                } finally {
+                    mRoutingWakeLock.release();
+                }
+            } finally {
+                watchDog.cancel();
             }
 
             synchronized(NfcService.this) {
@@ -549,7 +619,7 @@ public class NfcService extends Application implements DeviceHostListener {
              * Implemented with a new thread (instead of a Handler or AsyncTask),
              * because the UI Thread and AsyncTask thread-pools can also get hung
              * when the NFC controller stops responding */
-            WatchDogThread watchDog = new WatchDogThread();
+            WatchDogThread watchDog = new WatchDogThread("disableInternal", ROUTING_WATCHDOG_MS);
             watchDog.start();
 
             mP2pLinkManager.enableDisable(false, false);
@@ -566,7 +636,6 @@ public class NfcService extends Application implements DeviceHostListener {
             // A convenient way to stop the watchdog properly consists of
             // disconnecting the tag. The polling loop shall be stopped before
             // to avoid the tag being discovered again.
-            applyRouting(true);
             maybeDisconnectTarget();
 
             mNfcDispatcher.setForegroundDispatch(null, null, null);
@@ -585,41 +654,64 @@ public class NfcService extends Application implements DeviceHostListener {
 
         void executeEeWipe() {
             // TODO: read SE reset list from /system/etc
-            byte[][]apdus = EE_WIPE_APDUS;
+            byte[][]apdus = mDeviceHost.getWipeApdus();
 
-            boolean tempEnable = mState == NfcAdapter.STATE_OFF;
-            if (tempEnable) {
-                if (!enableInternal()) {
-                    Log.w(TAG, "Could not enable NFC to wipe NFC-EE");
-                    return;
-                }
-            }
-            Log.i(TAG, "Executing SE wipe");
-            int handle = mSecureElement.doOpenSecureElementConnection();
-            if (handle == 0) {
-                Log.w(TAG, "Could not open the secure element");
-                if (tempEnable) {
-                    disableInternal();
-                }
+            if (apdus == null) {
+                Log.d(TAG, "No wipe APDUs found");
                 return;
             }
 
-            mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
-
-            for (byte[] cmd : apdus) {
-                byte[] resp = mSecureElement.doTransceive(handle, cmd);
-                if (resp == null) {
-                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
-                    break;
+            boolean tempEnable = mState == NfcAdapter.STATE_OFF;
+            // Hold a wake-lock over the entire wipe procedure
+            mEeWakeLock.acquire();
+            try {
+                if (tempEnable && !enableInternal()) {
+                    Log.w(TAG, "Could not enable NFC to wipe NFC-EE");
+                    return;
                 }
-            }
+                try {
+                    // NFC enabled
+                    int handle = 0;
+                    try {
+                        Log.i(TAG, "Executing SE wipe");
+                        handle = doOpenSecureElementConnection();
+                        if (handle == 0) {
+                            Log.w(TAG, "Could not open the secure element");
+                            return;
+                        }
+                        // TODO: remove this hack
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            // Ignore
+                        }
 
-            mDeviceHost.resetTimeouts();
-            mSecureElement.doDisconnect(handle);
-
-            if (tempEnable) {
-                disableInternal();
+                        mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+                        try {
+                            for (byte[] cmd : apdus) {
+                                byte[] resp = doTransceiveNoLock(handle, cmd);
+                                if (resp == null) {
+                                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
+                                    break;
+                                }
+                            }
+                        } finally {
+                            mDeviceHost.resetTimeouts();
+                        }
+                    } finally {
+                        if (handle != 0) {
+                            doDisconnect(handle);
+                        }
+                    }
+                } finally {
+                    if (tempEnable) {
+                        disableInternal();
+                    }
+                }
+            } finally {
+                mEeWakeLock.release();
             }
+            Log.i(TAG, "SE wipe done");
         }
 
         void updateState(int newState) {
@@ -631,7 +723,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 Intent intent = new Intent(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
                 intent.setFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
                 intent.putExtra(NfcAdapter.EXTRA_ADAPTER_STATE, mState);
-                mContext.sendBroadcast(intent);
+                mContext.sendBroadcastAsUser(intent, UserHandle.CURRENT);
             }
         }
     }
@@ -663,12 +755,6 @@ public class NfcService extends Application implements DeviceHostListener {
         }
     }
 
-    @Override
-    public void onTerminate() {
-        super.onTerminate();
-        // NFC application is persistent, it should not be destroyed by framework
-        Log.wtf(TAG, "NFC service is under attack!");
-    }
 
     final class NfcAdapterService extends INfcAdapter.Stub {
         @Override
@@ -868,10 +954,6 @@ public class NfcService extends Application implements DeviceHostListener {
 
             if (!tag.isPresent()) {
                 return ErrorCodes.ERROR_DISCONNECT;
-            }
-
-            if (technology == TagTechnology.NFC_B) {
-                return ErrorCodes.ERROR_NOT_SUPPORTED;
             }
 
             // Note that on most tags, all technologies are behind a single
@@ -1201,7 +1283,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
             binder.unlinkToDeath(mOpenEe, 0);
             mDeviceHost.resetTimeouts();
-            mSecureElement.doDisconnect(mOpenEe.handle);
+            doDisconnect(mOpenEe.handle);
             mOpenEe = null;
 
             applyRouting(true);
@@ -1244,11 +1326,11 @@ public class NfcService extends Application implements DeviceHostListener {
                     throw new IOException("NFC EE already open");
                 }
 
-                int handle = mSecureElement.doOpenSecureElementConnection();
+                int handle = doOpenSecureElementConnection();
                 if (handle == 0) {
                     throw new IOException("NFC EE failed to open");
                 }
-                mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
+                mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 30000);
 
                 mOpenEe = new OpenSecureElement(getCallingPid(), handle, b);
                 try {
@@ -1259,7 +1341,7 @@ public class NfcService extends Application implements DeviceHostListener {
 
                 // Add the calling package to the list of packages that have accessed
                 // the secure element.
-                for (String packageName : getPackageManager().getPackagesForUid(getCallingUid())) {
+                for (String packageName : mContext.getPackageManager().getPackagesForUid(getCallingUid())) {
                     mSePackages.add(packageName);
                 }
            }
@@ -1308,7 +1390,7 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
             }
 
-            return mSecureElement.doTransceive(mOpenEe.handle, data);
+            return doTransceive(mOpenEe.handle, data);
         }
 
         @Override
@@ -1321,12 +1403,27 @@ public class NfcService extends Application implements DeviceHostListener {
         public void setCardEmulationRoute(String pkg, int route) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
             mEeRoutingState = route;
-            applyRouting(true);
+            ApplyRoutingTask applyRoutingTask = new ApplyRoutingTask();
+            applyRoutingTask.execute();
+            try {
+                // Block until route is set
+                applyRoutingTask.get();
+            } catch (ExecutionException e) {
+                Log.e(TAG, "failed to set card emulation mode");
+            } catch (InterruptedException e) {
+                Log.e(TAG, "failed to set card emulation mode");
+            }
         }
 
         @Override
         public void authenticate(String pkg, byte[] token) throws RemoteException {
             NfcService.this.enforceNfceeAdminPerm(pkg);
+        }
+
+        @Override
+        public String getDriverName(String pkg) throws RemoteException {
+            NfcService.this.enforceNfceeAdminPerm(pkg);
+            return mDeviceHost.getName();
         }
     }
 
@@ -1376,19 +1473,27 @@ public class NfcService extends Application implements DeviceHostListener {
 
     class WatchDogThread extends Thread {
         boolean mWatchDogCanceled = false;
+        final int mTimeout;
+
+        public WatchDogThread(String threadName, int timeout) {
+            super(threadName);
+            mTimeout = timeout;
+        }
+
         @Override
         public void run() {
             boolean slept = false;
             while (!slept) {
                 try {
-                    Thread.sleep(10000);
+                    Thread.sleep(mTimeout);
                     slept = true;
                 } catch (InterruptedException e) { }
             }
             synchronized (this) {
                 if (!mWatchDogCanceled) {
                     // Trigger watch-dog
-                    Log.e(TAG, "Watch dog triggered");
+                    Log.e(TAG, "Watchdog fired: name=" + getName() + " threadId=" +
+                            getId() + " timeout=" + mTimeout);
                     mDeviceHost.doAbort();
                 }
             }
@@ -1407,12 +1512,12 @@ public class NfcService extends Application implements DeviceHostListener {
                 // PN544 cannot be reconfigured while EE is open
                 return;
             }
-            WatchDogThread watchDog = new WatchDogThread();
+            WatchDogThread watchDog = new WatchDogThread("applyRouting", ROUTING_WATCHDOG_MS);
 
             try {
                 watchDog.start();
 
-                if (PN544_QUIRK_DISCONNECT_BEFORE_RECONFIGURE && mScreenState == SCREEN_STATE_OFF) {
+                if (mDeviceHost.enablePN544Quirks() && mScreenState == SCREEN_STATE_OFF) {
                     /* TODO undo this after the LLCP stack is fixed.
                      * Use a different sequence when turning the screen off to
                      * workaround race conditions in pn544 libnfc. The race occurs
@@ -1704,6 +1809,22 @@ public class NfcService extends Application implements DeviceHostListener {
                     break;
                 }
 
+                case MSG_SE_LISTEN_ACTIVATED: {
+                    if (DBG) Log.d(TAG, "SE LISTEN MODE ACTIVATED");
+                    Intent listenModeActivated = new Intent();
+                    listenModeActivated.setAction(ACTION_SE_LISTEN_ACTIVATED);
+                    sendSeBroadcast(listenModeActivated);
+                    break;
+                }
+
+                case MSG_SE_LISTEN_DEACTIVATED: {
+                    if (DBG) Log.d(TAG, "SE LISTEN MODE DEACTIVATED");
+                    Intent listenModeDeactivated = new Intent();
+                    listenModeDeactivated.setAction(ACTION_SE_LISTEN_DEACTIVATED);
+                    sendSeBroadcast(listenModeDeactivated);
+                    break;
+                }
+
                 default:
                     Log.e(TAG, "Unknown message received");
                     break;
@@ -1808,52 +1929,22 @@ public class NfcService extends Application implements DeviceHostListener {
                 }
                 mScreenState = params[0].intValue();
 
-                boolean needWakelock = mScreenState == SCREEN_STATE_OFF;
-                if (needWakelock) {
-                    mWakeLock.acquire();
-                }
-                applyRouting(false);
-                if (needWakelock) {
-                    mWakeLock.release();
+                mRoutingWakeLock.acquire();
+                try {
+                    applyRouting(false);
+                } finally {
+                    mRoutingWakeLock.release();
                 }
                 return null;
             }
         }
     }
 
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mOwnerReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (action.equals(
-                    NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
-                // Perform applyRouting() in AsyncTask to serialize blocking calls
-                new ApplyRoutingTask().execute();
-            } else if (action.equals(Intent.ACTION_SCREEN_ON)
-                    || action.equals(Intent.ACTION_SCREEN_OFF)
-                    || action.equals(Intent.ACTION_USER_PRESENT)) {
-                // Perform applyRouting() in AsyncTask to serialize blocking calls
-                int screenState = SCREEN_STATE_OFF;
-                if (action.equals(Intent.ACTION_SCREEN_OFF)) {
-                    screenState = SCREEN_STATE_OFF;
-                } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
-                    screenState = mKeyguard.isKeyguardLocked() ?
-                            SCREEN_STATE_ON_LOCKED : SCREEN_STATE_ON_UNLOCKED;
-                } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
-                    screenState = SCREEN_STATE_ON_UNLOCKED;
-                }
-                new ApplyRoutingTask().execute(Integer.valueOf(screenState));
-            } else if (action.equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
-                EnableDisableTask eeWipeTask = new EnableDisableTask();
-                eeWipeTask.execute(TASK_EE_WIPE);
-                try {
-                    eeWipeTask.get();  // blocks until EE wipe is complete
-                } catch (ExecutionException e) {
-                    Log.w(TAG, "failed to wipe NFC-EE");
-                } catch (InterruptedException e) {
-                    Log.w(TAG, "failed to wipe NFC-EE");
-                }
-            } else if (action.equals(Intent.ACTION_PACKAGE_REMOVED) ||
+            if (action.equals(Intent.ACTION_PACKAGE_REMOVED) ||
                     action.equals(Intent.ACTION_PACKAGE_ADDED) ||
                     action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE) ||
                     action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE)) {
@@ -1877,6 +1968,42 @@ public class NfcService extends Application implements DeviceHostListener {
                         }
                     }
                 }
+            } else if (action.equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
+                EnableDisableTask eeWipeTask = new EnableDisableTask();
+                eeWipeTask.execute(TASK_EE_WIPE);
+                try {
+                    eeWipeTask.get();  // blocks until EE wipe is complete
+                } catch (ExecutionException e) {
+                    Log.w(TAG, "failed to wipe NFC-EE");
+                } catch (InterruptedException e) {
+                    Log.w(TAG, "failed to wipe NFC-EE");
+                }
+            }
+        }
+    };
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(
+                    NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
+                // Perform applyRouting() in AsyncTask to serialize blocking calls
+                new ApplyRoutingTask().execute();
+            } else if (action.equals(Intent.ACTION_SCREEN_ON)
+                    || action.equals(Intent.ACTION_SCREEN_OFF)
+                    || action.equals(Intent.ACTION_USER_PRESENT)) {
+                // Perform applyRouting() in AsyncTask to serialize blocking calls
+                int screenState = SCREEN_STATE_OFF;
+                if (action.equals(Intent.ACTION_SCREEN_OFF)) {
+                    screenState = SCREEN_STATE_OFF;
+                } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
+                    screenState = mKeyguard.isKeyguardLocked() ?
+                            SCREEN_STATE_ON_LOCKED : SCREEN_STATE_ON_UNLOCKED;
+                } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
+                    screenState = SCREEN_STATE_ON_UNLOCKED;
+                }
+                new ApplyRoutingTask().execute(Integer.valueOf(screenState));
             } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean isAirplaneModeOn = intent.getBooleanExtra("state", false);
                 // Query the airplane mode from Settings.System just to make sure that

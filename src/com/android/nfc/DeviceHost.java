@@ -49,6 +49,16 @@ public interface DeviceHost {
 
         public void onRemoteFieldDeactivated();
 
+        /**
+         * Notifies that the SE has been activated in listen mode
+         */
+        public void onSeListenActivated();
+
+        /**
+         * Notifies that the SE has been deactivated
+         */
+        public void onSeListenDeactivated();
+
         public void onSeApduReceived(byte[] apdu);
 
         public void onSeEmvCardRemoval();
@@ -175,6 +185,8 @@ public interface DeviceHost {
 
     public boolean deinitialize();
 
+    public String getName();
+
     public void enableDiscovery();
 
     public void disableDiscovery();
@@ -215,6 +227,14 @@ public interface DeviceHost {
     void setP2pTargetModes(int modes);
 
     boolean getExtendedLengthApdusSupported();
+
+    boolean enablePN544Quirks();
+
+    byte[][] getWipeApdus();
+
+    int getDefaultLlcpMiu();
+
+    int getDefaultLlcpRwSize();
 
     String dump();
 }

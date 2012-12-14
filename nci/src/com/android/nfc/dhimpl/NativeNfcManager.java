@@ -28,27 +28,18 @@ import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
 
-import java.io.File;
-
 /**
  * Native interface to the NFC Manager functions
  */
 public class NativeNfcManager implements DeviceHost {
     private static final String TAG = "NativeNfcManager";
+    static final String PREF = "NciDeviceHost";
 
-    private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/vendor/firmware/libpn544_fw.so";
+    static final int DEFAULT_LLCP_MIU = 1980;
+    static final int DEFAULT_LLCP_RWSIZE = 2;
 
-    static final String PREF = "NxpDeviceHost";
+    static final String DRIVER_NAME = "android-nci";
 
-    private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
-    private static final long FIRMWARE_MODTIME_DEFAULT = -1;
-
-    static final String DRIVER_NAME = "nxp";
-
-    static final int DEFAULT_LLCP_MIU = 128;
-    static final int DEFAULT_LLCP_RWSIZE = 1;
-
-    //TODO: dont hardcode this
     private static final byte[][] EE_WIPE_APDUS = {
         {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
         {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
@@ -61,9 +52,8 @@ public class NativeNfcManager implements DeviceHost {
         {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
     };
 
-
     static {
-        System.loadLibrary("nfc_jni");
+        System.loadLibrary("nfc_nci_jni");
     }
 
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
@@ -89,46 +79,6 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public void checkFirmware() {
-        // Check that the NFC controller firmware is up to date.  This
-        // ensures that firmware updates are applied in a timely fashion,
-        // and makes it much less likely that the user will have to wait
-        // for a firmware download when they enable NFC in the settings
-        // app.  Firmware download can take some time, so this should be
-        // run in a separate thread.
-
-        // check the timestamp of the firmware file
-        File firmwareFile;
-        int nbRetry = 0;
-        try {
-            firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME);
-        } catch(NullPointerException npe) {
-            Log.e(TAG,"path to firmware file was null");
-            return;
-        }
-
-        long modtime = firmwareFile.lastModified();
-
-        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
-        long prev_fw_modtime = prefs.getLong(PREF_FIRMWARE_MODTIME, FIRMWARE_MODTIME_DEFAULT);
-        Log.d(TAG,"prev modtime: " + prev_fw_modtime);
-        Log.d(TAG,"new modtime: " + modtime);
-        if (prev_fw_modtime == modtime) {
-            return;
-        }
-
-        // FW download.
-        while(nbRetry < 5) {
-            Log.d(TAG,"Perform Download");
-            if(doDownload()) {
-                Log.d(TAG,"Download Success");
-                // Now that we've finished updating the firmware, save the new modtime.
-                prefs.edit().putLong(PREF_FIRMWARE_MODTIME, modtime).apply();
-                break;
-            } else {
-                Log.d(TAG,"Download Failed");
-                nbRetry++;
-            }
-        }
     }
 
     private native boolean doInitialize();
@@ -287,8 +237,7 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public boolean canMakeReadOnly(int ndefType) {
-        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2 ||
-                ndefType == Ndef.TYPE_MIFARE_CLASSIC);
+        return (ndefType == Ndef.TYPE_1 || ndefType == Ndef.TYPE_2);
     }
 
     @Override
@@ -299,7 +248,10 @@ public class NativeNfcManager implements DeviceHost {
             case (TagTechnology.MIFARE_ULTRALIGHT):
                 return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
             case (TagTechnology.NFC_B):
-                return 0; // PN544 does not support transceive of raw NfcB
+                /////////////////////////////////////////////////////////////////
+                // Broadcom: Since BCM2079x supports this, set NfcB max size.
+                //return 0; // PN544 does not support transceive of raw NfcB
+                return 253; // PN544 does not support transceive of raw NfcB
             case (TagTechnology.NFC_V):
                 return 253; // PN544 RF buffer = 255 bytes, subtract two for CRC
             case (TagTechnology.ISO_DEP):
@@ -328,16 +280,15 @@ public class NativeNfcManager implements DeviceHost {
     public void setP2pTargetModes(int modes) {
         doSetP2pTargetModes(modes);
     }
-
     @Override
     public boolean getExtendedLengthApdusSupported() {
-        // Not supported on the PN544
+        // TODO check BCM support
         return false;
     }
 
     @Override
     public boolean enablePN544Quirks() {
-        return true;
+        return false;
     }
 
     @Override
@@ -402,6 +353,14 @@ public class NativeNfcManager implements DeviceHost {
 
     private void notifySeFieldDeactivated() {
         mListener.onRemoteFieldDeactivated();
+    }
+
+    private void notifySeListenActivated() {
+        mListener.onSeListenActivated();
+    }
+
+    private void notifySeListenDeactivated() {
+        mListener.onSeListenDeactivated();
     }
 
     private void notifySeApduReceived(byte[] apdu) {
