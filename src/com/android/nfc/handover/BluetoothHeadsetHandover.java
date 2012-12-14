@@ -16,7 +16,6 @@
 
 package com.android.nfc.handover;
 
-import android.app.ActivityManager;
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -29,12 +28,10 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.UserHandle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
 
-import com.android.nfc.handover.HandoverManager.HandoverPowerManager;
 import com.android.nfc.R;
 
 /**
@@ -57,14 +54,13 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     static final int TIMEOUT_MS = 20000;
 
     static final int STATE_INIT = 0;
-    static final int STATE_TURNING_ON = 1;
-    static final int STATE_WAITING_FOR_PROXIES = 2;
-    static final int STATE_INIT_COMPLETE = 3;
-    static final int STATE_WAITING_FOR_BOND_CONFIRMATION = 4;
-    static final int STATE_BONDING = 5;
-    static final int STATE_CONNECTING = 6;
-    static final int STATE_DISCONNECTING = 7;
-    static final int STATE_COMPLETE = 8;
+    static final int STATE_WAITING_FOR_PROXIES = 1;
+    static final int STATE_INIT_COMPLETE = 2;
+    static final int STATE_WAITING_FOR_BOND_CONFIRMATION = 3;
+    static final int STATE_BONDING = 4;
+    static final int STATE_CONNECTING = 5;
+    static final int STATE_DISCONNECTING = 6;
+    static final int STATE_COMPLETE = 7;
 
     static final int RESULT_PENDING = 0;
     static final int RESULT_CONNECTED = 1;
@@ -80,7 +76,6 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     final Context mContext;
     final BluetoothDevice mDevice;
     final String mName;
-    final HandoverPowerManager mHandoverPowerManager;
     final Callback mCallback;
     final BluetoothAdapter mBluetoothAdapter;
 
@@ -101,16 +96,19 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     }
 
     public BluetoothHeadsetHandover(Context context, BluetoothDevice device, String name,
-            HandoverPowerManager powerManager, Callback callback) {
+            Callback callback) {
         checkMainThread();  // mHandler must get get constructed on Main Thread for toasts to work
         mContext = context;
         mDevice = device;
         mName = name;
-        mHandoverPowerManager = powerManager;
         mCallback = callback;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         mState = STATE_INIT;
+    }
+
+    public boolean hasStarted() {
+        return mState != STATE_INIT;
     }
 
     /**
@@ -156,18 +154,6 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     void nextStepInit() {
         switch (mState) {
             case STATE_INIT:
-                if (!mHandoverPowerManager.isBluetoothEnabled()) {
-                    if (mHandoverPowerManager.enableBluetooth()) {
-                        // Bluetooth is being enabled
-                        mState = STATE_TURNING_ON;
-                    } else {
-                        toast(mContext.getString(R.string.failed_to_enable_bt));
-                        complete(false);
-                    }
-                    break;
-                }
-                // fall-through
-            case STATE_TURNING_ON:
                 if (mA2dp == null || mHeadset == null) {
                     mState = STATE_WAITING_FOR_PROXIES;
                     if (!getProfileProxys()) {
@@ -310,18 +296,7 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
 
     void handleIntent(Intent intent) {
         String action = intent.getAction();
-        if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action) && mState == STATE_TURNING_ON) {
-            int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-            if (state == BluetoothAdapter.STATE_ON) {
-                nextStep();
-            } else if (state == BluetoothAdapter.STATE_OFF) {
-                toast(mContext.getString(R.string.failed_to_enable_bt));
-                complete(false);
-            }
-            return;
-        }
-
-        // Everything else requires the device to match...
+        // Everything requires the device to match...
         BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
         if (!mDevice.equals(device)) return;
 
@@ -387,19 +362,18 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
         Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_DOWN,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
+        mContext.sendOrderedBroadcast(intent, null);
         intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
                 KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT, null, null, null, 0, null, null);
+        mContext.sendOrderedBroadcast(intent, null);
     }
 
     void requestPairConfirmation() {
         Intent dialogIntent = new Intent(mContext, ConfirmConnectActivity.class);
         dialogIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
         dialogIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
 
-        mContext.startActivityAsUser(dialogIntent, new UserHandle(UserHandle.USER_CURRENT));
+        mContext.startActivity(dialogIntent);
     }
 
     final Handler mHandler = new Handler() {

@@ -16,25 +16,17 @@
 
 package com.android.nfc.handover;
 
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.os.UserHandle;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
-import android.widget.Toast;
-
-import com.android.nfc.handover.HandoverManager.HandoverPowerManager;
-import com.android.nfc.R;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -61,20 +53,19 @@ public class BluetoothOppHandover implements Handler.Callback {
     final BluetoothDevice mDevice;
 
     final Uri[] mUris;
-    final HandoverPowerManager mHandoverPowerManager;
     final boolean mRemoteActivating;
     final Handler mHandler;
+    final Long mCreateTime;
 
     int mState;
-    Long mStartTime;
 
     public BluetoothOppHandover(Context context, BluetoothDevice device, Uri[] uris,
-            HandoverPowerManager powerManager, boolean remoteActivating) {
+            boolean remoteActivating) {
         mContext = context;
         mDevice = device;
         mUris = uris;
-        mHandoverPowerManager = powerManager;
         mRemoteActivating = remoteActivating;
+        mCreateTime = SystemClock.elapsedRealtime();
 
         mHandler = new Handler(context.getMainLooper(),this);
         mState = STATE_INIT;
@@ -104,33 +95,24 @@ public class BluetoothOppHandover implements Handler.Callback {
      * to begin the BT sequence. Must be called on Main thread.
      */
     public void start() {
-        mStartTime = SystemClock.elapsedRealtime();
-
-        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-        mContext.registerReceiver(mReceiver, filter);
-
-        if (!mHandoverPowerManager.isBluetoothEnabled()) {
-           if (mHandoverPowerManager.enableBluetooth()) {
-               mState = STATE_TURNING_ON;
-           } else {
-               Toast.makeText(mContext, mContext.getString(R.string.beam_failed),
-                       Toast.LENGTH_SHORT).show();
-               complete();
-           }
-        } else {
-            // BT already enabled
-            if (mRemoteActivating) {
-                mHandler.sendEmptyMessageDelayed(MSG_START_SEND, REMOTE_BT_ENABLE_DELAY_MS);
+        if (mRemoteActivating) {
+            Long timeElapsed = SystemClock.elapsedRealtime() - mCreateTime;
+            if (timeElapsed < REMOTE_BT_ENABLE_DELAY_MS) {
+                mHandler.sendEmptyMessageDelayed(MSG_START_SEND,
+                        REMOTE_BT_ENABLE_DELAY_MS - timeElapsed);
             } else {
-                // Remote BT enabled too, start send immediately
+                // Already waited long enough for BT to come up
+                // - start send.
                 sendIntent();
             }
+        } else {
+            // Remote BT enabled already, start send immediately
+            sendIntent();
         }
     }
 
     void complete() {
         mState = STATE_COMPLETE;
-        mContext.unregisterReceiver(mReceiver);
     }
 
     void sendIntent() {
@@ -153,32 +135,6 @@ public class BluetoothOppHandover implements Handler.Callback {
         complete();
     }
 
-    void handleIntent(Intent intent) {
-        String action = intent.getAction();
-        if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action) && mState == STATE_TURNING_ON) {
-            int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-            if (state == BluetoothAdapter.STATE_ON) {
-                // Add additional delay if needed
-                Long timeElapsed = SystemClock.elapsedRealtime() - mStartTime;
-                if (mRemoteActivating && timeElapsed < REMOTE_BT_ENABLE_DELAY_MS) {
-                    mHandler.sendEmptyMessageDelayed(MSG_START_SEND,
-                            REMOTE_BT_ENABLE_DELAY_MS - timeElapsed);
-                } else {
-                    sendIntent();
-                }
-            } else if (state == BluetoothAdapter.STATE_OFF) {
-                complete();
-            }
-            return;
-        }
-    }
-
-    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            handleIntent(intent);
-        }
-    };
 
     @Override
     public boolean handleMessage(Message msg) {

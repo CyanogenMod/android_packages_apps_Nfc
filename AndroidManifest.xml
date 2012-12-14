@@ -52,5 +52,8 @@
             android:noHistory="true"
 
         />
+        <service android:name=".handover.HandoverService"
+            android:process=":handover"
+        />
     </application>
 </manifest>
