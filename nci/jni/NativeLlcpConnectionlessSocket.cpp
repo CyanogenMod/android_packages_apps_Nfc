@@ -19,6 +19,8 @@
 #include "OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "JavaClassConstants.h"
+#include <ScopedLocalRef.h>
+#include <ScopedPrimitiveArray.h>
 extern "C"
 {
     #include "nfa_api.h"
@@ -57,29 +59,25 @@ static uint32_t     sConnlessRecvRemoteSap = 0;
 *******************************************************************************/
 static jboolean nativeLlcpConnectionlessSocket_doSendTo (JNIEnv *e, jobject o, jint nsap, jbyteArray data)
 {
-    tNFA_STATUS status = NFA_STATUS_FAILED;
-    jint handle = 0;
-    uint8_t* buf = NULL;
-    uint32_t len = 0;
-    jclass c = NULL;
-    jfieldID f = NULL;
-
     ALOGD ("%s: nsap = %d", __FUNCTION__, nsap);
 
-    c = e->GetObjectClass (o);
-    f = e->GetFieldID (c, "mHandle", "I");
-    handle = e->GetIntField (o, f);
+    ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
+    jfieldID f = e->GetFieldID(c.get(), "mHandle", "I");
+    jint handle = e->GetIntField(o, f);
 
-    buf = (uint8_t*) e->GetByteArrayElements (data, NULL);
-    len = (uint32_t) e->GetArrayLength (data);
+    ScopedByteArrayRO bytes(e, data);
+    if (bytes.get() == NULL) {
+        return JNI_FALSE;
+    }
+    size_t byte_count = bytes.size();
 
-    ALOGD ("NFA_P2pSendUI: len = %d", len);
-    status = NFA_P2pSendUI ((tNFA_HANDLE) handle, nsap, len, buf);
+    ALOGD("NFA_P2pSendUI: len = %d", byte_count);
+    UINT8* raw_ptr = const_cast<UINT8*>(reinterpret_cast<const UINT8*>(&bytes[0])); // TODO: API bug; NFA_P2pSendUI should take const*!
+    tNFA_STATUS status = NFA_P2pSendUI((tNFA_HANDLE) handle, nsap, byte_count, raw_ptr);
 
-    ALOGD ("%s: NFA_P2pSendUI done, status = %d", __FUNCTION__, status);
-    if (status != NFA_STATUS_OK)
-    {
-        ALOGE ("%s: NFA_P2pSendUI failed, status = %d", __FUNCTION__, status);
+    ALOGD("%s: NFA_P2pSendUI done, status = %d", __FUNCTION__, status);
+    if (status != NFA_STATUS_OK) {
+        ALOGE("%s: NFA_P2pSendUI failed, status = %d", __FUNCTION__, status);
         return JNI_FALSE;
     }
     return JNI_TRUE;
@@ -169,14 +167,11 @@ void nativeLlcpConnectionlessSocket_abortWait ()
 ** Returns:         LlcpPacket Java object.
 **
 *******************************************************************************/
-static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv *e, jobject o, jint linkMiu)
+static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv* e, jobject, jint linkMiu)
 {
-    jbyteArray receivedData = NULL;
-    jobject llcpPacket = NULL;
-    jclass clsLlcpPacket = NULL;
-    jfieldID f = NULL;
-
     ALOGD ("%s: linkMiu = %d", __FUNCTION__, linkMiu);
+    jobject llcpPacket = NULL;
+    ScopedLocalRef<jclass> clsLlcpPacket(e, NULL);
 
     if (sConnlessRecvWaitingForData != JNI_FALSE)
     {
@@ -216,8 +211,8 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv *e, jobject 
     }
 
     // Get NativeConnectionless class object
-    clsLlcpPacket = e->GetObjectClass (llcpPacket);
-    if (e->ExceptionCheck ())
+    clsLlcpPacket.reset(e->GetObjectClass(llcpPacket));
+    if (e->ExceptionCheck())
     {
         e->ExceptionClear();
         ALOGE ("%s: Get Object class error", __FUNCTION__);
@@ -225,17 +220,21 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv *e, jobject 
     }
 
     // Set Llcp Packet remote SAP
-    f = e->GetFieldID (clsLlcpPacket, "mRemoteSap", "I");
-    e->SetIntField (llcpPacket, f, (jbyte) sConnlessRecvRemoteSap);
+    jfieldID f;
+    f = e->GetFieldID(clsLlcpPacket.get(), "mRemoteSap", "I");
+    e->SetIntField(llcpPacket, f, (jbyte) sConnlessRecvRemoteSap);
 
     // Set Llcp Packet Buffer
     ALOGD ("%s: Received Llcp packet buffer size = %d\n", __FUNCTION__, sConnlessRecvLen);
-    f = e->GetFieldID (clsLlcpPacket, "mDataBuffer", "[B");
-    receivedData = e->NewByteArray (sConnlessRecvLen);
-    e->SetByteArrayRegion (receivedData, 0, sConnlessRecvLen, (jbyte*) sConnlessRecvBuf);
-    e->SetObjectField (llcpPacket, f, receivedData);
+    f = e->GetFieldID(clsLlcpPacket.get(), "mDataBuffer", "[B");
 
-TheEnd:
+    {
+        ScopedLocalRef<jbyteArray> receivedData(e, e->NewByteArray(sConnlessRecvLen));
+        e->SetByteArrayRegion(receivedData.get(), 0, sConnlessRecvLen, (jbyte*) sConnlessRecvBuf);
+        e->SetObjectField(llcpPacket, f, receivedData.get());
+    }
+
+TheEnd: // TODO: should all the "return connectionlessCleanup()"s in this function jump here instead?
     connectionlessCleanup ();
     if (sem_destroy (&sConnlessRecvSem))
     {
@@ -258,20 +257,14 @@ TheEnd:
 *******************************************************************************/
 static jboolean nativeLlcpConnectionlessSocket_doClose (JNIEnv *e, jobject o)
 {
-    tNFA_STATUS status = NFA_STATUS_FAILED;
-    jint handle = 0;
-    jclass c = NULL;
-    jfieldID f = NULL;
-
     ALOGD ("%s", __FUNCTION__);
 
-    c = e->GetObjectClass (o);
-    f = e->GetFieldID (c, "mHandle", "I");
-    handle = e->GetIntField (o, f);
+    ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
+    jfieldID f = e->GetFieldID(c.get(), "mHandle", "I");
+    jint handle = e->GetIntField(o, f);
 
-    status = NFA_P2pDisconnect ((tNFA_HANDLE) handle, FALSE);
-    if (status != NFA_STATUS_OK)
-    {
+    tNFA_STATUS status = NFA_P2pDisconnect((tNFA_HANDLE) handle, FALSE);
+    if (status != NFA_STATUS_OK) {
         ALOGE ("%s: disconnect failed, status = %d", __FUNCTION__, status);
         return JNI_FALSE;
     }
