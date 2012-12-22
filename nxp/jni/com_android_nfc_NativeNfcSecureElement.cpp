@@ -152,12 +152,12 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
       TRACE("Secure Element Handle: 0x%08x", secureElementHandle);
 
       /* Set type name */      
-      jintArray techList;
+      ScopedLocalRef<jintArray> techList(e, NULL);
       nfc_jni_get_technology_tree(e, psRemoteDevList,uNofRemoteDev, &techList, NULL, NULL);
 
       // TODO: Should use the "connected" technology, for now use the first
-      if ((techList != NULL) && e->GetArrayLength(techList) > 0) {
-         e->GetIntArrayRegion(techList, 0, 1, &SecureElementTech);
+      if ((techList.get() != NULL) && e->GetArrayLength(techList.get()) > 0) {
+         e->GetIntArrayRegion(techList.get(), 0, 1, &SecureElementTech);
          TRACE("Store Secure Element Info\n");
          SecureElementInfo = psRemoteDevList->psRemoteDevInfo;
 
@@ -167,10 +167,6 @@ static void com_android_nfc_jni_open_secure_element_notification_callback(void *
          ALOGE("Discovered secure element, but could not resolve tech");
          status = NFCSTATUS_FAILED;
       }
-
-      // This thread may not return to the virtual machine for a long time
-      // so make sure to delete the local refernce to the tech list.
-      e->DeleteLocalRef(techList);
    }
 
 clean_and_return:
@@ -730,16 +726,12 @@ static jintArray com_android_nfc_NativeNfcSecureElement_doGetTechList(JNIEnv *e,
    jintArray techList;
    TRACE("Get Secure element Type function ");
       
-   if(handle == secureElementHandle)
-   {
-      techList = e->NewIntArray(1);
-      e->SetIntArrayRegion(techList, 0, 1, &SecureElementTech);
-      return techList;
-   }
-   else
-   {
+   if (handle != secureElementHandle) {
       return NULL;
    }
+   jintArray result = e->NewIntArray(1);
+   e->SetIntArrayRegion(result, 0, 1, &SecureElementTech);
+   return result;
 }
 
 
