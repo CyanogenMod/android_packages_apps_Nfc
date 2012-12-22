@@ -24,14 +24,14 @@
 
 IntervalTimer::IntervalTimer()
 {
-    mTimerId = NULL;
+    mTimerId = 0;
     mCb = NULL;
 }
 
 
 bool IntervalTimer::set(int ms, TIMER_FUNC cb)
 {
-    if (mTimerId == NULL)
+    if (mTimerId == 0)
     {
         if (cb == NULL)
             return false;
@@ -69,11 +69,11 @@ IntervalTimer::~IntervalTimer()
 
 void IntervalTimer::kill()
 {
-    if (mTimerId == NULL)
+    if (mTimerId == 0)
         return;
 
     timer_delete(mTimerId);
-    mTimerId = NULL;
+    mTimerId = 0;
     mCb = NULL;
 }
 

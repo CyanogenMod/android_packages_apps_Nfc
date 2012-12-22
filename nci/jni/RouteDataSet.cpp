@@ -528,6 +528,7 @@ void RouteDataSet::printDiagnostic ()
                 ALOGD ("%s: ee h=0x%X; protocol=0x%X", fn, proto->mNfaEeHandle, proto->mProtocol);
             }
             break;
+        // TODO: RouteData::TechnologyRoute isn't handled --- bug?
         }
     }
 

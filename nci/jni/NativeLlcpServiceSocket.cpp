@@ -44,7 +44,7 @@ namespace android
 ** Returns:         LlcpSocket Java object.
 **
 *******************************************************************************/
-static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, jint rw, jint linearBufferLength)
+static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, jint rw, jint /*linearBufferLength*/)
 {
     jobject     clientSocket = NULL;
     jclass      clsNativeLlcpSocket = NULL;
@@ -155,4 +155,3 @@ int register_com_android_nfc_NativeLlcpServiceSocket (JNIEnv* e)
 
 
 } //namespace android
-

@@ -24,6 +24,7 @@
 #include <hardware/hardware.h>
 #include <hardware/nfc.h>
 #include <cutils/properties.h>
+#include <ScopedLocalRef.h>
 
 #include "com_android_nfc.h"
 
@@ -86,7 +87,7 @@ static bool performDownload(struct nfc_jni_native_data *nat, bool takeLock);
 static void client_kill_deferred_call(void* arg)
 {
    struct nfc_jni_native_data *nat = (struct nfc_jni_native_data *)arg;
-   
+
    nat->running = FALSE;
 }
 
@@ -94,15 +95,15 @@ static void kill_client(nfc_jni_native_data *nat)
 {
    phDal4Nfc_Message_Wrapper_t  wrapper;
    phLibNfc_DeferredCall_t     *pMsg;
-   
+
    usleep(50000);
 
    ALOGD("Terminating client thread...");
-    
+
    pMsg = (phLibNfc_DeferredCall_t*)malloc(sizeof(phLibNfc_DeferredCall_t));
    pMsg->pCallback = client_kill_deferred_call;
    pMsg->pParameter = (void*)nat;
-   
+
    wrapper.msg.eMsgType = PH_LIBNFC_DEFERREDCALL_MSG;
    wrapper.msg.pMsgData = pMsg;
    wrapper.msg.Size     = sizeof(phLibNfc_DeferredCall_t);
@@ -359,7 +360,7 @@ static int nfc_jni_initialize(struct nfc_jni_native_data *nat) {
       goto force_download;
    }
    TRACE("phLibNfc_Mgt_Initialize returned 0x%04x[%s]", status, nfc_jni_get_status_name(status));
-  
+
    /* Wait for callback response */
    if(sem_wait(&cb_data.sem))
    {
@@ -724,7 +725,7 @@ static void *nfc_jni_client_thread(void *arg)
       }
    }
    TRACE("NFC client stopped");
-   
+
    nat->vm->DetachCurrentThread();
 
    return NULL;
@@ -738,7 +739,7 @@ static phLibNfc_sNfcIPCfg_t nfc_jni_nfcip1_cfg =
 {
    3,
    { 0x46, 0x66, 0x6D }
-}; 
+};
 
 /*
  * Callbacks
@@ -762,7 +763,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
    TRACE("Callback: nfc_jni_llcp_linkStatus_callback()");
 
    nat->vm->GetEnv( (void **)&e, nat->env_version);
-   
+
    /* Update link status */
    g_eLinkStatus = eLinkStatus;
 
@@ -805,7 +806,7 @@ static void nfc_jni_llcp_linkStatus_callback(void *pContext,
       {
          ALOGE("Exception occured");
          kill_client(nat);
-      } 
+      }
    }
 }
 
@@ -906,37 +907,29 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
    phLibNfc_RemoteDevList_t *psRemoteDevList,
    uint8_t uNofRemoteDev, NFCSTATUS status)
 {
-   JNIEnv *e;
    NFCSTATUS ret;
-   jclass tag_cls = NULL;
-   jobject target_array;
-   jobject tag;
-   jmethodID ctor;
-   jfieldID f;
    const char * typeName;
-   jbyteArray tagUid;
-   jbyteArray generalBytes = NULL;
-   struct nfc_jni_native_data *nat;
    struct timespec ts;
    phNfc_sData_t data;
    int i;
    int target_index = 0; // Target that will be reported (if multiple can be >0)
 
-   nat = (struct nfc_jni_native_data *)pContext;
-   
+   struct nfc_jni_native_data* nat = (struct nfc_jni_native_data *)pContext;
+
+   JNIEnv *e;
    nat->vm->GetEnv( (void **)&e, nat->env_version);
-   
+
    if(status == NFCSTATUS_DESELECTED)
    {
-      LOG_CALLBACK("nfc_jni_Discovery_notification_callback: Target deselected", status); 
-         
+      LOG_CALLBACK("nfc_jni_Discovery_notification_callback: Target deselected", status);
+
       /* Notify manager that a target was deselected */
       e->CallVoidMethod(nat->manager, cached_NfcManager_notifyTargetDeselected);
       if(e->ExceptionCheck())
       {
-         ALOGE("Exception occured");
+         ALOGE("Exception occurred");
          kill_client(nat);
-      } 
+      }
    }
    else
    {
@@ -945,6 +938,8 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
       target_index = find_preferred_target(psRemoteDevList, uNofRemoteDev);
 
+      ScopedLocalRef<jobject> tag(e, NULL);
+
       /* Reset device connected flag */
       device_connected_flag = 1;
       phLibNfc_sRemoteDevInformation_t *remDevInfo = psRemoteDevList[target_index].psRemoteDevInfo;
@@ -952,61 +947,59 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
       if((remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
           || (remDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
-
-         tag_cls = e->GetObjectClass(nat->cached_P2pDevice);
+         ScopedLocalRef<jclass> tag_cls(e, e->GetObjectClass(nat->cached_P2pDevice));
          if(e->ExceptionCheck())
          {
-            ALOGE("Get Object Class Error"); 
+            ALOGE("Get Object Class Error");
             kill_client(nat);
             return;
-         } 
-         
+         }
+
          /* New target instance */
-         ctor = e->GetMethodID(tag_cls, "<init>", "()V");
-         tag = e->NewObject(tag_cls, ctor);
-         
+         jmethodID ctor = e->GetMethodID(tag_cls.get(), "<init>", "()V");
+         tag.reset(e->NewObject(tag_cls.get(), ctor));
+
          /* Set P2P Target mode */
-         f = e->GetFieldID(tag_cls, "mMode", "I"); 
-         
+         jfieldID f = e->GetFieldID(tag_cls.get(), "mMode", "I");
+
          if(remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
          {
             ALOGD("Discovered P2P Initiator");
-            e->SetIntField(tag, f, (jint)MODE_P2P_INITIATOR);
+            e->SetIntField(tag.get(), f, (jint)MODE_P2P_INITIATOR);
          }
          else
-         {    
+         {
             ALOGD("Discovered P2P Target");
-            e->SetIntField(tag, f, (jint)MODE_P2P_TARGET);
+            e->SetIntField(tag.get(), f, (jint)MODE_P2P_TARGET);
          }
-          
+
          if(remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
          {
             /* Set General Bytes */
-            f = e->GetFieldID(tag_cls, "mGeneralBytes", "[B");
-   
+            f = e->GetFieldID(tag_cls.get(), "mGeneralBytes", "[B");
+
            TRACE("General Bytes length =");
            for(i=0;i<remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length;i++)
            {
                ALOGD("%02x ", remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo[i]);
            }
 
-            generalBytes = e->NewByteArray(remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length);
-             
-            e->SetByteArrayRegion(generalBytes, 0, 
+            ScopedLocalRef<jbyteArray> generalBytes(e, e->NewByteArray(remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length));
+
+            e->SetByteArrayRegion(generalBytes.get(), 0,
                                   remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo_Length,
                                   (jbyte *)remDevInfo->RemoteDevInfo.NfcIP_Info.ATRInfo);
-             
-            e->SetObjectField(tag, f, generalBytes);
+            e->SetObjectField(tag.get(), f, generalBytes.get());
          }
 
          /* Set tag handle */
-         f = e->GetFieldID(tag_cls, "mHandle", "I");
-         e->SetIntField(tag, f,(jint)remDevHandle);
+         f = e->GetFieldID(tag_cls.get(), "mHandle", "I");
+         e->SetIntField(tag.get(), f,(jint)remDevHandle);
          TRACE("Target handle = 0x%08x",remDevHandle);
       }
       else
       {
-        tag_cls = e->GetObjectClass(nat->cached_NfcTag);
+        ScopedLocalRef<jclass> tag_cls(e, e->GetObjectClass(nat->cached_NfcTag));
         if(e->ExceptionCheck())
         {
             kill_client(nat);
@@ -1014,8 +1007,8 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         }
 
         /* New tag instance */
-        ctor = e->GetMethodID(tag_cls, "<init>", "()V");
-        tag = e->NewObject(tag_cls, ctor);
+        jmethodID ctor = e->GetMethodID(tag_cls.get(), "<init>", "()V");
+        tag.reset(e->NewObject(tag_cls.get(), ctor));
 
         bool multi_protocol = false;
 
@@ -1026,74 +1019,73 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
         }
 
         /* Set tag UID */
-        f = e->GetFieldID(tag_cls, "mUid", "[B");
+        jfieldID f = e->GetFieldID(tag_cls.get(), "mUid", "[B");
         data = get_target_uid(remDevInfo);
-        tagUid = e->NewByteArray(data.length);
+        ScopedLocalRef<jbyteArray> tagUid(e, e->NewByteArray(data.length));
         if(data.length > 0)
         {
-            e->SetByteArrayRegion(tagUid, 0, data.length, (jbyte *)data.buffer);
+           e->SetByteArrayRegion(tagUid.get(), 0, data.length, (jbyte *)data.buffer);
         }
-        e->SetObjectField(tag, f, tagUid);
+        e->SetObjectField(tag.get(), f, tagUid.get());
 
         /* Generate technology list */
-        jintArray techList;
-        jintArray handleList;
-        jintArray typeList;
+        ScopedLocalRef<jintArray> techList(e, NULL);
+        ScopedLocalRef<jintArray> handleList(e, NULL);
+        ScopedLocalRef<jintArray> typeList(e, NULL);
         nfc_jni_get_technology_tree(e, psRemoteDevList,
                 multi_protocol ? uNofRemoteDev : 1,
                 &techList, &handleList, &typeList);
 
         /* Push the technology list into the java object */
-        f = e->GetFieldID(tag_cls, "mTechList", "[I");
-        e->SetObjectField(tag, f, techList);
+        f = e->GetFieldID(tag_cls.get(), "mTechList", "[I");
+        e->SetObjectField(tag.get(), f, techList.get());
 
-        f = e->GetFieldID(tag_cls, "mTechHandles", "[I");
-        e->SetObjectField(tag, f, handleList);
+        f = e->GetFieldID(tag_cls.get(), "mTechHandles", "[I");
+        e->SetObjectField(tag.get(), f, handleList.get());
 
-        f = e->GetFieldID(tag_cls, "mTechLibNfcTypes", "[I");
-        e->SetObjectField(tag, f, typeList);
+        f = e->GetFieldID(tag_cls.get(), "mTechLibNfcTypes", "[I");
+        e->SetObjectField(tag.get(), f, typeList.get());
 
-        f = e->GetFieldID(tag_cls, "mConnectedTechIndex", "I");
-        e->SetIntField(tag, f,(jint)-1);
+        f = e->GetFieldID(tag_cls.get(), "mConnectedTechIndex", "I");
+        e->SetIntField(tag.get(), f,(jint)-1);
 
-        f = e->GetFieldID(tag_cls, "mConnectedHandle", "I");
-        e->SetIntField(tag, f,(jint)-1);
+        f = e->GetFieldID(tag_cls.get(), "mConnectedHandle", "I");
+        e->SetIntField(tag.get(), f,(jint)-1);
       }
 
       storedHandle = remDevHandle;
       if (nat->tag != NULL) {
           e->DeleteGlobalRef(nat->tag);
       }
-      nat->tag = e->NewGlobalRef(tag);
+      nat->tag = e->NewGlobalRef(tag.get());
 
-      /* Notify the service */   
+      /* Notify the service */
       TRACE("Notify Nfc Service");
       if((remDevInfo->RemDevType == phNfc_eNfcIP1_Initiator)
           || (remDevInfo->RemDevType == phNfc_eNfcIP1_Target))
       {
-         /* Store the hanlde of the P2P device */
+         /* Store the handle of the P2P device */
          hLlcpHandle = remDevHandle;
-         
+
          /* Notify manager that new a P2P device was found */
-         e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkActivation, tag);
+         e->CallVoidMethod(nat->manager, cached_NfcManager_notifyLlcpLinkActivation, tag.get());
          if(e->ExceptionCheck())
          {
-            ALOGE("Exception occured");
+            ALOGE("Exception occurred");
             kill_client(nat);
-         }     
+         }
       }
       else
       {
          /* Notify manager that new a tag was found */
-         e->CallVoidMethod(nat->manager, cached_NfcManager_notifyNdefMessageListeners, tag);
+         e->CallVoidMethod(nat->manager, cached_NfcManager_notifyNdefMessageListeners, tag.get());
          if(e->ExceptionCheck())
          {
-            ALOGE("Exception occured");
+            ALOGE("Exception occurred");
             kill_client(nat);
-         }     
+         }
       }
-      e->DeleteLocalRef(tag);
-   } 
+   }
 }
 
 static void nfc_jni_init_callback(void *pContext, NFCSTATUS status)
@@ -1379,7 +1371,7 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    discovery_cfg.NfcIP_Mode = phNfc_eDefaultP2PMode;
    discovery_cfg.NfcIP_Target_Mode = 0;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
- 
+
    /* Start Polling loop */
    TRACE("******  Stop NFC Discovery ******");
    REENTRANCE_LOCK();
@@ -1420,13 +1412,13 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 
     /* Retrieve native structure address */
     nat = nfc_jni_get_nat(e, o);
-   
+
     nfc_jni_stop_discovery_locked(nat);
 
     CONCURRENCY_UNLOCK();
 
 }
-    
+
 static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o) {
     NFCSTATUS ret;
     struct nfc_jni_native_data *nat;
@@ -1624,37 +1616,37 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    jobject obj;
    jfieldID f;
 
-   TRACE("******  Init Native Structure ******"); 
+   TRACE("******  Init Native Structure ******");
 
    /* Initialize native structure */
    nat = (nfc_jni_native_data*)malloc(sizeof(struct nfc_jni_native_data));
    if(nat == NULL)
    {
       ALOGD("malloc of nfc_jni_native_data failed");
-      return FALSE;   
+      return FALSE;
    }
    memset(nat, 0, sizeof(*nat));
    e->GetJavaVM(&(nat->vm));
    nat->env_version = e->GetVersion();
    nat->manager = e->NewGlobalRef(o);
-      
+
    cls = e->GetObjectClass(o);
    f = e->GetFieldID(cls, "mNative", "I");
    e->SetIntField(o, f, (jint)nat);
-                 
+
    /* Initialize native cached references */
    cached_NfcManager_notifyNdefMessageListeners = e->GetMethodID(cls,
       "notifyNdefMessageListeners","(Lcom/android/nfc/dhimpl/NativeNfcTag;)V");
 
    cached_NfcManager_notifyTransactionListeners = e->GetMethodID(cls,
       "notifyTransactionListeners", "([B)V");
-         
+
    cached_NfcManager_notifyLlcpLinkActivation = e->GetMethodID(cls,
       "notifyLlcpLinkActivation","(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
-         
+
    cached_NfcManager_notifyLlcpLinkDeactivated = e->GetMethodID(cls,
       "notifyLlcpLinkDeactivated","(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
-      
+
    cached_NfcManager_notifyTargetDeselected = e->GetMethodID(cls,
       "notifyTargetDeselected","()V");
 
@@ -1678,11 +1670,11 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
       ALOGD("Native Structure initialization failed");
       return FALSE;
    }
-         
+
    if(nfc_jni_cache_object(e,"com/android/nfc/dhimpl/NativeP2pDevice",&(nat->cached_P2pDevice)) == -1)
    {
       ALOGD("Native Structure initialization failed");
-      return FALSE;   
+      return FALSE;
    }
    TRACE("****** Init Native Structure OK ******");
    return TRUE;
@@ -1698,7 +1690,7 @@ static jboolean com_android_nfc_NfcManager_initialize(JNIEnv *e, jobject o)
    char value[PROPERTY_VALUE_MAX];
 #endif
    jboolean result;
-   
+
    CONCURRENCY_LOCK();
 
 #ifdef TNFC_EMULATOR_ONLY
@@ -1830,12 +1822,11 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 /* Secure Element methods */
 static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o) {
     NFCSTATUS ret;
-    jintArray list= NULL;
     phLibNfc_SE_List_t se_list[PHLIBNFC_MAXNO_OF_SE];
     uint8_t i, se_count = PHLIBNFC_MAXNO_OF_SE;
 
     TRACE("******  Get Secure Element List ******");
-    
+
     TRACE("phLibNfc_SE_GetSecureElementList()");
     REENTRANCE_LOCK();
     ret = phLibNfc_SE_GetSecureElementList(se_list, &se_count);
@@ -1843,13 +1834,13 @@ static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jo
     if (ret != NFCSTATUS_SUCCESS) {
         ALOGE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret,
                 nfc_jni_get_status_name(ret));
-        return list;
+        return NULL;
     }
     TRACE("phLibNfc_SE_GetSecureElementList() returned 0x%04x[%s]", ret,
             nfc_jni_get_status_name(ret));
 
     TRACE("Nb SE: %d", se_count);
-    list =e->NewIntArray(se_count);
+    jintArray result = e->NewIntArray(se_count);
     for (i = 0; i < se_count; i++) {
         if (se_list[i].eSE_Type == phLibNfc_SE_Type_SmartMX) {
             ALOGD("phLibNfc_SE_GetSecureElementList(): SMX detected");
@@ -1858,12 +1849,10 @@ static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jo
             ALOGD("phLibNfc_SE_GetSecureElementList(): UICC detected");
             ALOGD("SE ID #%d: 0x%08x", i, se_list[i].hSecureElement);
         }
-        e->SetIntArrayRegion(list, i, 1, (jint*)&se_list[i].hSecureElement);
+        e->SetIntArrayRegion(result, i, 1, (jint*)&se_list[i].hSecureElement);
     }
 
-    e->DeleteLocalRef(list);
-
-    return list;
+    return result;
 }
 
 static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject o) {
@@ -1929,7 +1918,7 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
     ret = phLibNfc_SE_SetMode(nat->seId, phLibNfc_SE_ActModeDefault,
            nfc_jni_se_set_mode_callback, (void *)&cb_data);
     REENTRANCE_UNLOCK();
-       
+
     TRACE("phLibNfc_SE_SetMode returned 0x%02x", ret);
     if (ret != NFCSTATUS_PENDING) {
         ALOGE("phLibNfc_SE_SetMode() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -2031,7 +2020,7 @@ static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
    else
    {
       ALOGE("phLibNfc_Llcp_Activate() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      return JNI_FALSE;   
+      return JNI_FALSE;
    }
 }
 
@@ -2049,10 +2038,10 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
    phLibNfc_Llcp_sLinkParameters_t sParams;
    jclass clsNativeConnectionlessSocket;
    jfieldID f;
-   
+
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
-   
+   nat = nfc_jni_get_nat(e, o);
+
    /* Allocate Working buffer length */
    phLibNfc_Llcp_GetLocalInfo(hLlcpHandle, &sParams);
    sWorkingBuffer.length = sParams.miu + 1; // extra byte for SAP
@@ -2068,7 +2057,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
                               nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
    REENTRANCE_UNLOCK();
- 
+
    if(ret != NFCSTATUS_SUCCESS)
    {
       lastErrorStatus = ret;
@@ -2085,7 +2074,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
        serviceName.buffer = (uint8_t*)e->GetStringUTFChars(sn, NULL);
        serviceName.length = (uint32_t)e->GetStringUTFLength(sn);
    }
-   
+
    /* Bind socket */
    TRACE("phLibNfc_Llcp_Bind(hSocket=0x%08x, nSap=0x%02x)", hLlcpSocket, nSap);
    REENTRANCE_LOCK();
@@ -2097,41 +2086,41 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket(JNIEn
       ALOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       /* Close socket created */
       REENTRANCE_LOCK();
-      ret = phLibNfc_Llcp_Close(hLlcpSocket); 
+      ret = phLibNfc_Llcp_Close(hLlcpSocket);
       REENTRANCE_UNLOCK();
       goto error;
    }
    TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
- 
-   
+
+
    /* Create new NativeLlcpConnectionlessSocket object */
    if(nfc_jni_cache_object(e,"com/android/nfc/dhimpl/NativeLlcpConnectionlessSocket",&(connectionlessSocket)) == -1)
    {
       goto error;
-   } 
-   
+   }
+
    /* Get NativeConnectionless class object */
    clsNativeConnectionlessSocket = e->GetObjectClass(connectionlessSocket);
    if(e->ExceptionCheck())
    {
       goto error;
    }
-   
+
    /* Set socket handle */
    f = e->GetFieldID(clsNativeConnectionlessSocket, "mHandle", "I");
    e->SetIntField(connectionlessSocket, f,(jint)hLlcpSocket);
-   TRACE("Connectionless socket Handle = %02x\n",hLlcpSocket);  
-   
+   TRACE("Connectionless socket Handle = %02x\n",hLlcpSocket);
+
    /* Set the miu link of the connectionless socket */
    f = e->GetFieldID(clsNativeConnectionlessSocket, "mLinkMiu", "I");
    e->SetIntField(connectionlessSocket, f,(jint)PHFRINFC_LLCP_MIU_DEFAULT);
-   TRACE("Connectionless socket Link MIU = %d\n",PHFRINFC_LLCP_MIU_DEFAULT);  
-   
+   TRACE("Connectionless socket Link MIU = %d\n",PHFRINFC_LLCP_MIU_DEFAULT);
+
    /* Set socket SAP */
    f = e->GetFieldID(clsNativeConnectionlessSocket, "mSap", "I");
    e->SetIntField(connectionlessSocket, f,(jint)nSap);
-   TRACE("Connectionless socket SAP = %d\n",nSap);  
-   
+   TRACE("Connectionless socket SAP = %d\n",nSap);
+
    return connectionlessSocket;
 error:
    if (serviceName.buffer != NULL) {
@@ -2155,20 +2144,20 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
    struct nfc_jni_native_data *nat;
    jobject serviceSocket = NULL;
    jclass clsNativeLlcpServiceSocket;
-   jfieldID f;  
-  
+   jfieldID f;
+
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
-   
+   nat = nfc_jni_get_nat(e, o);
+
    /* Set Connection Oriented socket options */
    sOptions.miu = miu;
-   sOptions.rw  = rw;  
-  
+   sOptions.rw  = rw;
+
    /* Allocate Working buffer length */
    sWorkingBuffer.length = (miu*rw)+ miu + linearBufferLength;
    sWorkingBuffer.buffer = (uint8_t*)malloc(sWorkingBuffer.length);
 
-   
+
    /* Create socket */
    TRACE("phLibNfc_Llcp_Socket(hRemoteDevice=0x%08x, eType=phFriNfc_LlcpTransport_eConnectionOriented, ...)", hLlcpHandle);
    REENTRANCE_LOCK();
@@ -2179,7 +2168,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
                               nfc_jni_llcp_transport_socket_err_callback,
                               (void*)nat);
    REENTRANCE_UNLOCK();
-                                                     
+
    if(ret != NFCSTATUS_SUCCESS)
    {
       ALOGE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -2207,7 +2196,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
       lastErrorStatus = ret;
       ALOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       /* Close socket created */
-      ret = phLibNfc_Llcp_Close(hLlcpSocket); 
+      ret = phLibNfc_Llcp_Close(hLlcpSocket);
       goto error;
    }
    TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
@@ -2218,53 +2207,53 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpServiceSocket(JNIEnv *e, j
                                nfc_jni_llcp_transport_listen_socket_callback,
                                (void*)hLlcpSocket);
    REENTRANCE_UNLOCK();
-                               
+
    if(ret != NFCSTATUS_SUCCESS)
    {
       ALOGE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
       lastErrorStatus = ret;
       /* Close created socket */
       REENTRANCE_LOCK();
-      ret = phLibNfc_Llcp_Close(hLlcpSocket); 
+      ret = phLibNfc_Llcp_Close(hLlcpSocket);
       REENTRANCE_UNLOCK();
       goto error;
-   }                         
+   }
    TRACE("phLibNfc_Llcp_Listen() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   
+
    /* Create new NativeLlcpServiceSocket object */
    if(nfc_jni_cache_object(e,"com/android/nfc/dhimpl/NativeLlcpServiceSocket",&(serviceSocket)) == -1)
    {
       ALOGE("Llcp Socket object creation error");
       goto error;
-   } 
-   
+   }
+
    /* Get NativeLlcpServiceSocket class object */
    clsNativeLlcpServiceSocket = e->GetObjectClass(serviceSocket);
    if(e->ExceptionCheck())
    {
       ALOGE("Llcp Socket get object class error");
       goto error;
-   } 
-   
+   }
+
    /* Set socket handle */
    f = e->GetFieldID(clsNativeLlcpServiceSocket, "mHandle", "I");
    e->SetIntField(serviceSocket, f,(jint)hLlcpSocket);
-   TRACE("Service socket Handle = %02x\n",hLlcpSocket);  
-   
+   TRACE("Service socket Handle = %02x\n",hLlcpSocket);
+
    /* Set socket linear buffer length */
    f = e->GetFieldID(clsNativeLlcpServiceSocket, "mLocalLinearBufferLength", "I");
    e->SetIntField(serviceSocket, f,(jint)linearBufferLength);
-   TRACE("Service socket Linear buffer length = %02x\n",linearBufferLength);  
-   
+   TRACE("Service socket Linear buffer length = %02x\n",linearBufferLength);
+
    /* Set socket MIU */
    f = e->GetFieldID(clsNativeLlcpServiceSocket, "mLocalMiu", "I");
    e->SetIntField(serviceSocket, f,(jint)miu);
-   TRACE("Service socket MIU = %d\n",miu);  
-   
+   TRACE("Service socket MIU = %d\n",miu);
+
    /* Set socket RW */
    f = e->GetFieldID(clsNativeLlcpServiceSocket, "mLocalRw", "I");
    e->SetIntField(serviceSocket, f,(jint)rw);
-   TRACE("Service socket RW = %d\n",rw);   
+   TRACE("Service socket RW = %d\n",rw);
 
    return serviceSocket;
 error:
@@ -2284,14 +2273,14 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
    struct nfc_jni_native_data *nat;
    jclass clsNativeLlcpSocket;
    jfieldID f;
-   
+
    /* Retrieve native structure address */
-   nat = nfc_jni_get_nat(e, o); 
-   
+   nat = nfc_jni_get_nat(e, o);
+
    /* Set Connection Oriented socket options */
    sOptions.miu = miu;
    sOptions.rw  = rw;
-   
+
    /* Allocate Working buffer length */
    sWorkingBuffer.length = (miu*rw)+ miu + linearBufferLength;
    sWorkingBuffer.buffer = (uint8_t*)malloc(sWorkingBuffer.length);
@@ -2314,22 +2303,22 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
       return NULL;
    }
    TRACE("phLibNfc_Llcp_Socket() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-   
+
    /* Create new NativeLlcpSocket object */
    if(nfc_jni_cache_object(e,"com/android/nfc/dhimpl/NativeLlcpSocket",&(clientSocket)) == -1)
    {
-      ALOGE("Llcp socket object creation error");  
-      return NULL;           
-   } 
-   
+      ALOGE("Llcp socket object creation error");
+      return NULL;
+   }
+
    /* Get NativeConnectionless class object */
    clsNativeLlcpSocket = e->GetObjectClass(clientSocket);
    if(e->ExceptionCheck())
    {
-      ALOGE("Get class object error");    
-      return NULL;  
+      ALOGE("Get class object error");
+      return NULL;
    }
-   
+
    /* Test if an SAP number is present */
    if(nSap != 0)
    {
@@ -2344,41 +2333,41 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
          ALOGE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
          /* Close socket created */
          REENTRANCE_LOCK();
-         ret = phLibNfc_Llcp_Close(hLlcpSocket); 
+         ret = phLibNfc_Llcp_Close(hLlcpSocket);
          REENTRANCE_UNLOCK();
          return NULL;
       }
       TRACE("phLibNfc_Llcp_Bind() returned 0x%04x[%s]", ret, nfc_jni_get_status_name(ret));
-      
+
       /* Set socket SAP */
       f = e->GetFieldID(clsNativeLlcpSocket, "mSap", "I");
       e->SetIntField(clientSocket, f,(jint)nSap);
-      TRACE("socket SAP = %d\n",nSap);    
-   }  
-      
+      TRACE("socket SAP = %d\n",nSap);
+   }
+
    /* Set socket handle */
    f = e->GetFieldID(clsNativeLlcpSocket, "mHandle", "I");
    e->SetIntField(clientSocket, f,(jint)hLlcpSocket);
-   TRACE("socket Handle = %02x\n",hLlcpSocket);  
-   
+   TRACE("socket Handle = %02x\n",hLlcpSocket);
+
    /* Set socket MIU */
    f = e->GetFieldID(clsNativeLlcpSocket, "mLocalMiu", "I");
    e->SetIntField(clientSocket, f,(jint)miu);
-   TRACE("socket MIU = %d\n",miu);  
-   
+   TRACE("socket MIU = %d\n",miu);
+
    /* Set socket RW */
    f = e->GetFieldID(clsNativeLlcpSocket, "mLocalRw", "I");
    e->SetIntField(clientSocket, f,(jint)rw);
-   TRACE("socket RW = %d\n",rw);   
-   
-  
+   TRACE("socket RW = %d\n",rw);
+
+
    return clientSocket;
 }
 
 static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
 {
    TRACE("Last Error Status = 0x%02x",lastErrorStatus);
-   
+
    if(lastErrorStatus == NFCSTATUS_BUFFER_TOO_SMALL)
    {
       return ERROR_BUFFER_TOO_SMALL;
@@ -2544,37 +2533,37 @@ static JNINativeMethod gMethods[] =
 
    {"doInitialize", "()Z",
       (void *)com_android_nfc_NfcManager_initialize},
- 
+
    {"doDeinitialize", "()Z",
       (void *)com_android_nfc_NfcManager_deinitialize},
-      
+
    {"enableDiscovery", "()V",
       (void *)com_android_nfc_NfcManager_enableDiscovery},
 
    {"doGetSecureElementList", "()[I",
       (void *)com_android_nfc_NfcManager_doGetSecureElementList},
-      
+
    {"doSelectSecureElement", "()V",
       (void *)com_android_nfc_NfcManager_doSelectSecureElement},
-      
+
    {"doDeselectSecureElement", "()V",
       (void *)com_android_nfc_NfcManager_doDeselectSecureElement},
-      
+
    {"doCheckLlcp", "()Z",
       (void *)com_android_nfc_NfcManager_doCheckLlcp},
-      
+
    {"doActivateLlcp", "()Z",
       (void *)com_android_nfc_NfcManager_doActivateLlcp},
-            
+
    {"doCreateLlcpConnectionlessSocket", "(ILjava/lang/String;)Lcom/android/nfc/dhimpl/NativeLlcpConnectionlessSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpConnectionlessSocket},
-        
+
    {"doCreateLlcpServiceSocket", "(ILjava/lang/String;III)Lcom/android/nfc/dhimpl/NativeLlcpServiceSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpServiceSocket},
-      
+
    {"doCreateLlcpSocket", "(IIII)Lcom/android/nfc/dhimpl/NativeLlcpSocket;",
       (void *)com_android_nfc_NfcManager_doCreateLlcpSocket},
-      
+
    {"doGetLastError", "()I",
       (void *)com_android_nfc_NfcManager_doGetLastError},
 
@@ -2601,9 +2590,9 @@ static JNINativeMethod gMethods[] =
 
    {"doDump", "()Ljava/lang/String;",
       (void *)com_android_nfc_NfcManager_doDump},
-};   
-  
-      
+};
+
+
 int register_com_android_nfc_NativeNfcManager(JNIEnv *e)
 {
     nfc_jni_native_monitor_t *nfc_jni_native_monitor;

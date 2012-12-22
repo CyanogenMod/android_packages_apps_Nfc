@@ -17,7 +17,7 @@
 #include "SecureElement.h"
 #include "JavaClassConstants.h"
 #include "PowerSwitch.h"
-
+#include <ScopedPrimitiveArray.h>
 
 namespace android
 {
@@ -39,7 +39,7 @@ extern int gGeneralTransceiveTimeout;
 ** Returns:         Handle of secure element.  0 is failure.
 **
 *******************************************************************************/
-static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, jobject o)
+static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv*, jobject)
 {
     ALOGD("%s: enter", __FUNCTION__);
     bool stat = true;
@@ -99,7 +99,7 @@ TheEnd:
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIEnv* e, jobject o, jint handle)
+static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%04x", __FUNCTION__, handle);
     bool stat = false;
@@ -133,29 +133,23 @@ static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIE
 ** Returns:         Buffer of received data.
 **
 *******************************************************************************/
-static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject o, jint handle, jbyteArray data)
+static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject, jint handle, jbyteArray data)
 {
-    UINT8* buf = NULL;
-    INT32 buflen = 0;
     const INT32 recvBufferMaxSize = 1024;
     UINT8 recvBuffer [recvBufferMaxSize];
     INT32 recvBufferActualSize = 0;
-    jbyteArray result = NULL;
 
-    buf = (UINT8*) e->GetByteArrayElements (data, NULL);
-    buflen = e->GetArrayLength (data);
+    ScopedByteArrayRW bytes(e, data);
 
-    ALOGD("%s: enter; handle=0x%X; buf len=%ld", __FUNCTION__, handle, buflen);
-    SecureElement::getInstance().transceive (buf, buflen, recvBuffer, recvBufferMaxSize, recvBufferActualSize, gGeneralTransceiveTimeout);
+    ALOGD("%s: enter; handle=0x%X; buf len=%zu", __FUNCTION__, handle, bytes.size());
+    SecureElement::getInstance().transceive(reinterpret_cast<UINT8*>(&bytes[0]), bytes.size(), recvBuffer, recvBufferMaxSize, recvBufferActualSize, gGeneralTransceiveTimeout);
 
     //copy results back to java
-    result = e->NewByteArray (recvBufferActualSize);
-    if (result != NULL)
-    {
-        e->SetByteArrayRegion (result, 0, recvBufferActualSize, (jbyte *) recvBuffer);
+    jbyteArray result = e->NewByteArray(recvBufferActualSize);
+    if (result != NULL) {
+        e->SetByteArrayRegion(result, 0, recvBufferActualSize, (jbyte *) recvBuffer);
     }
 
-    e->ReleaseByteArrayElements (data, (jbyte *) buf, JNI_ABORT);
     ALOGD("%s: exit: recv len=%ld", __FUNCTION__, recvBufferActualSize);
     return result;
 }
@@ -173,7 +167,7 @@ static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject o, jin
 ** Returns:         Secure element's unique ID.
 **
 *******************************************************************************/
-static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv* e, jobject o, jint handle)
+static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
     jbyteArray secureElementUid = NULL;
@@ -197,7 +191,7 @@ static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv* e, jobject o, jint ha
 ** Returns:         Array of technologies.
 **
 *******************************************************************************/
-static jintArray nativeNfcSecureElement_doGetTechList (JNIEnv* e, jobject o, jint handle)
+static jintArray nativeNfcSecureElement_doGetTechList (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
     jintArray techList = NULL;
@@ -242,4 +236,3 @@ int register_com_android_nfc_NativeNfcSecureElement(JNIEnv *e)
 
 
 } // namespace android
-
