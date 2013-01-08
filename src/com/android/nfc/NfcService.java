@@ -382,6 +382,7 @@ public class NfcService implements DeviceHostListener {
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT);
+        filter.addAction(Intent.ACTION_USER_SWITCHED);
         registerForAirplaneMode(filter);
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
@@ -869,7 +870,7 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void setNdefPushCallback(INdefPushCallback callback) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            mP2pLinkManager.setNdefCallback(callback);
+            mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
         }
 
         @Override
@@ -2025,6 +2026,8 @@ public class NfcService implements DeviceHostListener {
                 } else if (!isAirplaneModeOn && mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT)) {
                     new EnableDisableTask().execute(TASK_ENABLE);
                 }
+            } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
+                mP2pLinkManager.onUserSwitched();
             }
         }
     };

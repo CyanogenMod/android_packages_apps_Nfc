@@ -38,13 +38,11 @@ import android.nfc.INdefPushCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.os.AsyncTask;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.Profile;
+import android.os.UserHandle;
 import android.util.Log;
 
 import java.io.FileDescriptor;
@@ -152,16 +150,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int SNEP_FAILURE = 1;
     static final int SNEP_HANDOVER_UNSUPPORTED = 2;
 
-    static final Uri PROFILE_URI = Profile.CONTENT_VCARD_URI.buildUpon().
-            appendQueryParameter(Contacts.QUERY_PARAMETER_VCARD_NO_PHOTO, "true").
-            build();
-
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
     final HandoverServer mHandoverServer;
     final EchoServer mEchoServer;
     final ActivityManager mActivityManager;
-    final PackageManager mPackageManager;
     final Context mContext;
     final P2pEventListener mEventListener;
     final Handler mHandler;
@@ -171,6 +164,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     final int mDefaultRwSize;
 
     // Locked on NdefP2pManager.this
+    PackageManager mPackageManager;
     int mLinkState;
     int mSendState;  // valid during LINK_STATE_UP or LINK_STATE_DEBOUNCE
     boolean mIsSendEnabled;
@@ -178,6 +172,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     NdefMessage mMessageToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
     Uri[] mUrisToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
     INdefPushCallback mCallbackNdef;
+    String[] mValidCallbackPackages;
     SendTask mSendTask;
     SharedPreferences mPrefs;
     boolean mFirstBeam;
@@ -242,9 +237,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
      * currently off or P2P send is currently off). They will become
      * active as soon as P2P send is enabled.
      */
-    public void setNdefCallback(INdefPushCallback callbackNdef) {
+    public void setNdefCallback(INdefPushCallback callbackNdef, int callingUid) {
         synchronized (this) {
             mCallbackNdef = callbackNdef;
+            mValidCallbackPackages = mPackageManager.getPackagesForUid(callingUid);
         }
     }
 
@@ -290,6 +286,18 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
     }
 
+    public void onUserSwitched() {
+        // Update the cached package manager in case of user switch
+        synchronized (P2pLinkManager.this) {
+            try {
+                mPackageManager  = mContext.createPackageContextAsUser("android", 0,
+                        new UserHandle(ActivityManager.getCurrentUser())).getPackageManager();
+            } catch (NameNotFoundException e) {
+                Log.e(TAG, "Failed to retrieve PackageManager for user");
+            }
+        }
+    }
+
     void prepareMessageToSend() {
         synchronized (P2pLinkManager.this) {
             if (!mIsSendEnabled) {
@@ -298,32 +306,61 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return;
             }
 
+            String runningPackage = null;
+            List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
+            if (tasks.size() > 0) {
+                runningPackage = tasks.get(0).baseActivity.getPackageName();
+            }
+
+            if (runningPackage == null) {
+                Log.e(TAG, "Could not determine running package.");
+                mMessageToSend = null;
+                mUrisToSend = null;
+                return;
+            }
+
             // Try application callback first
-            //TODO: Check that mCallbackNdef refers to the foreground activity
             if (mCallbackNdef != null) {
-                try {
-                    mMessageToSend = mCallbackNdef.createMessage();
-                    mUrisToSend = mCallbackNdef.getUris();
-                    return;
-                } catch (RemoteException e) {
-                    // Ignore
+                // Check to see if the package currently running
+                // is the one that registered any callbacks
+                boolean callbackValid = false;
+
+                if (mValidCallbackPackages != null) {
+                    for (String pkg : mValidCallbackPackages) {
+                        if (pkg.equals(runningPackage)) {
+                            callbackValid = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (callbackValid) {
+                    try {
+                        mMessageToSend = mCallbackNdef.createMessage();
+                        mUrisToSend = mCallbackNdef.getUris();
+                        return;
+                    } catch (RemoteException e) {
+                        // Ignore
+                    }
+                } else {
+                    // This is not necessarily an error - we no longer unset callbacks from
+                    // the app process itself (to prevent IPC calls on every pause).
+                    // Hence it may simply be a stale callback.
+                    if (DBG) Log.d(TAG, "Last registered callback is not running in the foreground.");
                 }
             }
 
-            // fall back to default NDEF for this activity, unless the
+            // fall back to default NDEF for the foreground activity, unless the
             // application disabled this explicitly in their manifest.
-            List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
-            if (tasks.size() > 0) {
-                String pkg = tasks.get(0).baseActivity.getPackageName();
-                if (beamDefaultDisabled(pkg)) {
-                    Log.d(TAG, "Disabling default Beam behavior");
-                    mMessageToSend = null;
-                } else {
-                    mMessageToSend = createDefaultNdef(pkg);
-                }
-            } else {
+            if (beamDefaultDisabled(runningPackage)) {
+                Log.d(TAG, "Disabling default Beam behavior");
                 mMessageToSend = null;
+                mUrisToSend = null;
+            } else {
+                mMessageToSend = createDefaultNdef(runningPackage);
+                mUrisToSend = null;
             }
+
             if (DBG) Log.d(TAG, "mMessageToSend = " + mMessageToSend);
             if (DBG) Log.d(TAG, "mUrisToSend = " + mUrisToSend);
         }
