@@ -599,7 +599,7 @@ static int is_user_build() {
  * Performs a software reset
   */
 void emergency_recovery(struct nfc_jni_native_data *nat) {
-   if (!is_user_build()) {
+   if (is_user_build()) {
        ALOGE("emergency_recovery: force restart of NFC service");
    } else {
        // dont recover immediately, so we can debug
