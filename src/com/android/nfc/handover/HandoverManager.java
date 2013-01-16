@@ -160,8 +160,8 @@ public class HandoverManager {
         IntentFilter filter = new IntentFilter(Intent.ACTION_USER_SWITCHED);
         mContext.registerReceiver(mReceiver, filter, null, null);
 
-        mContext.bindService(new Intent(mContext, HandoverService.class), mConnection,
-                Context.BIND_AUTO_CREATE, UserHandle.USER_CURRENT);
+        mContext.bindServiceAsUser(new Intent(mContext, HandoverService.class), mConnection,
+                Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
     }
 
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -171,8 +171,8 @@ public class HandoverManager {
             if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 // Re-bind a service for the current user
                 mContext.unbindService(mConnection);
-                mContext.bindService(new Intent(mContext, HandoverService.class), mConnection,
-                        Context.BIND_AUTO_CREATE, UserHandle.USER_CURRENT);
+                mContext.bindServiceAsUser(new Intent(mContext, HandoverService.class), mConnection,
+                        Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
             }
         }
     };
