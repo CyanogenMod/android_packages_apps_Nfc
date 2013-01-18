@@ -331,6 +331,7 @@ public class HandoverTransfer implements Handler.Callback,
             // No update on this transfer for a while, check
             // to see if it's still running, and fail it if it is.
             if (isRunning()) {
+                if (DBG) Log.d(TAG, "Transfer timed out");
                 updateStateAndNotification(STATE_FAILED);
             }
         }

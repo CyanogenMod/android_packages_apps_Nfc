@@ -32,7 +32,7 @@ import java.util.Arrays;
 
 public class BluetoothOppHandover implements Handler.Callback {
     static final String TAG = "BluetoothOppHandover";
-    static final boolean D = true;
+    static final boolean DBG = true;
 
     static final int STATE_INIT = 0;
     static final int STATE_TURNING_ON = 1;
@@ -129,7 +129,7 @@ public class BluetoothOppHandover implements Handler.Callback {
             intent.setAction(ACTION_HANDOVER_SEND_MULTIPLE);
             intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
         }
-
+        if (DBG) Log.d(TAG, "Handing off outging transfer to BT");
         mContext.sendBroadcast(intent);
 
         complete();

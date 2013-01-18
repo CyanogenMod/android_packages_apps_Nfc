@@ -32,6 +32,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         BluetoothHeadsetHandover.Callback {
 
     static final String TAG = "HandoverService";
+    static final boolean DBG = true;
 
     static final int MSG_REGISTER_CLIENT = 0;
     static final int MSG_DEREGISTER_CLIENT = 1;
@@ -157,6 +158,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                 notifyClientTransferComplete(pendingTransfer.id);
                 return;
             }
+            if (DBG) Log.d(TAG, "Queueing out transfer " + Integer.toString(pendingTransfer.id));
             mPendingOutTransfers.add(handover);
             // Queue the transfer and enable Bluetooth - when it is enabled
             // the transfer will be started.
@@ -303,6 +305,8 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                 String sourceAddress = intent.getStringExtra(EXTRA_SOURCE_ADDRESS);
                 HandoverTransfer transfer = findHandoverTransfer(sourceAddress, true);
                 if (transfer != null) {
+                    if (DBG) Log.d(TAG, "Cancelling transfer " +
+                            Integer.toString(transfer.mTransferId));
                     transfer.cancel();
                 }
             } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS) ||
@@ -319,12 +323,12 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                     // There is no transfer running for this source address; most likely
                     // the transfer was cancelled. We need to tell BT OPP to stop transferring
                     // in case this was an incoming transfer
+                    if (DBG) Log.d(TAG, "Didn't find transfer, stopping");
                     Intent cancelIntent = new Intent("android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
                     cancelIntent.putExtra(EXTRA_BT_OPP_TRANSFER_ID, id);
                     sendBroadcast(cancelIntent);
                     return;
                 }
-
                 if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
                     int handoverStatus = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_STATUS,
                             HANDOVER_TRANSFER_STATUS_FAILURE);
@@ -379,6 +383,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         // Play success sound
         if (success) {
             mSoundPool.play(mSuccessSound, 1.0f, 1.0f, 0, 0, 1.0f);
+        } else {
+            if (DBG) Log.d(TAG, "Transfer failed, final state: " +
+                    Integer.toString(transfer.mState));
         }
         disableBluetoothIfNeeded();
     }

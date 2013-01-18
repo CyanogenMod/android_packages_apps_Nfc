@@ -314,7 +314,11 @@ public class HandoverManager {
         whitelistOppDevice(bluetoothData.device);
 
         // return BT OOB record so they can perform handover
-        return (createHandoverSelectMessage(bluetoothActivating));
+        NdefMessage selectMessage = (createHandoverSelectMessage(bluetoothActivating));
+        if (DBG) Log.d(TAG, "Waiting for incoming transfer, [" +
+                bluetoothData.device.getAddress() + "]->[" + mLocalBluetoothAddress + "]");
+
+        return selectMessage;
     }
 
     public boolean tryHandover(NdefMessage m) {
@@ -369,6 +373,8 @@ public class HandoverManager {
                 Bundle transferData = new Bundle();
                 transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
                 msg.setData(transferData);
+                if (DBG) Log.d(TAG, "Initiating outgoing transfer, [" + mLocalBluetoothAddress +
+                        "]->[" + data.device.getAddress() + "]");
                 try {
                     mService.send(msg);
                 } catch (RemoteException e) {
