@@ -351,8 +351,8 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
         break;
 
     case NFC_PROTOCOL_KOVIO:
-        ALOGE ("%s: Kovio", fn);
-        mNumTechList--; // no tech classes for Kovio
+        ALOGD ("%s: Kovio", fn);
+        mTechList [mNumTechList] = TARGET_TYPE_KOVIO_BARCODE;
         break;
 
     default:

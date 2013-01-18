@@ -84,6 +84,7 @@
 #define TARGET_TYPE_NDEF_FORMATABLE       7
 #define TARGET_TYPE_MIFARE_CLASSIC        8
 #define TARGET_TYPE_MIFARE_UL             9
+#define TARGET_TYPE_KOVIO_BARCODE         10
 
 
 //define a few NXP error codes that NFC service expects;

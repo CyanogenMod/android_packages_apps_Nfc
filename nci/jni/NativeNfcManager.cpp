@@ -128,7 +128,8 @@ static UINT8 *              sOriginalLptdCfg = NULL;
                                      | NFA_TECHNOLOGY_MASK_ISO15693 \
                                      | NFA_TECHNOLOGY_MASK_B_PRIME \
                                      | NFA_TECHNOLOGY_MASK_A_ACTIVE \
-                                     | NFA_TECHNOLOGY_MASK_F_ACTIVE)
+                                     | NFA_TECHNOLOGY_MASK_F_ACTIVE \
+                                     | NFA_TECHNOLOGY_MASK_KOVIO)
 
 
 static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);

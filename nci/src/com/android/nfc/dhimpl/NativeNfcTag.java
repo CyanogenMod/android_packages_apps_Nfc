@@ -28,6 +28,7 @@ import android.nfc.tech.NfcA;
 import android.nfc.tech.NfcB;
 import android.nfc.tech.NfcF;
 import android.nfc.tech.NfcV;
+import android.nfc.tech.NfcBarcode;
 import android.nfc.tech.TagTechnology;
 import android.os.Bundle;
 import android.util.Log;
@@ -699,6 +700,12 @@ public class NativeNfcTag implements TagEndpoint {
                     case TagTechnology.MIFARE_ULTRALIGHT: {
                         boolean isUlc = isUltralightC();
                         extras.putBoolean(MifareUltralight.EXTRA_IS_UL_C, isUlc);
+                        break;
+                    }
+
+                    case TagTechnology.NFC_BARCODE: {
+                        // hard code this for now, this is the only valid type
+                        extras.putInt(NfcBarcode.EXTRA_BARCODE_TYPE, NfcBarcode.TYPE_KOVIO);
                         break;
                     }
 
