@@ -38,6 +38,8 @@ public class NativeNfcManager implements DeviceHost {
 
     private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME = "/vendor/firmware/libpn544_fw.so";
 
+    private static final String NFC_CONTROLLER_FIRMWARE_FILE_NAME_2 = "/system/lib/libpn544_fw.so";
+
     static final String PREF = "NxpDeviceHost";
 
     private static final String PREF_FIRMWARE_MODTIME = "firmware_modtime";
@@ -101,6 +103,9 @@ public class NativeNfcManager implements DeviceHost {
         int nbRetry = 0;
         try {
             firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME);
+            if (!firmwareFile.exists()) {
+                firmwareFile = new File(NFC_CONTROLLER_FIRMWARE_FILE_NAME_2);
+            }
         } catch(NullPointerException npe) {
             Log.e(TAG,"path to firmware file was null");
             return;
