@@ -27,6 +27,13 @@ extern void com_android_nfc_NfcManager_disableDiscovery (JNIEnv* e, jobject o);
 extern void com_android_nfc_NfcManager_enableDiscovery (JNIEnv* e, jobject o, jint mode);
 extern int gGeneralTransceiveTimeout;
 
+// These must match the EE_ERROR_ types in NfcService.java
+static const int EE_ERROR_IO = -1;
+static const int EE_ERROR_ALREADY_OPEN = -2;
+static const int EE_ERROR_INIT = -3;
+static const int EE_ERROR_LISTEN_MODE = -4;
+static const int EE_ERROR_EXT_FIELD = -5;
+static const int EE_ERROR_NFC_DISABLED = -6;
 
 /*******************************************************************************
 **
@@ -36,23 +43,25 @@ extern int gGeneralTransceiveTimeout;
 **                  e: JVM environment.
 **                  o: Java object.
 **
-** Returns:         Handle of secure element.  0 is failure.
+** Returns:         Handle of secure element.  values < 0 represent failure.
 **
 *******************************************************************************/
 static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv*, jobject)
 {
     ALOGD("%s: enter", __FUNCTION__);
     bool stat = true;
-    jint secElemHandle = 0;
+    jint secElemHandle = EE_ERROR_INIT;
     SecureElement &se = SecureElement::getInstance();
 
     if (se.isActivatedInListenMode()) {
         ALOGD("Denying SE open due to SE listen mode active");
+        secElemHandle = EE_ERROR_LISTEN_MODE;
         goto TheEnd;
     }
 
     if (se.isRfFieldOn()) {
         ALOGD("Denying SE open due to SE in active RF field");
+        secElemHandle = EE_ERROR_EXT_FIELD;
         goto TheEnd;
     }
     //tell the controller to power up to get ready for sec elem operations
@@ -69,9 +78,13 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv*, jobje
         //establish a pipe to sec elem
         stat = se.connectEE();
         if (stat)
+        {
             secElemHandle = se.mActiveEeHandle;
+        }
         else
+        {
             se.deactivate (0);
+        }
     }
 
     //if code fails to connect to the secure element, and nothing is active, then

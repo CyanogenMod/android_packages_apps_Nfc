@@ -132,6 +132,15 @@ public class NfcService implements DeviceHostListener {
     static final int ROUTE_OFF = 1;
     static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
 
+    // Return values from NfcEe.open() - these are 1:1 mapped
+    // to the thrown EE_EXCEPTION_ exceptions in nfc-extras.
+    static final int EE_ERROR_IO = -1;
+    static final int EE_ERROR_ALREADY_OPEN = -2;
+    static final int EE_ERROR_INIT = -3;
+    static final int EE_ERROR_LISTEN_MODE = -4;
+    static final int EE_ERROR_EXT_FIELD = -5;
+    static final int EE_ERROR_NFC_DISABLED = -6;
+
     /** minimum screen state that enables NFC polling (discovery) */
     static final int POLLING_MODE = SCREEN_STATE_ON_UNLOCKED;
 
@@ -1297,10 +1306,11 @@ public class NfcService implements DeviceHostListener {
             p.putInt("e", 0);
             return p;
         }
-        private Bundle writeIoException(IOException e) {
+
+        private Bundle writeEeException(int exceptionType, String message) {
             Bundle p = new Bundle();
-            p.putInt("e", -1);
-            p.putString("m", e.getMessage());
+            p.putInt("e", exceptionType);
+            p.putString("m", message);
             return p;
         }
 
@@ -1309,27 +1319,33 @@ public class NfcService implements DeviceHostListener {
             NfcService.this.enforceNfceeAdminPerm(pkg);
 
             Bundle result;
-            try {
-                _open(b);
+            int handle = _open(b);
+            if (handle < 0) {
+                result = writeEeException(handle, "NFCEE open exception.");
+            } else {
                 result = writeNoException();
-            } catch (IOException e) {
-                result = writeIoException(e);
             }
             return result;
         }
 
-        private void _open(IBinder b) throws IOException {
+        /**
+         * Opens a connection to the secure element.
+         *
+         * @return A handle with a value >= 0 in case of success, or a
+         *         negative value in case of failure.
+         */
+        private int _open(IBinder b) {
             synchronized(NfcService.this) {
                 if (!isNfcEnabled()) {
-                    throw new IOException("NFC adapter is disabled");
+                    return EE_ERROR_NFC_DISABLED;
                 }
                 if (mOpenEe != null) {
-                    throw new IOException("NFC EE already open");
+                    return EE_ERROR_ALREADY_OPEN;
                 }
 
                 int handle = doOpenSecureElementConnection();
-                if (handle == 0) {
-                    throw new IOException("NFC EE failed to open");
+                if (handle < 0) {
+                    return handle;
                 }
                 mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 30000);
 
@@ -1345,6 +1361,8 @@ public class NfcService implements DeviceHostListener {
                 for (String packageName : mContext.getPackageManager().getPackagesForUid(getCallingUid())) {
                     mSePackages.add(packageName);
                 }
+
+                return handle;
            }
         }
 
@@ -1357,7 +1375,7 @@ public class NfcService implements DeviceHostListener {
                 _nfcEeClose(getCallingPid(), binder);
                 result = writeNoException();
             } catch (IOException e) {
-                result = writeIoException(e);
+                result = writeEeException(EE_ERROR_IO, e.getMessage());
             }
             return result;
         }
@@ -1373,7 +1391,7 @@ public class NfcService implements DeviceHostListener {
                 result = writeNoException();
                 result.putByteArray("out", out);
             } catch (IOException e) {
-                result = writeIoException(e);
+                result = writeEeException(EE_ERROR_IO, e.getMessage());
             }
             return result;
         }
