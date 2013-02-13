@@ -1,12 +1,18 @@
 package com.android.nfc;
 
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.Application;
+import android.os.Process;
 import android.os.UserHandle;
-import android.util.Log;
+import java.util.Iterator;
+import java.util.List;
 
 public class NfcApplication extends Application {
 
-    public static final String TAG = "NfcApplication";
+    static final String TAG = "NfcApplication";
+    static final String NFC_PROCESS = "com.android.nfc";
+
     NfcService mNfcService;
 
     public NfcApplication() {
@@ -17,7 +23,23 @@ public class NfcApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
-        if (UserHandle.myUserId() == 0) {
+        boolean isMainProcess = false;
+        // We start a service in a separate process to do
+        // handover transfer. We don't want to instantiate an NfcService
+        // object in those cases, hence check the name of the process
+        // to determine whether we're the main NFC service, or the
+        // handover process
+        ActivityManager am = (ActivityManager)this.getSystemService(ACTIVITY_SERVICE);
+        List processes = am.getRunningAppProcesses();
+        Iterator i = processes.iterator();
+        while (i.hasNext()) {
+            RunningAppProcessInfo appInfo = (RunningAppProcessInfo)(i.next());
+            if (appInfo.pid == Process.myPid()) {
+                isMainProcess =  (NFC_PROCESS.equals(appInfo.processName));
+                break;
+            }
+        }
+        if (UserHandle.myUserId() == 0 && isMainProcess) {
             mNfcService = new NfcService(this);
         }
     }

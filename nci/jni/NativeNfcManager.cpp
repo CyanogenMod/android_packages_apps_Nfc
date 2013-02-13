@@ -1276,6 +1276,7 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
 {
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = false;
+    bool bRestartDiscovery = false;
 
     if (! sIsSecElemSelected)
     {
@@ -1290,6 +1291,12 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
         goto TheEnd;
     }
 
+    if (sRfEnabled) {
+        // Stop RF Discovery if we were polling
+        startRfDiscovery (false);
+        bRestartDiscovery = true;
+    }
+
     stat = SecureElement::getInstance().routeToDefault ();
     sIsSecElemSelected = false;
 
@@ -1299,6 +1306,9 @@ static void nfcManager_doDeselectSecureElement(JNIEnv *e, jobject o)
         SecureElement::getInstance().deactivate (0xABCDEF);
 
 TheEnd:
+    if (bRestartDiscovery)
+        startRfDiscovery (true);
+
     //if nothing is active after this, then tell the controller to power down
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::SE_ROUTING))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);

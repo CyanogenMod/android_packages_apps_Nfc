@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class RegisteredComponentCache {
     private static final String TAG = "RegisteredComponentCache";
+    private static final boolean DEBUG = false;
 
     final Context mContext;
     final String mAction;
@@ -165,7 +166,9 @@ public class RegisteredComponentCache {
             }
         }
 
-        dump(components);
+        if (DEBUG) {
+            dump(components);
+        }
 
         synchronized (this) {
             mComponents = components;

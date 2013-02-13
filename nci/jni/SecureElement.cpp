@@ -156,12 +156,12 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
 
     if (GetNumValue("NFA_HCI_DEFAULT_DEST_GATE", &num, sizeof(num)))
         mDestinationGate = num;
-    ALOGD ("%s: Default destination gate: %d", fn, mDestinationGate);
+    ALOGD ("%s: Default destination gate: 0x%X", fn, mDestinationGate);
 
     // active SE, if not set active all SEs
     if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
         mActiveSeOverride = num;
-    ALOGD ("%s: Active SE override: %d", fn, mActiveSeOverride);
+    ALOGD ("%s: Active SE override: 0x%X", fn, mActiveSeOverride);
 
     if (GetNumValue("OBERTHUR_WARM_RESET_COMMAND", &num, sizeof(num)))
     {
@@ -442,7 +442,7 @@ jintArray SecureElement::getListOfEeHandles (JNIEnv* e)
 ** Function:        activate
 **
 ** Description:     Turn on the secure element.
-**                  seID: ID of secure element.
+**                  seID: ID of secure element; 0xF3 or 0xF4.
 **
 ** Returns:         True if ok.
 **
@@ -474,24 +474,16 @@ bool SecureElement::activate (jint seID)
         return false;
     }
 
-    mActiveEeHandle = getDefaultEeHandle();
-    ALOGD ("%s: active ee h=0x%X, override se=0x%X", fn, mActiveEeHandle, mActiveSeOverride);
-    if (mActiveEeHandle == NFA_HANDLE_INVALID)
-    {
-        ALOGE ("%s: ee not found", fn);
-        return false;
-    }
-
-    UINT16 override_se = 0;
+    UINT16 overrideEeHandle = 0;
     if (mActiveSeOverride)
-        override_se = NFA_HANDLE_GROUP_EE | mActiveSeOverride;
+        overrideEeHandle = NFA_HANDLE_GROUP_EE | mActiveSeOverride;
 
     if (mRfFieldIsOn) {
         ALOGE("%s: RF field indication still on, resetting", fn);
         mRfFieldIsOn = false;
     }
 
-    ALOGD ("%s: override seid=0x%X", fn, override_se );
+    ALOGD ("%s: override ee h=0x%X", fn, overrideEeHandle );
     //activate every discovered secure element
     for (int index=0; index < mActualNumEe; index++)
     {
@@ -499,7 +491,7 @@ bool SecureElement::activate (jint seID)
 
         if ((eeItem.ee_handle == EE_HANDLE_0xF3) || (eeItem.ee_handle == EE_HANDLE_0xF4))
         {
-            if (override_se && (override_se != eeItem.ee_handle) )
+            if (overrideEeHandle && (overrideEeHandle != eeItem.ee_handle) )
                 continue;   // do not enable all SEs; only the override one
 
             if (eeItem.ee_status != NFC_NFCEE_STATUS_INACTIVE)
@@ -524,18 +516,11 @@ bool SecureElement::activate (jint seID)
         }
     } //for
 
-    for (UINT8 xx = 0; xx < mActualNumEe; xx++)
-    {
-        if ((mEeInfo[xx].num_interface != 0) && (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) &&
-            (mEeInfo[xx].ee_status != NFC_NFCEE_STATUS_INACTIVE))
-        {
-            mActiveEeHandle = mEeInfo[xx].ee_handle;
-            break;
-        }
-    }
-
-    ALOGD ("%s: exit; ok=%u", fn, numActivatedEe > 0);
-    return numActivatedEe > 0;
+    mActiveEeHandle = getDefaultEeHandle();
+    if (mActiveEeHandle == NFA_HANDLE_INVALID)
+        ALOGE ("%s: ee handle not found", fn);
+    ALOGD ("%s: exit; active ee h=0x%X", fn, mActiveEeHandle);
+    return mActiveEeHandle != NFA_HANDLE_INVALID;
 }
 
 
@@ -544,7 +529,7 @@ bool SecureElement::activate (jint seID)
 ** Function:        deactivate
 **
 ** Description:     Turn off the secure element.
-**                  seID: ID of secure element.
+**                  seID: ID of secure element; 0xF3 or 0xF4.
 **
 ** Returns:         True if ok.
 **
@@ -1417,7 +1402,7 @@ void SecureElement::adjustProtocolRoutes (RouteDataSet::Database* db, RouteSelec
     {
         tNFA_HANDLE eeHandle = NFA_EE_HANDLE_DH;
         if (routeSelection == SecElemRoute)
-            eeHandle = getDefaultEeHandle ();
+            eeHandle = mActiveEeHandle;
         ALOGD ("%s: route to default EE h=0x%X", fn, eeHandle);
         SyncEventGuard guard (mRoutingEvent);
         nfaStat = NFA_EeSetDefaultProtoRouting (eeHandle, protoMask, 0, 0);
@@ -1573,7 +1558,7 @@ void SecureElement::adjustTechnologyRoutes (RouteDataSet::Database* db, RouteSel
     {
         tNFA_HANDLE eeHandle = NFA_EE_HANDLE_DH;
         if (routeSelection == SecElemRoute)
-            eeHandle = getDefaultEeHandle ();
+            eeHandle = mActiveEeHandle;
         ALOGD ("%s: route to default EE h=0x%X", fn, eeHandle);
         SyncEventGuard guard (mRoutingEvent);
         nfaStat = NFA_EeSetDefaultTechRouting (eeHandle, techMask, 0, 0);
@@ -1975,26 +1960,31 @@ tNFA_EE_INFO *SecureElement::findEeByHandle (tNFA_HANDLE eeHandle)
 *******************************************************************************/
 tNFA_HANDLE SecureElement::getDefaultEeHandle ()
 {
+    UINT16 overrideEeHandle = NFA_HANDLE_GROUP_EE | mActiveSeOverride;
     // Find the first EE that is not the HCI Access i/f.
     for (UINT8 xx = 0; xx < mActualNumEe; xx++)
     {
-        if ((mEeInfo[xx].num_interface != 0) && (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) )
+        if (mActiveSeOverride && (overrideEeHandle != mEeInfo[xx].ee_handle))
+            continue; //skip all the EE's that are ignored
+        if ((mEeInfo[xx].num_interface != 0) &&
+            (mEeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) &&
+            (mEeInfo[xx].ee_status != NFC_NFCEE_STATUS_INACTIVE))
             return (mEeInfo[xx].ee_handle);
     }
     return NFA_HANDLE_INVALID;
 }
 
 
-    /*******************************************************************************
-    **
-    ** Function:        findUiccByHandle
-    **
-    ** Description:     Find information about an execution environment.
-    **                  eeHandle: Handle of the execution environment.
-    **
-    ** Returns:         Information about the execution environment.
-    **
-    *******************************************************************************/
+/*******************************************************************************
+**
+** Function:        findUiccByHandle
+**
+** Description:     Find information about an execution environment.
+**                  eeHandle: Handle of the execution environment.
+**
+** Returns:         Information about the execution environment.
+**
+*******************************************************************************/
 tNFA_EE_DISCOVER_INFO *SecureElement::findUiccByHandle (tNFA_HANDLE eeHandle)
 {
     for (UINT8 index = 0; index < mUiccInfo.num_ee; index++)

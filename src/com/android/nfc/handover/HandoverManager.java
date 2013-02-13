@@ -16,53 +16,43 @@
 
 package com.android.nfc.handover;
 
-import java.io.File;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Random;
 
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.app.Notification.Builder;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.MediaScannerConnection;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
-import android.os.Environment;
+import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
-import android.os.SystemClock;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
-import android.util.Pair;
-
-import com.android.nfc.NfcService;
-import com.android.nfc.R;
-
 
 /**
  * Manages handover of NFC to other technologies.
  */
-public class HandoverManager implements BluetoothHeadsetHandover.Callback {
+public class HandoverManager {
     static final String TAG = "NfcHandover";
     static final boolean DBG = true;
+
+    static final String ACTION_WHITELIST_DEVICE =
+            "android.btopp.intent.action.WHITELIST_DEVICE";
 
     static final byte[] TYPE_NOKIA = "nokia.com:bt".getBytes(Charset.forName("US_ASCII"));
     static final byte[] TYPE_BT_OOB = "application/vnd.bluetooth.ep.oob".
@@ -70,80 +60,27 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
 
     static final byte[] RTD_COLLISION_RESOLUTION = {0x63, 0x72}; // "cr";
 
-    static final String ACTION_BT_OPP_TRANSFER_PROGRESS =
-            "android.btopp.intent.action.BT_OPP_TRANSFER_PROGRESS";
-
-    static final String ACTION_BT_OPP_TRANSFER_DONE =
-            "android.btopp.intent.action.BT_OPP_TRANSFER_DONE";
-
-    static final String EXTRA_BT_OPP_TRANSFER_STATUS =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_STATUS";
-
-    static final String EXTRA_BT_OPP_TRANSFER_MIMETYPE =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_MIMETYPE";
-
-    static final String EXTRA_BT_OPP_ADDRESS =
-            "android.btopp.intent.extra.BT_OPP_ADDRESS";
-
-    static final int HANDOVER_TRANSFER_STATUS_SUCCESS = 0;
-
-    static final int HANDOVER_TRANSFER_STATUS_FAILURE = 1;
-
-    static final String EXTRA_BT_OPP_TRANSFER_DIRECTION =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_DIRECTION";
-
-    static final int DIRECTION_BLUETOOTH_INCOMING = 0;
-
-    static final int DIRECTION_BLUETOOTH_OUTGOING = 1;
-
-    static final String EXTRA_BT_OPP_TRANSFER_ID =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_ID";
-
-    static final String EXTRA_BT_OPP_TRANSFER_PROGRESS =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_PROGRESS";
-
-    static final String EXTRA_BT_OPP_TRANSFER_URI =
-            "android.btopp.intent.extra.BT_OPP_TRANSFER_URI";
-
-    // permission needed to be able to receive handover status requests
-    static final String HANDOVER_STATUS_PERMISSION =
-            "com.android.permission.HANDOVER_STATUS";
-
-    static final int MSG_HANDOVER_POWER_CHECK = 0;
-
-    // We poll whether we can safely disable BT every POWER_CHECK_MS
-    static final int POWER_CHECK_MS = 20000;
-
-    static final String ACTION_WHITELIST_DEVICE =
-            "android.btopp.intent.action.WHITELIST_DEVICE";
-
-    static final String ACTION_CANCEL_HANDOVER_TRANSFER =
-            "com.android.nfc.handover.action.CANCEL_HANDOVER_TRANSFER";
-    static final String EXTRA_SOURCE_ADDRESS =
-            "com.android.nfc.handover.extra.SOURCE_ADDRESS";
-
-    static final int SOURCE_BLUETOOTH_INCOMING = 0;
-
-    static final int SOURCE_BLUETOOTH_OUTGOING = 1;
-
     static final int CARRIER_POWER_STATE_INACTIVE = 0;
     static final int CARRIER_POWER_STATE_ACTIVE = 1;
     static final int CARRIER_POWER_STATE_ACTIVATING = 2;
     static final int CARRIER_POWER_STATE_UNKNOWN = 3;
 
+    static final int MSG_HANDOVER_COMPLETE = 0;
+    static final int MSG_HEADSET_CONNECTED = 1;
+    static final int MSG_HEADSET_NOT_CONNECTED = 2;
+
     final Context mContext;
     final BluetoothAdapter mBluetoothAdapter;
-    final NotificationManager mNotificationManager;
-    final HandoverPowerManager mHandoverPowerManager;
+    final Messenger mMessenger = new Messenger (new MessageHandler());
 
-    // Variables below synchronized on HandoverManager.this
-    final HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
-
-    BluetoothHeadsetHandover mBluetoothHeadsetHandover;
+    final Object mLock = new Object();
+    // Variables below synchronized on mLock
+    HashMap<Integer, PendingHandoverTransfer> mPendingTransfers;
     boolean mBluetoothHeadsetConnected;
-
+    int mHandoverTransferId;
+    Messenger mService = null;
+    boolean mBound;
     String mLocalBluetoothAddress;
-    int mNotificationId;
 
     static class BluetoothHandoverData {
         public boolean valid = false;
@@ -152,487 +89,93 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         public boolean carrierActivating = false;
     }
 
-    class HandoverPowerManager implements Handler.Callback {
-        final Handler handler;
-        final Context context;
-
-        public HandoverPowerManager(Context context) {
-            this.handler = new Handler(this);
-            this.context = context;
-        }
-
-        /**
-         * Enables Bluetooth and will automatically disable it
-         * when there is no Bluetooth activity intitiated by NFC
-         * anymore.
-         */
-        synchronized boolean enableBluetooth() {
-            // Enable BT
-            boolean result = mBluetoothAdapter.enableNoAutoConnect();
-
-            if (result) {
-                // Start polling for BT activity to make sure we eventually disable
-                // it again.
-                handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
-            }
-            return result;
-        }
-
-        synchronized boolean isBluetoothEnabled() {
-            return mBluetoothAdapter.isEnabled();
-        }
-
-        synchronized void resetTimer() {
-            if (handler.hasMessages(MSG_HANDOVER_POWER_CHECK)) {
-                handler.removeMessages(MSG_HANDOVER_POWER_CHECK);
-                handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
+    class MessageHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            synchronized (mLock) {
+                switch (msg.what) {
+                    case MSG_HANDOVER_COMPLETE:
+                        int transferId = msg.arg1;
+                        Log.d(TAG, "Completed transfer id: " + Integer.toString(transferId));
+                        if (mPendingTransfers.containsKey(transferId)) {
+                            mPendingTransfers.remove(transferId);
+                        } else {
+                            Log.e(TAG, "Could not find completed transfer id: " + Integer.toString(transferId));
+                        }
+                        break;
+                    case MSG_HEADSET_CONNECTED:
+                        mBluetoothHeadsetConnected = true;
+                        break;
+                    case MSG_HEADSET_NOT_CONNECTED:
+                        mBluetoothHeadsetConnected = false;
+                        break;
+                    default:
+                        break;
+                }
             }
         }
+    };
 
-        void stopMonitoring() {
-            handler.removeMessages(MSG_HANDOVER_POWER_CHECK);
+    private ServiceConnection mConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            synchronized (mLock) {
+                mService = new Messenger(service);
+                mBound = true;
+                // Register this client
+                Message msg = Message.obtain(null, HandoverService.MSG_REGISTER_CLIENT);
+                msg.replyTo = mMessenger;
+                try {
+                    mService.send(msg);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Failed to register client");
+                }
+            }
         }
 
         @Override
-        public boolean handleMessage(Message msg) {
-            switch (msg.what) {
-                case MSG_HANDOVER_POWER_CHECK:
-                    // Check for any alive transfers
-                    boolean transferAlive = false;
-                    synchronized (HandoverManager.this) {
-                        for (HandoverTransfer transfer : mTransfers.values()) {
-                            if (transfer.isRunning()) {
-                                transferAlive = true;
-                            }
-                        }
-
-                        if (!transferAlive && !mBluetoothHeadsetConnected) {
-                            mBluetoothAdapter.disable();
-                            handler.removeMessages(MSG_HANDOVER_POWER_CHECK);
-                        } else {
-                            handler.sendEmptyMessageDelayed(MSG_HANDOVER_POWER_CHECK, POWER_CHECK_MS);
-                        }
+        public void onServiceDisconnected(ComponentName name) {
+            synchronized (mLock) {
+                if (mBound) {
+                    try {
+                        Message msg = Message.obtain(null, HandoverService.MSG_DEREGISTER_CLIENT);
+                        msg.replyTo = mMessenger;
+                        mService.send(msg);
+                    } catch (RemoteException e) {
+                        // Service may have crashed - ignore
                     }
-                    return true;
-            }
-            return false;
-        }
-    }
-
-    /**
-     * A HandoverTransfer object represents a set of files
-     * that were received through NFC connection handover
-     * from the same source address.
-     *
-     * For Bluetooth, files are received through OPP, and
-     * we have no knowledge how many files will be transferred
-     * as part of a single transaction.
-     * Hence, a transfer has a notion of being "alive": if
-     * the last update to a transfer was within WAIT_FOR_NEXT_TRANSFER_MS
-     * milliseconds, we consider a new file transfer from the
-     * same source address as part of the same transfer.
-     * The corresponding URIs will be grouped in a single folder.
-     *
-     */
-    class HandoverTransfer implements Handler.Callback,
-            MediaScannerConnection.OnScanCompletedListener {
-        // In the states below we still accept new file transfer
-        static final int STATE_NEW = 0;
-        static final int STATE_IN_PROGRESS = 1;
-        static final int STATE_W4_NEXT_TRANSFER = 2;
-
-        // In the states below no new files are accepted.
-        static final int STATE_W4_MEDIA_SCANNER = 3;
-        static final int STATE_FAILED = 4;
-        static final int STATE_SUCCESS = 5;
-        static final int STATE_CANCELLED = 6;
-
-        static final int MSG_NEXT_TRANSFER_TIMER = 0;
-        static final int MSG_TRANSFER_TIMEOUT = 1;
-
-        // We need to receive an update within this time period
-        // to still consider this transfer to be "alive" (ie
-        // a reason to keep the handover transport enabled).
-        static final int ALIVE_CHECK_MS = 20000;
-
-        // The amount of time to wait for a new transfer
-        // once the current one completes.
-        static final int WAIT_FOR_NEXT_TRANSFER_MS = 4000;
-
-        static final String BEAM_DIR = "beam";
-
-        final BluetoothDevice device;
-        final String sourceAddress;
-        final boolean incoming;  // whether this is an incoming transfer
-        final int notificationId; // Unique ID of this transfer used for notifications
-        final Handler handler;
-        final PendingIntent cancelIntent;
-
-        int state;
-        Long lastUpdate; // Last time an event occurred for this transfer
-        float progress; // Progress in range [0..1]
-        ArrayList<Uri> btUris; // Received uris from Bluetooth OPP
-        ArrayList<String> btMimeTypes; // Mime-types received from Bluetooth OPP
-
-        ArrayList<String> paths; // Raw paths on the filesystem for Beam-stored files
-        HashMap<String, String> mimeTypes; // Mime-types associated with each path
-        HashMap<String, Uri> mediaUris; // URIs found by the media scanner for each path
-        int urisScanned;
-
-        public HandoverTransfer(String sourceAddress, boolean incoming) {
-            synchronized (HandoverManager.this) {
-                this.notificationId = mNotificationId++;
-            }
-            this.lastUpdate = SystemClock.elapsedRealtime();
-            this.progress = 0.0f;
-            this.state = STATE_NEW;
-            this.btUris = new ArrayList<Uri>();
-            this.btMimeTypes = new ArrayList<String>();
-            this.paths = new ArrayList<String>();
-            this.mimeTypes = new HashMap<String, String>();
-            this.mediaUris = new HashMap<String, Uri>();
-            this.sourceAddress = sourceAddress;
-            this.incoming = incoming;
-            this.handler = new Handler(mContext.getMainLooper(), this);
-            this.cancelIntent = buildCancelIntent();
-            this.urisScanned = 0;
-            this.device = mBluetoothAdapter.getRemoteDevice(sourceAddress);
-
-            handler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
-        }
-
-        public synchronized void updateFileProgress(float progress) {
-            if (!isRunning()) return; // Ignore when we're no longer running
-
-            handler.removeMessages(MSG_NEXT_TRANSFER_TIMER);
-
-            this.progress = progress;
-
-            // We're still receiving data from this device - keep it in
-            // the whitelist for a while longer
-            if (incoming) whitelistOppDevice(device);
-
-            updateStateAndNotification(STATE_IN_PROGRESS);
-        }
-
-        public synchronized void finishTransfer(boolean success, Uri uri, String mimeType) {
-            if (!isRunning()) return; // Ignore when we're no longer running
-
-            if (success && uri != null) {
-                if (DBG) Log.d(TAG, "Transfer success, uri " + uri + " mimeType " + mimeType);
-                this.progress = 1.0f;
-                if (mimeType == null) {
-                    mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
                 }
-                if (mimeType != null) {
-                    btUris.add(uri);
-                    btMimeTypes.add(mimeType);
-                } else {
-                    if (DBG) Log.d(TAG, "Could not get mimeType for file.");
-                }
-            } else {
-                Log.e(TAG, "Handover transfer failed");
-                // Do wait to see if there's another file coming.
-            }
-            handler.removeMessages(MSG_NEXT_TRANSFER_TIMER);
-            handler.sendEmptyMessageDelayed(MSG_NEXT_TRANSFER_TIMER, WAIT_FOR_NEXT_TRANSFER_MS);
-            updateStateAndNotification(STATE_W4_NEXT_TRANSFER);
-        }
-
-        public synchronized boolean isRunning() {
-            if (state != STATE_NEW && state != STATE_IN_PROGRESS && state != STATE_W4_NEXT_TRANSFER) {
-                return false;
-            } else {
-                return true;
+                mService = null;
+                mBound = false;
             }
         }
-
-        synchronized void cancel() {
-            if (!isRunning()) return;
-
-            // Delete all files received so far
-            for (Uri uri : btUris) {
-                File file = new File(uri.getPath());
-                if (file.exists()) file.delete();
-            }
-
-            updateStateAndNotification(STATE_CANCELLED);
-        }
-
-        synchronized void updateNotification() {
-            if (!incoming) return; // No notifications for outgoing transfers
-
-            Builder notBuilder = new Notification.Builder(mContext);
-
-            if (state == STATE_NEW || state == STATE_IN_PROGRESS ||
-                    state == STATE_W4_NEXT_TRANSFER || state == STATE_W4_MEDIA_SCANNER) {
-                notBuilder.setAutoCancel(false);
-                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
-                notBuilder.setTicker(mContext.getString(R.string.beam_progress));
-                notBuilder.setContentTitle(mContext.getString(R.string.beam_progress));
-                notBuilder.addAction(R.drawable.ic_menu_cancel_holo_dark,
-                        mContext.getString(R.string.cancel), cancelIntent);
-                notBuilder.setDeleteIntent(cancelIntent);
-                // We do have progress indication on a per-file basis, but in a multi-file
-                // transfer we don't know the total progress. So for now, just show an
-                // indeterminate progress bar.
-                notBuilder.setProgress(100, 0, true);
-            } else if (state == STATE_SUCCESS) {
-                notBuilder.setAutoCancel(true);
-                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
-                notBuilder.setTicker(mContext.getString(R.string.beam_complete));
-                notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
-                notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
-
-                Intent viewIntent = buildViewIntent();
-                PendingIntent contentIntent = PendingIntent.getActivityAsUser(
-                        mContext, 0, viewIntent, 0, null, UserHandle.CURRENT);
-
-                notBuilder.setContentIntent(contentIntent);
-
-                // Play Beam success sound
-                NfcService.getInstance().playSound(NfcService.SOUND_END);
-            } else if (state == STATE_FAILED) {
-                notBuilder.setAutoCancel(false);
-                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
-                notBuilder.setTicker(mContext.getString(R.string.beam_failed));
-                notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
-            } else if (state == STATE_CANCELLED) {
-                notBuilder.setAutoCancel(false);
-                notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
-                notBuilder.setTicker(mContext.getString(R.string.beam_canceled));
-                notBuilder.setContentTitle(mContext.getString(R.string.beam_canceled));
-            } else {
-                return;
-            }
-
-            mNotificationManager.notifyAsUser(null, mNotificationId, notBuilder.build(),
-                    UserHandle.CURRENT);
-        }
-
-        synchronized void updateStateAndNotification(int newState) {
-            this.state = newState;
-            this.lastUpdate = SystemClock.elapsedRealtime();
-
-            if (handler.hasMessages(MSG_TRANSFER_TIMEOUT)) {
-                // Update timeout timer
-                handler.removeMessages(MSG_TRANSFER_TIMEOUT);
-                handler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
-            }
-            updateNotification();
-        }
-
-        synchronized void processFiles() {
-            // Check the amount of files we received in this transfer;
-            // If more than one, create a separate directory for it.
-            String extRoot = Environment.getExternalStorageDirectory().getPath();
-            File beamPath = new File(extRoot + "/" + BEAM_DIR);
-
-            if (!checkMediaStorage(beamPath) || btUris.size() == 0) {
-                Log.e(TAG, "Media storage not valid or no uris received.");
-                updateStateAndNotification(STATE_FAILED);
-                return;
-            }
-
-            if (btUris.size() > 1) {
-                beamPath = generateMultiplePath(extRoot + "/" + BEAM_DIR + "/");
-                if (!beamPath.isDirectory() && !beamPath.mkdir()) {
-                    Log.e(TAG, "Failed to create multiple path " + beamPath.toString());
-                    updateStateAndNotification(STATE_FAILED);
-                    return;
-                }
-            }
-
-            for (int i = 0; i < btUris.size(); i++) {
-                Uri uri = btUris.get(i);
-                String mimeType = btMimeTypes.get(i);
-
-                File srcFile = new File(uri.getPath());
-
-                File dstFile = generateUniqueDestination(beamPath.getAbsolutePath(),
-                        uri.getLastPathSegment());
-                if (!srcFile.renameTo(dstFile)) {
-                    if (DBG) Log.d(TAG, "Failed to rename from " + srcFile + " to " + dstFile);
-                    srcFile.delete();
-                    return;
-                } else {
-                    paths.add(dstFile.getAbsolutePath());
-                    mimeTypes.put(dstFile.getAbsolutePath(), mimeType);
-                    if (DBG) Log.d(TAG, "Did successful rename from " + srcFile + " to " + dstFile);
-                }
-            }
-
-            // We can either add files to the media provider, or provide an ACTION_VIEW
-            // intent to the file directly. We base this decision on the mime type
-            // of the first file; if it's media the platform can deal with,
-            // use the media provider, if it's something else, just launch an ACTION_VIEW
-            // on the file.
-            String mimeType = mimeTypes.get(paths.get(0));
-            if (mimeType.startsWith("image/") || mimeType.startsWith("video/") ||
-                    mimeType.startsWith("audio/")) {
-                String[] arrayPaths = new String[paths.size()];
-                MediaScannerConnection.scanFile(mContext, paths.toArray(arrayPaths), null, this);
-                updateStateAndNotification(STATE_W4_MEDIA_SCANNER);
-            } else {
-                // We're done.
-                updateStateAndNotification(STATE_SUCCESS);
-            }
-
-        }
-
-        public boolean handleMessage(Message msg) {
-            if (msg.what == MSG_NEXT_TRANSFER_TIMER) {
-                // We didn't receive a new transfer in time, finalize this one
-                if (incoming) {
-                    processFiles();
-                } else {
-                    updateStateAndNotification(STATE_SUCCESS);
-                }
-                return true;
-            } else if (msg.what == MSG_TRANSFER_TIMEOUT) {
-                // No update on this transfer for a while, check
-                // to see if it's still running, and fail it if it is.
-                if (isRunning()) {
-                    updateStateAndNotification(STATE_FAILED);
-                }
-            }
-            return false;
-        }
-
-        public synchronized void onScanCompleted(String path, Uri uri) {
-            if (DBG) Log.d(TAG, "Scan completed, path " + path + " uri " + uri);
-            if (uri != null) {
-                mediaUris.put(path, uri);
-            }
-            urisScanned++;
-            if (urisScanned == paths.size()) {
-                // We're done
-                updateStateAndNotification(STATE_SUCCESS);
-            }
-        }
-
-        boolean checkMediaStorage(File path) {
-            if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-                if (!path.isDirectory() && !path.mkdir()) {
-                    Log.e(TAG, "Not dir or not mkdir " + path.getAbsolutePath());
-                    return false;
-                }
-                return true;
-            } else {
-                Log.e(TAG, "External storage not mounted, can't store file.");
-                return false;
-            }
-        }
-
-        synchronized Intent buildViewIntent() {
-            if (paths.size() == 0) return null;
-
-            Intent viewIntent = new Intent(Intent.ACTION_VIEW);
-
-            String filePath = paths.get(0);
-            Uri mediaUri = mediaUris.get(filePath);
-            Uri uri =  mediaUri != null ? mediaUri :
-                Uri.parse(ContentResolver.SCHEME_FILE + "://" + filePath);
-            viewIntent.setDataAndTypeAndNormalize(uri, mimeTypes.get(filePath));
-            viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            return viewIntent;
-        }
-
-        PendingIntent buildCancelIntent() {
-            Intent intent = new Intent(ACTION_CANCEL_HANDOVER_TRANSFER);
-            intent.putExtra(EXTRA_SOURCE_ADDRESS, sourceAddress);
-            PendingIntent pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
-
-            return pi;
-        }
-
-        synchronized File generateUniqueDestination(String path, String fileName) {
-            int dotIndex = fileName.lastIndexOf(".");
-            String extension = null;
-            String fileNameWithoutExtension = null;
-            if (dotIndex < 0) {
-                extension = "";
-                fileNameWithoutExtension = fileName;
-            } else {
-                extension = fileName.substring(dotIndex);
-                fileNameWithoutExtension = fileName.substring(0, dotIndex);
-            }
-            File dstFile = new File(path + File.separator + fileName);
-            int count = 0;
-            while (dstFile.exists()) {
-                dstFile = new File(path + File.separator + fileNameWithoutExtension + "-" +
-                        Integer.toString(count) + extension);
-                count++;
-            }
-            return dstFile;
-        }
-
-        synchronized File generateMultiplePath(String beamRoot) {
-            // Generate a unique directory with the date
-            String format = "yyyy-MM-dd";
-            SimpleDateFormat sdf = new SimpleDateFormat(format);
-            String newPath = beamRoot + "beam-" + sdf.format(new Date());
-            File newFile = new File(newPath);
-            int count = 0;
-            while (newFile.exists()) {
-                newPath = beamRoot + "beam-" + sdf.format(new Date()) + "-" +
-                        Integer.toString(count);
-                newFile = new File(newPath);
-                count++;
-            }
-
-            return newFile;
-        }
-    }
-
-    synchronized HandoverTransfer getOrCreateHandoverTransfer(String sourceAddress, boolean incoming,
-            boolean create) {
-        Pair<String, Boolean> key = new Pair<String, Boolean>(sourceAddress, incoming);
-        if (mTransfers.containsKey(key)) {
-            HandoverTransfer transfer = mTransfers.get(key);
-            if (transfer.isRunning()) {
-                return transfer;
-            } else {
-                if (create) mTransfers.remove(key); // new one created below
-            }
-        }
-        if (create) {
-            HandoverTransfer transfer = new HandoverTransfer(sourceAddress, incoming);
-            mTransfers.put(key, transfer);
-
-            return transfer;
-        } else {
-            return null;
-        }
-    }
+    };
 
     public HandoverManager(Context context) {
         mContext = context;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-        mNotificationManager = (NotificationManager) mContext.getSystemService(
-                Context.NOTIFICATION_SERVICE);
+        mPendingTransfers = new HashMap<Integer, PendingHandoverTransfer>();
 
-        mTransfers = new HashMap<Pair<String, Boolean>, HandoverTransfer>();
-        mHandoverPowerManager = new HandoverPowerManager(context);
+        IntentFilter filter = new IntentFilter(Intent.ACTION_USER_SWITCHED);
+        mContext.registerReceiver(mReceiver, filter, null, null);
 
-        IntentFilter filter = new IntentFilter(ACTION_BT_OPP_TRANSFER_DONE);
-        filter.addAction(ACTION_BT_OPP_TRANSFER_PROGRESS);
-        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-        filter.addAction(ACTION_CANCEL_HANDOVER_TRANSFER);
-        mContext.registerReceiver(mReceiver, filter, HANDOVER_STATUS_PERMISSION, null);
+        mContext.bindService(new Intent(mContext, HandoverService.class), mConnection,
+                Context.BIND_AUTO_CREATE, UserHandle.USER_CURRENT);
     }
 
-    synchronized void cleanupTransfers() {
-        Iterator<Map.Entry<Pair<String, Boolean>, HandoverTransfer>> it = mTransfers.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<Pair<String, Boolean>, HandoverTransfer> pair = it.next();
-            HandoverTransfer transfer = pair.getValue();
-            if (!transfer.isRunning()) {
-                it.remove();
+    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(Intent.ACTION_USER_SWITCHED)) {
+                // Re-bind a service for the current user
+                mContext.unbindService(mConnection);
+                mContext.bindService(new Intent(mContext, HandoverService.class), mConnection,
+                        Context.BIND_AUTO_CREATE, UserHandle.USER_CURRENT);
             }
         }
-    }
+    };
 
     static NdefRecord createCollisionRecord() {
         byte[] random = new byte[2];
@@ -659,7 +202,7 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         payload[0] = (byte) (payload.length & 0xFF);
         payload[1] = (byte) ((payload.length >> 8) & 0xFF);
 
-        synchronized (HandoverManager.this) {
+        synchronized (mLock) {
             if (mLocalBluetoothAddress == null) {
                 mLocalBluetoothAddress = mBluetoothAdapter.getAddress();
             }
@@ -698,7 +241,6 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         payload.get(payloadBytes);
         return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_HANDOVER_SELECT, null,
                 payloadBytes);
-
     }
 
     NdefRecord createHandoverRequestRecord() {
@@ -742,36 +284,37 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         }
         if (bluetoothData == null) return null;
 
-        boolean bluetoothActivating = false;
-
-        synchronized(HandoverManager.this) {
-            if (!mHandoverPowerManager.isBluetoothEnabled()) {
-                if (!mHandoverPowerManager.enableBluetooth()) {
-                    return null;
-                }
-                bluetoothActivating = true;
-            } else {
-                mHandoverPowerManager.resetTimer();
+        // Note: there could be a race where we conclude
+        // that Bluetooth is already enabled, and shortly
+        // after the user turns it off. That will cause
+        // the transfer to fail, but there's nothing
+        // much we can do about it anyway. It shouldn't
+        // be common for the user to be changing BT settings
+        // while waiting to receive a picture.
+        boolean bluetoothActivating = !mBluetoothAdapter.isEnabled();
+        synchronized (mLock) {
+            if (!mBound) {
+                Log.e(TAG, "Could not connect to handover service");
+                return null;
             }
-
-            // Create the initial transfer object
-            HandoverTransfer transfer = getOrCreateHandoverTransfer(
-                    bluetoothData.device.getAddress(), true, true);
-            transfer.updateNotification();
+            Message msg = Message.obtain(null, HandoverService.MSG_START_INCOMING_TRANSFER);
+            PendingHandoverTransfer transfer = registerInTransferLocked(bluetoothData.device);
+            Bundle transferData = new Bundle();
+            transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
+            msg.setData(transferData);
+            try {
+                mService.send(msg);
+            } catch (RemoteException e) {
+                Log.e(TAG, "Could not connect to handover service");
+               removeTransferLocked(transfer.id);
+               return null;
+            }
         }
-
         // BT OOB found, whitelist it for incoming OPP data
         whitelistOppDevice(bluetoothData.device);
 
         // return BT OOB record so they can perform handover
         return (createHandoverSelectMessage(bluetoothActivating));
-    }
-
-    void whitelistOppDevice(BluetoothDevice device) {
-        if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
-        Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        mContext.sendBroadcast(intent);
     }
 
     public boolean tryHandover(NdefMessage m) {
@@ -784,18 +327,26 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         if (handover == null) return false;
         if (!handover.valid) return true;
 
-        synchronized (HandoverManager.this) {
+        synchronized (mLock) {
             if (mBluetoothAdapter == null) {
                 if (DBG) Log.d(TAG, "BT handover, but BT not available");
                 return true;
             }
-            if (mBluetoothHeadsetHandover != null) {
-                if (DBG) Log.d(TAG, "BT handover already in progress, ignoring");
-                return true;
+            if (!mBound) {
+                Log.e(TAG, "Could not connect to handover service");
+                return false;
             }
-            mBluetoothHeadsetHandover = new BluetoothHeadsetHandover(mContext, handover.device,
-                    handover.name, mHandoverPowerManager, this);
-            mBluetoothHeadsetHandover.start();
+
+            Message msg = Message.obtain(null, HandoverService.MSG_HEADSET_HANDOVER, 0, 0);
+            Bundle headsetData = new Bundle();
+            headsetData.putParcelable(HandoverService.EXTRA_HEADSET_DEVICE, handover.device);
+            headsetData.putString(HandoverService.EXTRA_HEADSET_NAME, handover.name);
+            msg.setData(headsetData);
+            try {
+                mService.send(msg);
+            } catch (RemoteException e) {
+                return false;
+            }
         }
         return true;
     }
@@ -807,11 +358,51 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
         BluetoothHandoverData data = parse(m);
         if (data != null && data.valid) {
             // Register a new handover transfer object
-            getOrCreateHandoverTransfer(data.device.getAddress(), false, true);
-            BluetoothOppHandover handover = new BluetoothOppHandover(mContext, data.device,
-                uris, mHandoverPowerManager, data.carrierActivating);
-            handover.start();
+            synchronized (mLock) {
+                if (!mBound) {
+                    Log.e(TAG, "Could not connect to handover service");
+                    return;
+                }
+
+                Message msg = Message.obtain(null, HandoverService.MSG_START_OUTGOING_TRANSFER, 0, 0);
+                PendingHandoverTransfer transfer = registerOutTransferLocked(data, uris);
+                Bundle transferData = new Bundle();
+                transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
+                msg.setData(transferData);
+                try {
+                    mService.send(msg);
+                } catch (RemoteException e) {
+                    removeTransferLocked(transfer.id);
+                }
+            }
         }
+    }
+
+    PendingHandoverTransfer registerInTransferLocked(BluetoothDevice remoteDevice) {
+        PendingHandoverTransfer transfer = new PendingHandoverTransfer(
+                mHandoverTransferId++, true, remoteDevice, false, null);
+        mPendingTransfers.put(transfer.id, transfer);
+
+        return transfer;
+    }
+
+    PendingHandoverTransfer registerOutTransferLocked(BluetoothHandoverData data,
+            Uri[] uris) {
+        PendingHandoverTransfer transfer = new PendingHandoverTransfer(
+                mHandoverTransferId++, false, data.device, data.carrierActivating, uris);
+        mPendingTransfers.put(transfer.id, transfer);
+        return transfer;
+    }
+
+    void removeTransferLocked(int id) {
+        mPendingTransfers.remove(id);
+    }
+
+    void whitelistOppDevice(BluetoothDevice device) {
+        if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
+        Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
+        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+        mContext.sendBroadcastAsUser(intent, UserHandle.CURRENT);
     }
 
     boolean isCarrierActivating(NdefRecord handoverRec, byte[] carrierId) {
@@ -972,79 +563,4 @@ public class HandoverManager implements BluetoothHeadsetHandover.Callback {
 
         return result;
     }
-
-    @Override
-    public void onBluetoothHeadsetHandoverComplete(boolean connected) {
-        synchronized (HandoverManager.this) {
-            mBluetoothHeadsetHandover = null;
-            mBluetoothHeadsetConnected = connected;
-        }
-    }
-
-    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-
-            if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-                if (state == BluetoothAdapter.STATE_OFF) {
-                    mHandoverPowerManager.stopMonitoring();
-                }
-
-                return;
-            } else if (action.equals(ACTION_CANCEL_HANDOVER_TRANSFER)) {
-                String sourceAddress = intent.getStringExtra(EXTRA_SOURCE_ADDRESS);
-                HandoverTransfer transfer = getOrCreateHandoverTransfer(sourceAddress, true,
-                        false);
-                if (transfer != null) {
-                    transfer.cancel();
-                }
-            } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS) ||
-                    action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
-                // Clean up old transfers no longer in progress
-                cleanupTransfers();
-
-                int direction = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_DIRECTION, -1);
-                int id = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_ID, -1);
-                String sourceAddress = intent.getStringExtra(EXTRA_BT_OPP_ADDRESS);
-
-                if (direction == -1 || id == -1 || sourceAddress == null) return;
-                boolean incoming = (direction == DIRECTION_BLUETOOTH_INCOMING);
-
-                HandoverTransfer transfer = getOrCreateHandoverTransfer(sourceAddress, incoming,
-                        false);
-                if (transfer == null) {
-                    // There is no transfer running for this source address; most likely
-                    // the transfer was cancelled. We need to tell BT OPP to stop transferring
-                    // in case this was an incoming transfer
-                    Intent cancelIntent = new Intent("android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
-                    cancelIntent.putExtra(EXTRA_BT_OPP_TRANSFER_ID, id);
-                    mContext.sendBroadcast(cancelIntent);
-                    return;
-                }
-
-                if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
-                    int handoverStatus = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_STATUS,
-                            HANDOVER_TRANSFER_STATUS_FAILURE);
-
-                    if (handoverStatus == HANDOVER_TRANSFER_STATUS_SUCCESS) {
-                        String uriString = intent.getStringExtra(EXTRA_BT_OPP_TRANSFER_URI);
-                        String mimeType = intent.getStringExtra(EXTRA_BT_OPP_TRANSFER_MIMETYPE);
-                        Uri uri = Uri.parse(uriString);
-                        if (uri.getScheme() == null) {
-                            uri = Uri.fromFile(new File(uri.getPath()));
-                        }
-                        transfer.finishTransfer(true, uri, mimeType);
-                    } else {
-                        transfer.finishTransfer(false, null, null);
-                    }
-                } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS)) {
-                    float progress = intent.getFloatExtra(EXTRA_BT_OPP_TRANSFER_PROGRESS, 0.0f);
-                    transfer.updateFileProgress(progress);
-                }
-            }
-        }
-    };
-
 }

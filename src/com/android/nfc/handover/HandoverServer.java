@@ -210,7 +210,8 @@ public final class HandoverServer {
                         }
                         // We're done
                         mCallback.onHandoverRequestReceived();
-                        break;
+                        // We can process another handover transfer
+                        byteStream = new ByteArrayOutputStream();
                     }
 
                     synchronized (HandoverServer.this) {
