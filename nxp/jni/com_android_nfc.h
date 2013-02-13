@@ -105,6 +105,15 @@ extern "C" {
 
 #define SMX_SECURE_ELEMENT_ID   11259375
 
+
+/* These must match the EE_ERROR_ types in NfcService.java */
+#define EE_ERROR_IO                 -1
+#define EE_ERROR_ALREADY_OPEN       -2
+#define EE_ERROR_INIT               -3
+#define EE_ERROR_LISTEN_MODE        -4
+#define EE_ERROR_EXT_FIELD          -5
+#define EE_ERROR_NFC_DISABLED       -6
+
 /* Maximum byte length of an AID. */
 #define AID_MAXLEN                        16
 

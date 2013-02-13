@@ -179,6 +179,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
 {
    NFCSTATUS ret;
    int semResult;
+   jint errorCode = EE_ERROR_INIT;
    
    phLibNfc_SE_List_t SE_List[PHLIBNFC_MAXNO_OF_SE];
    uint8_t i, No_SE = PHLIBNFC_MAXNO_OF_SE, SmartMX_index=0, SmartMX_detected = 0;
@@ -224,7 +225,8 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    /* Check if NFC device is already connected to a tag or P2P peer */
    if (device_connected_flag == 1)
    {
-       ALOGD("Unable to open SE connection, device already connected to a P2P peer or a Tag");
+       ALOGE("Unable to open SE connection, device already connected to a P2P peer or a Tag");
+       errorCode = EE_ERROR_LISTEN_MODE;
        goto clean_and_return;
    }
 
@@ -263,6 +265,7 @@ static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection
    {
       // There is an external RF field present, fail the open request
       ALOGD("Unable to open SE connection, external RF Field detected");
+      errorCode = EE_ERROR_EXT_FIELD;
       goto clean_and_return;   
    }   
 
@@ -464,7 +467,7 @@ clean_and_return:
    nfc_cb_data_deinit(&cb_data_SE_Notification);
 
    CONCURRENCY_UNLOCK();
-   return 0;
+   return errorCode;
 }
 
 
