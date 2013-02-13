@@ -37,6 +37,7 @@ import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.SurfaceControl;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -461,7 +462,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             dims[1] = Math.abs(dims[1]);
         }
 
-        Bitmap bitmap = Surface.screenshot((int) dims[0], (int) dims[1]);
+        Bitmap bitmap = SurfaceControl.screenshot((int) dims[0], (int) dims[1]);
         // Bail if we couldn't take the screenshot
         if (bitmap == null) {
             return null;
