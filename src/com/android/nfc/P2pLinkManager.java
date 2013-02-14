@@ -40,7 +40,6 @@ import android.nfc.NdefRecord;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
-import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
@@ -339,8 +338,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                         mMessageToSend = mCallbackNdef.createMessage();
                         mUrisToSend = mCallbackNdef.getUris();
                         return;
-                    } catch (RemoteException e) {
-                        // Ignore
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed NDEF callback: " + e.getMessage());
                     }
                 } else {
                     // This is not necessarily an error - we no longer unset callbacks from
@@ -690,7 +689,9 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     if (mCallbackNdef != null) {
                         try {
                             mCallbackNdef.onNdefPushComplete();
-                        } catch (RemoteException e) { }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed NDEF completed callback: " + e.getMessage());
+                        }
                     }
                 }
                 break;
