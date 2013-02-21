@@ -47,8 +47,15 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
     static final String ACTION_CANCEL_HANDOVER_TRANSFER =
             "com.android.nfc.handover.action.CANCEL_HANDOVER_TRANSFER";
+
     static final String EXTRA_SOURCE_ADDRESS =
             "com.android.nfc.handover.extra.SOURCE_ADDRESS";
+
+    static final String EXTRA_INCOMING =
+            "com.android.nfc.handover.extra.INCOMING";
+
+    static final String ACTION_HANDOVER_STARTED =
+            "android.btopp.intent.action.BT_OPP_HANDOVER_STARTED";
 
     static final String ACTION_BT_OPP_TRANSFER_PROGRESS =
             "android.btopp.intent.action.BT_OPP_TRANSFER_PROGRESS";
@@ -84,6 +91,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
     static final String EXTRA_BT_OPP_TRANSFER_URI =
             "android.btopp.intent.extra.BT_OPP_TRANSFER_URI";
+
+    public static final String EXTRA_BT_OPP_OBJECT_COUNT =
+            "android.btopp.intent.extra.BT_OPP_OBJECT_COUNT";
 
     // permission needed to be able to receive handover status requests
     static final String HANDOVER_STATUS_PERMISSION =
@@ -125,6 +135,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         filter.addAction(ACTION_BT_OPP_TRANSFER_PROGRESS);
         filter.addAction(ACTION_CANCEL_HANDOVER_TRANSFER);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(ACTION_HANDOVER_STARTED);
         registerReceiver(mReceiver, filter, HANDOVER_STATUS_PERMISSION, mHandler);
     }
 
@@ -286,7 +297,8 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
+                        BluetoothAdapter.ERROR);
                 if (state == BluetoothAdapter.STATE_ON) {
                     // If there is a pending headset pairing, start it
                     if (mBluetoothHeadsetHandover != null &&
@@ -294,39 +306,46 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                         mBluetoothHeadsetHandover.start();
                     }
 
-                    // Start any pending transfers
+                    // Start any pending file transfers
                     startPendingTransfers();
                 } else if (state == BluetoothAdapter.STATE_OFF) {
                     mBluetoothEnabledByNfc = false;
                     mBluetoothHeadsetConnected = false;
                 }
-            }
-            else if (action.equals(ACTION_CANCEL_HANDOVER_TRANSFER)) {
+            } else if (action.equals(ACTION_CANCEL_HANDOVER_TRANSFER)) {
                 String sourceAddress = intent.getStringExtra(EXTRA_SOURCE_ADDRESS);
-                HandoverTransfer transfer = findHandoverTransfer(sourceAddress, true);
+                boolean incoming = (intent.getIntExtra(EXTRA_INCOMING, 1)) == 1;
+                HandoverTransfer transfer = findHandoverTransfer(sourceAddress, incoming);
                 if (transfer != null) {
                     if (DBG) Log.d(TAG, "Cancelling transfer " +
                             Integer.toString(transfer.mTransferId));
                     transfer.cancel();
                 }
             } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS) ||
-                    action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
+                    action.equals(ACTION_BT_OPP_TRANSFER_DONE) ||
+                    action.equals(ACTION_HANDOVER_STARTED)) {
                 int direction = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_DIRECTION, -1);
                 int id = intent.getIntExtra(EXTRA_BT_OPP_TRANSFER_ID, -1);
+                if (action.equals(ACTION_HANDOVER_STARTED)) {
+                    // This is always for incoming transfers
+                    direction = DIRECTION_BLUETOOTH_INCOMING;
+                }
                 String sourceAddress = intent.getStringExtra(EXTRA_BT_OPP_ADDRESS);
 
-                if (direction == -1 || id == -1 || sourceAddress == null) return;
+                if (direction == -1 || sourceAddress == null) return;
                 boolean incoming = (direction == DIRECTION_BLUETOOTH_INCOMING);
 
                 HandoverTransfer transfer = findHandoverTransfer(sourceAddress, incoming);
                 if (transfer == null) {
                     // There is no transfer running for this source address; most likely
-                    // the transfer was cancelled. We need to tell BT OPP to stop transferring
-                    // in case this was an incoming transfer
-                    if (DBG) Log.d(TAG, "Didn't find transfer, stopping");
-                    Intent cancelIntent = new Intent("android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
-                    cancelIntent.putExtra(EXTRA_BT_OPP_TRANSFER_ID, id);
-                    sendBroadcast(cancelIntent);
+                    // the transfer was cancelled. We need to tell BT OPP to stop transferring.
+                    if (id != -1) {
+                        if (DBG) Log.d(TAG, "Didn't find transfer, stopping");
+                        Intent cancelIntent = new Intent(
+                                "android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
+                        cancelIntent.putExtra(EXTRA_BT_OPP_TRANSFER_ID, id);
+                        sendBroadcast(cancelIntent);
+                    }
                     return;
                 }
                 if (action.equals(ACTION_BT_OPP_TRANSFER_DONE)) {
@@ -346,6 +365,11 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                 } else if (action.equals(ACTION_BT_OPP_TRANSFER_PROGRESS)) {
                     float progress = intent.getFloatExtra(EXTRA_BT_OPP_TRANSFER_PROGRESS, 0.0f);
                     transfer.updateFileProgress(progress);
+                } else if (action.equals(ACTION_HANDOVER_STARTED)) {
+                    int count = intent.getIntExtra(EXTRA_BT_OPP_OBJECT_COUNT, 0);
+                    if (count > 0) {
+                        transfer.setObjectCount(count);
+                    }
                 }
             }
         }
