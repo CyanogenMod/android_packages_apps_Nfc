@@ -1067,6 +1067,17 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv* e, jobject, jintArray ndefInfo)
 
     ALOGD ("%s: enter", __FUNCTION__);
 
+    // special case for Kovio
+    if (NfcTag::getInstance ().mTechList [0] == TARGET_TYPE_KOVIO_BARCODE)
+    {
+        ALOGD ("%s: Kovio tag, no NDEF", __FUNCTION__);
+        ndef = e->GetIntArrayElements (ndefInfo, 0);
+        ndef[0] = 0;
+        ndef[1] = NDEF_MODE_READ_ONLY;
+        e->ReleaseIntArrayElements (ndefInfo, ndef, 0);
+        return NFA_STATUS_FAILED;
+    }
+
     /* Create the write semaphore */
     if (sem_init (&sCheckNdefSem, 0, 0) == -1)
     {
