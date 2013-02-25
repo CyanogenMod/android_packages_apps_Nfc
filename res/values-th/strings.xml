@@ -8,7 +8,7 @@
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"ดำเนินการโต้ตอบกับ NFC ให้เสร็จสมบูรณ์"</string>
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"แตะเพื่อให้ข้อมูลที่อยู่ติดต่อของคุณแก่คนนี้"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"เปิดใช้งาน NFC แล้ว"</string>
-    <string name="touch" msgid="4727218133711188355">"แตะเพื่อส่ง"</string>
+    <string name="touch" msgid="4727218133711188355">"แตะเพื่อบีม"</string>
     <string name="beam_progress" msgid="7453634884807323920">"บีมขาเข้า..."</string>
     <string name="beam_complete" msgid="477026736424637435">"บีมสำเร็จ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"บีมไม่เสร็จสมบูรณ์"</string>
