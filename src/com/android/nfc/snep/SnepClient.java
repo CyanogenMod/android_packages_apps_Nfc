@@ -157,6 +157,9 @@ public final class SnepClient {
             int fragmentLength = (mFragmentLength == -1) ?  miu : Math.min(miu, mFragmentLength);
             messenger = new SnepMessenger(true, socket, fragmentLength);
         } catch (LlcpException e) {
+            synchronized (this) {
+                mState = DISCONNECTED;
+            }
             throw new IOException("Could not connect to socket");
         } catch (IOException e) {
             if (socket != null) {
@@ -164,6 +167,9 @@ public final class SnepClient {
                     socket.close();
                 } catch (IOException e2) {
                 }
+            }
+            synchronized (this) {
+                mState = DISCONNECTED;
             }
             throw new IOException("Failed to connect to socket");
         }
