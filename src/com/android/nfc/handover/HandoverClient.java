@@ -30,28 +30,86 @@ import java.util.Arrays;
 public final class HandoverClient {
     private static final String TAG = "HandoverClient";
     private static final int MIU = 128;
-    // Max NDEF length to receive for Hr/Hs messages
     private static final boolean DBG = false;
 
-    public NdefMessage sendHandoverRequest(NdefMessage msg) {
+    private static final int DISCONNECTED = 0;
+    private static final int CONNECTING = 1;
+    private static final int CONNECTED = 2;
+
+    private static final Object mLock = new Object();
+
+    // Variables below synchronized on mLock
+    LlcpSocket mSocket;
+    int mState;
+
+    public void connect() throws IOException {
+        synchronized (mLock) {
+            if (mState != DISCONNECTED) {
+                throw new IOException("Socket in use.");
+            }
+            mState = CONNECTING;
+        }
+        NfcService service = NfcService.getInstance();
+        LlcpSocket sock = null;
+        try {
+            sock = service.createLlcpSocket(0, MIU, 1, 1024);
+        } catch (LlcpException e) {
+            synchronized (mLock) {
+                mState = DISCONNECTED;
+            }
+            throw new IOException("Could not create socket");
+        }
+        try {
+            if (DBG) Log.d(TAG, "about to connect to service " +
+                    HandoverServer.HANDOVER_SERVICE_NAME);
+            sock.connectToService(HandoverServer.HANDOVER_SERVICE_NAME);
+        } catch (IOException e) {
+            if (sock != null) {
+                try {
+                    sock.close();
+                } catch (IOException e2) {
+                    // Ignore
+                }
+            }
+            synchronized (mLock) {
+                mState = DISCONNECTED;
+            }
+            throw new IOException("Could not connect to handover service");
+        }
+        synchronized (mLock) {
+            mSocket = sock;
+            mState = CONNECTED;
+        }
+    }
+
+    public void close() {
+        synchronized (mLock) {
+            if (mSocket != null) {
+                try {
+                    mSocket.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+                mSocket = null;
+            }
+            mState = DISCONNECTED;
+        }
+    }
+    public NdefMessage sendHandoverRequest(NdefMessage msg) throws IOException {
         if (msg == null) return null;
 
-        NfcService service = NfcService.getInstance();
-
         LlcpSocket sock = null;
+        synchronized (mLock) {
+            if (mState != CONNECTED) {
+                throw new IOException("Socket not connected");
+            }
+            sock = mSocket;
+        }
         int offset = 0;
         byte[] buffer = msg.toByteArray();
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
 
         try {
-            sock = service.createLlcpSocket(0, MIU, 1, 1024);
-            if (sock == null) {
-                throw new IOException("Could not connect to socket.");
-            }
-            if (DBG) Log.d(TAG, "about to connect to service " +
-                    HandoverServer.HANDOVER_SERVICE_NAME);
-            sock.connectToService(HandoverServer.HANDOVER_SERVICE_NAME);
-
             int remoteMiu = sock.getRemoteMiu();
             if (DBG) Log.d(TAG, "about to send a " + buffer.length + " byte message");
             while (offset < buffer.length) {
@@ -62,7 +120,7 @@ public final class HandoverClient {
                 offset += length;
             }
 
-            // Now, try to read back the SNEP response
+            // Now, try to read back the handover response
             byte[] partial = new byte[sock.getLocalMiu()];
             NdefMessage handoverSelectMsg = null;
             while (true) {
@@ -81,8 +139,6 @@ public final class HandoverClient {
             }
             return handoverSelectMsg;
         } catch (IOException e) {
-            if (DBG) Log.d(TAG, "couldn't connect to handover service");
-        } catch (LlcpException e) {
             if (DBG) Log.d(TAG, "couldn't connect to handover service");
         } finally {
             if (sock != null) {
