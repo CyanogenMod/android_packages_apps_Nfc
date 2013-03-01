@@ -147,7 +147,11 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     // return values for doSnepProtocol
     static final int SNEP_SUCCESS = 0;
     static final int SNEP_FAILURE = 1;
-    static final int SNEP_HANDOVER_UNSUPPORTED = 2;
+
+    // return values for doHandover
+    static final int HANDOVER_SUCCESS = 0;
+    static final int HANDOVER_FAILURE = 1;
+    static final int HANDOVER_UNSUPPORTED = 2;
 
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
@@ -168,13 +172,18 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     int mSendState;  // valid during LINK_STATE_UP or LINK_STATE_DEBOUNCE
     boolean mIsSendEnabled;
     boolean mIsReceiveEnabled;
-    NdefMessage mMessageToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
-    Uri[] mUrisToSend;  // valid during SEND_STATE_NEED_CONFIRMATION or SEND_STATE_SENDING
+    NdefMessage mMessageToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
+    Uri[] mUrisToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     INdefPushCallback mCallbackNdef;
     String[] mValidCallbackPackages;
     SendTask mSendTask;
     SharedPreferences mPrefs;
     boolean mFirstBeam;
+    SnepClient mSnepClient;
+    HandoverClient mHandoverClient;
+    NdefPushClient mNdefPushClient;
+    ConnectTask mConnectTask;
+    boolean mLlcpServicesConnected;
 
     public P2pLinkManager(Context context, HandoverManager handoverManager, int defaultMiu,
             int defaultRwSize) {
@@ -201,6 +210,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         mHandoverManager = handoverManager;
         mDefaultMiu = defaultMiu;
         mDefaultRwSize = defaultRwSize;
+        mLlcpServicesConnected = false;
      }
 
     /**
@@ -258,15 +268,25 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 case LINK_STATE_DOWN:
                     mLinkState = LINK_STATE_UP;
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
+
                     if (DBG) Log.d(TAG, "onP2pInRange()");
                     mEventListener.onP2pInRange();
-
                     prepareMessageToSend();
                     if (mMessageToSend != null ||
                             (mUrisToSend != null && mHandoverManager.isHandoverSupported())) {
+                        // Ideally we would delay showing the Beam animation until
+                        // we know for certain the other side has SNEP/handover.
+                        // Unfortunately, the NXP LLCP implementation has a bug that
+                        // delays the first SYMM for 750ms if it is the initiator.
+                        // This will cause our SNEP connect to be delayed as well,
+                        // and the animation will be delayed for about a second.
+                        // Alternatively, we could have used WKS as a hint to start
+                        // the animation, but we are only correctly setting the WKS
+                        // since Jelly Bean.
                         mSendState = SEND_STATE_NEED_CONFIRMATION;
                         if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
                         mEventListener.onP2pSendConfirmationRequested();
+                        connectLlcpServices();
                     }
                     break;
                 case LINK_STATE_UP:
@@ -275,11 +295,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 case LINK_STATE_DEBOUNCE:
                     mLinkState = LINK_STATE_UP;
                     mHandler.removeMessages(MSG_DEBOUNCE_TIMEOUT);
-
-                    if (mSendState == SEND_STATE_SENDING) {
-                        Log.i(TAG, "Retry send...");
-                        sendNdefMessage();
-                    }
+                    connectLlcpServices();
                     break;
             }
         }
@@ -385,6 +401,29 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         return new NdefMessage(new NdefRecord[] { appUri, appRecord });
     }
 
+    void disconnectLlcpServices() {
+        synchronized (this) {
+            if (mConnectTask != null) {
+                mConnectTask.cancel(true);
+                mConnectTask = null;
+            }
+            // Close any already connected LLCP clients
+            if (mNdefPushClient != null) {
+                mNdefPushClient.close();
+                mNdefPushClient = null;
+            }
+            if (mSnepClient != null) {
+                mSnepClient.close();
+                mSnepClient = null;
+            }
+            if (mHandoverClient != null) {
+                mHandoverClient.close();
+                mHandoverClient = null;
+            }
+            mLlcpServicesConnected = false;
+        }
+    }
+
     /**
      * Must be called on UI Thread.
      */
@@ -405,6 +444,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mLinkState = LINK_STATE_DEBOUNCE;
                     mHandler.sendEmptyMessageDelayed(MSG_DEBOUNCE_TIMEOUT, LINK_DEBOUNCE_MS);
                     cancelSendNdefMessage();
+                    disconnectLlcpServices();
                     break;
             }
          }
@@ -442,12 +482,166 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
     }
 
+    void connectLlcpServices() {
+        synchronized (P2pLinkManager.this) {
+            if (mConnectTask != null) {
+                Log.e(TAG, "Still had a reference to mConnectTask!");
+            }
+            mConnectTask = new ConnectTask();
+            mConnectTask.execute();
+        }
+    }
+
+    // Must be called on UI-thread
+    void onLlcpServicesConnected() {
+        if (DBG) Log.d(TAG, "onLlcpServicesConnected");
+        synchronized (P2pLinkManager.this) {
+            if (mLinkState != LINK_STATE_UP) {
+                return;
+            }
+            mLlcpServicesConnected = true;
+            if (mSendState == SEND_STATE_SENDING) {
+                // Send was previously confirmed, we probably cycled through a debounce
+                sendNdefMessage();
+            } else {
+                // User still needs to confirm, or we may have received something already.
+            }
+        }
+    }
+
+    final class ConnectTask extends AsyncTask<Void, Void, Boolean> {
+        @Override
+        protected void onPostExecute(Boolean result)  {
+            if (isCancelled()) {
+                if (DBG) Log.d(TAG, "ConnectTask was cancelled");
+                return;
+            }
+            if (result) {
+                onLlcpServicesConnected();
+            } else {
+                Log.e(TAG, "Could not connect required NFC transports");
+            }
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            boolean needsHandover = false;
+            boolean needsNdef = false;
+            boolean success = false;
+            HandoverClient handoverClient = null;
+            SnepClient snepClient = null;
+            NdefPushClient nppClient = null;
+
+            synchronized(P2pLinkManager.this) {
+                if (mUrisToSend != null) {
+                    needsHandover = true;
+                }
+
+                if (mMessageToSend != null) {
+                    needsNdef = true;
+                }
+            }
+            // We know either is requested - otherwise this task
+            // wouldn't have been started.
+            if (needsHandover) {
+                handoverClient = new HandoverClient();
+                try {
+                    handoverClient.connect();
+                    success = true; // Regardless of NDEF result
+                } catch (IOException e) {
+                    handoverClient = null;
+                }
+            }
+
+            if (needsNdef) {
+                snepClient = new SnepClient();
+                try {
+                    snepClient.connect();
+                    success = true;
+                } catch (IOException e) {
+                    snepClient = null;
+                }
+
+                if (!success) {
+                    nppClient = new NdefPushClient();
+                    try {
+                        nppClient.connect();
+                        success = true;
+                    } catch (IOException e) {
+                        nppClient = null;
+                    }
+                }
+            }
+
+            synchronized (P2pLinkManager.this) {
+                if (isCancelled()) {
+                    // Cancelled by onLlcpDeactivated on UI thread
+                    if (handoverClient != null) {
+                        handoverClient.close();
+                    }
+                    if (snepClient != null) {
+                        snepClient.close();
+                    }
+                    if (nppClient != null) {
+                        nppClient.close();
+                    }
+                    return false;
+                } else {
+                    // Once assigned, these are the responsibility of
+                    // the code on the UI thread to release - typically
+                    // through onLlcpDeactivated().
+                    mHandoverClient = handoverClient;
+                    mSnepClient = snepClient;
+                    mNdefPushClient = nppClient;
+                    return success;
+                }
+            }
+        }
+    };
+
     final class SendTask extends AsyncTask<Void, Void, Void> {
+        NdefPushClient nppClient;
+        SnepClient snepClient;
+        HandoverClient handoverClient;
+
+        int doHandover(Uri[] uris) throws IOException {
+            NdefMessage response = null;
+            NdefMessage request = mHandoverManager.createHandoverRequestMessage();
+            if (request != null) {
+                if (handoverClient != null) {
+                    response = handoverClient.sendHandoverRequest(request);
+                }
+                if (response == null && snepClient != null) {
+                    // Remote device may not support handover service,
+                    // try the (deprecated) SNEP GET implementation
+                    // for devices running Android 4.1
+                    SnepMessage snepResponse = snepClient.get(request);
+                    response = snepResponse.getNdefMessage();
+                }
+                if (response == null) {
+                    return HANDOVER_UNSUPPORTED;
+                }
+            } else {
+                return HANDOVER_UNSUPPORTED;
+            }
+            mHandoverManager.doHandoverUri(uris, response);
+            return HANDOVER_SUCCESS;
+        }
+
+        int doSnepProtocol(NdefMessage msg) throws IOException {
+            if (msg != null) {
+                snepClient.put(msg);
+                return SNEP_SUCCESS;
+            } else {
+                return SNEP_FAILURE;
+            }
+        }
+
         @Override
         public Void doInBackground(Void... args) {
             NdefMessage m;
             Uri[] uris;
-            boolean result;
+            boolean result = false;
 
             synchronized (P2pLinkManager.this) {
                 if (mLinkState != LINK_STATE_UP || mSendState != SEND_STATE_SENDING) {
@@ -455,104 +649,67 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 }
                 m = mMessageToSend;
                 uris = mUrisToSend;
+                snepClient = mSnepClient;
+                handoverClient = mHandoverClient;
+                nppClient = mNdefPushClient;
             }
 
             long time = SystemClock.elapsedRealtime();
 
-            try {
-                if (DBG) Log.d(TAG, "Sending ndef via SNEP");
-
-                int snepResult = doSnepProtocol(mHandoverManager, m, uris,
-                        mDefaultMiu, mDefaultRwSize);
-
-                switch (snepResult) {
-                    case SNEP_HANDOVER_UNSUPPORTED:
-                        onHandoverUnsupported();
-                        return null;
-                    case SNEP_SUCCESS:
-                        result = true;
-                        break;
-                    case SNEP_FAILURE:
-                        result = false;
-                        break;
-                    default:
-                        result = false;
-                }
-            } catch (IOException e) {
-                Log.i(TAG, "Failed to connect over SNEP, trying NPP");
-
-                if (isCancelled()) {
-                    return null;
-                }
-
-                if (m != null) {
-                    result = new NdefPushClient().push(m);
-                } else {
+            if (uris != null) {
+                if (DBG) Log.d(TAG, "Trying handover request");
+                try {
+                    int handoverResult = doHandover(uris);
+                    switch (handoverResult) {
+                        case HANDOVER_SUCCESS:
+                            result = true;
+                            break;
+                        case HANDOVER_FAILURE:
+                            result = false;
+                            break;
+                        case HANDOVER_UNSUPPORTED:
+                            result = false;
+                            onHandoverUnsupported();
+                            break;
+                    }
+                } catch (IOException e) {
                     result = false;
                 }
             }
+
+            if (!result && m != null && snepClient != null) {
+                if (DBG) Log.d(TAG, "Sending ndef via SNEP");
+                try {
+                    int snepResult = doSnepProtocol(m);
+                    switch (snepResult) {
+                        case SNEP_SUCCESS:
+                            result = true;
+                            break;
+                        case SNEP_FAILURE:
+                            result = false;
+                            break;
+                        default:
+                            result = false;
+                    }
+                } catch (IOException e) {
+                    result = false;
+                }
+            }
+
+            if (!result && m != null && nppClient != null) {
+                result = nppClient.push(m);
+            }
+
             time = SystemClock.elapsedRealtime() - time;
-
             if (DBG) Log.d(TAG, "SendTask result=" + result + ", time ms=" + time);
-
             if (result) {
                 onSendComplete(m, time);
             }
+
             return null;
         }
-    }
+    };
 
-    static int doSnepProtocol(HandoverManager handoverManager,
-            NdefMessage msg, Uri[] uris, int miu, int rwSize) throws IOException {
-        SnepClient snepClient = new SnepClient(miu, rwSize);
-        try {
-            snepClient.connect();
-        } catch (IOException e) {
-            // Throw exception to fall back to NPP.
-            snepClient.close();
-            throw new IOException("SNEP not available.", e);
-        }
-
-        try {
-            if (uris != null) {
-                HandoverClient handoverClient = new HandoverClient();
-
-                NdefMessage response = null;
-                NdefMessage request = handoverManager.createHandoverRequestMessage();
-                if (request != null) {
-                    response = handoverClient.sendHandoverRequest(request);
-
-                    if (response == null) {
-                        // Remote device may not support handover service,
-                        // try the (deprecated) SNEP GET implementation
-                        // for devices running Android 4.1
-                        SnepMessage snepResponse = snepClient.get(request);
-                        response = snepResponse.getNdefMessage();
-                    }
-                } // else, handover not supported
-                if (response != null) {
-                    handoverManager.doHandoverUri(uris, response);
-                } else if (msg != null) {
-                    // For backwards-compatibility to pre-J devices,
-                    // try to push an NDEF message (if any) if the handover GET
-                    // does not work.
-                    snepClient.put(msg);
-                } else {
-                    // We had a failed handover and no alternate message to
-                    // send; indicate remote device doesn't support handover.
-                    return SNEP_HANDOVER_UNSUPPORTED;
-                }
-            } else if (msg != null) {
-                snepClient.put(msg);
-            }
-            return SNEP_SUCCESS;
-        } catch (IOException e) {
-            // SNEP available but had errors, don't fall back to NPP.
-        } finally {
-            snepClient.close();
-        }
-        return SNEP_FAILURE;
-    }
 
     final HandoverServer.Callback mHandoverCallback = new HandoverServer.Callback() {
         @Override
@@ -765,7 +922,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return;
             }
             mSendState = SEND_STATE_SENDING;
-            if (mLinkState == LINK_STATE_UP) {
+            if (mLinkState == LINK_STATE_UP && mLlcpServicesConnected) {
                 sendNdefMessage();
             }
         }
