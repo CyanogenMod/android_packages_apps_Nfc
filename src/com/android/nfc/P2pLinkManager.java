@@ -76,6 +76,20 @@ interface P2pEventListener {
     public void onP2pSendComplete();
 
     /**
+     *
+     * Called to indicate the link has broken while we were trying to send
+     * a message. We'll start a debounce timer for the user to get the devices
+     * back together. UI may show a hint to achieve that
+     */
+    public void onP2pSendDebounce();
+
+    /**
+     * Called to indicate a link has come back up after being temporarily
+     * broken, and sending is resuming
+     */
+    public void onP2pResumeSend();
+
+    /**
      * Called to indicate the remote device does not support connection handover
      */
     public void onP2pHandoverNotSupported();
@@ -124,8 +138,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int NDEFPUSH_SAP = 0x10;
     static final int HANDOVER_SAP = 0x14;
 
-    static final int LINK_DEBOUNCE_MS = 750;
-
+    static final int LINK_NOTHING_TO_SEND_DEBOUNCE_MS = 750;
+    static final int LINK_SEND_PENDING_DEBOUNCE_MS = 3000;
+    static final int LINK_SEND_CONFIRMED_DEBOUNCE_MS = 5000;
+    static final int LINK_SEND_COMPLETE_DEBOUNCE_MS = 250;
     static final int MSG_DEBOUNCE_TIMEOUT = 1;
     static final int MSG_RECEIVE_COMPLETE = 2;
     static final int MSG_RECEIVE_HANDOVER = 3;
@@ -137,12 +153,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
     static final int LINK_STATE_UP = 2;
-    static final int LINK_STATE_DEBOUNCE =3;
+    static final int LINK_STATE_DEBOUNCE = 3;
 
     // values for mSendState
     static final int SEND_STATE_NOTHING_TO_SEND = 1;
     static final int SEND_STATE_NEED_CONFIRMATION = 2;
     static final int SEND_STATE_SENDING = 3;
+    static final int SEND_STATE_SEND_COMPLETE = 4;
 
     // return values for doSnepProtocol
     static final int SNEP_SUCCESS = 0;
@@ -263,7 +280,6 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (mEchoServer != null) {
                 mEchoServer.onLlcpActivated();
             }
-
             switch (mLinkState) {
                 case LINK_STATE_DOWN:
                     mLinkState = LINK_STATE_UP;
@@ -442,7 +458,26 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 case LINK_STATE_UP:
                     // Debounce
                     mLinkState = LINK_STATE_DEBOUNCE;
-                    mHandler.sendEmptyMessageDelayed(MSG_DEBOUNCE_TIMEOUT, LINK_DEBOUNCE_MS);
+                    int debounceTimeout = 0;
+                    switch (mSendState) {
+                        case SEND_STATE_NOTHING_TO_SEND:
+                            debounceTimeout = 0;
+                            break;
+                        case SEND_STATE_NEED_CONFIRMATION:
+                            debounceTimeout = LINK_SEND_PENDING_DEBOUNCE_MS;
+                            break;
+                        case SEND_STATE_SENDING:
+                            debounceTimeout = LINK_SEND_CONFIRMED_DEBOUNCE_MS;
+                            break;
+                        case SEND_STATE_SEND_COMPLETE:
+                            debounceTimeout = LINK_SEND_COMPLETE_DEBOUNCE_MS;
+                            break;
+                    }
+                    mHandler.sendEmptyMessageDelayed(MSG_DEBOUNCE_TIMEOUT, debounceTimeout);
+                    if (mSendState == SEND_STATE_SENDING) {
+                        Log.e(TAG, "onP2pSendDebounce()");
+                        mEventListener.onP2pSendDebounce();
+                    }
                     cancelSendNdefMessage();
                     disconnectLlcpServices();
                     break;
@@ -502,6 +537,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             mLlcpServicesConnected = true;
             if (mSendState == SEND_STATE_SENDING) {
                 // Send was previously confirmed, we probably cycled through a debounce
+                mEventListener.onP2pResumeSend();
                 sendNdefMessage();
             } else {
                 // User still needs to confirm, or we may have received something already.
@@ -840,7 +876,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     if (mLinkState == LINK_STATE_DOWN || mSendState != SEND_STATE_SENDING) {
                         break;
                     }
-                    mSendState = SEND_STATE_NOTHING_TO_SEND;
+                    mSendState = SEND_STATE_SEND_COMPLETE;
+                    mHandler.removeMessages(MSG_DEBOUNCE_TIMEOUT);
                     if (DBG) Log.d(TAG, "onP2pSendComplete()");
                     mEventListener.onP2pSendComplete();
                     if (mCallbackNdef != null) {
@@ -924,6 +961,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             mSendState = SEND_STATE_SENDING;
             if (mLinkState == LINK_STATE_UP && mLlcpServicesConnected) {
                 sendNdefMessage();
+            } else if (mLinkState == LINK_STATE_DEBOUNCE) {
+                // Restart debounce timeout
+                mHandler.removeMessages(MSG_DEBOUNCE_TIMEOUT);
+                mHandler.sendEmptyMessageDelayed(MSG_DEBOUNCE_TIMEOUT,
+                        LINK_SEND_CONFIRMED_DEBOUNCE_MS);
+                // Tell user to tap devices again
+                mEventListener.onP2pSendDebounce();
             }
         }
     }
