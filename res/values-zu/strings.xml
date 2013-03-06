@@ -10,8 +10,7 @@
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"I-NFC ivunyelwe."</string>
     <string name="touch" msgid="4727218133711188355">"Cindezela kwibhimu"</string>
     <string name="beam_progress" msgid="7453634884807323920">"Ukuvumelanisa okungenayo..."</string>
-    <!-- no translation found for beam_outgoing (4679536649779123495) -->
-    <skip />
+    <string name="beam_outgoing" msgid="4679536649779123495">"Ukuvumelanisa..."</string>
     <string name="beam_complete" msgid="477026736424637435">"Ukuvumelanisa kuqedile"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Ukuvumelanisa akuqedile"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Ukuvumelanisa kukhanseliwe"</string>
