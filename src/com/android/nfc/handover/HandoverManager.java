@@ -81,6 +81,7 @@ public class HandoverManager {
     Messenger mService = null;
     boolean mBound;
     String mLocalBluetoothAddress;
+    boolean mEnabled;
 
     static class BluetoothHandoverData {
         public boolean valid = false;
@@ -162,6 +163,7 @@ public class HandoverManager {
 
         mContext.bindServiceAsUser(new Intent(mContext, HandoverService.class), mConnection,
                 Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
+        mEnabled = true;
     }
 
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -214,6 +216,11 @@ public class HandoverManager {
         return new NdefRecord(NdefRecord.TNF_MIME_MEDIA, TYPE_BT_OOB, new byte[]{'b'}, payload);
     }
 
+    public void setEnabled(boolean enabled) {
+        synchronized (mLock) {
+            mEnabled = enabled;
+        }
+    }
     public boolean isHandoverSupported() {
         return (mBluetoothAdapter != null);
     }
@@ -293,6 +300,8 @@ public class HandoverManager {
         // while waiting to receive a picture.
         boolean bluetoothActivating = !mBluetoothAdapter.isEnabled();
         synchronized (mLock) {
+            if (!mEnabled) return null;
+
             if (!mBound) {
                 Log.e(TAG, "Could not connect to handover service");
                 return null;
@@ -332,6 +341,8 @@ public class HandoverManager {
         if (!handover.valid) return true;
 
         synchronized (mLock) {
+            if (!mEnabled) return false;
+
             if (mBluetoothAdapter == null) {
                 if (DBG) Log.d(TAG, "BT handover, but BT not available");
                 return true;
