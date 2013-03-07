@@ -17,6 +17,8 @@
     <string name="cancel" msgid="61873902552555096">"Batal"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Sentuh untuk melihat"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Perangkat penerima tidak mendukung transfer file besar melalui beam."</string>
+    <!-- no translation found for beam_try_again (3364677301009783455) -->
+    <skip />
     <string name="connecting_headset" msgid="3929250919225573008">"Menyambungkan"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Tersambung"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Tidak dapat menyambung"</string>

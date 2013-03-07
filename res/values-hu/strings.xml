@@ -17,6 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"Mégse"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"A megtekintéshez érintse meg."</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"A fogadó eszköz nem támogatja a nagyméretű fájlok átvitelét adatsugárzás útján."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Eszközök újbóli összekapcsolása"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Csatlakozás"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Csatlakozva"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"A kapcsolódás sikertelen"</string>

@@ -17,6 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"Άκυρο"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Αγγίξτε για προβολή"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Η συσκευή του παραλήπτη δεν υποστηρίζει τη μεταφορά μεγάλων αρχείων μέσω ζεύξης."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Φέρτε ξανά τις συσκευές σας σε επαφή"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Σύνδεση"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Συνδέθηκε"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Δεν ήταν δυνατή η σύνδεση"</string>
