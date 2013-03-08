@@ -37,6 +37,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
@@ -199,6 +200,7 @@ public class NfcService implements DeviceHostListener {
     // as SE access is not granted for non-owner users.
     HashSet<String> mSePackages = new HashSet<String>();
     int mScreenState;
+    boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
     boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
@@ -232,6 +234,8 @@ public class NfcService implements DeviceHostListener {
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
     private KeyguardManager mKeyguard;
+    private HandoverManager mHandoverManager;
+    private ContentResolver mContentResolver;
 
     private static NfcService sService;
 
@@ -340,12 +344,27 @@ public class NfcService implements DeviceHostListener {
         sService = this;
 
         mContext = nfcApplication;
+        mContentResolver = mContext.getContentResolver();
         mDeviceHost = new NativeNfcManager(mContext, this);
 
-        HandoverManager handoverManager = new HandoverManager(mContext);
-        mNfcDispatcher = new NfcDispatcher(mContext, handoverManager);
+        mHandoverManager = new HandoverManager(mContext);
+        boolean isNfcProvisioningEnabled = false;
+        try {
+            isNfcProvisioningEnabled = mContext.getResources().getBoolean(
+                    R.bool.enable_nfc_provisioning);
+        } catch (NotFoundException e) {
+        }
 
-        mP2pLinkManager = new P2pLinkManager(mContext, handoverManager,
+        if (isNfcProvisioningEnabled) {
+            mInProvisionMode = Settings.Secure.getInt(mContentResolver,
+                    Settings.Global.DEVICE_PROVISIONED, 0) == 0;
+        } else {
+            mInProvisionMode = false;
+        }
+
+        mHandoverManager.setEnabled(!mInProvisionMode);
+        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverManager, mInProvisionMode);
+        mP2pLinkManager = new P2pLinkManager(mContext, mHandoverManager,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
         mSecureElement = new NativeNfcSecureElement(mContext);
@@ -421,16 +440,15 @@ public class NfcService implements DeviceHostListener {
     }
 
     void registerForAirplaneMode(IntentFilter filter) {
-        final ContentResolver resolver = mContext.getContentResolver();
-        final String airplaneModeRadios = Settings.System.getString(resolver,
-                Settings.System.AIRPLANE_MODE_RADIOS);
-        final String toggleableRadios = Settings.System.getString(resolver,
-                Settings.System.AIRPLANE_MODE_TOGGLEABLE_RADIOS);
+        final String airplaneModeRadios = Settings.System.getString(mContentResolver,
+                Settings.Global.AIRPLANE_MODE_RADIOS);
+        final String toggleableRadios = Settings.System.getString(mContentResolver,
+                Settings.Global.AIRPLANE_MODE_TOGGLEABLE_RADIOS);
 
         mIsAirplaneSensitive = airplaneModeRadios == null ? true :
-                airplaneModeRadios.contains(Settings.System.RADIO_NFC);
+                airplaneModeRadios.contains(Settings.Global.RADIO_NFC);
         mIsAirplaneToggleable = toggleableRadios == null ? false :
-            toggleableRadios.contains(Settings.System.RADIO_NFC);
+            toggleableRadios.contains(Settings.Global.RADIO_NFC);
 
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
@@ -1536,7 +1554,16 @@ public class NfcService implements DeviceHostListener {
                 return;
             }
             WatchDogThread watchDog = new WatchDogThread("applyRouting", ROUTING_WATCHDOG_MS);
-
+            if (mInProvisionMode) {
+                mInProvisionMode = Settings.Secure.getInt(mContentResolver,
+                        Settings.Global.DEVICE_PROVISIONED, 0) == 0;
+                if (!mInProvisionMode) {
+                    // Notify dispatcher it's fine to dispatch to any package now
+                    // and allow handover transfers.
+                    mNfcDispatcher.disableProvisioningMode();
+                    mHandoverManager.setEnabled(true);
+                }
+            }
             try {
                 watchDog.start();
 
@@ -1585,6 +1612,13 @@ public class NfcService implements DeviceHostListener {
                 // configure NFC-C polling
                 if (mScreenState >= POLLING_MODE) {
                     if (force || !mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C ON");
+                        mNfcPollingEnabled = true;
+                        mDeviceHost.enableDiscovery();
+                    }
+                } else if (mInProvisionMode && mScreenState >= SCREEN_STATE_ON_LOCKED) {
+                    // Special case for setup provisioning
+                    if (!mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C ON");
                         mNfcPollingEnabled = true;
                         mDeviceHost.enableDiscovery();
@@ -2052,8 +2086,8 @@ public class NfcService implements DeviceHostListener {
 
     /** Returns true if airplane mode is currently on */
     boolean isAirplaneModeOn() {
-        return Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.AIRPLANE_MODE_ON, 0) == 1;
+        return Settings.System.getInt(mContentResolver,
+                Settings.Global.AIRPLANE_MODE_ON, 0) == 1;
     }
 
     /** for debugging only - no i18n */
