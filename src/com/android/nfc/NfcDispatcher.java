@@ -33,6 +33,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
+import android.content.res.Resources.NotFoundException;
 import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -63,19 +64,35 @@ public class NfcDispatcher {
     final RegisteredComponentCache mTechListFilters;
     final ContentResolver mContentResolver;
     final HandoverManager mHandoverManager;
+    final String[] mProvisioningMimes;
 
     // Locked on this
     PendingIntent mOverrideIntent;
     IntentFilter[] mOverrideFilters;
     String[][] mOverrideTechLists;
+    boolean mProvisioningOnly;
 
-    public NfcDispatcher(Context context, HandoverManager handoverManager) {
+    public NfcDispatcher(Context context, HandoverManager handoverManager, boolean provisionOnly) {
         mContext = context;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mContentResolver = context.getContentResolver();
         mHandoverManager = handoverManager;
+        synchronized (this) {
+            mProvisioningOnly = provisionOnly;
+        }
+        String[] provisionMimes = null;
+        if (provisionOnly) {
+            try {
+                // Get accepted mime-types
+                provisionMimes = context.getResources().
+                        getStringArray(R.array.provisioning_mime_types);
+            } catch (NotFoundException e) {
+               provisionMimes = null;
+            }
+        }
+        mProvisioningMimes = provisionMimes;
     }
 
     public synchronized void setForegroundDispatch(PendingIntent intent,
@@ -84,6 +101,10 @@ public class NfcDispatcher {
         mOverrideIntent = intent;
         mOverrideFilters = filters;
         mOverrideTechLists = techLists;
+    }
+
+    public synchronized void disableProvisioningMode() {
+       mProvisioningOnly = false;
     }
 
     /**
@@ -191,12 +212,14 @@ public class NfcDispatcher {
         PendingIntent overrideIntent;
         IntentFilter[] overrideFilters;
         String[][] overrideTechLists;
+        boolean provisioningOnly;
 
         DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
         synchronized (this) {
             overrideFilters = mOverrideFilters;
             overrideIntent = mOverrideIntent;
             overrideTechLists = mOverrideTechLists;
+            provisioningOnly = mProvisioningOnly;
         }
 
         resumeAppSwitches();
@@ -205,13 +228,18 @@ public class NfcDispatcher {
             return true;
         }
 
-        if (mHandoverManager.tryHandover(message)) {
+        if (!provisioningOnly && mHandoverManager.tryHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
             return true;
         }
 
-        if (tryNdef(dispatch, message)) {
+        if (tryNdef(dispatch, message, provisioningOnly)) {
             return true;
+        }
+
+        if (provisioningOnly) {
+            // We only allow NDEF-based mimeType matching
+            return false;
         }
 
         if (tryTech(dispatch, tag)) {
@@ -304,7 +332,7 @@ public class NfcDispatcher {
         return false;
     }
 
-    boolean tryNdef(DispatchInfo dispatch, NdefMessage message) {
+    boolean tryNdef(DispatchInfo dispatch, NdefMessage message, boolean provisioningOnly) {
         if (message == null) {
             return false;
         }
@@ -312,6 +340,14 @@ public class NfcDispatcher {
 
         // Bail out if the intent does not contain filterable NDEF data
         if (intent == null) return false;
+
+        if (provisioningOnly) {
+            if (mProvisioningMimes == null ||
+                    !(Arrays.asList(mProvisioningMimes).contains(intent.getType()))) {
+                Log.e(TAG, "Dropping NFC intent in provisioning mode.");
+                return false;
+            }
+        }
 
         // Try to start AAR activity with matching filter
         List<String> aarPackages = extractAarPackages(message);
@@ -408,7 +444,7 @@ public class NfcDispatcher {
                 if (DBG) Log.i(TAG, "matched single TECH");
                 return true;
             }
-            dispatch.intent.setClassName((String)null, null);
+            dispatch.intent.setComponent(null);
         } else if (matches.size() > 1) {
             // Multiple matches, show a custom activity chooser dialog
             Intent intent = new Intent(mContext, TechListChooserActivity.class);
