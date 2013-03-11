@@ -687,6 +687,13 @@ bool SecureElement::connectEE ()
     // Disable RF discovery completely while the DH is connected
     android::startRfDiscovery(false);
 
+    // Disable SE low-power mode while the DH is connected
+    UINT8 disable_uicc_idle[] = { 0x60,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
+    nfaStat = NFA_SetConfig(0xC2, sizeof(disable_uicc_idle), &disable_uicc_idle[0]);
+    if (nfaStat != NFA_STATUS_OK) {
+        ALOGE("%s: Could not disable UICC idle timeout feature", fn);
+        return false;
+    }
     mNewSourceGate = 0;
 
     if (gGatePipe == -1)
@@ -868,6 +875,12 @@ bool SecureElement::disconnectEE (jint seID)
             ALOGE ("%s: fail dealloc gate; error=0x%X", fn, nfaStat);
     }
     mIsPiping = false;
+    // Re-enable UICC low-power mode
+    UINT8 enable_uicc_idle[] = { 0x61,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
+    nfaStat = NFA_SetConfig(0xC2, sizeof(enable_uicc_idle), &enable_uicc_idle[0]);
+    if (nfaStat != NFA_STATUS_OK) {
+        ALOGE("%s: Could not enable UICC idle timeout feature", fn);
+    }
     // Re-enable RF discovery
     // Note that it only effactuates the current configuration,
     // so if polling/listening were configured OFF (forex because
