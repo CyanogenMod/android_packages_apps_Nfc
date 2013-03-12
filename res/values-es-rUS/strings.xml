@@ -17,8 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"Cancelar"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Toca para ver"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"El dispositivo del receptor no admite la transferencia de archivos de gran tamaño."</string>
-    <!-- no translation found for beam_try_again (3364677301009783455) -->
-    <skip />
+    <string name="beam_try_again" msgid="3364677301009783455">"Volver a unir los dispositivos"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Conectando..."</string>
     <string name="connected_headset" msgid="4047751837023241955">"Conectados"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"No se pudo conectar"</string>
