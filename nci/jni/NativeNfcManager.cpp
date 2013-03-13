@@ -92,6 +92,7 @@ namespace android
     void                    doStartupConfig ();
     void                    startStopPolling (bool isStartPolling);
     void                    startRfDiscovery (bool isStart);
+    void                    setUiccIdleTimeout (bool enable);
 }
 
 
@@ -916,6 +917,29 @@ TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
+void setUiccIdleTimeout (bool enable)
+{
+    tNFA_STATUS stat = NFA_STATUS_OK;
+    SyncEventGuard guard(sNfaSetConfigEvent);
+    if (enable)
+    {
+        UINT8 enable_uicc_idle[] = { 0x61,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
+        stat = NFA_SetConfig(0xC2, sizeof(enable_uicc_idle), &enable_uicc_idle[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
+        else
+            ALOGE("%s: Could not enable UICC idle timeout feature", __FUNCTION__);
+    }
+    else
+    {
+        UINT8 disable_uicc_idle[] = { 0x60,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
+        stat = NFA_SetConfig(0xC2, sizeof(disable_uicc_idle), &disable_uicc_idle[0]);
+        if (stat == NFA_STATUS_OK)
+            sNfaSetConfigEvent.wait ();
+        else
+            ALOGE("%s: Could not disable UICC idle timeout feature", __FUNCTION__);
+    }
+}
 /*******************************************************************************
 **
 ** Function         nfc_jni_cache_object_local
@@ -1697,29 +1721,6 @@ void doStartupConfig()
         UINT8  act_mode_order_param[] = { 0x01 };
         SyncEventGuard guard (sNfaSetConfigEvent);
         stat = NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param), &act_mode_order_param[0]);
-        if (stat == NFA_STATUS_OK)
-            sNfaSetConfigEvent.wait ();
-    }
-
-    // Set configuration to allow UICC to Power off if there is no traffic.
-    if (GetNumValue(NAME_UICC_IDLE_TIMEOUT, &num, sizeof(num)) && (num != 0))
-    {
-        // 61 => The least significant bit of this byte enables the power off when Idle mode.
-        // 00 87 93 03 == > These 4 bytes form a 4 byte value which decides the idle timeout(in us)
-        //                  value to trigger the uicc deactivation.
-        // e.g. in current example its value is 0x3938700 i.e. 60000000 is 60 seconds.
-        UINT8  swpcfg_param[] = { 0x61, 0x00, 0x82, 0x04, 0x20, 0xA1, 0x07, 0x00,
-                                  0x90, 0xD0, 0x03, 0x00, 0x00, 0x87, 0x93, 0x03 };
-
-        ALOGD ("%s: Configure UICC idle-timeout to %lu ms", __FUNCTION__, num);
-
-        // Set the timeout from the .conf file value.
-        num *= 1000;
-        UINT8 * p = &swpcfg_param[12];
-        UINT32_TO_STREAM(p, num)
-
-        SyncEventGuard guard (sNfaSetConfigEvent);
-        stat = NFA_SetConfig(NCI_PARAM_ID_SWPCFG, sizeof(swpcfg_param), &swpcfg_param[0]);
         if (stat == NFA_STATUS_OK)
             sNfaSetConfigEvent.wait ();
     }
