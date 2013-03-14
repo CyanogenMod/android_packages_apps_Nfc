@@ -17,7 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"Cancel·la"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Toca per visualitzar"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"El dispositiu del receptor no és compatible amb la transferència de fitxers grans mitjançant sensors."</string>
-    <string name="beam_try_again" msgid="3364677301009783455">"Apropa els dispositius"</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Torna a apropar els dispositius"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"S\'està connectant"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Connectat"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"No es pot establir la connexió"</string>
