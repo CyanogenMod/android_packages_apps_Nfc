@@ -17,8 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"取消"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"輕觸即可查看"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"接收者的裝置不支援透過 Beam 傳輸大型檔案。"</string>
-    <!-- no translation found for beam_try_again (3364677301009783455) -->
-    <skip />
+    <string name="beam_try_again" msgid="3364677301009783455">"再次將裝置放在一起"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"連線中"</string>
     <string name="connected_headset" msgid="4047751837023241955">"已連線"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"無法連線"</string>

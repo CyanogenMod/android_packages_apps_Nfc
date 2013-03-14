@@ -17,8 +17,7 @@
     <string name="cancel" msgid="61873902552555096">"Hủy"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Chạm để xem"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Thiết bị của người nhận không hỗ trợ truyền tệp lớn qua quá trình chiếu."</string>
-    <!-- no translation found for beam_try_again (3364677301009783455) -->
-    <skip />
+    <string name="beam_try_again" msgid="3364677301009783455">"Nhóm các thiết bị lại với nhau lần nữa"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Đang kết nối"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Đã kết nối"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Không thể kết nối"</string>
