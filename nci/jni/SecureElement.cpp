@@ -686,9 +686,6 @@ bool SecureElement::connectEE ()
     // Disable RF discovery completely while the DH is connected
     android::startRfDiscovery(false);
 
-    // Disable UICC idle timeout while the DH is connected
-    android::setUiccIdleTimeout (false);
-
     mNewSourceGate = 0;
 
     if (gGatePipe == -1)
@@ -871,9 +868,6 @@ bool SecureElement::disconnectEE (jint seID)
     }
 
     mIsPiping = false;
-
-    // Re-enable UICC low-power mode
-    android::setUiccIdleTimeout (true);
 
     // Re-enable RF discovery
     // Note that it only effactuates the current configuration,
