@@ -34,9 +34,11 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
+import android.nfc.BeamShareData;
 import android.nfc.INdefPushCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
+import android.nfc.NfcAdapter;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
@@ -191,6 +193,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     boolean mIsReceiveEnabled;
     NdefMessage mMessageToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     Uri[] mUrisToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
+    int mSendFlags; // not valid in SEND_STATE_NOTHING_TO_SEND
     INdefPushCallback mCallbackNdef;
     String[] mValidCallbackPackages;
     SendTask mSendTask;
@@ -299,9 +302,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                         // Alternatively, we could have used WKS as a hint to start
                         // the animation, but we are only correctly setting the WKS
                         // since Jelly Bean.
-                        mSendState = SEND_STATE_NEED_CONFIRMATION;
-                        if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
-                        mEventListener.onP2pSendConfirmationRequested();
+                        if ((mSendFlags & NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM) != 0) {
+                            mSendState = SEND_STATE_SENDING;
+                        } else {
+                            mSendState = SEND_STATE_NEED_CONFIRMATION;
+                            if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
+                            mEventListener.onP2pSendConfirmationRequested();
+                        }
                         connectLlcpServices();
                     }
                     break;
@@ -367,8 +374,10 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
                 if (callbackValid) {
                     try {
-                        mMessageToSend = mCallbackNdef.createMessage();
-                        mUrisToSend = mCallbackNdef.getUris();
+                        BeamShareData shareData = mCallbackNdef.createBeamShareData();
+                        mMessageToSend = shareData.ndefMessage;
+                        mUrisToSend = shareData.uris;
+                        mSendFlags = shareData.flags;
                         return;
                     } catch (Exception e) {
                         Log.e(TAG, "Failed NDEF callback: " + e.getMessage());
