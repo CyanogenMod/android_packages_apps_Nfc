@@ -37,7 +37,6 @@ extern "C"
     #include "rw_api.h"
     #include "nfa_ee_api.h"
     #include "nfc_brcm_defs.h"
-    #include "nfa_cho_api.h"
     #include "ce_api.h"
 }
 
@@ -730,9 +729,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 NFC_SetTraceLevel (num);
                 RW_SetTraceLevel (num);
                 NFA_SetTraceLevel (num);
-                NFA_ChoSetTraceLevel (num);
                 NFA_P2pSetTraceLevel (num);
-                NFA_SnepSetTraceLevel (num);
                 sNfaEnableEvent.wait(); //wait for NFA command to finish
             }
         }
@@ -1698,41 +1695,12 @@ void doStartupConfig()
     struct nfc_jni_native_data *nat = getNative(0, 0);
     tNFA_STATUS stat = NFA_STATUS_FAILED;
 
-    // Enable the "RC workaround" to allow our stack/firmware to work with a retail
-    // Nexus S that causes IOP issues.  Only enable if value exists and set to 1.
-    if (GetNumValue(NAME_USE_NXP_P2P_RC_WORKAROUND, &num, sizeof(num)) && (num == 1))
-    {
-#if (NCI_VERSION > NCI_VERSION_20791B0)
-        UINT8  nfa_dm_rc_workaround[] = { 0x03, 0x0f, 0xab };
-#else
-        UINT8  nfa_dm_rc_workaround[] = { 0x01, 0x0f, 0xab, 0x01 };
-#endif
-
-        ALOGD ("%s: Configure RC work-around", __FUNCTION__);
-        SyncEventGuard guard (sNfaSetConfigEvent);
-        stat = NFA_SetConfig(NCI_PARAM_ID_FW_WORKAROUND, sizeof(nfa_dm_rc_workaround), &nfa_dm_rc_workaround[0]);
-        if (stat == NFA_STATUS_OK)
-            sNfaSetConfigEvent.wait ();
-    }
-
     // If polling for Active mode, set the ordering so that we choose Active over Passive mode first.
     if (nat && (nat->tech_mask & (NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE)))
     {
         UINT8  act_mode_order_param[] = { 0x01 };
         SyncEventGuard guard (sNfaSetConfigEvent);
         stat = NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param), &act_mode_order_param[0]);
-        if (stat == NFA_STATUS_OK)
-            sNfaSetConfigEvent.wait ();
-    }
-
-    // Set antenna tuning configuration if configured.
-#define PREINIT_DSP_CFG_SIZE    30
-    UINT8   preinit_dsp_param[PREINIT_DSP_CFG_SIZE];
-
-    if (GetStrValue(NAME_PREINIT_DSP_CFG, (char*)&preinit_dsp_param[0], sizeof(preinit_dsp_param)))
-    {
-        SyncEventGuard guard (sNfaSetConfigEvent);
-        stat = NFA_SetConfig(NCI_PARAM_ID_PREINIT_DSP_CFG, sizeof(preinit_dsp_param), &preinit_dsp_param[0]);
         if (stat == NFA_STATUS_OK)
             sNfaSetConfigEvent.wait ();
     }
