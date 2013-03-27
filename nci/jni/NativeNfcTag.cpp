@@ -683,6 +683,13 @@ static jint nativeNfcTag_doReconnect (JNIEnv*, jobject)
         goto TheEnd;
     }
 
+    // special case for Kovio
+    if (NfcTag::getInstance ().mTechList [0] == TARGET_TYPE_KOVIO_BARCODE)
+    {
+        ALOGD ("%s: fake out reconnect for Kovio", __FUNCTION__);
+        goto TheEnd;
+    }
+
     // this is only supported for type 2 or 4 (ISO_DEP) tags
     if (natTag.mTechLibNfcTypes[0] == NFA_PROTOCOL_ISO_DEP)
         retCode = reSelect(NFA_INTERFACE_ISO_DEP);
@@ -853,7 +860,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv* e, jobject, jbyteArray data
         sTransceiveDataLen = 0;
         {
             SyncEventGuard g (sTransceiveEvent);
-            tNFA_STATUS status = NFA_SendRawFrame (buf, bufLen);
+            tNFA_STATUS status = NFA_SendRawFrame (buf, bufLen, NFA_DM_DEFAULT_PRESENCE_CHECK_START_DELAY);
             if (status != NFA_STATUS_OK)
             {
                 ALOGE ("%s: fail send; error=%d", __FUNCTION__, status);
@@ -1078,6 +1085,17 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv* e, jobject, jintArray ndefInfo)
         return NFA_STATUS_FAILED;
     }
 
+    // special case for Kovio
+    if (NfcTag::getInstance ().mTechList [0] == TARGET_TYPE_KOVIO_BARCODE)
+    {
+        ALOGD ("%s: Kovio tag, no NDEF", __FUNCTION__);
+        ndef = e->GetIntArrayElements (ndefInfo, 0);
+        ndef[0] = 0;
+        ndef[1] = NDEF_MODE_READ_ONLY;
+        e->ReleaseIntArrayElements (ndefInfo, ndef, 0);
+        return NFA_STATUS_FAILED;
+    }
+
     /* Create the write semaphore */
     if (sem_init (&sCheckNdefSem, 0, 0) == -1)
     {
@@ -1214,6 +1232,23 @@ static jboolean nativeNfcTag_doPresenceCheck (JNIEnv*, jobject)
     ALOGD ("%s", __FUNCTION__);
     tNFA_STATUS status = NFA_STATUS_OK;
     jboolean isPresent = JNI_FALSE;
+
+    // Special case for Kovio.  The deactivation would have already occurred
+    // but was ignored so that normal tag opertions could complete.  Now we
+    // want to process as if the deactivate just happened.
+    if (NfcTag::getInstance ().mTechList [0] == TARGET_TYPE_KOVIO_BARCODE)
+    {
+        ALOGD ("%s: Kovio, force deactivate handling", __FUNCTION__);
+        tNFA_DEACTIVATED deactivated = {NFA_DEACTIVATE_TYPE_IDLE};
+
+        NfcTag::getInstance().setDeactivationState (deactivated);
+        nativeNfcTag_resetPresenceCheck();
+        NfcTag::getInstance().connectionEventHandler (NFA_DEACTIVATED_EVT, NULL);
+        nativeNfcTag_abortWaits();
+        NfcTag::getInstance().abort ();
+
+        return JNI_FALSE;
+    }
 
     if (nfcManager_isNfcActive() == false)
     {
