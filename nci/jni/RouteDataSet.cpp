@@ -253,6 +253,7 @@ bool RouteDataSet::saveToFile (const char* routesXml)
     size_t actualWritten = 0;
     bool retval = false;
     std::string filename (bcm_nfc_location);
+    int stat = 0;
 
     filename.append (sConfigFile);
     fh = fopen (filename.c_str (), "w");
@@ -271,7 +272,9 @@ bool RouteDataSet::saveToFile (const char* routesXml)
 
     //set file permission to
     //owner read, write; group read; other read
-    chmod (filename.c_str (), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    stat = chmod (filename.c_str (), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (stat == -1)
+        ALOGE ("%s: error during chmod", fn);
     return retval;
 }
 
@@ -528,7 +531,12 @@ void RouteDataSet::printDiagnostic ()
                 ALOGD ("%s: ee h=0x%X; protocol=0x%X", fn, proto->mNfaEeHandle, proto->mProtocol);
             }
             break;
-        // TODO: RouteData::TechnologyRoute isn't handled --- bug?
+        case RouteData::TechnologyRoute:
+            {
+                RouteDataForTechnology* tech = (RouteDataForTechnology*) routeData;
+                ALOGD ("%s: ee h=0x%X; technology=0x%X", fn, tech->mNfaEeHandle, tech->mTechnology);
+            }
+            break;
         }
     }
 

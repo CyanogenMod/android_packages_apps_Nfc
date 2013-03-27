@@ -66,7 +66,8 @@ static jboolean nativeLlcpConnectionlessSocket_doSendTo (JNIEnv *e, jobject o, j
     jint handle = e->GetIntField(o, f);
 
     ScopedByteArrayRO bytes(e, data);
-    if (bytes.get() == NULL) {
+    if (bytes.get() == NULL)
+    {
         return JNI_FALSE;
     }
     size_t byte_count = bytes.size();
@@ -76,7 +77,8 @@ static jboolean nativeLlcpConnectionlessSocket_doSendTo (JNIEnv *e, jobject o, j
     tNFA_STATUS status = NFA_P2pSendUI((tNFA_HANDLE) handle, nsap, byte_count, raw_ptr);
 
     ALOGD("%s: NFA_P2pSendUI done, status = %d", __FUNCTION__, status);
-    if (status != NFA_STATUS_OK) {
+    if (status != NFA_STATUS_OK)
+    {
         ALOGE("%s: NFA_P2pSendUI failed, status = %d", __FUNCTION__, status);
         return JNI_FALSE;
     }
@@ -264,7 +266,8 @@ static jboolean nativeLlcpConnectionlessSocket_doClose (JNIEnv *e, jobject o)
     jint handle = e->GetIntField(o, f);
 
     tNFA_STATUS status = NFA_P2pDisconnect((tNFA_HANDLE) handle, FALSE);
-    if (status != NFA_STATUS_OK) {
+    if (status != NFA_STATUS_OK)
+    {
         ALOGE ("%s: disconnect failed, status = %d", __FUNCTION__, status);
         return JNI_FALSE;
     }

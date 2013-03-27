@@ -67,7 +67,8 @@ static jboolean nativeLlcpSocket_doConnectBy (JNIEnv* e, jobject o, jstring sn)
     PeerToPeer::tJNI_HANDLE jniHandle = (PeerToPeer::tJNI_HANDLE) nfc_jni_get_nfc_socket_handle(e, o);
 
     ScopedUtfChars serviceName(e, sn);
-    if (serviceName.c_str() == NULL) {
+    if (serviceName.c_str() == NULL)
+    {
         return JNI_FALSE;
     }
     bool stat = PeerToPeer::getInstance().connectConnOriented(jniHandle, serviceName.c_str());
@@ -96,7 +97,7 @@ static jboolean nativeLlcpSocket_doClose(JNIEnv *e, jobject o)
     bool stat = PeerToPeer::getInstance().disconnectConnOriented (jniHandle);
 
     ALOGD ("%s: exit", __FUNCTION__);
-    return JNI_TRUE; // TODO: stat?
+    return stat ? JNI_TRUE : JNI_FALSE;
 }
 
 
@@ -150,11 +151,12 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o, jbyteArray origBuff
     bool stat = PeerToPeer::getInstance().receive(jniHandle, reinterpret_cast<UINT8*>(&bytes[0]), bytes.size(), actualLen);
 
     jint retval = 0;
-    if (stat && (actualLen>0)) {
+    if (stat && (actualLen>0))
+    {
         retval = actualLen;
-    } else {
-        retval = -1;
     }
+    else
+        retval = -1;
 
     ALOGD_IF ((appl_trace_level>=BT_TRACE_LEVEL_DEBUG), "%s: exit; actual len=%d", __FUNCTION__, retval);
     return retval;

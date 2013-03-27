@@ -17,6 +17,7 @@
 #include "SecureElement.h"
 #include "JavaClassConstants.h"
 #include "PowerSwitch.h"
+#include "NfcTag.h"
 #include <ScopedPrimitiveArray.h>
 
 namespace android
@@ -25,7 +26,6 @@ namespace android
 
 extern void com_android_nfc_NfcManager_disableDiscovery (JNIEnv* e, jobject o);
 extern void com_android_nfc_NfcManager_enableDiscovery (JNIEnv* e, jobject o, jint mode);
-extern int gGeneralTransceiveTimeout;
 
 // These must match the EE_ERROR_ types in NfcService.java
 static const int EE_ERROR_IO = -1;
@@ -151,70 +151,22 @@ static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject, jint 
     const INT32 recvBufferMaxSize = 1024;
     UINT8 recvBuffer [recvBufferMaxSize];
     INT32 recvBufferActualSize = 0;
-
+    int timeout = NfcTag::getInstance ().getTransceiveTimeout (TARGET_TYPE_ISO14443_4); //NFC service expects JNI to use ISO-DEP's timeout
     ScopedByteArrayRW bytes(e, data);
 
     ALOGD("%s: enter; handle=0x%X; buf len=%zu", __FUNCTION__, handle, bytes.size());
-    SecureElement::getInstance().transceive(reinterpret_cast<UINT8*>(&bytes[0]), bytes.size(), recvBuffer, recvBufferMaxSize, recvBufferActualSize, gGeneralTransceiveTimeout);
+    SecureElement::getInstance().transceive(reinterpret_cast<UINT8*>(&bytes[0]), bytes.size(), recvBuffer, recvBufferMaxSize, recvBufferActualSize, timeout);
 
     //copy results back to java
     jbyteArray result = e->NewByteArray(recvBufferActualSize);
-    if (result != NULL) {
+    if (result != NULL)
+    {
         e->SetByteArrayRegion(result, 0, recvBufferActualSize, (jbyte *) recvBuffer);
     }
 
     ALOGD("%s: exit: recv len=%ld", __FUNCTION__, recvBufferActualSize);
     return result;
 }
-
-
-/*******************************************************************************
-**
-** Function:        nativeNfcSecureElement_doGetUid
-**
-** Description:     Get the secure element's unique ID.
-**                  e: JVM environment.
-**                  o: Java object.
-**                  handle: Handle of secure element.
-**
-** Returns:         Secure element's unique ID.
-**
-*******************************************************************************/
-static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv*, jobject, jint handle)
-{
-    ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
-    jbyteArray secureElementUid = NULL;
-
-    SecureElement::getInstance ().getUiccId (handle, secureElementUid);
-
-    ALOGD("%s: exit", __FUNCTION__);
-    return secureElementUid;
-}
-
-
-/*******************************************************************************
-**
-** Function:        nativeNfcSecureElement_doGetTechList
-**
-** Description:     Get a list of technologies that the secure element supports.
-**                  e: JVM environment.
-**                  o: Java object.
-**                  handle: Handle of secure element.
-**
-** Returns:         Array of technologies.
-**
-*******************************************************************************/
-static jintArray nativeNfcSecureElement_doGetTechList (JNIEnv*, jobject, jint handle)
-{
-    ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
-    jintArray techList = NULL;
-
-    SecureElement::getInstance().getTechnologyList (handle, techList);
-
-    ALOGD("%s: exit", __FUNCTION__);
-    return techList;
-}
-
 
 /*****************************************************************************
 **
@@ -226,8 +178,6 @@ static JNINativeMethod gMethods[] =
    {"doNativeOpenSecureElementConnection", "()I", (void *) nativeNfcSecureElement_doOpenSecureElementConnection},
    {"doNativeDisconnectSecureElementConnection", "(I)Z", (void *) nativeNfcSecureElement_doDisconnectSecureElementConnection},
    {"doTransceive", "(I[B)[B", (void *) nativeNfcSecureElement_doTransceive},
-   {"doGetUid", "(I)[B", (void *) nativeNfcSecureElement_doGetUid},
-   {"doGetTechList", "(I)[I", (void *) nativeNfcSecureElement_doGetTechList},
 };
 
 

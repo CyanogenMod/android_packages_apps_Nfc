@@ -29,6 +29,8 @@ namespace android
     void doStartupConfig ();
 }
 
+extern bool         gActivated;
+extern SyncEvent    gDeactivatedEvent;
 
 PowerSwitch PowerSwitch::sPowerSwitch;
 const PowerSwitch::PowerActivity PowerSwitch::DISCOVERY=0x01;
@@ -48,6 +50,7 @@ const PowerSwitch::PowerActivity PowerSwitch::HOST_ROUTING=0x08;
 PowerSwitch::PowerSwitch ()
 :   mCurrLevel (UNKNOWN_LEVEL),
     mCurrDeviceMgtPowerState (NFA_DM_PWR_STATE_UNKNOWN),
+    mExpectedDeviceMgtPowerState (NFA_DM_PWR_STATE_UNKNOWN),
     mDesiredScreenOffPowerState (0),
     mCurrActivity(0)
 {
@@ -95,11 +98,13 @@ PowerSwitch& PowerSwitch::getInstance ()
 void PowerSwitch::initialize (PowerLevel level)
 {
     static const char fn [] = "PowerSwitch::initialize";
+    unsigned long num = 0;
 
     mMutex.lock ();
 
     ALOGD ("%s: level=%s (%u)", fn, powerLevelToString(level), level);
-    GetNumValue (NAME_SCREEN_OFF_POWER_STATE, &mDesiredScreenOffPowerState, sizeof(mDesiredScreenOffPowerState));
+    if (GetNumValue (NAME_SCREEN_OFF_POWER_STATE, &num, sizeof(num)))
+        mDesiredScreenOffPowerState = (int) num;
     ALOGD ("%s: desired screen-off state=%d", fn, mDesiredScreenOffPowerState);
 
     switch (level)
@@ -163,6 +168,25 @@ bool PowerSwitch::setLevel (PowerLevel newLevel)
     {
         retval = true;
         goto TheEnd;
+    }
+
+    if (mCurrLevel == UNKNOWN_LEVEL)
+    {
+        ALOGE ("%s: unknown power level", fn);
+        goto TheEnd;
+    }
+
+    if ( (mCurrLevel == LOW_POWER && newLevel == FULL_POWER) ||
+         (mCurrLevel == FULL_POWER && newLevel == LOW_POWER) )
+    {
+        mMutex.unlock ();
+        SyncEventGuard g (gDeactivatedEvent);
+        if (gActivated)
+        {
+            ALOGD("%s: wait for deactivation", fn);
+            gDeactivatedEvent.wait ();
+        }
+        mMutex.lock ();
     }
 
     switch (newLevel)
@@ -260,6 +284,7 @@ bool PowerSwitch::setPowerOffSleepState (bool sleep)
         if (mCurrDeviceMgtPowerState != NFA_DM_PWR_MODE_OFF_SLEEP)
         {
             SyncEventGuard guard (mPowerStateEvent);
+            mExpectedDeviceMgtPowerState = NFA_DM_PWR_MODE_OFF_SLEEP; //if power adjustment is ok, then this is the expected state
             ALOGD ("%s: try power off", fn);
             stat = NFA_PowerOffSleepMode (TRUE);
             if (stat == NFA_STATUS_OK)
@@ -285,8 +310,9 @@ bool PowerSwitch::setPowerOffSleepState (bool sleep)
         //make sure the current power state is OFF
         if (mCurrDeviceMgtPowerState != NFA_DM_PWR_MODE_FULL)
         {
-            mCurrDeviceMgtPowerState = NFA_DM_PWR_STATE_UNKNOWN;
             SyncEventGuard guard (mPowerStateEvent);
+            mCurrDeviceMgtPowerState = NFA_DM_PWR_STATE_UNKNOWN;
+            mExpectedDeviceMgtPowerState = NFA_DM_PWR_MODE_FULL;  //if power adjustment is ok, then this is the expected state
             ALOGD ("%s: try full power", fn);
             stat = NFA_PowerOffSleepMode (FALSE);
             if (stat == NFA_STATUS_OK)
@@ -412,11 +438,16 @@ void PowerSwitch::deviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA* eve
     case NFA_DM_PWR_MODE_CHANGE_EVT:
         {
             tNFA_DM_PWR_MODE_CHANGE& power_mode = eventData->power_mode;
-            ALOGD ("%s: NFA_DM_PWR_MODE_CHANGE_EVT; status=%u; device mgt power mode=%s (%u)", fn,
-                    power_mode.status, sPowerSwitch.deviceMgtPowerStateToString (power_mode.power_mode), power_mode.power_mode);
+            ALOGD ("%s: NFA_DM_PWR_MODE_CHANGE_EVT; status=0x%X; device mgt power state=%s (0x%X)", fn,
+                    power_mode.status, sPowerSwitch.deviceMgtPowerStateToString (power_mode.power_mode),
+                    power_mode.power_mode);
             SyncEventGuard guard (sPowerSwitch.mPowerStateEvent);
             if (power_mode.status == NFA_STATUS_OK)
-                sPowerSwitch.mCurrDeviceMgtPowerState = power_mode.power_mode;
+            {
+                //the event data does not contain the newly configured power mode,
+                //so this code assigns the expected value
+                sPowerSwitch.mCurrDeviceMgtPowerState = sPowerSwitch.mExpectedDeviceMgtPowerState;
+            }
             sPowerSwitch.mPowerStateEvent.notifyOne ();
         }
         break;

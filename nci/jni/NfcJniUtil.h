@@ -93,9 +93,6 @@
 #define NFCSTATUS_SUCCESS (0x0000)
 #define NFCSTATUS_FAILED (0x00FF)
 
-//default general trasceive timeout in millisecond
-#define DEFAULT_GENERAL_TRANS_TIMEOUT  1000
-
 struct nfc_jni_native_data
 {
    /* Thread handle */
@@ -133,18 +130,21 @@ struct nfc_jni_native_data
 };
 
 
-class ScopedAttach {
- public:
-  ScopedAttach(JavaVM* vm, JNIEnv** env) : vm_(vm) {
-    vm_->AttachCurrentThread(env, NULL);
-  }
+class ScopedAttach
+{
+public:
+    ScopedAttach(JavaVM* vm, JNIEnv** env) : vm_(vm)
+    {
+        vm_->AttachCurrentThread(env, NULL);
+    }
 
-  ~ScopedAttach() {
-    vm_->DetachCurrentThread();
-  }
+    ~ScopedAttach()
+    {
+        vm_->DetachCurrentThread();
+    }
 
- private:
-  JavaVM* vm_;
+private:
+        JavaVM* vm_;
 };
 
 

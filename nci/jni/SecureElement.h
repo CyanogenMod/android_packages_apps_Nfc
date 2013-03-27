@@ -77,15 +77,15 @@ public:
 
     /*******************************************************************************
     **
-    ** Function:        getListOfEeHandles
+    ** Function:        getSecureElementIdList
     **
-    ** Description:     Get the list of handles of all execution environments.
+    ** Description:     Get a list of ID's of all secure elements.
     **                  e: Java Virtual Machine.
     **
-    ** Returns:         List of handles of all execution environments.
+    ** Returns:         List of ID's.
     **
     *******************************************************************************/
-    jintArray getListOfEeHandles (JNIEnv* e);
+    jintArray getSecureElementIdList (JNIEnv* e);
 
 
     /*******************************************************************************

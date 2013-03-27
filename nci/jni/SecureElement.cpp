@@ -49,7 +49,7 @@ namespace android
 
 SecureElement SecureElement::sSecElem;
 const char* SecureElement::APP_NAME = "nfc_jni";
-
+const UINT16 ACTIVE_SE_USE_ANY = 0xFFFF;
 
 /*******************************************************************************
 **
@@ -71,7 +71,7 @@ SecureElement::SecureElement ()
     mbNewEE (true),   // by default we start w/thinking there are new EE
     mNewPipeId (0),
     mNewSourceGate (0),
-    mActiveSeOverride(0),
+    mActiveSeOverride(ACTIVE_SE_USE_ANY),
     mCommandStatus (NFA_STATUS_OK),
     mIsPiping (false),
     mCurrentRouteSelection (NoRoute),
@@ -158,10 +158,12 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
         mDestinationGate = num;
     ALOGD ("%s: Default destination gate: 0x%X", fn, mDestinationGate);
 
-    // active SE, if not set active all SEs
+    // active SE, if not set active all SEs, use the first one.
     if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
+    {
         mActiveSeOverride = num;
     ALOGD ("%s: Active SE override: 0x%X", fn, mActiveSeOverride);
+    }
 
     if (GetNumValue("OBERTHUR_WARM_RESET_COMMAND", &num, sizeof(num)))
     {
@@ -185,6 +187,13 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     memset (&mHciCfg, 0, sizeof(mHciCfg));
     mUsedAids.clear ();
     memset(mAidForEmptySelect, 0, sizeof(mAidForEmptySelect));
+
+    // if no SE is to be used, get out.
+    if (mActiveSeOverride == 0)
+    {
+        ALOGD ("%s: No SE; No need to initialize SecureElement", fn);
+        return (false);
+    }
 
     // Get Fresh EE info.
     if (! getEeInfo())
@@ -372,46 +381,42 @@ bool SecureElement::isActivatedInListenMode() {
 
 /*******************************************************************************
 **
-** Function:        getListOfEeHandles
+** Function:        getSecureElementIdList
 **
-** Description:     Get the list of handles of all execution environments.
+** Description:     Get a list of ID's of all secure elements.
 **                  e: Java Virtual Machine.
 **
-** Returns:         List of handles of all execution environments.
+** Returns:         List of ID's.
 **
 *******************************************************************************/
-jintArray SecureElement::getListOfEeHandles (JNIEnv* e)
+jintArray SecureElement::getSecureElementIdList (JNIEnv* e)
 {
-    static const char fn [] = "SecureElement::getListOfEeHandles";
+    static const char fn [] = "SecureElement::getSecureElementIdList";
     ALOGD ("%s: enter", fn);
-    if (mNumEePresent == 0)
-        return NULL;
 
     if (!mIsInit)
     {
         ALOGE ("%s: not init", fn);
-        return (NULL);
+        return NULL;
     }
 
-    // Get Fresh EE info.
     if (! getEeInfo())
-        return (NULL);
+    {
+        ALOGE ("%s: no sec elem", fn);
+        return NULL;
+    }
 
     jintArray list = e->NewIntArray (mNumEePresent); //allocate array
-    jint jj = 0;
+    jint seId = 0;
     int cnt = 0;
     for (int ii = 0; ii < mActualNumEe && cnt < mNumEePresent; ii++)
     {
-        ALOGD ("%s: %u = 0x%X", fn, ii, mEeInfo[ii].ee_handle);
         if ((mEeInfo[ii].num_interface == 0) || (mEeInfo[ii].ee_interface[0] == NCI_NFCEE_INTERFACE_HCI_ACCESS) )
-        {
             continue;
-        }
-
-        jj = mEeInfo[ii].ee_handle & ~NFA_HANDLE_GROUP_EE;
-        e->SetIntArrayRegion (list, cnt++, 1, &jj);
+        seId = mEeInfo[ii].ee_handle & ~NFA_HANDLE_GROUP_EE;
+        e->SetIntArrayRegion (list, cnt++, 1, &seId);
+        ALOGD ("%s: index=%d; se id=0x%X", fn, ii, seId);
     }
-
     ALOGD("%s: exit", fn);
     return list;
 }
@@ -455,15 +460,17 @@ bool SecureElement::activate (jint seID)
     }
 
     UINT16 overrideEeHandle = 0;
-    if (mActiveSeOverride)
+    // If the Active SE is overridden
+    if (mActiveSeOverride && (mActiveSeOverride != ACTIVE_SE_USE_ANY))
         overrideEeHandle = NFA_HANDLE_GROUP_EE | mActiveSeOverride;
+
+    ALOGD ("%s: override ee h=0x%X", fn, overrideEeHandle );
 
     if (mRfFieldIsOn) {
         ALOGE("%s: RF field indication still on, resetting", fn);
         mRfFieldIsOn = false;
     }
 
-    ALOGD ("%s: override ee h=0x%X", fn, overrideEeHandle );
     //activate every discovered secure element
     for (int index=0; index < mActualNumEe; index++)
     {
@@ -939,10 +946,9 @@ bool SecureElement::transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* 
         mActualResponseSize = 0;
         memset (mResponseData, 0, sizeof(mResponseData));
         if ((mNewPipeId == STATIC_PIPE_0x70) || (mNewPipeId == STATIC_PIPE_0x71))
-            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, EVT_SEND_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData, 0);
+            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, EVT_SEND_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData, timeoutMillisec);
         else
-            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, NFA_HCI_EVT_POST_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData, 0);
-
+            nfaStat = NFA_HciSendEvent (mNfaHciHandle, mNewPipeId, NFA_HCI_EVT_POST_DATA, xmitBufferSize, xmitBuffer, sizeof(mResponseData), mResponseData, timeoutMillisec);
         if (nfaStat == NFA_STATUS_OK)
         {
             waitOk = mTransceiveEvent.wait (timeoutMillisec);
@@ -1092,7 +1098,7 @@ void SecureElement::notifyRfFieldEvent (bool isActive)
 void SecureElement::resetRfFieldStatus ()
 {
     static const char fn [] = "SecureElement::resetRfFieldStatus`";
-    ALOGD ("%s: enter;");
+    ALOGD ("%s: enter;", fn);
 
     mMutex.lock();
     mRfFieldIsOn = false;
@@ -1136,90 +1142,6 @@ void SecureElement::storeUiccInfo (tNFA_EE_DISCOVER_REQ& info)
                 info.ee_disc_info[xx].lbp_protocol);
     }
     mUiccInfoEvent.notifyOne ();
-}
-
-
-/*******************************************************************************
-**
-** Function:        getUiccId
-**
-** Description:     Get the ID of the secure element.
-**                  eeHandle: Handle to the secure element.
-**                  uid: Array to receive the ID.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-bool SecureElement::getUiccId (tNFA_HANDLE eeHandle, jbyteArray& uid)
-{
-    static const char fn [] = "SecureElement::getUiccId";
-    ALOGD ("%s: ee h=0x%X", fn, eeHandle);
-    bool retval = false;
-
-    JNIEnv* e = NULL;
-    ScopedAttach attach(mNativeData->vm, &e);
-    if (e == NULL)
-    {
-        ALOGE ("%s: jni env is null", fn);
-        return false;
-    }
-
-    findUiccByHandle (eeHandle);
-    //cannot get UID from the stack; nothing to do
-
-    // TODO: uid is unused --- bug?
-
-    // TODO: retval is always false --- bug?
-    ALOGD ("%s: exit; ret=%u", fn, retval);
-    return retval;
-}
-
-
-/*******************************************************************************
-**
-** Function:        getTechnologyList
-**
-** Description:     Get all the technologies supported by a secure element.
-**                  eeHandle: Handle of secure element.
-**                  techList: List to receive the technologies.
-**
-** Returns:         True if ok.
-**
-*******************************************************************************/
-bool SecureElement::getTechnologyList (tNFA_HANDLE eeHandle, jintArray& techList)
-{
-    static const char fn [] = "SecureElement::getTechnologyList";
-    ALOGD ("%s: ee h=0x%X", fn, eeHandle);
-    bool retval = false;
-
-    JNIEnv* e = NULL;
-    ScopedAttach attach(mNativeData->vm, &e);
-    if (e == NULL)
-    {
-        ALOGE ("%s: jni env is null", fn);
-        return false;
-    }
-
-    tNFA_EE_DISCOVER_INFO *pUICC = findUiccByHandle (eeHandle);
-
-    // TODO: theList is written but not set --- bug?
-    jint theList = 0;
-    if (pUICC->la_protocol != 0)
-        theList = TARGET_TYPE_ISO14443_3A;
-    else if (pUICC->lb_protocol != 0)
-        theList = TARGET_TYPE_ISO14443_3B;
-    else if (pUICC->lf_protocol != 0)
-        theList = TARGET_TYPE_FELICA;
-    else if (pUICC->lbp_protocol != 0)
-        theList = TARGET_TYPE_ISO14443_3B;
-    else
-        theList = TARGET_TYPE_UNKNOWN;
-
-    // TODO: techList is neither read nor written --- bug?
-
-    // TODO: retval is always false --- bug?
-    ALOGD ("%s: exit; ret=%u", fn, retval);
-    return retval;
 }
 
 /*******************************************************************************

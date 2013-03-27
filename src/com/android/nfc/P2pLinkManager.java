@@ -252,6 +252,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                     mHandler.sendEmptyMessage(MSG_START_ECHOSERVER);
                 }
             } else if (mIsReceiveEnabled && !receiveEnable) {
+                if (DBG) Log.d(TAG, "enableDisable: llcp deactivate");
+                onLlcpDeactivated ();
                 mDefaultSnepServer.stop();
                 mNdefPushServer.stop();
                 mHandoverServer.stop();

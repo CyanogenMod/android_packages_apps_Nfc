@@ -75,20 +75,23 @@ namespace android
 int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
 {
     ScopedLocalRef<jclass> cls(e, e->FindClass(className));
-    if (cls.get() == NULL) {
+    if (cls.get() == NULL)
+    {
         ALOGE("%s: find class error", __FUNCTION__);
         return -1;
     }
 
     jmethodID ctor = e->GetMethodID(cls.get(), "<init>", "()V");
     ScopedLocalRef<jobject> obj(e, e->NewObject(cls.get(), ctor));
-    if (obj.get() == NULL) {
+    if (obj.get() == NULL)
+    {
        ALOGE("%s: create object error", __FUNCTION__);
        return -1;
     }
 
     *cachedObj = e->NewGlobalRef(obj.get());
-    if (*cachedObj == NULL) {
+    if (*cachedObj == NULL)
+    {
         ALOGE("%s: global ref error", __FUNCTION__);
         return -1;
     }
