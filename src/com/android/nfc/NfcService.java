@@ -116,6 +116,7 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_SE_MIFARE_ACCESS = 12;
     static final int MSG_SE_LISTEN_ACTIVATED = 13;
     static final int MSG_SE_LISTEN_DEACTIVATED = 14;
+    static final int MSG_LLCP_LINK_FIRST_PACKET = 15;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -296,6 +297,14 @@ public class NfcService implements DeviceHostListener {
     @Override
     public void onLlcpLinkDeactivated(NfcDepEndpoint device) {
         sendMessage(NfcService.MSG_LLCP_LINK_DEACTIVATED, device);
+    }
+
+    /**
+     * Notifies P2P Device detected, first packet received over LLCP link
+     */
+    @Override
+    public void onLlcpFirstPacketReceived(NfcDepEndpoint device) {
+        sendMessage(NfcService.MSG_LLCP_LINK_FIRST_PACKET, device);
     }
 
     @Override
@@ -1840,7 +1849,9 @@ public class NfcService implements DeviceHostListener {
 
                     mP2pLinkManager.onLlcpDeactivated();
                     break;
-
+                case MSG_LLCP_LINK_FIRST_PACKET:
+                    mP2pLinkManager.onLlcpFirstPacketReceived();
+                    break;
                 case MSG_TARGET_DESELECTED:
                     /* Broadcast Intent Target Deselected */
                     if (DBG) Log.d(TAG, "Target Deselected");

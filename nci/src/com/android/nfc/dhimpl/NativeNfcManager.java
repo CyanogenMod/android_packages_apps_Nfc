@@ -347,6 +347,13 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onLlcpLinkDeactivated(device);
     }
 
+    /**
+     * Notifies first packet received from remote LLCP
+     */
+    private void notifyLlcpLinkFirstPacketReceived(NativeP2pDevice device) {
+        mListener.onLlcpFirstPacketReceived(device);
+    }
+
     private void notifySeFieldActivated() {
         mListener.onRemoteFieldActivated();
     }

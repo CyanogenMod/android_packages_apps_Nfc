@@ -140,6 +140,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int NDEFPUSH_SAP = 0x10;
     static final int HANDOVER_SAP = 0x14;
 
+    static final int LINK_FIRST_PDU_LIMIT_MS = 200;
     static final int LINK_NOTHING_TO_SEND_DEBOUNCE_MS = 750;
     static final int LINK_SEND_PENDING_DEBOUNCE_MS = 3000;
     static final int LINK_SEND_CONFIRMED_DEBOUNCE_MS = 5000;
@@ -151,11 +152,13 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     static final int MSG_START_ECHOSERVER = 5;
     static final int MSG_STOP_ECHOSERVER = 6;
     static final int MSG_HANDOVER_NOT_SUPPORTED = 7;
+    static final int MSG_SHOW_CONFIRMATION_UI = 8;
 
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
-    static final int LINK_STATE_UP = 2;
-    static final int LINK_STATE_DEBOUNCE = 3;
+    static final int LINK_STATE_WAITING_PDU = 2;
+    static final int LINK_STATE_UP = 3;
+    static final int LINK_STATE_DEBOUNCE = 4;
 
     // values for mSendState
     static final int SEND_STATE_NOTHING_TO_SEND = 1;
@@ -204,6 +207,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     NdefPushClient mNdefPushClient;
     ConnectTask mConnectTask;
     boolean mLlcpServicesConnected;
+    boolean mLlcpConnectDelayed;
+    long mLastLlcpActivationTime;
 
     public P2pLinkManager(Context context, HandoverManager handoverManager, int defaultMiu,
             int defaultRwSize) {
@@ -283,11 +288,12 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (mEchoServer != null) {
                 mEchoServer.onLlcpActivated();
             }
+            mLastLlcpActivationTime = SystemClock.elapsedRealtime();
+            mLlcpConnectDelayed = false;
             switch (mLinkState) {
                 case LINK_STATE_DOWN:
-                    mLinkState = LINK_STATE_UP;
+                    mLinkState = LINK_STATE_WAITING_PDU;
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
-
                     if (DBG) Log.d(TAG, "onP2pInRange()");
                     mEventListener.onP2pInRange();
                     prepareMessageToSend();
@@ -309,16 +315,50 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                             if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
                             mEventListener.onP2pSendConfirmationRequested();
                         }
-                        connectLlcpServices();
                     }
                     break;
+                case LINK_STATE_WAITING_PDU:
+                    if (DBG) Log.d(TAG, "Unexpected onLlcpActivated() in LINK_STATE_WAITING_PDU");
+                    return;
                 case LINK_STATE_UP:
                     if (DBG) Log.d(TAG, "Duplicate onLlcpActivated()");
                     return;
                 case LINK_STATE_DEBOUNCE:
-                    mLinkState = LINK_STATE_UP;
+                    if (mSendState == SEND_STATE_SENDING) {
+                        // Immediately connect and try to send again
+                        mLinkState = LINK_STATE_UP;
+                        connectLlcpServices();
+                    } else {
+                        mLinkState = LINK_STATE_WAITING_PDU;
+                    }
                     mHandler.removeMessages(MSG_DEBOUNCE_TIMEOUT);
-                    connectLlcpServices();
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Must be called on UI Thread.
+     */
+    public void onLlcpFirstPacketReceived() {
+        synchronized (P2pLinkManager.this) {
+            long totalTime = SystemClock.elapsedRealtime() - mLastLlcpActivationTime;
+            if (DBG) Log.d(TAG, "Took " + Long.toString(totalTime) + " to get first LLCP PDU");
+            switch (mLinkState) {
+                case LINK_STATE_UP:
+                    if (DBG) Log.d(TAG, "Dropping first LLCP packet received");
+                    break;
+                case LINK_STATE_DOWN:
+                case LINK_STATE_DEBOUNCE:
+                   Log.e(TAG, "Unexpected first LLCP packet received");
+                   break;
+                case LINK_STATE_WAITING_PDU:
+                    mLinkState = LINK_STATE_UP;
+                    if (totalTime <  LINK_FIRST_PDU_LIMIT_MS || mSendState == SEND_STATE_SENDING) {
+                        connectLlcpServices();
+                    } else {
+                        mLlcpConnectDelayed = true;
+                    }
                     break;
             }
         }
@@ -464,6 +504,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 case LINK_STATE_DEBOUNCE:
                     Log.i(TAG, "Duplicate onLlcpDectivated()");
                     break;
+                case LINK_STATE_WAITING_PDU:
                 case LINK_STATE_UP:
                     // Debounce
                     mLinkState = LINK_STATE_DEBOUNCE;
@@ -968,8 +1009,18 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return;
             }
             mSendState = SEND_STATE_SENDING;
-            if (mLinkState == LINK_STATE_UP && mLlcpServicesConnected) {
+            if (mLinkState == LINK_STATE_WAITING_PDU) {
+                // We could decide to wait for the first PDU here; but
+                // that makes us vulnerable to cases where for some reason
+                // this event is not propogated up by the stack. Instead,
+                // try to connect now.
+                mLinkState = LINK_STATE_UP;
+                connectLlcpServices();
+            } else if (mLinkState == LINK_STATE_UP && mLlcpServicesConnected) {
                 sendNdefMessage();
+            } else if (mLinkState == LINK_STATE_UP && mLlcpConnectDelayed) {
+                // Connect was delayed to interop with pre-MR2 stacks; send connect now.
+                connectLlcpServices();
             } else if (mLinkState == LINK_STATE_DEBOUNCE) {
                 // Restart debounce timeout
                 mHandler.removeMessages(MSG_DEBOUNCE_TIMEOUT);
@@ -1002,6 +1053,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 return "LINK_STATE_DEBOUNCE";
             case LINK_STATE_UP:
                 return "LINK_STATE_UP";
+            case LINK_STATE_WAITING_PDU:
+                return "LINK_STATE_WAITING_PDU";
             default:
                 return "<error>";
         }
