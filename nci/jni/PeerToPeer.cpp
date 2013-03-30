@@ -398,7 +398,31 @@ void PeerToPeer::llcpDeactivatedHandler (nfc_jni_native_data* nat, tNFA_LLCP_DEA
     ALOGD ("%s: exit", fn);
 }
 
+void PeerToPeer::llcpFirstPacketHandler (nfc_jni_native_data* nat)
+{
+    static const char fn [] = "PeerToPeer::llcpFirstPacketHandler";
+    ALOGD ("%s: enter", fn);
 
+    JNIEnv* e = NULL;
+    ScopedAttach attach(nat->vm, &e);
+    if (e == NULL)
+    {
+        ALOGE ("%s: jni env is null", fn);
+        return;
+    }
+
+    ALOGD ("%s: notify nfc service", fn);
+    /* Notify manager that the LLCP is lost or deactivated */
+    e->CallVoidMethod (nat->manager, android::gCachedNfcManagerNotifyLlcpFirstPacketReceived, nat->tag);
+    if (e->ExceptionCheck())
+    {
+        e->ExceptionClear();
+        ALOGE ("%s: fail notify", fn);
+    }
+
+    ALOGD ("%s: exit", fn);
+
+}
 /*******************************************************************************
 **
 ** Function:        accept

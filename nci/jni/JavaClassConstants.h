@@ -22,6 +22,7 @@ namespace android
     extern jmethodID gCachedNfcManagerNotifyTransactionListeners;
     extern jmethodID gCachedNfcManagerNotifyLlcpLinkActivation;
     extern jmethodID gCachedNfcManagerNotifyLlcpLinkDeactivated;
+    extern jmethodID gCachedNfcManagerNotifyLlcpFirstPacketReceived;
     extern jmethodID gCachedNfcManagerNotifySeFieldActivated;
     extern jmethodID gCachedNfcManagerNotifySeFieldDeactivated;
     extern jmethodID gCachedNfcManagerNotifySeListenActivated;

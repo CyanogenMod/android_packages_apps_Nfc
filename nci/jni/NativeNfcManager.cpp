@@ -77,6 +77,7 @@ namespace android
     jmethodID               gCachedNfcManagerNotifyTransactionListeners;
     jmethodID               gCachedNfcManagerNotifyLlcpLinkActivation;
     jmethodID               gCachedNfcManagerNotifyLlcpLinkDeactivated;
+    jmethodID               gCachedNfcManagerNotifyLlcpFirstPacketReceived;
     jmethodID               gCachedNfcManagerNotifySeFieldActivated;
     jmethodID               gCachedNfcManagerNotifySeFieldDeactivated;
     jmethodID               gCachedNfcManagerNotifySeListenActivated;
@@ -250,6 +251,9 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         {
             ALOGD("%s: NFA_RF_DISCOVERY_STOPPED_EVT: status = %u", __FUNCTION__, eventData->status);
 
+            // Tell the SE there is no more field
+            SecureElement::getInstance().notifyRfFieldEvent (false);
+
             SyncEventGuard guard (sNfaEnableDisablePollingEvent);
             sNfaEnableDisablePollingEvent.notifyOne ();
         }
@@ -318,13 +322,15 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
             } else {
                 ALOGE ("%s: Failed to disable RF field events", __FUNCTION__);
             }
+            // For the SE, consider the field to be on while p2p is active.
+            SecureElement::getInstance().notifyRfFieldEvent (true);
         }
         else if (pn544InteropIsBusy() == false)
         {
             NfcTag::getInstance().connectionEventHandler (connEvent, eventData);
 
             // We know it is not activating for P2P.  If it activated in
-            // listen mode then it is likely for and SE transaction.
+            // listen mode then it is likely for an SE transaction.
             // Send the RF Event.
             if (isListenMode(eventData->activated))
             {
@@ -373,6 +379,8 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
                 } else {
                     ALOGE ("%s: Failed to enable RF field events", __FUNCTION__);
                 }
+                // Consider the field to be off at this point
+                SecureElement::getInstance().notifyRfFieldEvent (false);
             }
         }
 
@@ -461,12 +469,14 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         ALOGD("%s: NFA_LLCP_DEACTIVATED_EVT", __FUNCTION__);
         PeerToPeer::getInstance().llcpDeactivatedHandler (getNative(0, 0), eventData->llcp_deactivated);
         break;
-
+    case NFA_LLCP_FIRST_PACKET_RECEIVED_EVT: // Received first packet over llcp
+        ALOGD("%s: NFA_LLCP_FIRST_PACKET_RECEIVED_EVT", __FUNCTION__);
+        PeerToPeer::getInstance().llcpFirstPacketHandler (getNative(0, 0));
+        break;
     case NFA_PRESENCE_CHECK_EVT:
         ALOGD("%s: NFA_PRESENCE_CHECK_EVT", __FUNCTION__);
         nativeNfcTag_doPresenceCheckResult (eventData->status);
         break;
-
     case NFA_FORMAT_CPLT_EVT:
         ALOGD("%s: NFA_FORMAT_CPLT_EVT: status=0x%X", __FUNCTION__, eventData->status);
         nativeNfcTag_formatStatus (eventData->status == NFA_STATUS_OK);
@@ -533,6 +543,8 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
             "notifyLlcpLinkActivation", "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
     gCachedNfcManagerNotifyLlcpLinkDeactivated = e->GetMethodID(cls.get(),
             "notifyLlcpLinkDeactivated", "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
+    gCachedNfcManagerNotifyLlcpFirstPacketReceived = e->GetMethodID(cls.get(),
+            "notifyLlcpLinkFirstPacketReceived", "(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
     sCachedNfcManagerNotifyTargetDeselected = e->GetMethodID(cls.get(),
             "notifyTargetDeselected","()V");
     gCachedNfcManagerNotifySeFieldActivated = e->GetMethodID(cls.get(),
@@ -624,7 +636,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
         ALOGD ("%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __FUNCTION__,
               eventData->rf_field.status, eventData->rf_field.rf_field_status);
 
-        if (!sIsDisabling && eventData->rf_field.status == NFA_STATUS_OK)
+        if (!sIsDisabling && !sP2pActive && eventData->rf_field.status == NFA_STATUS_OK)
             SecureElement::getInstance().notifyRfFieldEvent (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON);
         break;
 

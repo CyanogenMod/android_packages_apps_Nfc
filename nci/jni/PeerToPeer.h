@@ -120,6 +120,7 @@ public:
     *******************************************************************************/
     void llcpDeactivatedHandler (nfc_jni_native_data* nativeData, tNFA_LLCP_DEACTIVATED& deactivated);
 
+    void llcpFirstPacketHandler(nfc_jni_native_data* nativeData);
 
     /*******************************************************************************
     **

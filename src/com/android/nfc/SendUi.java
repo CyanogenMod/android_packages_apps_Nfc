@@ -31,6 +31,7 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
+import android.os.AsyncTask;
 import android.os.Binder;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -43,7 +44,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -101,6 +101,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int FINISH_SCALE_UP = 0;
     static final int FINISH_SEND_SUCCESS = 1;
 
+    static final int STATE_IDLE = 0;
+    static final int STATE_WAITING_FOR_SCREENSHOT = 1;
+    static final int STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED = 2;
+    static final int STATE_WAITING_FOR_CONFIRM = 3;
+    static final int STATE_SENDING = 4;
+    static final int STATE_COMPLETE = 5;
+
     // all members are only used on UI thread
     final WindowManager mWindowManager;
     final Context mContext;
@@ -152,9 +159,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     String mToastString;
     Bitmap mScreenshotBitmap;
 
-    boolean mAttached;
-    boolean mSending;
-
+    int mState;
     int mRenderedFrames;
 
     // Used for holding the surface
@@ -272,24 +277,36 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         } else {
             mFireflyRenderer = null;
         }
-        mAttached = false;
+        mState = STATE_IDLE;
     }
 
     public void takeScreenshot() {
-        mScreenshotBitmap = createScreenshot();
+        // There's no point in taking the screenshot if
+        // we're still finishing the previous animation.
+        if (mState >= STATE_WAITING_FOR_CONFIRM) {
+            return;
+        }
+        mState = STATE_WAITING_FOR_SCREENSHOT;
+        new ScreenshotTask().execute();
     }
 
     /** Show pre-send animation */
     public void showPreSend() {
+        if (mState >= STATE_WAITING_FOR_CONFIRM) {
+            // Still in a previous animation run
+            return;
+        }
+        else if (mState == STATE_WAITING_FOR_SCREENSHOT) {
+            mState = STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED;
+            // Will get called again when screenshot is done
+            return;
+        }
         // Update display metrics
         mDisplay.getRealMetrics(mDisplayMetrics);
 
         final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
 
-        if (mScreenshotBitmap == null || mAttached) {
-            return;
-        }
         mBlackLayer.setVisibility(View.GONE);
         mBlackLayer.setAlpha(0f);
         mScreenshotView.setOnTouchListener(this);
@@ -333,17 +350,16 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
         mToastString = null;
-        mSending = false;
-        mAttached = true;
 
         if (!mHardwareAccelerated) {
             mPreAnimator.start();
         } // else, we will start the animation once we get the hardware surface
+        mState = STATE_WAITING_FOR_CONFIRM;
     }
 
     /** Show starting send animation */
     public void showStartSend() {
-        if (!mAttached) return;
+        if (mState < STATE_SENDING) return;
 
         mTextRetry.setVisibility(View.GONE);
         // Update the starting scale - touchscreen-mashers may trigger
@@ -367,7 +383,6 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     }
 
     public void finishAndToast(int finishMode, String toast) {
-        if (!mAttached) return;
         mToastString = toast;
 
         finish(finishMode);
@@ -375,7 +390,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     /** Return to initial state */
     public void finish(int finishMode) {
-        if (!mAttached) return;
+        if (mState < STATE_WAITING_FOR_CONFIRM) return;
 
         // Stop rendering the fireflies
         if (mFireflyRenderer != null) {
@@ -417,14 +432,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mSlowSendAnimator.cancel();
             mSuccessAnimatorSet.start();
         }
+        mState = STATE_COMPLETE;
     }
 
     public void dismiss() {
-        if (!mAttached) return;
-
-        // Immediately set to false, to prevent .cancel() calls
+        if (mState < STATE_WAITING_FOR_CONFIRM) return;
+        // Immediately set to IDLE, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
-        mAttached = false;
+        // (They can do so on the same thread).
+        mState = STATE_IDLE;
         mSurface = null;
         mFrameCounterAnimator.cancel();
         mPreAnimator.cancel();
@@ -436,15 +452,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mAlphaDownAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
-        releaseScreenshot();
+        mScreenshotBitmap = null;
         if (mToastString != null) {
             Toast.makeText(mContext, mToastString, Toast.LENGTH_LONG).show();
         }
         mToastString = null;
-    }
-
-    public void releaseScreenshot() {
-        mScreenshotBitmap = null;
     }
 
     /**
@@ -461,6 +473,21 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         }
         return 0f;
     }
+
+    final class ScreenshotTask extends AsyncTask<Void, Void, Bitmap> {
+        @Override
+        protected Bitmap doInBackground(Void... params) {
+            return createScreenshot();
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap result) {
+            mScreenshotBitmap = result;
+            if (result != null && mState == STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED) {
+                showPreSend();
+            }
+        }
+    };
 
     /**
      * Returns a screenshot of the current display contents.
@@ -559,7 +586,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mScreenshotView.setScaleX(1.0f);
             mScreenshotView.setScaleY(1.0f);
         } else if (animation == mPreAnimator) {
-            if (mHardwareAccelerated && mAttached && !mSending) {
+            if (mHardwareAccelerated && (mState == STATE_WAITING_FOR_CONFIRM)) {
                 mFireflyRenderer.start(mSurface, mSurfaceWidth, mSurfaceHeight);
             }
         }
@@ -588,10 +615,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (!mAttached) {
+        if (mState < STATE_WAITING_FOR_CONFIRM) {
             return false;
         }
-        mSending = true;
+        mState = STATE_SENDING;
         // Ignore future touches
         mScreenshotView.setOnTouchListener(null);
 
@@ -605,7 +632,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        if (mHardwareAccelerated && !mSending) {
+        if (mHardwareAccelerated && mState < STATE_COMPLETE) {
             mRenderedFrames = 0;
 
             mFrameCounterAnimator.start();
