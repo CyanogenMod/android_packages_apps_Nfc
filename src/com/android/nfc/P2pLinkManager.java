@@ -310,6 +310,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                         // since Jelly Bean.
                         if ((mSendFlags & NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM) != 0) {
                             mSendState = SEND_STATE_SENDING;
+                            onP2pSendConfirmed(false);
                         } else {
                             mSendState = SEND_STATE_NEED_CONFIRMATION;
                             if (DBG) Log.d(TAG, "onP2pSendConfirmationRequested()");
@@ -1003,9 +1004,14 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
 
     @Override
     public void onP2pSendConfirmed() {
+        onP2pSendConfirmed(true);
+    }
+
+    private void onP2pSendConfirmed(boolean requireConfirmation) {
         if (DBG) Log.d(TAG, "onP2pSendConfirmed()");
         synchronized (this) {
-            if (mLinkState == LINK_STATE_DOWN || mSendState != SEND_STATE_NEED_CONFIRMATION) {
+            if (mLinkState == LINK_STATE_DOWN || (requireConfirmation
+                    && mSendState != SEND_STATE_NEED_CONFIRMATION)) {
                 return;
             }
             mSendState = SEND_STATE_SENDING;
