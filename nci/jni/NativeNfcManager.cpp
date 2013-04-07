@@ -251,9 +251,6 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         {
             ALOGD("%s: NFA_RF_DISCOVERY_STOPPED_EVT: status = %u", __FUNCTION__, eventData->status);
 
-            // Tell the SE there is no more field
-            SecureElement::getInstance().notifyRfFieldEvent (false);
-
             SyncEventGuard guard (sNfaEnableDisablePollingEvent);
             sNfaEnableDisablePollingEvent.notifyOne ();
         }
