@@ -178,6 +178,8 @@ bool SecureElement::initialize (nfc_jni_native_data* native)
     mbNewEE         = true;
     mNewPipeId      = 0;
     mNewSourceGate  = 0;
+    mRfFieldIsOn    = false;
+    mActivatedInListenMode = false;
     mCurrentRouteSelection = NoRoute;
     memset (mEeInfo, 0, sizeof(mEeInfo));
     memset (&mUiccInfo, 0, sizeof(mUiccInfo));
@@ -1075,6 +1077,33 @@ void SecureElement::notifyRfFieldEvent (bool isActive)
         e->ExceptionClear();
         ALOGE ("%s: fail notify", fn);
     }
+    ALOGD ("%s: exit", fn);
+}
+
+/*******************************************************************************
+**
+** Function:        resetRfFieldStatus
+**
+** Description:     Resets the field status.
+**                  isActive: Whether any secure element is activated.
+**
+** Returns:         None
+**
+*******************************************************************************/
+void SecureElement::resetRfFieldStatus ()
+{
+    static const char fn [] = "SecureElement::resetRfFieldStatus`";
+    ALOGD ("%s: enter;");
+
+    mMutex.lock();
+    mRfFieldIsOn = false;
+    int ret = clock_gettime (CLOCK_MONOTONIC, &mLastRfFieldToggle);
+    if (ret == -1) {
+        ALOGE("%s: clock_gettime failed", fn);
+        // There is no good choice here...
+    }
+    mMutex.unlock();
+
     ALOGD ("%s: exit", fn);
 }
 

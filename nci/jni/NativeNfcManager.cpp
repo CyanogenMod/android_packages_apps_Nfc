@@ -294,7 +294,7 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
 
     case NFA_ACTIVATED_EVT: // NFC link/protocol activated
         ALOGD("%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d, sIsDisabling=%d", __FUNCTION__, gIsSelectingRfInterface, sIsDisabling);
-        if (sIsDisabling)
+        if (sIsDisabling || !sIsNfaEnabled)
             break;
 
         NfcTag::getInstance().setActivationState ();
@@ -360,24 +360,28 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         {
             if (sSeRfActive) {
                 sSeRfActive = false;
-                SecureElement::getInstance().notifyListenModeState (false);
+                if (!sIsDisabling && sIsNfaEnabled)
+                    SecureElement::getInstance().notifyListenModeState (false);
             } else if (sP2pActive) {
                 sP2pActive = false;
                 // Make sure RF field events are re-enabled
-                ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
+                ALOGD("%s: NFA_DEACTIVATED_EVT; is p2p", __FUNCTION__);
                 // Disable RF field events in case of p2p
                 UINT8  nfa_enable_rf_events[] = { 0x01 };
 
-                ALOGD ("%s: Enabling RF field events", __FUNCTION__);
-                status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_enable_rf_events),
-                        &nfa_enable_rf_events[0]);
-                if (status == NFA_STATUS_OK) {
-                    ALOGD ("%s: Enabled RF field events", __FUNCTION__);
-                } else {
-                    ALOGE ("%s: Failed to enable RF field events", __FUNCTION__);
+                if (!sIsDisabling && sIsNfaEnabled)
+                {
+                    ALOGD ("%s: Enabling RF field events", __FUNCTION__);
+                    status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_enable_rf_events),
+                            &nfa_enable_rf_events[0]);
+                    if (status == NFA_STATUS_OK) {
+                        ALOGD ("%s: Enabled RF field events", __FUNCTION__);
+                    } else {
+                        ALOGE ("%s: Failed to enable RF field events", __FUNCTION__);
+                    }
+                    // Consider the field to be off at this point
+                    SecureElement::getInstance().notifyRfFieldEvent (false);
                 }
-                // Consider the field to be off at this point
-                SecureElement::getInstance().notifyRfFieldEvent (false);
             }
         }
 
@@ -632,9 +636,12 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
     case NFA_DM_RF_FIELD_EVT:
         ALOGD ("%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __FUNCTION__,
               eventData->rf_field.status, eventData->rf_field.rf_field_status);
+        if (sIsDisabling || !sIsNfaEnabled)
+            break;
 
-        if (!sIsDisabling && !sP2pActive && eventData->rf_field.status == NFA_STATUS_OK)
-            SecureElement::getInstance().notifyRfFieldEvent (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON);
+        if (!sP2pActive && eventData->rf_field.status == NFA_STATUS_OK)
+            SecureElement::getInstance().notifyRfFieldEvent (
+                    eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON);
         break;
 
     case NFA_DM_NFCC_TRANSPORT_ERR_EVT:
@@ -919,6 +926,12 @@ void nfcManager_disableDiscovery (JNIEnv*, jobject)
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::DISCOVERY))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
 
+    // We may have had RF field notifications that did not cause
+    // any activate/deactive events. For example, caused by wireless
+    // charging orbs. Those may cause us to go to sleep while the last
+    // field event was indicating a field. To prevent sticking in that
+    // state, always reset the rf field status when we disable discovery.
+    SecureElement::getInstance().resetRfFieldStatus();
 TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
 }

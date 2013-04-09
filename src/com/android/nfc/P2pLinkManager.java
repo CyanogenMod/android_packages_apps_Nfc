@@ -355,6 +355,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                    break;
                 case LINK_STATE_WAITING_PDU:
                     mLinkState = LINK_STATE_UP;
+                    if (mSendState == SEND_STATE_NOTHING_TO_SEND)
+                        break;
                     if (totalTime <  LINK_FIRST_PDU_LIMIT_MS || mSendState == SEND_STATE_SENDING) {
                         connectLlcpServices();
                     } else {
