@@ -587,7 +587,8 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             }
             mLlcpServicesConnected = true;
             if (mSendState == SEND_STATE_SENDING) {
-                // Send was previously confirmed, we probably cycled through a debounce
+                // FIXME Keep state to make sure this is only called when in debounce
+                // and remove logic in P2pEventManager to keep track.
                 mEventListener.onP2pResumeSend();
                 sendNdefMessage();
             } else {
@@ -1018,7 +1019,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             if (mLinkState == LINK_STATE_WAITING_PDU) {
                 // We could decide to wait for the first PDU here; but
                 // that makes us vulnerable to cases where for some reason
-                // this event is not propogated up by the stack. Instead,
+                // this event is not propagated up by the stack. Instead,
                 // try to connect now.
                 mLinkState = LINK_STATE_UP;
                 connectLlcpServices();
