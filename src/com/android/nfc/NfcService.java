@@ -1758,6 +1758,16 @@ public class NfcService implements DeviceHostListener {
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     playSound(SOUND_START);
+                    if (tag.getConnectedTechnology() == TagTechnology.NFC_BARCODE) {
+                        // When these tags start containing NDEF, they will require
+                        // the stack to deal with them in a different way, since
+                        // they are activated only really shortly.
+                        // For now, don't consider NDEF on these.
+                        if (DBG) Log.d(TAG, "Skipping NDEF detection for NFC Barcode");
+                        tag.startPresenceChecking();
+                        dispatchTagEndpoint(tag);
+                        break;
+                    }
                     NdefMessage ndefMsg = tag.findAndReadNdef();
 
                     if (ndefMsg != null) {
