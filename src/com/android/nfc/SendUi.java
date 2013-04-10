@@ -34,6 +34,7 @@ import android.graphics.SurfaceTexture;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -74,6 +75,8 @@ import android.widget.Toast;
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         TimeAnimator.TimeListener, TextureView.SurfaceTextureListener {
+    static final String TAG = "SendUi";
+
     static final float INTERMEDIATE_SCALE = 0.6f;
 
     static final float[] PRE_SCREENSHOT_SCALE = {1.0f, INTERMEDIATE_SCALE};
@@ -102,11 +105,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int FINISH_SEND_SUCCESS = 1;
 
     static final int STATE_IDLE = 0;
-    static final int STATE_WAITING_FOR_SCREENSHOT = 1;
-    static final int STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED = 2;
-    static final int STATE_WAITING_FOR_CONFIRM = 3;
-    static final int STATE_SENDING = 4;
-    static final int STATE_COMPLETE = 5;
+    static final int STATE_W4_SCREENSHOT = 1;
+    static final int STATE_W4_SCREENSHOT_PRESEND_REQUESTED = 2;
+    static final int STATE_W4_SCREENSHOT_THEN_STOP = 3;
+    static final int STATE_W4_PRESEND = 4;
+    static final int STATE_W4_CONFIRM = 5;
+    static final int STATE_SENDING = 6;
+    static final int STATE_COMPLETE = 7;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -283,23 +288,33 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     public void takeScreenshot() {
         // There's no point in taking the screenshot if
         // we're still finishing the previous animation.
-        if (mState >= STATE_WAITING_FOR_CONFIRM) {
+        if (mState >= STATE_W4_CONFIRM) {
             return;
         }
-        mState = STATE_WAITING_FOR_SCREENSHOT;
+        mState = STATE_W4_SCREENSHOT;
         new ScreenshotTask().execute();
     }
 
     /** Show pre-send animation */
     public void showPreSend() {
-        if (mState >= STATE_WAITING_FOR_CONFIRM) {
-            // Still in a previous animation run
-            return;
-        }
-        else if (mState == STATE_WAITING_FOR_SCREENSHOT) {
-            mState = STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED;
-            // Will get called again when screenshot is done
-            return;
+        switch (mState) {
+            case STATE_IDLE:
+                Log.e(TAG, "Unexpected showPreSend() in STATE_IDLE");
+                return;
+            case STATE_W4_SCREENSHOT:
+                // Still waiting for screenshot, store request in state
+                // and wait for screenshot completion.
+                mState = STATE_W4_SCREENSHOT_PRESEND_REQUESTED;
+                return;
+            case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+                Log.e(TAG, "Unexpected showPreSend() in STATE_W4_SCREENSHOT_PRESEND_REQUESTED");
+                return;
+            case STATE_W4_PRESEND:
+                // Expected path, continue below
+                break;
+            default:
+                Log.e(TAG, "Unexpected showPreSend() in state " + Integer.toString(mState));
+                return;
         }
         // Update display metrics
         mDisplay.getRealMetrics(mDisplayMetrics);
@@ -309,7 +324,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         mBlackLayer.setVisibility(View.GONE);
         mBlackLayer.setAlpha(0f);
-        mScreenshotView.setOnTouchListener(this);
+        mScreenshotLayout.setOnTouchListener(this);
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotView.setTranslationX(0f);
         mScreenshotView.setAlpha(1.0f);
@@ -354,7 +369,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (!mHardwareAccelerated) {
             mPreAnimator.start();
         } // else, we will start the animation once we get the hardware surface
-        mState = STATE_WAITING_FOR_CONFIRM;
+        mState = STATE_W4_CONFIRM;
     }
 
     /** Show starting send animation */
@@ -390,7 +405,29 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     /** Return to initial state */
     public void finish(int finishMode) {
-        if (mState < STATE_WAITING_FOR_CONFIRM) return;
+        switch (mState) {
+            case STATE_IDLE:
+                return;
+            case STATE_W4_SCREENSHOT:
+            case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+                // Screenshot is still being captured on a separate thread.
+                // Update state, and stop everything when the capture is done.
+                mState = STATE_W4_SCREENSHOT_THEN_STOP;
+                return;
+            case STATE_W4_SCREENSHOT_THEN_STOP:
+                Log.e(TAG, "Unexpected call to finish() in STATE_W4_SCREENSHOT_THEN_STOP");
+                return;
+            case STATE_W4_PRESEND:
+                // We didn't build up any animation state yet, but
+                // did store the bitmap. Clear out the bitmap, reset
+                // state and bail.
+                mScreenshotBitmap = null;
+                mState = STATE_IDLE;
+                return;
+            default:
+                // We've started animations and attached a view; tear stuff down below.
+                break;
+        }
 
         // Stop rendering the fireflies
         if (mFireflyRenderer != null) {
@@ -435,8 +472,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mState = STATE_COMPLETE;
     }
 
-    public void dismiss() {
-        if (mState < STATE_WAITING_FOR_CONFIRM) return;
+    void dismiss() {
+        if (mState < STATE_W4_CONFIRM) return;
         // Immediately set to IDLE, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
         // (They can do so on the same thread).
@@ -482,9 +519,25 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         @Override
         protected void onPostExecute(Bitmap result) {
-            mScreenshotBitmap = result;
-            if (result != null && mState == STATE_WAITING_FOR_SCREENSHOT_CONFIRM_REQUESTED) {
-                showPreSend();
+            if (mState == STATE_W4_SCREENSHOT) {
+                // Screenshot done, wait for request to start preSend anim
+                mState = STATE_W4_PRESEND;
+            } else if (mState == STATE_W4_SCREENSHOT_THEN_STOP) {
+                // We were asked to finish, move to idle state and exit
+                mState = STATE_IDLE;
+            } else if (mState == STATE_W4_SCREENSHOT_PRESEND_REQUESTED) {
+                if (result != null) {
+                    mScreenshotBitmap = result;
+                    mState = STATE_W4_PRESEND;
+                    showPreSend();
+                } else {
+                    // Failed to take screenshot; reset state to idle
+                    // and don't do anything
+                    Log.e(TAG, "Failed to create screenshot");
+                    mState = STATE_IDLE;
+                }
+            } else {
+                Log.e(TAG, "Invalid state on screenshot completion: " + Integer.toString(mState));
             }
         }
     };
@@ -586,7 +639,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mScreenshotView.setScaleX(1.0f);
             mScreenshotView.setScaleY(1.0f);
         } else if (animation == mPreAnimator) {
-            if (mHardwareAccelerated && (mState == STATE_WAITING_FOR_CONFIRM)) {
+            if (mHardwareAccelerated && (mState == STATE_W4_CONFIRM)) {
                 mFireflyRenderer.start(mSurface, mSurfaceWidth, mSurfaceHeight);
             }
         }
@@ -615,7 +668,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (mState < STATE_WAITING_FOR_CONFIRM) {
+        if (mState != STATE_W4_CONFIRM) {
             return false;
         }
         mState = STATE_SENDING;
