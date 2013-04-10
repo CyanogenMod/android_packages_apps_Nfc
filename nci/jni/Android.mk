@@ -45,6 +45,7 @@ LOCAL_SHARED_LIBRARIES := \
     libnativehelper \
     libcutils \
     libutils \
+    liblog \
     libnfc-nci \
     libstlport
 
