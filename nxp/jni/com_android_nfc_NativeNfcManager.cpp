@@ -1870,6 +1870,13 @@ static void com_android_nfc_NfcManager_doSelectSecureElement(JNIEnv *e, jobject 
         goto clean_and_return;
     }
 
+    REENTRANCE_LOCK();
+    ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
+    REENTRANCE_UNLOCK();
+    if(ret != NFCSTATUS_SUCCESS) {
+        ALOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+    }
     TRACE("******  Select Secure Element ******");
 
     TRACE("phLibNfc_SE_SetMode()");
@@ -1910,6 +1917,13 @@ static void com_android_nfc_NfcManager_doDeselectSecureElement(JNIEnv *e, jobjec
         goto clean_and_return;
     }
 
+    REENTRANCE_LOCK();
+    ret = phLibNfc_RemoteDev_NtfRegister(&nat->registry_info, nfc_jni_Discovery_notification_callback, (void *)nat);
+    REENTRANCE_UNLOCK();
+    if(ret != NFCSTATUS_SUCCESS) {
+        ALOGD("pphLibNfc_RemoteDev_NtfRegister returned 0x%02x",ret);
+        goto clean_and_return;
+    }
     TRACE("****** Deselect Secure Element ******");
 
     TRACE("phLibNfc_SE_SetMode()");
