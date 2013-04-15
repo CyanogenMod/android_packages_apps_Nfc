@@ -643,7 +643,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
                 }
             }
 
-            if (needsNdef) {
+            if (needsNdef || (needsHandover && handoverClient == null)) {
                 snepClient = new SnepClient();
                 try {
                     snepClient.connect();
