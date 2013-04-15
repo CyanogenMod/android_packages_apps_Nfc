@@ -1258,6 +1258,12 @@ static void nfcManager_doSelectSecureElement(JNIEnv*, jobject)
     ALOGD ("%s: enter", __FUNCTION__);
     bool stat = true;
 
+    if (sIsSecElemSelected)
+    {
+        ALOGD ("%s: already selected", __FUNCTION__);
+        goto TheEnd;
+    }
+
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 
     if (sRfEnabled) {
@@ -1265,22 +1271,14 @@ static void nfcManager_doSelectSecureElement(JNIEnv*, jobject)
         startRfDiscovery (false);
     }
 
-    if (sIsSecElemSelected)
-    {
-        ALOGD ("%s: already selected", __FUNCTION__);
-        goto TheEnd;
-    }
-
     stat = SecureElement::getInstance().activate (0xABCDEF);
     if (stat)
         SecureElement::getInstance().routeToSecureElement ();
     sIsSecElemSelected = true;
 
-TheEnd:
     startRfDiscovery (true);
-
     PowerSwitch::getInstance ().setModeOn (PowerSwitch::SE_ROUTING);
-
+TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
