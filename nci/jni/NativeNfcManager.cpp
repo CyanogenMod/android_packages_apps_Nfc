@@ -210,7 +210,13 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
     tNFA_STATUS status = NFA_STATUS_FAILED;
     ALOGD("%s: event= %u", __FUNCTION__, connEvent);
 
-    if (gIsTagDeactivating && connEvent != NFA_DEACTIVATED_EVT && connEvent != NFA_PRESENCE_CHECK_EVT && connEvent != NFA_DATA_EVT)
+    // TODO this if can probably be completely removed. It's unclear why this
+    // was present in the initial code drop - either to work around NFCC,
+    // stack or certain NFC tags bugs. Until we verify removing it doesn't
+    // break things, leave it be.
+    if (gIsTagDeactivating && connEvent != NFA_DEACTIVATED_EVT &&
+            connEvent != NFA_PRESENCE_CHECK_EVT && connEvent != NFA_DATA_EVT &&
+            connEvent != NFA_RW_INTF_ERROR_EVT)
     {
         // special case to switching frame interface for ISO_DEP tags
         gIsTagDeactivating = false;
