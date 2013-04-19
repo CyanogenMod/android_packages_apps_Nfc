@@ -64,6 +64,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
@@ -154,6 +155,12 @@ public class NfcService implements DeviceHostListener {
     // Time to wait for routing to be applied before watchdog
     // goes off
     static final int ROUTING_WATCHDOG_MS = 10000;
+
+    // Amount of time to wait before closing the NFCEE connection
+    // in a disable/shutdown scenario.
+    static final int WAIT_FOR_NFCEE_OPERATIONS_MS = 5000;
+    // Polling interval for waiting on NFCEE operations
+    static final int WAIT_FOR_NFCEE_POLL_MS = 100;
 
     // for use with playSound()
     public static final int SOUND_START = 0;
@@ -660,6 +667,25 @@ public class NfcService implements DeviceHostListener {
             watchDog.start();
 
             mP2pLinkManager.enableDisable(false, false);
+
+            /* The NFC-EE may still be opened by another process,
+             * and a transceive() could still be in progress on
+             * another Binder thread.
+             * Give it a while to finish existing operations
+             * before we close it.
+             */
+            Long startTime = SystemClock.elapsedRealtime();
+            do {
+                synchronized (NfcService.this) {
+                    if (mOpenEe == null)
+                        break;
+                }
+                try {
+                    Thread.sleep(WAIT_FOR_NFCEE_POLL_MS);
+                } catch (InterruptedException e) {
+                    // Ignore
+                }
+            } while (SystemClock.elapsedRealtime() - startTime < WAIT_FOR_NFCEE_OPERATIONS_MS);
 
             synchronized (NfcService.this) {
                 if (mOpenEe != null) {
