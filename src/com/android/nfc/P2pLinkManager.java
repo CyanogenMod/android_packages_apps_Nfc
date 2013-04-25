@@ -265,6 +265,16 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     }
 
     /**
+     * May be called from any thread.
+     * @return whether the LLCP link is in an active or debounce state
+     */
+    public boolean isLlcpActive() {
+        synchronized (this) {
+            return mLinkState != LINK_STATE_DOWN;
+        }
+    }
+
+    /**
      * Set NDEF callback for sending.
      * May be called from any thread.
      * NDEF callbacks may be set at any time (even if NFC is
