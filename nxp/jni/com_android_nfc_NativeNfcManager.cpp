@@ -1305,6 +1305,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat, bool
 {
    NFCSTATUS ret;
    struct nfc_jni_callback_data cb_data;
+   int numRetries = 3;
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -1321,7 +1322,7 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat, bool
 
    /* Reset device connected flag */
    device_connected_flag = 0;
-
+configure:
    /* Start Polling loop */
    TRACE("******  Start NFC Discovery ******");
    REENTRANCE_LOCK();
@@ -1337,6 +1338,13 @@ static void nfc_jni_start_discovery_locked(struct nfc_jni_native_data *nat, bool
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693==TRUE?"RFID":"",
       nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation==FALSE?"CE":"",
       nat->discovery_cfg.NfcIP_Mode, nat->discovery_cfg.Duration, ret);
+
+   if (ret == NFCSTATUS_BUSY && numRetries-- > 0)
+   {
+      TRACE("ConfigDiscovery BUSY, retrying");
+      usleep(1000000);
+      goto configure;
+   }
 
    if(ret != NFCSTATUS_PENDING)
    {
@@ -1360,6 +1368,7 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    phLibNfc_sADD_Cfg_t discovery_cfg;
    NFCSTATUS ret;
    struct nfc_jni_callback_data cb_data;
+   int numRetries = 3;
 
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
@@ -1372,6 +1381,7 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
    discovery_cfg.NfcIP_Target_Mode = 0;
    discovery_cfg.NfcIP_Tgt_Disable = TRUE;
 
+configure:
    /* Start Polling loop */
    TRACE("******  Stop NFC Discovery ******");
    REENTRANCE_LOCK();
@@ -1387,8 +1397,16 @@ static void nfc_jni_stop_discovery_locked(struct nfc_jni_native_data *nat)
       discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation==FALSE?"CE":"",
       discovery_cfg.NfcIP_Mode, discovery_cfg.Duration, ret);
 
+   if (ret == NFCSTATUS_BUSY && numRetries-- > 0)
+   {
+      TRACE("ConfigDiscovery BUSY, retrying");
+      usleep(1000000);
+      goto configure;
+   }
+
    if(ret != NFCSTATUS_PENDING)
    {
+      ALOGE("[STOP] ConfigDiscovery returned %x", ret);
       emergency_recovery(nat);
    }
 
