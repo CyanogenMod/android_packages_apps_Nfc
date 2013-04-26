@@ -1406,8 +1406,23 @@ public class NfcService implements DeviceHostListener {
                     return EE_ERROR_ALREADY_OPEN;
                 }
 
+                boolean restorePolling = false;
+                if (mDeviceHost.enablePN544Quirks() && mNfcPollingEnabled) {
+                    // Disable polling for tags/P2P when connecting to the SMX
+                    // on PN544-based devices. Whenever nfceeClose is called,
+                    // the polling configuration will be restored.
+                    mDeviceHost.disableDiscovery();
+                    mNfcPollingEnabled = false;
+                    restorePolling = true;
+                }
+
                 int handle = doOpenSecureElementConnection();
                 if (handle < 0) {
+
+                    if (restorePolling) {
+                        mDeviceHost.enableDiscovery();
+                        mNfcPollingEnabled = true;
+                    }
                     return handle;
                 }
                 mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 30000);
@@ -1938,7 +1953,6 @@ public class NfcService implements DeviceHostListener {
                     sendSeBroadcast(listenModeDeactivated);
                     break;
                 }
-
                 default:
                     Log.e(TAG, "Unknown message received");
                     break;
