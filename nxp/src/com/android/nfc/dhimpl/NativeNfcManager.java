@@ -168,10 +168,40 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
+    public boolean sendRawFrame(byte[] data)
+    {
+        return false;
+    }
+
+    @Override
+    public boolean routeAid(byte[] aid, int route)
+    {
+        return false;
+    }
+
+    @Override
+    public boolean unrouteAid(byte[] aid)
+    {
+       return false;
+    }
+
+    @Override
     public native void enableDiscovery();
 
     @Override
     public native void disableDiscovery();
+
+    @Override
+    public void enableRoutingToHost()
+    {
+
+    }
+
+    @Override
+    public void disableRoutingToHost()
+    {
+
+    }
 
     @Override
     public native int[] doGetSecureElementList();

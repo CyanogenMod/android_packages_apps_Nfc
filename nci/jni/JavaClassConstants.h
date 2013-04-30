@@ -28,6 +28,13 @@ namespace android
     extern jmethodID gCachedNfcManagerNotifySeListenActivated;
     extern jmethodID gCachedNfcManagerNotifySeListenDeactivated;
 
+    /*
+     * host-based card emulation
+     */
+    extern jmethodID gCachedNfcManagerNotifyHostEmuActivated;
+    extern jmethodID gCachedNfcManagerNotifyHostEmuData;
+    extern jmethodID gCachedNfcManagerNotifyHostEmuDeactivated;
+
     extern const char* gNativeP2pDeviceClassName;
     extern const char* gNativeLlcpServiceSocketClassName;
     extern const char* gNativeLlcpConnectionlessSocketClassName;

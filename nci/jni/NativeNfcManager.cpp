@@ -22,6 +22,7 @@
 #include "SyncEvent.h"
 #include "PeerToPeer.h"
 #include "SecureElement.h"
+#include "RoutingManager.h"
 #include "NfcTag.h"
 #include "config.h"
 #include "PowerSwitch.h"
@@ -29,6 +30,7 @@
 #include "Pn544Interop.h"
 #include <ScopedLocalRef.h>
 #include <ScopedUtfChars.h>
+#include <ScopedPrimitiveArray.h>
 
 extern "C"
 {
@@ -81,6 +83,9 @@ namespace android
     jmethodID               gCachedNfcManagerNotifySeFieldDeactivated;
     jmethodID               gCachedNfcManagerNotifySeListenActivated;
     jmethodID               gCachedNfcManagerNotifySeListenDeactivated;
+    jmethodID               gCachedNfcManagerNotifyHostEmuActivated;
+    jmethodID               gCachedNfcManagerNotifyHostEmuData;
+    jmethodID               gCachedNfcManagerNotifyHostEmuDeactivated;
     const char*             gNativeP2pDeviceClassName                 = "com/android/nfc/dhimpl/NativeP2pDevice";
     const char*             gNativeLlcpServiceSocketClassName         = "com/android/nfc/dhimpl/NativeLlcpServiceSocket";
     const char*             gNativeLlcpConnectionlessSocketClassName  = "com/android/nfc/dhimpl/NativeLlcpConnectionlessSocket";
@@ -549,6 +554,15 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
     gCachedNfcManagerNotifySeListenDeactivated = e->GetMethodID(cls.get(),
             "notifySeListenDeactivated", "()V");
 
+    gCachedNfcManagerNotifyHostEmuActivated = e->GetMethodID(cls.get(),
+            "notifyHostEmuActivated", "()V");
+
+    gCachedNfcManagerNotifyHostEmuData = e->GetMethodID(cls.get(),
+            "notifyHostEmuData", "([B)V");
+
+    gCachedNfcManagerNotifyHostEmuDeactivated = e->GetMethodID(cls.get(),
+            "notifyHostEmuDeactivated", "()V");
+
     sCachedNfcManagerNotifySeApduReceived = e->GetMethodID(cls.get(),
             "notifySeApduReceived", "([B)V");
 
@@ -706,6 +720,66 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
     }
 }
 
+/*******************************************************************************
+**
+** Function:        nfcManager_sendRawFrame
+**
+** Description:     Send a raw frame.
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         True if ok.
+**
+*******************************************************************************/
+static jboolean nfcManager_sendRawFrame (JNIEnv* e, jobject o, jbyteArray data)
+{
+    ScopedByteArrayRO bytes(e, data);
+    uint8_t* buf = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
+    size_t bufLen = bytes.size();
+    tNFA_STATUS status = NFA_SendRawFrame (buf, bufLen, 0);
+
+    return (status == NFA_STATUS_OK);
+}
+
+/*******************************************************************************
+**
+** Function:        nfcManager_routeAid
+**
+** Description:     Route an AID to an EE
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         True if ok.
+**
+*******************************************************************************/
+static jboolean nfcManager_routeAid (JNIEnv* e, jobject o, jbyteArray aid, jint route)
+{
+    ScopedByteArrayRO bytes(e, aid);
+    uint8_t* buf = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
+    size_t bufLen = bytes.size();
+    bool result = RoutingManager::getInstance().addAidRouting(buf, bufLen, route);
+    return result;
+}
+
+/*******************************************************************************
+**
+** Function:        nfcManager_unrouteAid
+**
+** Description:     Remove a AID routing
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         True if ok.
+**
+*******************************************************************************/
+static jboolean nfcManager_unrouteAid (JNIEnv* e, jobject o, jbyteArray aid)
+{
+    ScopedByteArrayRO bytes(e, aid);
+    uint8_t* buf = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
+    size_t bufLen = bytes.size();
+    bool result = RoutingManager::getInstance().removeAidRouting(buf, bufLen);
+    return result;
+}
 
 /*******************************************************************************
 **
@@ -763,6 +837,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
             if (sIsNfaEnabled)
             {
                 SecureElement::getInstance().initialize (getNative(e, o));
+                RoutingManager::getInstance().initialize(getNative(e, o));
                 nativeNfcTag_registerNdefTypeHandler ();
                 NfcTag::getInstance().initialize (getNative(e, o));
                 PeerToPeer::getInstance().initialize ();
@@ -869,10 +944,6 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
     {
         ALOGD ("%s: Enable p2pListening", __FUNCTION__);
         PeerToPeer::getInstance().enableP2pListening (true);
-
-        //if NFC service has deselected the sec elem, then apply default routes
-        if (!sIsSecElemSelected)
-            stat = SecureElement::getInstance().routeToDefault ();
     }
 
     // Actually start discovery.
@@ -1257,6 +1328,53 @@ static jintArray nfcManager_doGetSecureElementList(JNIEnv* e, jobject)
     return SecureElement::getInstance().getListOfEeHandles (e);
 }
 
+/*******************************************************************************
+**
+** Function:        nfcManager_enableRoutingToHost
+**
+** Description:     NFC controller starts routing data in listen mode.
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         None
+**
+*******************************************************************************/
+static void nfcManager_enableRoutingToHost(JNIEnv*, jobject)
+{
+    ALOGD ("%s: enter", __FUNCTION__);
+    PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
+    PowerSwitch::getInstance ().setModeOn (PowerSwitch::HOST_ROUTING);
+    if (sRfEnabled) {
+        // Stop RF discovery to reconfigure
+        startRfDiscovery(false);
+    }
+    RoutingManager::getInstance().commitRouting();
+    startRfDiscovery(true);
+
+TheEnd:
+    ALOGD ("%s: exit", __FUNCTION__);
+}
+
+/*******************************************************************************
+**
+** Function:        nfcManager_disableRoutingToHost
+**
+** Description:     NFC controller starts routing data in listen mode.
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         None
+**
+*******************************************************************************/
+static void nfcManager_disableRoutingToHost(JNIEnv*, jobject)
+{
+    ALOGD ("%s: enter", __FUNCTION__);
+
+    if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::HOST_ROUTING))
+        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
+TheEnd:
+    ALOGD ("%s: exit", __FUNCTION__);
+}
 
 /*******************************************************************************
 **
@@ -1287,9 +1405,8 @@ static void nfcManager_doSelectSecureElement(JNIEnv*, jobject)
         startRfDiscovery (false);
     }
 
+
     stat = SecureElement::getInstance().activate (0xABCDEF);
-    if (stat)
-        SecureElement::getInstance().routeToSecureElement ();
     sIsSecElemSelected = true;
 
     startRfDiscovery (true);
@@ -1335,14 +1452,12 @@ static void nfcManager_doDeselectSecureElement(JNIEnv*, jobject)
         bRestartDiscovery = true;
     }
 
-    stat = SecureElement::getInstance().routeToDefault ();
-    sIsSecElemSelected = false;
-
     //if controller is not routing to sec elems AND there is no pipe connected,
     //then turn off the sec elems
     if (SecureElement::getInstance().isBusy() == false)
         SecureElement::getInstance().deactivate (0xABCDEF);
 
+    sIsSecElemSelected = false;
 TheEnd:
     if (bRestartDiscovery)
         startRfDiscovery (true);
@@ -1612,8 +1727,23 @@ static JNINativeMethod gMethods[] =
     {"doDeinitialize", "()Z",
             (void*) nfcManager_doDeinitialize},
 
+    {"sendRawFrame", "([B)Z",
+            (void*) nfcManager_sendRawFrame},
+
+    {"routeAid", "([BI)Z",
+            (void*) nfcManager_routeAid},
+
+    {"unrouteAid", "([B)Z",
+            (void*) nfcManager_unrouteAid},
+
     {"enableDiscovery", "()V",
             (void*) nfcManager_enableDiscovery},
+
+    {"enableRoutingToHost", "()V",
+            (void*) nfcManager_enableRoutingToHost},
+
+    {"disableRoutingToHost", "()V",
+            (void*) nfcManager_disableRoutingToHost},
 
     {"doGetSecureElementList", "()[I",
             (void *)nfcManager_doGetSecureElementList},

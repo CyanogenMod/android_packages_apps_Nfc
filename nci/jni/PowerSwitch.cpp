@@ -34,6 +34,7 @@ PowerSwitch PowerSwitch::sPowerSwitch;
 const PowerSwitch::PowerActivity PowerSwitch::DISCOVERY=0x01;
 const PowerSwitch::PowerActivity PowerSwitch::SE_ROUTING=0x02;
 const PowerSwitch::PowerActivity PowerSwitch::SE_CONNECTED=0x04;
+const PowerSwitch::PowerActivity PowerSwitch::HOST_ROUTING=0x08;
 
 /*******************************************************************************
 **
