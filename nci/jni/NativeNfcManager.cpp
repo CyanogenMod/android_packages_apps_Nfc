@@ -40,7 +40,6 @@ extern "C"
     #include "ce_api.h"
 }
 
-extern UINT8 *p_nfa_dm_lptd_cfg;
 extern UINT8 *p_nfa_dm_start_up_cfg;
 extern const UINT8 nfca_version_string [];
 namespace android
@@ -112,6 +111,7 @@ static SyncEvent            sNfaEnableEvent;  //event for NFA_Enable()
 static SyncEvent            sNfaDisableEvent;  //event for NFA_Disable()
 static SyncEvent            sNfaEnableDisablePollingEvent;  //event for NFA_EnablePolling(), NFA_DisablePolling()
 static SyncEvent            sNfaSetConfigEvent;  // event for Set_Config....
+static SyncEvent            sNfaGetConfigEvent;  // event for Get_Config....
 static bool                 sIsNfaEnabled = false;
 static bool                 sDiscoveryEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
@@ -120,8 +120,6 @@ static bool                 sSeRfActive = false;  // whether RF with SE is likel
 static bool                 sP2pActive = false; // whether p2p was last active
 static bool                 sAbortConnlessWait = false;
 static bool                 sIsSecElemSelected = false;  //has NFC service selected a sec elem
-static UINT8 *              sOriginalLptdCfg = NULL;
-#define CONFIG_UPDATE_LPTD          (1 << 0)
 #define CONFIG_UPDATE_TECH_MASK     (1 << 1)
 #define DEFAULT_TECH_MASK           (NFA_TECHNOLOGY_MASK_A \
                                      | NFA_TECHNOLOGY_MASK_B \
@@ -138,6 +136,8 @@ static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventD
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
 static bool isListenMode(tNFA_ACTIVATED& activated);
 
+static UINT16 sCurrentConfigLen;
+static UINT8 sConfig[256];
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
@@ -623,6 +623,21 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
 
     case NFA_DM_GET_CONFIG_EVT: /* Result of NFA_GetConfig */
         ALOGD ("%s: NFA_DM_GET_CONFIG_EVT", __FUNCTION__);
+        {
+            SyncEventGuard guard (sNfaGetConfigEvent);
+            if (eventData->status == NFA_STATUS_OK &&
+                    eventData->get_config.tlv_size <= sizeof(sConfig))
+            {
+                sCurrentConfigLen = eventData->get_config.tlv_size;
+                memcpy(sConfig, eventData->get_config.param_tlvs, eventData->get_config.tlv_size);
+            }
+            else
+            {
+                ALOGE("%s: NFA_DM_GET_CONFIG failed", __FUNCTION__);
+                sCurrentConfigLen = 0;
+            }
+            sNfaGetConfigEvent.notifyOne();
+        }
         break;
 
     case NFA_DM_RF_FIELD_EVT:
@@ -767,10 +782,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
 
                     ALOGD ("%s: tag polling tech mask=0x%X", __FUNCTION__, nat->tech_mask);
                 }
-
-                // Always restore LPTD Configuration to the stack default.
-                if (sOriginalLptdCfg != NULL)
-                    p_nfa_dm_lptd_cfg = sOriginalLptdCfg;
 
                 // if this value exists, set polling interval.
                 if (GetNumValue(NAME_NFA_DM_DISC_DURATION_POLL, &num, sizeof(num)))
@@ -930,26 +941,39 @@ TheEnd:
 
 void setUiccIdleTimeout (bool enable)
 {
+    // This method is *NOT* thread-safe. Right now
+    // it is only called from the same thread so it's
+    // not an issue.
     tNFA_STATUS stat = NFA_STATUS_OK;
+    UINT8 swp_cfg_byte0 = 0x00;
+    {
+        SyncEventGuard guard (sNfaGetConfigEvent);
+        stat = NFA_GetConfig(1, new tNFA_PMID[1] {0xC2});
+        if (stat != NFA_STATUS_OK)
+        {
+            ALOGE("%s: NFA_GetConfig failed", __FUNCTION__);
+            return;
+        }
+        sNfaGetConfigEvent.wait ();
+        if (sCurrentConfigLen < 4 || sConfig[1] != 0xC2) {
+            ALOGE("%s: Config TLV length %d returned is too short", __FUNCTION__,
+                    sCurrentConfigLen);
+            return;
+        }
+        swp_cfg_byte0 = sConfig[3];
+    }
     SyncEventGuard guard(sNfaSetConfigEvent);
     if (enable)
-    {
-        UINT8 enable_uicc_idle[] = { 0x61,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
-        stat = NFA_SetConfig(0xC2, sizeof(enable_uicc_idle), &enable_uicc_idle[0]);
-        if (stat == NFA_STATUS_OK)
-            sNfaSetConfigEvent.wait ();
-        else
-            ALOGE("%s: Could not enable UICC idle timeout feature", __FUNCTION__);
-    }
+        swp_cfg_byte0 |= 0x01;
     else
-    {
-        UINT8 disable_uicc_idle[] = { 0x60,0x00,0x82,0x04,0x40,0x4B,0x4C,0x00 };
-        stat = NFA_SetConfig(0xC2, sizeof(disable_uicc_idle), &disable_uicc_idle[0]);
-        if (stat == NFA_STATUS_OK)
-            sNfaSetConfigEvent.wait ();
-        else
-            ALOGE("%s: Could not disable UICC idle timeout feature", __FUNCTION__);
-    }
+        swp_cfg_byte0 &= ~0x01;
+
+    stat = NFA_SetConfig(0xC2, 1, &swp_cfg_byte0);
+    if (stat == NFA_STATUS_OK)
+        sNfaSetConfigEvent.wait ();
+    else
+        ALOGE("%s: Could not configure UICC idle timeout feature", __FUNCTION__);
+    return;
 }
 /*******************************************************************************
 **
