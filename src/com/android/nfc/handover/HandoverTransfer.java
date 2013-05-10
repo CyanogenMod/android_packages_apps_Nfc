@@ -222,7 +222,8 @@ public class HandoverTransfer implements Handler.Callback,
         if (mState == STATE_NEW || mState == STATE_IN_PROGRESS ||
                 mState == STATE_W4_NEXT_TRANSFER || mState == STATE_W4_MEDIA_SCANNER) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download :
+                    android.R.drawable.stat_sys_upload);
             notBuilder.setTicker(beamString);
             notBuilder.setContentTitle(beamString);
             notBuilder.addAction(R.drawable.ic_menu_cancel_holo_dark,
@@ -239,7 +240,8 @@ public class HandoverTransfer implements Handler.Callback,
             }
         } else if (mState == STATE_SUCCESS) {
             notBuilder.setAutoCancel(true);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_complete));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
 
@@ -253,12 +255,14 @@ public class HandoverTransfer implements Handler.Callback,
             }
         } else if (mState == STATE_FAILED) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_failed));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
         } else if (mState == STATE_CANCELLED) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_canceled));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_canceled));
         } else {
