@@ -56,6 +56,7 @@ import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -175,6 +176,12 @@ public class NfcService implements DeviceHostListener {
         "com.android.nfc_extras.action.AID_SELECTED";
     public static final String EXTRA_AID = "com.android.nfc_extras.extra.AID";
 
+    public static final String ACTION_LLCP_UP =
+            "com.android.nfc.action.LLCP_UP";
+
+    public static final String ACTION_LLCP_DOWN =
+            "com.android.nfc.action.LLCP_DOWN";
+
     public static final String ACTION_APDU_RECEIVED =
         "com.android.nfc_extras.action.APDU_RECEIVED";
     public static final String EXTRA_APDU_BYTES =
@@ -237,6 +244,7 @@ public class NfcService implements DeviceHostListener {
     NfcAdapterExtrasService mExtrasService;
     boolean mIsAirplaneSensitive;
     boolean mIsAirplaneToggleable;
+    boolean mIsDebugBuild;
     NfceeAccessControl mNfceeAccessControl;
 
     private NfcDispatcher mNfcDispatcher;
@@ -393,6 +401,8 @@ public class NfcService implements DeviceHostListener {
 
         mState = NfcAdapter.STATE_OFF;
         mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
+
+        mIsDebugBuild = "userdebug".equals(Build.TYPE) || "eng".equals(Build.TYPE);
 
         mPowerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
 
@@ -1884,10 +1894,18 @@ public class NfcService implements DeviceHostListener {
                     break;
 
                 case MSG_LLCP_LINK_ACTIVATION:
+                    if (mIsDebugBuild) {
+                        Intent actIntent = new Intent(ACTION_LLCP_UP);
+                        mContext.sendBroadcast(actIntent);
+                    }
                     llcpActivated((NfcDepEndpoint) msg.obj);
                     break;
 
                 case MSG_LLCP_LINK_DEACTIVATED:
+                    if (mIsDebugBuild) {
+                        Intent deactIntent = new Intent(ACTION_LLCP_DOWN);
+                        mContext.sendBroadcast(deactIntent);
+                    }
                     NfcDepEndpoint device = (NfcDepEndpoint) msg.obj;
                     boolean needsDisconnect = false;
 
