@@ -400,7 +400,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             String runningPackage = null;
             List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
             if (tasks.size() > 0) {
-                runningPackage = tasks.get(0).baseActivity.getPackageName();
+                runningPackage = tasks.get(0).topActivity.getPackageName();
             }
 
             if (runningPackage == null) {
