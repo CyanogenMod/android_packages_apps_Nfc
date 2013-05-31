@@ -748,7 +748,7 @@ public class NfcService implements DeviceHostListener {
                     try {
                         Log.i(TAG, "Executing SE wipe");
                         handle = doOpenSecureElementConnection();
-                        if (handle == 0) {
+                        if (handle < 0) {
                             Log.w(TAG, "Could not open the secure element");
                             return;
                         }
@@ -772,7 +772,7 @@ public class NfcService implements DeviceHostListener {
                             mDeviceHost.resetTimeouts();
                         }
                     } finally {
-                        if (handle != 0) {
+                        if (handle >= 0) {
                             doDisconnect(handle);
                         }
                     }
