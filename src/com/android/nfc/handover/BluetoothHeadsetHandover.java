@@ -25,9 +25,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.IAudioService;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -359,13 +362,20 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     }
 
     void startTheMusic() {
-        Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
-        intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
-        intent.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_MEDIA_PLAY));
-        mContext.sendOrderedBroadcast(intent, null);
+        IAudioService audioService = IAudioService.Stub.asInterface(
+                ServiceManager.checkService(Context.AUDIO_SERVICE));
+        if (audioService != null) {
+            try {
+                KeyEvent keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
+                audioService.dispatchMediaKeyEvent(keyEvent);
+                keyEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
+                audioService.dispatchMediaKeyEvent(keyEvent);
+            } catch (RemoteException e) {
+                Log.e(TAG, "dispatchMediaKeyEvent threw exception " + e);
+            }
+        } else {
+            Log.w(TAG, "Unable to find IAudioService for media key event");
+        }
     }
 
     void requestPairConfirmation() {
