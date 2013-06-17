@@ -157,6 +157,8 @@ public:
     bool transceive (UINT8* xmitBuffer, INT32 xmitBufferSize, UINT8* recvBuffer,
                      INT32 recvBufferMaxSize, INT32& recvBufferActualSize, INT32 timeoutMillisec);
 
+    void notifyModeSet (tNFA_HANDLE eeHandle, bool success);
+
     /*******************************************************************************
     **
     ** Function:        notifyListenModeState
@@ -302,32 +304,6 @@ public:
     **
     *******************************************************************************/
     void setActiveSeOverride (UINT8 activeSeOverride);
-
-
-    /*******************************************************************************
-    **
-    ** Function:        routeToSecureElement
-    **
-    ** Description:     Adjust controller's listen-mode routing table so transactions
-    **                  are routed to the secure elements as specified in route.xml.
-    **
-    ** Returns:         True if ok.
-    **
-    *******************************************************************************/
-    bool routeToSecureElement ();
-
-
-    /*******************************************************************************
-    **
-    ** Function:        routeToDefault
-    **
-    ** Description:     Adjust controller's listen-mode routing table so transactions
-    **                  are routed to the default destination specified in route.xml.
-    **
-    ** Returns:         True if ok.
-    **
-    *******************************************************************************/
-    bool routeToDefault ();
 
 
     /*******************************************************************************

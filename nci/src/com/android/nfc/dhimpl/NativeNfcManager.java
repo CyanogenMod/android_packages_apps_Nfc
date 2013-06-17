@@ -16,9 +16,6 @@
 
 package com.android.nfc.dhimpl;
 
-import com.android.nfc.DeviceHost;
-import com.android.nfc.LlcpException;
-
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
@@ -27,6 +24,9 @@ import android.nfc.ErrorCodes;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
+
+import com.android.nfc.DeviceHost;
+import com.android.nfc.LlcpException;
 
 /**
  * Native interface to the NFC Manager functions
@@ -118,10 +118,25 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
+    public native boolean sendRawFrame(byte[] data);
+
+    @Override
+    public native boolean routeAid(byte[] aid, int route);
+
+    @Override
+    public native boolean unrouteAid(byte[] aid);
+
+    @Override
     public native void enableDiscovery();
 
     @Override
     public native void disableDiscovery();
+
+    @Override
+    public native void enableRoutingToHost();
+
+    @Override
+    public native void disableRoutingToHost();
 
     @Override
     public native int[] doGetSecureElementList();
@@ -382,4 +397,15 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onSeMifareAccess(block);
     }
 
+    private void notifyHostEmuActivated() {
+        mListener.onHostCardEmulationActivated();
+    }
+
+    private void notifyHostEmuData(byte[] data) {
+        mListener.onHostCardEmulationData(data);
+    }
+
+    private void notifyHostEmuDeactivated() {
+        mListener.onHostCardEmulationDeactivated();
+    }
 }

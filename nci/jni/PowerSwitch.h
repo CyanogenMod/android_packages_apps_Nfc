@@ -54,6 +54,7 @@ public:
     static const PowerActivity DISCOVERY;
     static const PowerActivity SE_ROUTING;
     static const PowerActivity SE_CONNECTED;
+    static const PowerActivity HOST_ROUTING;
 
     /*******************************************************************************
     **

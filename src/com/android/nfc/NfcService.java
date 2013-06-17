@@ -23,6 +23,8 @@ import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.cardemulation.HostEmulationManager;
+import com.android.nfc.cardemulation.RegisteredAidCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
 
@@ -69,6 +71,7 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+import android.util.SparseArray;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -77,6 +80,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public class NfcService implements DeviceHostListener {
@@ -219,6 +223,7 @@ public class NfcService implements DeviceHostListener {
     boolean mIsNdefPushEnabled;
     boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
+    boolean mHostRouteEnabled;   // current Device Host state of host-based routing
     List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
     // mState is protected by this, however it is only modified in onCreate()
@@ -252,6 +257,8 @@ public class NfcService implements DeviceHostListener {
     private KeyguardManager mKeyguard;
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
+    private RegisteredAidCache mAidCache;
+    private HostEmulationManager mHostEmulationManager;
 
     private static NfcService sService;
 
@@ -296,6 +303,24 @@ public class NfcService implements DeviceHostListener {
     @Override
     public void onCardEmulationAidSelected(byte[] aid) {
         sendMessage(NfcService.MSG_CARD_EMULATION, aid);
+    }
+
+    /**
+     * Notifies transaction
+     */
+    @Override
+    public void onHostCardEmulationActivated() {
+        mHostEmulationManager.notifyHostEmulationActivated();
+    }
+
+    @Override
+    public void onHostCardEmulationData(byte[] data) {
+        mHostEmulationManager.notifyHostEmulationData(data);
+    }
+
+    @Override
+    public void onHostCardEmulationDeactivated() {
+        mHostEmulationManager.notifyNostEmulationDeactivated();
     }
 
     /**
@@ -440,6 +465,8 @@ public class NfcService implements DeviceHostListener {
         registerForAirplaneMode(filter);
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
+        mAidCache = new RegisteredAidCache(mContext);
+        mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
         updatePackageCache();
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
@@ -645,7 +672,6 @@ public class NfcService implements DeviceHostListener {
 
             synchronized(NfcService.this) {
                 mObjectMap.clear();
-
                 mP2pLinkManager.enableDisable(mIsNdefPushEnabled, true);
                 updateState(NfcAdapter.STATE_ON);
             }
@@ -1614,6 +1640,21 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
+    static byte[] hexStringToBytes(String s) {
+        if (s == null || s.length() == 0) return null;
+        int len = s.length();
+        if (len % 2 != 0) {
+            s = '0' + s;
+            len++;
+        }
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                                 + Character.digit(s.charAt(i+1), 16));
+        }
+        return data;
+    }
+
     /**
      * Read mScreenState and apply NFC-C polling and NFC-EE routing
      */
@@ -1661,6 +1702,24 @@ public class NfcService implements DeviceHostListener {
                         }
                     }
                     return;
+                }
+
+                if (mScreenState >= SCREEN_STATE_ON_LOCKED) {
+                    if (force || !mHostRouteEnabled) {
+                        // See if there's AIDs to be routed to the host
+                        SparseArray<Set<String>> routedAids = mAidCache.getRegisteredAids();
+                        Set<String> hostAids = routedAids.get(0);
+                        if (hostAids != null && hostAids.size() > 0) {
+                            mHostRouteEnabled = true;
+                            for (String aid : hostAids) {
+                                mDeviceHost.routeAid(hexStringToBytes(aid), 0);
+                            }
+                            mDeviceHost.enableRoutingToHost();
+                        }
+                    }
+                } else if (mHostRouteEnabled) {
+                    mHostRouteEnabled = false;
+                    mDeviceHost.disableRoutingToHost();
                 }
 
                 // configure NFC-EE routing
@@ -1781,6 +1840,10 @@ public class NfcService implements DeviceHostListener {
 
     public void sendMockNdefTag(NdefMessage msg) {
         sendMessage(MSG_MOCK_NDEF, msg);
+    }
+
+	public boolean sendData(byte[] data) {
+	    return mDeviceHost.sendRawFrame(data);
     }
 
     void sendMessage(int what, Object obj) {
