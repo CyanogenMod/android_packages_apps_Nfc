@@ -45,7 +45,7 @@ import android.util.Log;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.nio.charset.Charsets;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -452,7 +452,7 @@ public class NfcDispatcher {
     static String checkForAar(NdefRecord record) {
         if (record.getTnf() == NdefRecord.TNF_EXTERNAL_TYPE &&
                 Arrays.equals(record.getType(), NdefRecord.RTD_ANDROID_APP)) {
-            return new String(record.getPayload(), Charsets.US_ASCII);
+            return new String(record.getPayload(), StandardCharsets.US_ASCII);
         }
         return null;
     }
