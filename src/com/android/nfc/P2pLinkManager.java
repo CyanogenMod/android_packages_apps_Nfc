@@ -49,7 +49,7 @@ import android.util.Log;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.charset.Charsets;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
@@ -992,7 +992,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
             case NdefRecord.TNF_EXTERNAL_TYPE:
             case NdefRecord.TNF_MIME_MEDIA:
             case NdefRecord.TNF_WELL_KNOWN:
-                return new String(record.getType(), Charsets.UTF_8);
+                return new String(record.getType(), StandardCharsets.UTF_8);
             default:
                 return "unknown";
         }
