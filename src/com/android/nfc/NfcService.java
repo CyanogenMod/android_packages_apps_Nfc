@@ -23,11 +23,12 @@ import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.cardemulation.AidRoutingManager;
 import com.android.nfc.cardemulation.HostEmulationManager;
 import com.android.nfc.cardemulation.RegisteredAidCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
-
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
@@ -71,8 +72,6 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
-import android.util.SparseArray;
-
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -80,7 +79,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public class NfcService implements DeviceHostListener {
@@ -123,6 +121,9 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_SE_LISTEN_ACTIVATED = 13;
     static final int MSG_SE_LISTEN_DEACTIVATED = 14;
     static final int MSG_LLCP_LINK_FIRST_PACKET = 15;
+    static final int MSG_ROUTE_AID = 16;
+    static final int MSG_UNROUTE_AID = 17;
+    static final int MSG_COMMIT_ROUTING = 18;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -259,6 +260,7 @@ public class NfcService implements DeviceHostListener {
     private ContentResolver mContentResolver;
     private RegisteredAidCache mAidCache;
     private HostEmulationManager mHostEmulationManager;
+    private AidRoutingManager mAidRoutingManager;
 
     private static NfcService sService;
 
@@ -465,7 +467,8 @@ public class NfcService implements DeviceHostListener {
         registerForAirplaneMode(filter);
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
-        mAidCache = new RegisteredAidCache(mContext);
+        mAidRoutingManager = new AidRoutingManager();
+        mAidCache = new RegisteredAidCache(mContext, mAidRoutingManager);
         mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
         updatePackageCache();
 
@@ -670,6 +673,9 @@ public class NfcService implements DeviceHostListener {
                 watchDog.cancel();
             }
 
+            // Generate the initial card emulation routing table
+            mAidCache.generateServicesForUser(ActivityManager.getCurrentUser());
+
             synchronized(NfcService.this) {
                 mObjectMap.clear();
                 mP2pLinkManager.enableDisable(mIsNdefPushEnabled, true);
@@ -701,6 +707,8 @@ public class NfcService implements DeviceHostListener {
              * when the NFC controller stops responding */
             WatchDogThread watchDog = new WatchDogThread("disableInternal", ROUTING_WATCHDOG_MS);
             watchDog.start();
+
+            mAidRoutingManager.onNfccRoutingTableCleared();
 
             mP2pLinkManager.enableDisable(false, false);
 
@@ -1704,22 +1712,17 @@ public class NfcService implements DeviceHostListener {
                     return;
                 }
 
-                if (mScreenState >= SCREEN_STATE_ON_LOCKED) {
-                    if (force || !mHostRouteEnabled) {
-                        // See if there's AIDs to be routed to the host
-                        SparseArray<Set<String>> routedAids = mAidCache.getRegisteredAids();
-                        Set<String> hostAids = routedAids.get(0);
-                        if (hostAids != null && hostAids.size() > 0) {
-                            mHostRouteEnabled = true;
-                            for (String aid : hostAids) {
-                                mDeviceHost.routeAid(hexStringToBytes(aid), 0);
-                            }
-                            mDeviceHost.enableRoutingToHost();
-                        }
+                if (mScreenState >= SCREEN_STATE_ON_LOCKED &&
+                        mAidRoutingManager.aidsRoutedToHost()) {
+                    if (!mHostRouteEnabled || force) {
+                        mHostRouteEnabled = true;
+                        mDeviceHost.enableRoutingToHost();
                     }
-                } else if (mHostRouteEnabled) {
-                    mHostRouteEnabled = false;
-                    mDeviceHost.disableRoutingToHost();
+                } else {
+                    if (force || mHostRouteEnabled) {
+                        mHostRouteEnabled = false;
+                        mDeviceHost.disableRoutingToHost();
+                    }
                 }
 
                 // configure NFC-EE routing
@@ -1842,6 +1845,22 @@ public class NfcService implements DeviceHostListener {
         sendMessage(MSG_MOCK_NDEF, msg);
     }
 
+    public void routeAids(String aid, int route) {
+        Message msg = mHandler.obtainMessage();
+        msg.what = MSG_ROUTE_AID;
+        msg.arg1 = route;
+        msg.obj = aid;
+        mHandler.sendMessage(msg);
+    }
+
+    public void unrouteAids(String aid) {
+        sendMessage(MSG_UNROUTE_AID, aid);
+    }
+
+    public void commitRouting() {
+        mHandler.sendEmptyMessage(MSG_COMMIT_ROUTING);
+    }
+
 	public boolean sendData(byte[] data) {
 	    return mDeviceHost.sendRawFrame(data);
     }
@@ -1857,6 +1876,22 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
+                case MSG_ROUTE_AID: {
+                    int route = msg.arg1;
+                    String aid = (String) msg.obj;
+                    mDeviceHost.routeAid(hexStringToBytes(aid), route);
+                    // Restart polling config
+                    break;
+                }
+                case MSG_UNROUTE_AID: {
+                    String aid = (String) msg.obj;
+                    mDeviceHost.unrouteAid(hexStringToBytes(aid));
+                    break;
+                }
+                case MSG_COMMIT_ROUTING: {
+                    applyRouting(true);
+                    break;
+                }
                 case MSG_MOCK_NDEF: {
                     NdefMessage ndefMsg = (NdefMessage) msg.obj;
                     Bundle extras = new Bundle();

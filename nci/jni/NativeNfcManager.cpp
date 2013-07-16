@@ -1332,7 +1332,7 @@ static jintArray nfcManager_doGetSecureElementList(JNIEnv* e, jobject)
 **
 ** Function:        nfcManager_enableRoutingToHost
 **
-** Description:     NFC controller starts routing data in listen mode.
+** Description:     NFC controller starts routing data to host.
 **                  e: JVM environment.
 **                  o: Java object.
 **
@@ -1359,7 +1359,7 @@ TheEnd:
 **
 ** Function:        nfcManager_disableRoutingToHost
 **
-** Description:     NFC controller starts routing data in listen mode.
+** Description:     NFC controller stops routing data to host.
 **                  e: JVM environment.
 **                  o: Java object.
 **
@@ -1369,7 +1369,24 @@ TheEnd:
 static void nfcManager_disableRoutingToHost(JNIEnv*, jobject)
 {
     ALOGD ("%s: enter", __FUNCTION__);
+    bool rfWasEnabled = false;
 
+    if (PowerSwitch::getInstance ().getLevel() == PowerSwitch::LOW_POWER)
+    {
+        ALOGD ("%s: no need to disable routing while power is OFF", __FUNCTION__);
+        goto TheEnd;
+    }
+
+    if (sRfEnabled) {
+        rfWasEnabled = true;
+        // Stop RF discovery to reconfigure
+        startRfDiscovery(false);
+    }
+    RoutingManager::getInstance().commitRouting();
+    if (rfWasEnabled)
+    {
+        startRfDiscovery(true);
+    }
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::HOST_ROUTING))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
 TheEnd:

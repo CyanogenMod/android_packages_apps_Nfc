@@ -183,12 +183,19 @@ public class HostEmulationManager {
             if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
                 return true;
             } else {
-                Log.d(TAG, "Failed to dispatch AID to service");
+                Log.e(TAG, "Could not bind service");
             }
         } else {
-            Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX");
+            Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX, picking first");
+            CardEmulationService service = matchingServices.get(0);
+            Intent aidIntent = new Intent("android.nfc.action.AID_SELECTED");
+            aidIntent.setComponent(service.serviceName);
+            if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
+                return true;
+            } else {
+                Log.e(TAG, "Could not bind service");
+            }
         }
-
         return false;
     }
 

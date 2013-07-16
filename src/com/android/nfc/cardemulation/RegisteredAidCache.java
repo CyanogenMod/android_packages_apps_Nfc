@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,9 +65,9 @@ public class RegisteredAidCache {
     final Context mContext;
     final AtomicReference<BroadcastReceiver> mReceiver;
     final AtomicFile mAidDefaultsFile;
+    final AidRoutingManager mRoutingManager;
 
     final Object mLock = new Object();
-
     // All variables below synchronized on mLock
 
     // mUserServices holds the card emulation services that are running for each user
@@ -78,17 +79,17 @@ public class RegisteredAidCache {
     final TreeMap<String, ArrayList<CardEmulationService>> mAidToServices =
             new TreeMap<String, ArrayList<CardEmulationService>>();
 
-    // mAidRoutingTable contains the current routing table. The index is the route ID.
-    // The route can include routes to a eSE/UICC.
-    final SparseArray<Set<String>> mAidRoutingTable = new SparseArray<Set<String>>();
-
     public static class CardEmulationService {
         public final ComponentName serviceName;
         public final ArrayList<String> aids;
+        public final int route;
+        public final boolean isPaymentService;
 
         CardEmulationService(ComponentName serviceName, ArrayList<String> aids) {
             this.serviceName = serviceName;
             this.aids = aids;
+            this.route = 0; // TODO
+            this.isPaymentService = false; // TODO
         }
 
         @Override
@@ -101,6 +102,20 @@ public class RegisteredAidCache {
                 out.append(", ");
             }
             return out.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof CardEmulationService)) return false;
+            CardEmulationService thatService = (CardEmulationService) o;
+
+            return thatService.serviceName.equals(this.serviceName);
+        }
+
+        @Override
+        public int hashCode() {
+            return serviceName.hashCode();
         }
     }
 
@@ -120,8 +135,9 @@ public class RegisteredAidCache {
         return services;
     }
 
-    public RegisteredAidCache(Context context) {
+    public RegisteredAidCache(Context context, AidRoutingManager routingManager) {
         mContext = context;
+        mRoutingManager = routingManager;
 
         File dataDir = Environment.getDataDirectory();
         File nfcDir = new File(dataDir, "nfc");
@@ -132,8 +148,20 @@ public class RegisteredAidCache {
 
         final BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
-            public void onReceive(Context context1, Intent intent) {
-                generateServicesForUser(ActivityManager.getCurrentUser());
+            public void onReceive(Context context, Intent intent) {
+                final int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
+                String action = intent.getAction();
+                if (uid != -1) {
+                    if (DEBUG) Log.d(TAG, "Intent action: " + action);
+                    boolean replaced = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false) &&
+                            (Intent.ACTION_PACKAGE_ADDED.equals(action) ||
+                             Intent.ACTION_PACKAGE_REMOVED.equals(action));
+                    if (!replaced) {
+                        generateServicesForUser(UserHandle.getUserId(uid));
+                    } else {
+                        if (DEBUG) Log.d(TAG, "Ignoring package intent due to package being replaced.");
+                    }
+                }
             }
         };
 
@@ -143,6 +171,7 @@ public class RegisteredAidCache {
         intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
         intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
         intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         intentFilter.addDataScheme("package");
         mContext.registerReceiverAsUser(receiver, UserHandle.ALL, intentFilter, null, null);
 
@@ -151,30 +180,6 @@ public class RegisteredAidCache {
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         mContext.registerReceiverAsUser(receiver, UserHandle.ALL, sdFilter, null, null);
-
-        // Generate a new list upon switching users as well
-        IntentFilter userFilter = new IntentFilter();
-        userFilter.addAction(Intent.ACTION_USER_SWITCHED);
-        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, userFilter, null, null);
-
-        generateServicesForUser(ActivityManager.getCurrentUser());
-    }
-
-    /**
-     * Stops the monitoring of package additions, removals and changes.
-     */
-    public void close() {
-        final BroadcastReceiver receiver = mReceiver.getAndSet(null);
-        if (receiver != null) {
-            mContext.unregisterReceiver(receiver);
-        }
-    }
-
-    public SparseArray<Set<String>> getRegisteredAids()
-    {
-        synchronized (mLock) {
-            return mAidRoutingTable;
-        }
     }
 
     public ArrayList<CardEmulationService> resolveAidPrefix(String aid) {
@@ -191,27 +196,72 @@ public class RegisteredAidCache {
                 matchedServices.addAll(match.getValue());
             }
         }
-        Log.d(TAG, "Matched services: ");
-        dump(matchedServices);
-        return matchedServices;
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        if (mReceiver.get() != null) {
-            Log.e(TAG, "RegisteredServicesCache finalized without being closed");
+        if (DEBUG) {
+            Log.d(TAG, "Matched services: ");
+            dump(matchedServices);
         }
-        close();
-        super.finalize();
+        return matchedServices;
     }
 
     void dump(ArrayList<CardEmulationService> services) {
         for (CardEmulationService service : services) {
-            Log.i(TAG, service.toString());
+            if (DEBUG) Log.d(TAG, service.toString());
         }
     }
 
-    void generateServicesForUser(int userId) {
+    void generateAidTreeForUserLocked(UserServices userServices) {
+        Log.d(TAG, "generateAidTree");
+        // Easiest is to just build the entire tree again
+        mAidToServices.clear();
+        for (CardEmulationService service : userServices.services.values()) {
+            Log.d(TAG, "generateAidTree component: " + service.serviceName);
+            for (String aid : service.aids) {
+                Log.d(TAG, "generateAidTree AID: " + aid);
+                // Check if a mapping exists for this AID
+                if (mAidToServices.containsKey(aid)) {
+                    final ArrayList<CardEmulationService> aidServices = mAidToServices.get(aid);
+                    aidServices.add(service);
+                } else {
+                    final ArrayList<CardEmulationService> aidServices =
+                            new ArrayList<CardEmulationService>();
+                    aidServices.add(service);
+                    mAidToServices.put(aid, aidServices);
+                }
+            }
+        }
+    }
+
+    void addAidsForServiceLocked(CardEmulationService service, ArrayList<String> aids) {
+        service.aids.addAll(aids);
+    }
+
+    void removeAidsForServiceLocked(UserServices services, CardEmulationService service,
+            ArrayList<String> aids) {
+        for (String aid : aids) {
+            if (services.defaults.containsKey(aid) &&
+                    services.defaults.get(aid).equals(service.serviceName)) {
+                // Remove default
+                if (DEBUG) Log.d(TAG, "Removing default service for AID: " + aid);
+                services.defaults.remove(aid);
+            }
+            service.aids.remove(aid);
+        }
+    }
+
+    boolean containsServiceLocked(ArrayList<CardEmulationService> services, ComponentName serviceName) {
+        for (CardEmulationService service : services) {
+            if (service.serviceName.equals(serviceName)) return true;
+        }
+        return false;
+    }
+
+    public void generateServicesForUser(int userId) {
+        // This code consists of 3 main phases:
+        // - Finding all HCE services and making sure mUserServices is correct
+        // - Rebuilding the mAidToServices lookup table from userServices
+        // - Rebuilding the AID routing table from mAidToServices lookup table
+
+        // 1. Finding all HCE services and making sure mUserServices is correct
         PackageManager pm;
         try {
             UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
@@ -240,48 +290,102 @@ public class RegisteredAidCache {
             }
         }
 
-        synchronized (mLock) {
-            // Update mUserServices
-            UserServices userServices = findOrCreateUserLocked(userId);
-            for (CardEmulationService service : validServices) {
-                userServices.services.put(service.serviceName, service);
-            }
-        }
 
-        generateAidTreeForUser(userId);
+        synchronized (mLock) {
+            UserServices userServices = findOrCreateUserLocked(userId);
+
+            // Find removed services
+            Iterator<Map.Entry<ComponentName, CardEmulationService>> it =
+                    userServices.services.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<ComponentName, CardEmulationService> entry =
+                        (Map.Entry<ComponentName, CardEmulationService>) it.next();
+                if (!containsServiceLocked(validServices, entry.getKey())) {
+                    Log.d(TAG, "Service removed: " + entry.getKey());
+                    it.remove();
+                }
+            }
+            for (CardEmulationService service : validServices) {
+                if (DEBUG) Log.d(TAG, "Processing service: " + service.serviceName +
+                        "AIDs: " + service.aids);
+                // TODO this is O(N^2) and not very nice
+                if (userServices.services.containsKey(service.serviceName)) {
+                    ArrayList<String> addedAids = new ArrayList<String>();
+                    ArrayList<String> removedAids = new ArrayList<String>();
+                    CardEmulationService existingService = userServices.services.get(service.serviceName);
+                    for (String aid : existingService.aids) {
+                        if (!service.aids.contains(aid)) removedAids.add(aid);
+                    }
+                    for (String aid : service.aids) {
+                        if (!existingService.aids.contains(aid)) addedAids.add(aid);
+                    }
+                    addAidsForServiceLocked(existingService, addedAids);
+                    removeAidsForServiceLocked(userServices, existingService, removedAids);
+                } else {
+                    // New service, just store it
+                    userServices.services.put(service.serviceName, service);
+                }
+            }
+            // 2. Rebuild mAidToServices
+            generateAidTreeForUserLocked(userServices);
+
+            // 3. Recompute routing table
+            updateRoutingLocked(userServices);
+        }
         dump(validServices);
     }
 
-
-    void addAidForRouteLocked(String aid, int route) {
-       Set<String> aids = mAidRoutingTable.get(route);
-       if (aids == null) {
-           aids = new HashSet<String>();
-           mAidRoutingTable.put(route, aids);
-       }
-       aids.add(aid);
-    }
-
-    void generateAidTreeForUser(int userId) {
-        synchronized (mLock) {
-            UserServices userServices = findOrCreateUserLocked(userId);
-            for (CardEmulationService service : userServices.services.values()) {
-                for (String aid : service.aids) {
-                    // Check if a mapping exists for this AID
-                    if (mAidToServices.containsKey(aid)) {
-                        final ArrayList<CardEmulationService> aidServices = mAidToServices.get(aid);
-                        aidServices.add(service);
-                    } else {
-                        final ArrayList<CardEmulationService> aidServices =
-                                new ArrayList<CardEmulationService>();
-                        aidServices.add(service);
-                        userServices.defaults.put(aid, service.serviceName);
-                        mAidToServices.put(aid, aidServices);
+    void updateRoutingLocked(UserServices userServices) {
+        final Set<String> handledAids = new HashSet<String>();
+        // For each AID, find interested services
+        for (Map.Entry<String, ArrayList<CardEmulationService>> aidEntry :
+                mAidToServices.entrySet()) {
+            String aid = aidEntry.getKey();
+            ArrayList<CardEmulationService> aidServices = aidEntry.getValue();
+            // Find the current routing for this AID
+            int currentRoute = mRoutingManager.getRouteForAid(aid);
+            if (DEBUG) Log.d(TAG, "updateRouting: AID " + aid + " registered service count: " +
+                    Integer.toString(aidServices.size()) + " current route: " +
+                    Integer.toString(currentRoute));
+            if (aidServices.size() == 0) {
+                // No interested services, if there is a current routing remove it
+                mRoutingManager.removeAid(aid);
+            } else if (aidServices.size() == 1) {
+                // Only one service, make sure that is the current default route
+                CardEmulationService service = aidServices.get(0);
+                mRoutingManager.setRouteForAid(aid, service.route);
+            } else if (aidServices.size() > 1) {
+                // Multiple services, check for default, if no default,
+                // route to host to ask for default.
+                if (userServices.defaults.get(aid) == null) {
+                    if (currentRoute != 0) { // TODO constant for host
+                        mRoutingManager.setRouteForAid(aid, 0);
                     }
-                    addAidForRouteLocked(aid, 0);
+                } else {
+                    // Default is set, make sure the current route points to it
+                    ComponentName defaultServiceName = userServices.defaults.get(aid);
+                    CardEmulationService defaultService =
+                            userServices.services.get(defaultServiceName);
+                    if (defaultService != null && currentRoute != defaultService.route) {
+                        mRoutingManager.setRouteForAid(aid, defaultService.route);
+                    }
                 }
             }
+            handledAids.add(aid);
         }
+        // Now, find AIDs in the routing table that are no longer routed to
+        // and remove them.
+        Set<String> routedAids = mRoutingManager.getRoutedAids();
+        for (String aid : routedAids) {
+            if (!handledAids.contains(aid)) {
+                if (DEBUG) Log.d(TAG, "Removing routing for AID " + aid + ", because " +
+                        "there are no no interested services.");
+                mRoutingManager.removeAid(aid);
+            }
+        }
+
+        // And commit the routing
+        mRoutingManager.commitRouting();
     }
 
     CardEmulationService parseServiceInfo(PackageManager pm, ResolveInfo info) throws XmlPullParserException, IOException {
@@ -360,7 +464,7 @@ public class RegisteredAidCache {
         FileInputStream fis = null;
         try {
             if (!mAidDefaultsFile.getBaseFile().exists()) {
-                Log.d(TAG, "defaults file did not exist");
+                if (DEBUG) Log.d(TAG, "defaults file did not exist");
                 return;
             }
             fis = mAidDefaultsFile.openRead();

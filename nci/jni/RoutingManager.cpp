@@ -125,7 +125,7 @@ bool RoutingManager::addAidRouting(const UINT8* aid, UINT8 aidLen, int route)
 
 bool RoutingManager::removeAidRouting(const UINT8* aid, UINT8 aidLen)
 {
-    static const char fn [] = "RoutingManager::addAidRouting";
+    static const char fn [] = "RoutingManager::removeAidRouting";
     ALOGD ("%s: enter", fn);
     tNFA_STATUS nfaStat = NFA_EeRemoveAidRouting(aidLen, (UINT8*) aid);
     if (nfaStat == NFA_STATUS_OK)
