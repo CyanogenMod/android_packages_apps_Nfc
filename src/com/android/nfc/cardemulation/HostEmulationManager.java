@@ -20,6 +20,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -28,7 +29,7 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
 import com.android.nfc.NfcService;
-import com.android.nfc.cardemulation.RegisteredAidCache.CardEmulationService;
+import com.android.nfc.cardemulation.RegisteredServicesCache.CardEmulationService;
 
 import java.util.ArrayList;
 
@@ -41,7 +42,7 @@ public class HostEmulationManager {
     static final int STATE_XFER = 3;
 
     final Context mContext;
-    final RegisteredAidCache mAidCache;
+    final RegisteredServicesCache mAidCache;
     final Messenger mMessenger = new Messenger (new MessageHandler());
 
     final Object mLock;
@@ -52,7 +53,7 @@ public class HostEmulationManager {
     int mState;
     byte[] mSelectApdu;
 
-    public HostEmulationManager(Context context, RegisteredAidCache aidCache) {
+    public HostEmulationManager(Context context, RegisteredServicesCache aidCache) {
         mContext = context;
         mLock = new Object();
         mAidCache = aidCache;
@@ -104,7 +105,7 @@ public class HostEmulationManager {
                 // TODO if we get another select we may need to resolve
                 // it to a different service
                 if (mService != null) {
-                    Message msg = Message.obtain(null, 1);
+                    Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
                     Bundle dataBundle = new Bundle();
                     dataBundle.putByteArray("data", data);
                     msg.setData(dataBundle);
@@ -132,7 +133,7 @@ public class HostEmulationManager {
             }
             if (mService != null) {
                 // Send a MSG_DEACTIVATED
-                Message msg = Message.obtain(null, 2);
+                Message msg = Message.obtain(null, HostApduService.MSG_DEACTIVATED);
                 try {
                     mService.send(msg);
                 } catch (RemoteException e) {
@@ -178,7 +179,7 @@ public class HostEmulationManager {
             Log.e(TAG, "Could not find matching services for AID " + aid);
         } else if (matchingServices.size() == 1) {
             CardEmulationService service = matchingServices.get(0);
-            Intent aidIntent = new Intent("android.nfc.action.AID_SELECTED");
+            Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
             aidIntent.setComponent(service.serviceName);
             if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
                 return true;
@@ -188,7 +189,7 @@ public class HostEmulationManager {
         } else {
             Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX, picking first");
             CardEmulationService service = matchingServices.get(0);
-            Intent aidIntent = new Intent("android.nfc.action.AID_SELECTED");
+            Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
             aidIntent.setComponent(service.serviceName);
             if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
                 return true;
@@ -209,7 +210,7 @@ public class HostEmulationManager {
                 mState = STATE_XFER;
                 // Send pending select APDU
                 if (mSelectApdu != null) {
-                    Message msg = Message.obtain(null, 0);
+                    Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
                     Bundle dataBundle = new Bundle();
                     dataBundle.putByteArray("data", mSelectApdu);
                     msg.setData(dataBundle);
@@ -237,24 +238,26 @@ public class HostEmulationManager {
     class MessageHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
-            Bundle dataBundle = msg.getData();
-            if (dataBundle == null) {
-                return;
-            }
-            byte[] data = dataBundle.getByteArray("data");
-            if (data == null || data.length == 0) {
-                Log.e(TAG, "Dropping empty R-APDU");
-                return;
-            }
-            int state;
-            synchronized(mLock) {
-                state = mState;
-            }
-            if (state == STATE_XFER) {
-                Log.d(TAG, "Sending data");
-                NfcService.getInstance().sendData(data);
-            } else {
-                Log.d(TAG, "Dropping data, wrong state " + Integer.toString(state));
+            if (msg.what == HostApduService.MSG_RESPONSE_APDU) {
+                Bundle dataBundle = msg.getData();
+                if (dataBundle == null) {
+                    return;
+                }
+                byte[] data = dataBundle.getByteArray("data");
+                if (data == null || data.length == 0) {
+                    Log.e(TAG, "Dropping empty R-APDU");
+                    return;
+                }
+                int state;
+                synchronized(mLock) {
+                    state = mState;
+                }
+                if (state == STATE_XFER) {
+                    Log.d(TAG, "Sending data");
+                    NfcService.getInstance().sendData(data);
+                } else {
+                    Log.d(TAG, "Dropping data, wrong state " + Integer.toString(state));
+                }
             }
         }
     }

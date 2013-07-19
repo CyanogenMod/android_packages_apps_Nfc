@@ -31,10 +31,13 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ServiceInfo;
 import android.content.res.Resources;
+import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
+import android.nfc.cardemulation.HostApduService;
 import android.os.Environment;
 import android.os.UserHandle;
 import android.util.AtomicFile;
+import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.Xml;
@@ -57,9 +60,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RegisteredAidCache {
+public class RegisteredServicesCache {
     static final String TAG = "RegisteredAidCache";
-    static final String AID_ACTION = "android.nfc.action.AID_SELECTED"; // TODO move to API
     static final boolean DEBUG = true;
 
     final Context mContext;
@@ -85,11 +87,12 @@ public class RegisteredAidCache {
         public final int route;
         public final boolean isPaymentService;
 
-        CardEmulationService(ComponentName serviceName, ArrayList<String> aids) {
+        CardEmulationService(ComponentName serviceName, ArrayList<String> aids,
+                boolean isPaymentService) {
             this.serviceName = serviceName;
             this.aids = aids;
+            this.isPaymentService = isPaymentService;
             this.route = 0; // TODO
-            this.isPaymentService = false; // TODO
         }
 
         @Override
@@ -135,7 +138,7 @@ public class RegisteredAidCache {
         return services;
     }
 
-    public RegisteredAidCache(Context context, AidRoutingManager routingManager) {
+    public RegisteredServicesCache(Context context, AidRoutingManager routingManager) {
         mContext = context;
         mRoutingManager = routingManager;
 
@@ -274,7 +277,8 @@ public class RegisteredAidCache {
 
         ArrayList<CardEmulationService> validServices = new ArrayList<CardEmulationService>();
 
-        List<ResolveInfo> resolvedServices = pm.queryIntentServicesAsUser(new Intent(AID_ACTION),
+        List<ResolveInfo> resolvedServices = pm.queryIntentServicesAsUser(
+                new Intent(HostApduService.SERVICE_INTERFACE),
                 PackageManager.GET_META_DATA, ActivityManager.getCurrentUser());
 
         for (ResolveInfo resolvedService : resolvedServices) {
@@ -393,9 +397,10 @@ public class RegisteredAidCache {
 
         XmlResourceParser parser = null;
         try {
-            parser = si.loadXmlMetaData(pm, AID_ACTION);
+            parser = si.loadXmlMetaData(pm, HostApduService.SERVICE_META_DATA);
             if (parser == null) {
-                throw new XmlPullParserException("No " + AID_ACTION + " meta-data");
+                throw new XmlPullParserException("No " + HostApduService.SERVICE_META_DATA +
+                        " meta-data");
             }
 
             return parseAidList(pm.getResourcesForApplication(si.applicationInfo), si.packageName,
@@ -411,34 +416,53 @@ public class RegisteredAidCache {
             ResolveInfo resolveInfo)
             throws XmlPullParserException, IOException {
         int eventType = parser.getEventType();
-        while (eventType != XmlPullParser.START_TAG) {
+        while (eventType != XmlPullParser.START_TAG && eventType != XmlPullParser.END_DOCUMENT) {
             eventType = parser.next();
         }
 
-        ArrayList<String> items = new ArrayList<String>();
-        String tagName;
-        eventType = parser.next();
-        do {
-            tagName = parser.getName();
-            if (eventType == XmlPullParser.START_TAG && "aid".equals(tagName)) {
-                items.add(parser.nextText());
-            } else if (eventType == XmlPullParser.END_TAG && "aid-list".equals(tagName)) {
-                int size = items.size();
-                if (size > 0) {
-                    final ArrayList<String> aids = new ArrayList<String>();
-                    for (String aid : items) {
-                        if (isValidAid(aid)) aids.add(aid);
-                    }
-                    if (aids.size() > 0)
-                        return new CardEmulationService(new ComponentName(resolveInfo.serviceInfo.packageName,
-                                resolveInfo.serviceInfo.name), aids);
-                    else
-                        items.clear();
-                }
-            }
-            eventType = parser.next();
-        } while (eventType != XmlPullParser.END_DOCUMENT);
+        String tagName = parser.getName();
+        if (!"apdu-service".equals(tagName)) {
+            throw new XmlPullParserException(
+                    "Meta-data does not start with <apdu-service> tag");
+        }
 
+        AttributeSet attrs = Xml.asAttributeSet(parser);
+        TypedArray sa = res.obtainAttributes(attrs,
+                com.android.internal.R.styleable.ApduService);
+        boolean paymentService = sa.getBoolean(
+                com.android.internal.R.styleable.ApduService_paymentService, false);
+        String description = sa.getString(
+                com.android.internal.R.styleable.ApduService_description);
+        ArrayList<String> items = new ArrayList<String>();
+        final int depth = parser.getDepth();
+        while (((eventType = parser.next()) != XmlPullParser.END_TAG || parser.getDepth() > depth)
+                && eventType != XmlPullParser.END_DOCUMENT) {
+            tagName = parser.getName();
+            if (eventType == XmlPullParser.START_TAG && "aid-filter".equals(tagName)) {
+                final TypedArray a = res.obtainAttributes(attrs,
+                        com.android.internal.R.styleable.AidFilter);
+                String aid = a.getString(com.android.internal.R.styleable.AidFilter_aid);
+                String aidDescription = a.getString(
+                        com.android.internal.R.styleable.AidFilter_description);
+                items.add(aid);
+            }
+        }
+
+        int size = items.size();
+        if (size > 0) {
+            final ArrayList<String> aids = new ArrayList<String>();
+            for (String aid : items) {
+                Log.e(TAG, "Checking AID: " + aid);
+                if (isValidAid(aid)) aids.add(aid);
+            }
+            if (aids.size() > 0) {
+                return new CardEmulationService(
+                        new ComponentName(resolveInfo.serviceInfo.packageName,
+                        resolveInfo.serviceInfo.name), aids, paymentService);
+            } else {
+                Log.e(TAG, "Could not find any valid aid-filer tags");
+            }
+        }
         return null;
     }
 

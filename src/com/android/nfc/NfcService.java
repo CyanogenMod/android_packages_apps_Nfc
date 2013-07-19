@@ -25,7 +25,7 @@ import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.handover.HandoverManager;
 import com.android.nfc.cardemulation.AidRoutingManager;
 import com.android.nfc.cardemulation.HostEmulationManager;
-import com.android.nfc.cardemulation.RegisteredAidCache;
+import com.android.nfc.cardemulation.RegisteredServicesCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
 import android.app.ActivityManager;
@@ -258,7 +258,7 @@ public class NfcService implements DeviceHostListener {
     private KeyguardManager mKeyguard;
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
-    private RegisteredAidCache mAidCache;
+    private RegisteredServicesCache mAidCache;
     private HostEmulationManager mHostEmulationManager;
     private AidRoutingManager mAidRoutingManager;
 
@@ -468,7 +468,7 @@ public class NfcService implements DeviceHostListener {
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         mAidRoutingManager = new AidRoutingManager();
-        mAidCache = new RegisteredAidCache(mContext, mAidRoutingManager);
+        mAidCache = new RegisteredServicesCache(mContext, mAidRoutingManager);
         mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
         updatePackageCache();
 
