@@ -441,7 +441,7 @@ public class RegisteredServicesCache {
             if (eventType == XmlPullParser.START_TAG && "aid-filter".equals(tagName)) {
                 final TypedArray a = res.obtainAttributes(attrs,
                         com.android.internal.R.styleable.AidFilter);
-                String aid = a.getString(com.android.internal.R.styleable.AidFilter_aid);
+                String aid = a.getString(com.android.internal.R.styleable.AidFilter_name);
                 String aidDescription = a.getString(
                         com.android.internal.R.styleable.AidFilter_description);
                 items.add(aid);

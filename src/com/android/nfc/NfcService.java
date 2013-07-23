@@ -106,6 +106,7 @@ public class NfcService implements DeviceHostListener {
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
     static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
+    static final boolean SE_BROADCASTS_WITH_HCE = true;
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_CARD_EMULATION = 1;
@@ -297,7 +298,7 @@ public class NfcService implements DeviceHostListener {
      */
     @Override
     public void onCardEmulationDeselected() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_TARGET_DESELECTED, null);
         }
     }
@@ -307,7 +308,7 @@ public class NfcService implements DeviceHostListener {
      */
     @Override
     public void onCardEmulationAidSelected(byte[] aid) {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_CARD_EMULATION, aid);
         }
     }
@@ -362,28 +363,28 @@ public class NfcService implements DeviceHostListener {
 
     @Override
     public void onRemoteFieldActivated() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
         }
     }
 
     @Override
     public void onRemoteFieldDeactivated() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
         }
     }
 
     @Override
     public void onSeListenActivated() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_LISTEN_ACTIVATED, null);
         }
     }
 
     @Override
     public void onSeListenDeactivated() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_LISTEN_DEACTIVATED, null);
         }
     }
@@ -391,21 +392,21 @@ public class NfcService implements DeviceHostListener {
 
     @Override
     public void onSeApduReceived(byte[] apdu) {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
         }
     }
 
     @Override
     public void onSeEmvCardRemoval() {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_EMV_CARD_REMOVAL, null);
         }
     }
 
     @Override
     public void onSeMifareAccess(byte[] block) {
-        if (!mIsHceCapable) {
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
         }
     }
@@ -483,9 +484,8 @@ public class NfcService implements DeviceHostListener {
             mAidRoutingManager = new AidRoutingManager();
             mAidCache = new RegisteredServicesCache(mContext, mAidRoutingManager);
             mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
-        } else {
-            // On non-HCE devices, maintain legacy SE broadcasts and therefore
-            // the package cache.
+        }
+        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
             ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
             ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
