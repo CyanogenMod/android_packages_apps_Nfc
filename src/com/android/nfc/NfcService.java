@@ -741,7 +741,9 @@ public class NfcService implements DeviceHostListener {
             WatchDogThread watchDog = new WatchDogThread("disableInternal", ROUTING_WATCHDOG_MS);
             watchDog.start();
 
-            mAidRoutingManager.onNfccRoutingTableCleared();
+            if (mIsHceCapable) {
+                mAidRoutingManager.onNfccRoutingTableCleared();
+            }
 
             mP2pLinkManager.enableDisable(false, false);
 
