@@ -185,6 +185,17 @@ public:
 
     /*******************************************************************************
     **
+    ** Function:        resetRfFieldStatus ();
+    **
+    ** Description:     Resets the field status.
+    **
+    ** Returns:         None
+    **
+    *******************************************************************************/
+    void resetRfFieldStatus ();
+
+    /*******************************************************************************
+    **
     ** Function:        storeUiccInfo
     **
     ** Description:     Store a copy of the execution environment information from the stack.

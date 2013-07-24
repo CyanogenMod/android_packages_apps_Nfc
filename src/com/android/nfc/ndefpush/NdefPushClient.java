@@ -35,25 +35,72 @@ public class NdefPushClient {
     private static final int MIU = 128;
     private static final boolean DBG = true;
 
-    public boolean push(NdefMessage msg) {
-        NfcService service = NfcService.getInstance();
+    private static final int DISCONNECTED = 0;
+    private static final int CONNECTING = 1;
+    private static final int CONNECTED = 2;
 
+    final Object mLock = new Object();
+    // Variables below locked on mLock
+    private int mState = DISCONNECTED;
+    private LlcpSocket mSocket;
+
+    public void connect() throws IOException {
+        synchronized (mLock) {
+            if (mState != DISCONNECTED) {
+                throw new IOException("Socket still in use.");
+            }
+            mState = CONNECTING;
+        }
+        NfcService service = NfcService.getInstance();
+        LlcpSocket sock = null;
+        if (DBG) Log.d(TAG, "about to create socket");
+        try {
+            sock = service.createLlcpSocket(0, MIU, 1, 1024);
+        } catch (LlcpException e) {
+            synchronized (mLock) {
+                mState = DISCONNECTED;
+            }
+            throw new IOException("Could not create socket.");
+        }
+        try {
+            if (DBG) Log.d(TAG, "about to connect to service " + NdefPushServer.SERVICE_NAME);
+            sock.connectToService(NdefPushServer.SERVICE_NAME);
+        } catch (IOException e) {
+            if (sock != null) {
+                try {
+                    sock.close();
+                } catch (IOException e2) {
+
+                }
+            }
+            synchronized (mLock) {
+                mState = DISCONNECTED;
+            }
+            throw new IOException("Could not connect service.");
+        }
+
+        synchronized (mLock) {
+            mSocket = sock;
+            mState = CONNECTED;
+        }
+    }
+
+    public boolean push(NdefMessage msg) {
+        LlcpSocket sock = null;
+        synchronized (mLock) {
+            if (mState != CONNECTED) {
+                Log.e(TAG, "Not connected to NPP.");
+                return false;
+            }
+            sock = mSocket;
+        }
         // We only handle a single immediate action for now
         NdefPushProtocol proto = new NdefPushProtocol(msg, NdefPushProtocol.ACTION_IMMEDIATE);
         byte[] buffer = proto.toByteArray();
         int offset = 0;
         int remoteMiu;
-        LlcpSocket sock = null;
-        try {
-            if (DBG) Log.d(TAG, "about to create socket");
-            // Connect to the my tag server on the remote side
-            sock = service.createLlcpSocket(0, MIU, 1, 1024);
-            if (sock == null) {
-                throw new IOException("Could not connect to socket.");
-            }
-            if (DBG) Log.d(TAG, "about to connect to service " + NdefPushServer.SERVICE_NAME);
-            sock.connectToService(NdefPushServer.SERVICE_NAME);
 
+        try {
             remoteMiu = sock.getRemoteMiu();
             if (DBG) Log.d(TAG, "about to send a " + buffer.length + " byte message");
             while (offset < buffer.length) {
@@ -67,10 +114,6 @@ public class NdefPushClient {
         } catch (IOException e) {
             Log.e(TAG, "couldn't send tag");
             if (DBG) Log.d(TAG, "exception:", e);
-        } catch (LlcpException e) {
-            // Most likely the other side doesn't support the my tag protocol
-            Log.e(TAG, "couldn't send tag");
-            if (DBG) Log.d(TAG, "exception:", e);
         } finally {
             if (sock != null) {
                 try {
@@ -82,5 +125,20 @@ public class NdefPushClient {
             }
         }
         return false;
+    }
+
+    public void close() {
+        synchronized (mLock) {
+            if (mSocket != null) {
+                try {
+                    if (DBG) Log.d(TAG, "About to close NPP socket.");
+                    mSocket.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+                mSocket = null;
+            }
+            mState = DISCONNECTED;
+        }
     }
 }

@@ -26,7 +26,6 @@
 extern "C"
 {
     #include "nfa_p2p_api.h"
-    #include "nfa_snep_api.h"
 }
 
 class P2pServer;
@@ -121,6 +120,7 @@ public:
     *******************************************************************************/
     void llcpDeactivatedHandler (nfc_jni_native_data* nativeData, tNFA_LLCP_DEACTIVATED& deactivated);
 
+    void llcpFirstPacketHandler(nfc_jni_native_data* nativeData);
 
     /*******************************************************************************
     **
@@ -392,19 +392,6 @@ private:
     SyncEvent       mSnepRegisterEvent;         // completion event for NFA_SnepRegisterClient()
     Mutex           mDisconnectMutex;           // synchronize the disconnect operation
     Mutex           mNewJniHandleMutex;         // synchronize the creation of a new JNI handle
-
-    /*******************************************************************************
-    **
-    ** Function:        snepClientCallback
-    **
-    ** Description:     Receive SNEP-related events from the stack.
-    **                  snepEvent: Event code.
-    **                  eventData: Event data.
-    **
-    ** Returns:         None
-    **
-    *******************************************************************************/
-    static void snepClientCallback (tNFA_SNEP_EVT snepEvent, tNFA_SNEP_EVT_DATA *eventData);
 
 
     /*******************************************************************************

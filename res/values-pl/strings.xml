@@ -10,12 +10,14 @@
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"Komunikacja NFC włączona."</string>
     <string name="touch" msgid="4727218133711188355">"Dotknij, aby przesłać"</string>
     <string name="beam_progress" msgid="7453634884807323920">"Odbieram dane zbliżeniowo..."</string>
+    <string name="beam_outgoing" msgid="4679536649779123495">"Przesyłam..."</string>
     <string name="beam_complete" msgid="477026736424637435">"Przesyłanie zbliżeniowe zakończone"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Przesyłanie zbliżeniowe nie udało się"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Przesyłanie zbliżeniowe zostało anulowane"</string>
     <string name="cancel" msgid="61873902552555096">"Anuluj"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Dotknij, by wyświetlić"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Urządzenie odbierające nie pozwala na zbliżeniowe przesyłanie dużych plików."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Zbliż urządzenia do siebie"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Łączenie"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Połączono"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Nie można nawiązać połączenia"</string>

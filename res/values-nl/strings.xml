@@ -23,13 +23,15 @@
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"Tik om deze persoon uw contactgegevens te geven."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC ingeschakeld."</string>
     <string name="touch" msgid="4727218133711188355">"Tik om uit te zenden"</string>
-    <string name="beam_progress" msgid="7453634884807323920">"Inkomende beam\u2026"</string>
+    <string name="beam_progress" msgid="7453634884807323920">"Inkomende beam..."</string>
+    <string name="beam_outgoing" msgid="4679536649779123495">"Beamen..."</string>
     <string name="beam_complete" msgid="477026736424637435">"Beam voltooid"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Beam mislukt"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Beam geannuleerd"</string>
     <string name="cancel" msgid="61873902552555096">"Annuleren"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Tik om te bekijken"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteunt de overdracht van grote bestanden via Beam niet."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Houd de apparaten nogmaals tegen elkaar"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Verbinding maken"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Verbonden"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Kan geen verbinding maken"</string>

@@ -10,6 +10,8 @@ ifneq ($(NCI_VERSION),)
 LOCAL_CFLAGS += -DNCI_VERSION=$(NCI_VERSION) -O0 -g
 endif
 
+LOCAL_CFLAGS += -Wall -Wextra
+
 define all-cpp-files-under
 $(patsubst ./%,%, \
   $(shell cd $(LOCAL_PATH) ; \
@@ -26,6 +28,7 @@ LOCAL_C_INCLUDES += \
     external/libxml2/include \
     external/icu4c/common \
     frameworks/native/include \
+    libcore/include \
     $(NFA)/include \
     $(NFA)/brcm \
     $(NFC)/include \
@@ -42,6 +45,7 @@ LOCAL_SHARED_LIBRARIES := \
     libnativehelper \
     libcutils \
     libutils \
+    liblog \
     libnfc-nci \
     libstlport
 
@@ -51,4 +55,3 @@ LOCAL_MODULE := libnfc_nci_jni
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
-

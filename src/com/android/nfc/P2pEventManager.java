@@ -41,6 +41,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     boolean mSending;
     boolean mNdefSent;
     boolean mNdefReceived;
+    boolean mInDebounce;
 
     public P2pEventManager(Context context, P2pEventListener.Callback callback) {
         mNfcService = NfcService.getInstance();
@@ -68,6 +69,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         mNfcService.playSound(NfcService.SOUND_START);
         mNdefSent = false;
         mNdefReceived = false;
+        mInDebounce = false;
 
         mVibrator.vibrate(VIBRATION_PATTERN, -1);
         if (mSendUi != null) {
@@ -131,6 +133,7 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         if (!mNdefSent && !mNdefReceived && mSendUi != null) {
             mSendUi.finish(SendUi.FINISH_SCALE_UP);
         }
+        mInDebounce = false;
     }
 
     @Override
@@ -143,5 +146,26 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         }
         mSending = true;
 
+    }
+
+    @Override
+    public void onP2pSendDebounce() {
+        mInDebounce = true;
+        mNfcService.playSound(NfcService.SOUND_ERROR);
+        if (mSendUi != null) {
+            mSendUi.showSendHint();
+        }
+    }
+
+    @Override
+    public void onP2pResumeSend() {
+        if (mInDebounce) {
+            mVibrator.vibrate(VIBRATION_PATTERN, -1);
+            mNfcService.playSound(NfcService.SOUND_START);
+            if (mSendUi != null) {
+                mSendUi.showStartSend();
+            }
+        }
+        mInDebounce = false;
     }
 }

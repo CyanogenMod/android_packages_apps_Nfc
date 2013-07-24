@@ -31,12 +31,15 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
+import android.os.AsyncTask;
 import android.os.Binder;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.SurfaceControl;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -72,6 +75,8 @@ import android.widget.Toast;
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         TimeAnimator.TimeListener, TextureView.SurfaceTextureListener {
+    static final String TAG = "SendUi";
+
     static final float INTERMEDIATE_SCALE = 0.6f;
 
     static final float[] PRE_SCREENSHOT_SCALE = {1.0f, INTERMEDIATE_SCALE};
@@ -89,12 +94,24 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     static final int SLIDE_OUT_DURATION_MS = 300;
 
+    static final float[] BLACK_LAYER_ALPHA_DOWN_RANGE = {0.9f, 0.0f};
+    static final float[] BLACK_LAYER_ALPHA_UP_RANGE = {0.0f, 0.9f};
+
     static final float[] TEXT_HINT_ALPHA_RANGE = {0.0f, 1.0f};
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
     static final int TEXT_HINT_ALPHA_START_DELAY_MS = 300;
 
     static final int FINISH_SCALE_UP = 0;
     static final int FINISH_SEND_SUCCESS = 1;
+
+    static final int STATE_IDLE = 0;
+    static final int STATE_W4_SCREENSHOT = 1;
+    static final int STATE_W4_SCREENSHOT_PRESEND_REQUESTED = 2;
+    static final int STATE_W4_SCREENSHOT_THEN_STOP = 3;
+    static final int STATE_W4_PRESEND = 4;
+    static final int STATE_W4_CONFIRM = 5;
+    static final int STATE_SENDING = 6;
+    static final int STATE_COMPLETE = 7;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -107,8 +124,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final StatusBarManager mStatusBarManager;
     final View mScreenshotLayout;
     final ImageView mScreenshotView;
+    final ImageView mBlackLayer;
     final TextureView mTextureView;
     final TextView mTextHint;
+    final TextView mTextRetry;
     final Callback mCallback;
 
     // The mFrameCounter animation is purely used to count down a certain
@@ -128,6 +147,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     final ObjectAnimator mFadeInAnimator;
     final ObjectAnimator mHintAnimator;
     final ObjectAnimator mScaleUpAnimator;
+    final ObjectAnimator mAlphaDownAnimator;
+    final ObjectAnimator mAlphaUpAnimator;
     final AnimatorSet mSuccessAnimatorSet;
 
     // Besides animating the screenshot, the Beam UI also renders
@@ -143,9 +164,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     String mToastString;
     Bitmap mScreenshotBitmap;
 
-    boolean mAttached;
-    boolean mSending;
-
+    int mState;
     int mRenderedFrames;
 
     // Used for holding the surface
@@ -176,7 +195,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotLayout.setFocusable(true);
 
         mTextHint = (TextView) mScreenshotLayout.findViewById(R.id.calltoaction);
-
+        mTextRetry = (TextView) mScreenshotLayout.findViewById(R.id.retrytext);
+        mBlackLayer = (ImageView) mScreenshotLayout.findViewById(R.id.blacklayer);
         mTextureView = (TextureView) mScreenshotLayout.findViewById(R.id.fireflies);
         mTextureView.setSurfaceTextureListener(this);
 
@@ -244,6 +264,16 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mHintAnimator.setDuration(TEXT_HINT_ALPHA_DURATION_MS);
         mHintAnimator.setStartDelay(TEXT_HINT_ALPHA_START_DELAY_MS);
 
+        alphaDown = PropertyValuesHolder.ofFloat("alpha", BLACK_LAYER_ALPHA_DOWN_RANGE);
+        mAlphaDownAnimator = ObjectAnimator.ofPropertyValuesHolder(mBlackLayer, alphaDown);
+        mAlphaDownAnimator.setInterpolator(new DecelerateInterpolator());
+        mAlphaDownAnimator.setDuration(400);
+
+        alphaUp = PropertyValuesHolder.ofFloat("alpha", BLACK_LAYER_ALPHA_UP_RANGE);
+        mAlphaUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mBlackLayer, alphaUp);
+        mAlphaUpAnimator.setInterpolator(new DecelerateInterpolator());
+        mAlphaUpAnimator.setDuration(200);
+
         mSuccessAnimatorSet = new AnimatorSet();
         mSuccessAnimatorSet.playSequentially(mFastSendAnimator, mFadeInAnimator);
 
@@ -252,25 +282,49 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         } else {
             mFireflyRenderer = null;
         }
-        mAttached = false;
+        mState = STATE_IDLE;
     }
 
     public void takeScreenshot() {
-        mScreenshotBitmap = createScreenshot();
+        // There's no point in taking the screenshot if
+        // we're still finishing the previous animation.
+        if (mState >= STATE_W4_CONFIRM) {
+            return;
+        }
+        mState = STATE_W4_SCREENSHOT;
+        new ScreenshotTask().execute();
     }
 
     /** Show pre-send animation */
     public void showPreSend() {
+        switch (mState) {
+            case STATE_IDLE:
+                Log.e(TAG, "Unexpected showPreSend() in STATE_IDLE");
+                return;
+            case STATE_W4_SCREENSHOT:
+                // Still waiting for screenshot, store request in state
+                // and wait for screenshot completion.
+                mState = STATE_W4_SCREENSHOT_PRESEND_REQUESTED;
+                return;
+            case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+                Log.e(TAG, "Unexpected showPreSend() in STATE_W4_SCREENSHOT_PRESEND_REQUESTED");
+                return;
+            case STATE_W4_PRESEND:
+                // Expected path, continue below
+                break;
+            default:
+                Log.e(TAG, "Unexpected showPreSend() in state " + Integer.toString(mState));
+                return;
+        }
         // Update display metrics
         mDisplay.getRealMetrics(mDisplayMetrics);
 
         final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
 
-        if (mScreenshotBitmap == null || mAttached) {
-            return;
-        }
-        mScreenshotView.setOnTouchListener(this);
+        mBlackLayer.setVisibility(View.GONE);
+        mBlackLayer.setAlpha(0f);
+        mScreenshotLayout.setOnTouchListener(this);
         mScreenshotView.setImageBitmap(mScreenshotBitmap);
         mScreenshotView.setTranslationX(0f);
         mScreenshotView.setAlpha(1.0f);
@@ -278,6 +332,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         mScreenshotLayout.requestFocus();
 
+        mTextHint.setText(mContext.getResources().getString(R.string.touch));
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
         mHintAnimator.start();
@@ -310,18 +365,18 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
         mToastString = null;
-        mSending = false;
-        mAttached = true;
 
         if (!mHardwareAccelerated) {
             mPreAnimator.start();
         } // else, we will start the animation once we get the hardware surface
+        mState = STATE_W4_CONFIRM;
     }
 
     /** Show starting send animation */
     public void showStartSend() {
-        if (!mAttached) return;
+        if (mState < STATE_SENDING) return;
 
+        mTextRetry.setVisibility(View.GONE);
         // Update the starting scale - touchscreen-mashers may trigger
         // this before the pre-animation completes.
         float currentScale = mScreenshotView.getScaleX();
@@ -331,11 +386,18 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 new float[] {currentScale, 0.0f});
 
         mSlowSendAnimator.setValues(postX, postY);
+
+        float currentAlpha = mBlackLayer.getAlpha();
+        if (mBlackLayer.isShown() && currentAlpha > 0.0f) {
+            PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
+                    new float[] {currentAlpha, 0.0f});
+            mAlphaDownAnimator.setValues(alphaDown);
+            mAlphaDownAnimator.start();
+        }
         mSlowSendAnimator.start();
     }
 
     public void finishAndToast(int finishMode, String toast) {
-        if (!mAttached) return;
         mToastString = toast;
 
         finish(finishMode);
@@ -343,7 +405,29 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     /** Return to initial state */
     public void finish(int finishMode) {
-        if (!mAttached) return;
+        switch (mState) {
+            case STATE_IDLE:
+                return;
+            case STATE_W4_SCREENSHOT:
+            case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+                // Screenshot is still being captured on a separate thread.
+                // Update state, and stop everything when the capture is done.
+                mState = STATE_W4_SCREENSHOT_THEN_STOP;
+                return;
+            case STATE_W4_SCREENSHOT_THEN_STOP:
+                Log.e(TAG, "Unexpected call to finish() in STATE_W4_SCREENSHOT_THEN_STOP");
+                return;
+            case STATE_W4_PRESEND:
+                // We didn't build up any animation state yet, but
+                // did store the bitmap. Clear out the bitmap, reset
+                // state and bail.
+                mScreenshotBitmap = null;
+                mState = STATE_IDLE;
+                return;
+            default:
+                // We've started animations and attached a view; tear stuff down below.
+                break;
+        }
 
         // Stop rendering the fireflies
         if (mFireflyRenderer != null) {
@@ -351,11 +435,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         }
 
         mTextHint.setVisibility(View.GONE);
+        mTextRetry.setVisibility(View.GONE);
 
         float currentScale = mScreenshotView.getScaleX();
         float currentAlpha = mScreenshotView.getAlpha();
 
         if (finishMode == FINISH_SCALE_UP) {
+            mBlackLayer.setVisibility(View.GONE);
             PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
                     new float[] {currentScale, 1.0f});
             PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
@@ -372,7 +458,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
                     new float[] {currentScale, 0.0f});
             PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {1.0f, 0.0f});
+                    new float[] {currentAlpha, 0.0f});
             mFastSendAnimator.setValues(postX, postY, alpha);
 
             // Reset the fadeIn parameters to start from alpha 1
@@ -383,14 +469,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mSlowSendAnimator.cancel();
             mSuccessAnimatorSet.start();
         }
+        mState = STATE_COMPLETE;
     }
 
-    public void dismiss() {
-        if (!mAttached) return;
-
-        // Immediately set to false, to prevent .cancel() calls
+    void dismiss() {
+        if (mState < STATE_W4_CONFIRM) return;
+        // Immediately set to IDLE, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
-        mAttached = false;
+        // (They can do so on the same thread).
+        mState = STATE_IDLE;
         mSurface = null;
         mFrameCounterAnimator.cancel();
         mPreAnimator.cancel();
@@ -398,17 +485,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mFastSendAnimator.cancel();
         mSuccessAnimatorSet.cancel();
         mScaleUpAnimator.cancel();
+        mAlphaUpAnimator.cancel();
+        mAlphaDownAnimator.cancel();
         mWindowManager.removeView(mScreenshotLayout);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
-        releaseScreenshot();
+        mScreenshotBitmap = null;
         if (mToastString != null) {
             Toast.makeText(mContext, mToastString, Toast.LENGTH_LONG).show();
         }
         mToastString = null;
-    }
-
-    public void releaseScreenshot() {
-        mScreenshotBitmap = null;
     }
 
     /**
@@ -425,6 +510,37 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         }
         return 0f;
     }
+
+    final class ScreenshotTask extends AsyncTask<Void, Void, Bitmap> {
+        @Override
+        protected Bitmap doInBackground(Void... params) {
+            return createScreenshot();
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap result) {
+            if (mState == STATE_W4_SCREENSHOT) {
+                // Screenshot done, wait for request to start preSend anim
+                mState = STATE_W4_PRESEND;
+            } else if (mState == STATE_W4_SCREENSHOT_THEN_STOP) {
+                // We were asked to finish, move to idle state and exit
+                mState = STATE_IDLE;
+            } else if (mState == STATE_W4_SCREENSHOT_PRESEND_REQUESTED) {
+                if (result != null) {
+                    mScreenshotBitmap = result;
+                    mState = STATE_W4_PRESEND;
+                    showPreSend();
+                } else {
+                    // Failed to take screenshot; reset state to idle
+                    // and don't do anything
+                    Log.e(TAG, "Failed to create screenshot");
+                    mState = STATE_IDLE;
+                }
+            } else {
+                Log.e(TAG, "Invalid state on screenshot completion: " + Integer.toString(mState));
+            }
+        }
+    };
 
     /**
      * Returns a screenshot of the current display contents.
@@ -461,7 +577,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             dims[1] = Math.abs(dims[1]);
         }
 
-        Bitmap bitmap = Surface.screenshot((int) dims[0], (int) dims[1]);
+        Bitmap bitmap = SurfaceControl.screenshot((int) dims[0], (int) dims[1]);
         // Bail if we couldn't take the screenshot
         if (bitmap == null) {
             return null;
@@ -523,7 +639,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mScreenshotView.setScaleX(1.0f);
             mScreenshotView.setScaleY(1.0f);
         } else if (animation == mPreAnimator) {
-            if (mHardwareAccelerated && mAttached && !mSending) {
+            if (mHardwareAccelerated && (mState == STATE_W4_CONFIRM)) {
                 mFireflyRenderer.start(mSurface, mSurfaceWidth, mSurfaceHeight);
             }
         }
@@ -552,10 +668,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (!mAttached) {
+        if (mState != STATE_W4_CONFIRM) {
             return false;
         }
-        mSending = true;
+        mState = STATE_SENDING;
         // Ignore future touches
         mScreenshotView.setOnTouchListener(null);
 
@@ -569,7 +685,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        if (mHardwareAccelerated && !mSending) {
+        if (mHardwareAccelerated && mState < STATE_COMPLETE) {
             mRenderedFrames = 0;
 
             mFrameCounterAnimator.start();
@@ -594,4 +710,24 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) { }
 
+    public void showSendHint() {
+        if (mAlphaDownAnimator.isRunning()) {
+           mAlphaDownAnimator.cancel();
+        }
+        if (mSlowSendAnimator.isRunning()) {
+            mSlowSendAnimator.cancel();
+        }
+        mBlackLayer.setScaleX(mScreenshotView.getScaleX());
+        mBlackLayer.setScaleY(mScreenshotView.getScaleY());
+        mBlackLayer.setVisibility(View.VISIBLE);
+        mTextHint.setVisibility(View.GONE);
+
+        mTextRetry.setText(mContext.getResources().getString(R.string.beam_try_again));
+        mTextRetry.setVisibility(View.VISIBLE);
+
+        PropertyValuesHolder alphaUp = PropertyValuesHolder.ofFloat("alpha",
+                new float[] {mBlackLayer.getAlpha(), 0.9f});
+        mAlphaUpAnimator.setValues(alphaUp);
+        mAlphaUpAnimator.start();
+    }
 }

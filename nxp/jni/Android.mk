@@ -18,12 +18,14 @@ LOCAL_SRC_FILES:= \
 LOCAL_C_INCLUDES += \
     $(JNI_H_INCLUDE) \
     external/libnfc-nxp/src \
-    external/libnfc-nxp/inc
+    external/libnfc-nxp/inc \
+    libcore/include
 
 LOCAL_SHARED_LIBRARIES := \
     libnativehelper \
     libcutils \
     libutils \
+    liblog \
     libnfc \
     libhardware
 

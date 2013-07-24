@@ -17,10 +17,12 @@
 #ifndef __COM_ANDROID_NFC_JNI_H__
 #define __COM_ANDROID_NFC_JNI_H__
 
+#undef LOG_TAG
 #define LOG_TAG "NFCJNI"
 
 #include <JNIHelp.h>
 #include <jni.h>
+#include <ScopedLocalRef.h>
 
 #include <pthread.h>
 #include <sys/queue.h>
@@ -59,10 +61,10 @@ extern "C" {
 #define PROPERTY_LLCP_WKS                 2
 #define PROPERTY_LLCP_OPT                 3
 #define PROPERTY_NFC_DISCOVERY_A          4
-#define PROPERTY_NFC_DISCOVERY_B          5  
+#define PROPERTY_NFC_DISCOVERY_B          5
 #define PROPERTY_NFC_DISCOVERY_F          6
 #define PROPERTY_NFC_DISCOVERY_15693      7
-#define PROPERTY_NFC_DISCOVERY_NCFIP      8                     
+#define PROPERTY_NFC_DISCOVERY_NCFIP      8
 
 /* Error codes */
 #define ERROR_BUFFER_TOO_SMALL            -12
@@ -105,6 +107,15 @@ extern "C" {
 
 #define SMX_SECURE_ELEMENT_ID   11259375
 
+
+/* These must match the EE_ERROR_ types in NfcService.java */
+#define EE_ERROR_IO                 -1
+#define EE_ERROR_ALREADY_OPEN       -2
+#define EE_ERROR_INIT               -3
+#define EE_ERROR_LISTEN_MODE        -4
+#define EE_ERROR_EXT_FIELD          -5
+#define EE_ERROR_NFC_DISABLED       -6
+
 /* Maximum byte length of an AID. */
 #define AID_MAXLEN                        16
 
@@ -142,10 +153,10 @@ struct nfc_jni_native_data
    int discovery_modes_state[DISCOVERY_MODE_TABLE_SIZE];
    phLibNfc_sADD_Cfg_t discovery_cfg;
    phLibNfc_Registry_Info_t registry_info;
-   
+
    /* Secure Element selected */
    int seId;
-   
+
    /* LLCP params */
    int lto;
    int miu;
@@ -161,7 +172,7 @@ struct nfc_jni_native_data
    /* p2p modes */
    int p2p_initiator_modes;
    int p2p_target_modes;
-   
+
 };
 
 typedef struct nfc_jni_native_monitor
@@ -233,9 +244,10 @@ nfc_jni_native_monitor_t* nfc_jni_init_monitor(void);
 nfc_jni_native_monitor_t* nfc_jni_get_monitor(void);
 
 int get_technology_type(phNfc_eRemDevType_t type, uint8_t sak);
-void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList,
-                        uint8_t count, jintArray* techList, jintArray* handleList,
-                        jintArray* typeList);
+void nfc_jni_get_technology_tree(JNIEnv* e, phLibNfc_RemoteDevList_t* devList, uint8_t count,
+                        ScopedLocalRef<jintArray>* techList,
+                        ScopedLocalRef<jintArray>* handleList,
+                        ScopedLocalRef<jintArray>* typeList);
 
 /* P2P */
 phLibNfc_Handle nfc_jni_get_p2p_device_handle(JNIEnv *e, jobject o);

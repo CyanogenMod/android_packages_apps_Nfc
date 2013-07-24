@@ -17,7 +17,7 @@
 #include "SecureElement.h"
 #include "JavaClassConstants.h"
 #include "PowerSwitch.h"
-
+#include <ScopedPrimitiveArray.h>
 
 namespace android
 {
@@ -27,6 +27,13 @@ extern void com_android_nfc_NfcManager_disableDiscovery (JNIEnv* e, jobject o);
 extern void com_android_nfc_NfcManager_enableDiscovery (JNIEnv* e, jobject o, jint mode);
 extern int gGeneralTransceiveTimeout;
 
+// These must match the EE_ERROR_ types in NfcService.java
+static const int EE_ERROR_IO = -1;
+static const int EE_ERROR_ALREADY_OPEN = -2;
+static const int EE_ERROR_INIT = -3;
+static const int EE_ERROR_LISTEN_MODE = -4;
+static const int EE_ERROR_EXT_FIELD = -5;
+static const int EE_ERROR_NFC_DISABLED = -6;
 
 /*******************************************************************************
 **
@@ -36,23 +43,25 @@ extern int gGeneralTransceiveTimeout;
 **                  e: JVM environment.
 **                  o: Java object.
 **
-** Returns:         Handle of secure element.  0 is failure.
+** Returns:         Handle of secure element.  values < 0 represent failure.
 **
 *******************************************************************************/
-static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, jobject o)
+static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv*, jobject)
 {
     ALOGD("%s: enter", __FUNCTION__);
     bool stat = true;
-    jint secElemHandle = 0;
+    jint secElemHandle = EE_ERROR_INIT;
     SecureElement &se = SecureElement::getInstance();
 
     if (se.isActivatedInListenMode()) {
         ALOGD("Denying SE open due to SE listen mode active");
+        secElemHandle = EE_ERROR_LISTEN_MODE;
         goto TheEnd;
     }
 
     if (se.isRfFieldOn()) {
         ALOGD("Denying SE open due to SE in active RF field");
+        secElemHandle = EE_ERROR_EXT_FIELD;
         goto TheEnd;
     }
     //tell the controller to power up to get ready for sec elem operations
@@ -69,9 +78,13 @@ static jint nativeNfcSecureElement_doOpenSecureElementConnection (JNIEnv* e, job
         //establish a pipe to sec elem
         stat = se.connectEE();
         if (stat)
+        {
             secElemHandle = se.mActiveEeHandle;
+        }
         else
+        {
             se.deactivate (0);
+        }
     }
 
     //if code fails to connect to the secure element, and nothing is active, then
@@ -99,7 +112,7 @@ TheEnd:
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIEnv* e, jobject o, jint handle)
+static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%04x", __FUNCTION__, handle);
     bool stat = false;
@@ -133,29 +146,23 @@ static jboolean nativeNfcSecureElement_doDisconnectSecureElementConnection (JNIE
 ** Returns:         Buffer of received data.
 **
 *******************************************************************************/
-static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject o, jint handle, jbyteArray data)
+static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject, jint handle, jbyteArray data)
 {
-    UINT8* buf = NULL;
-    INT32 buflen = 0;
     const INT32 recvBufferMaxSize = 1024;
     UINT8 recvBuffer [recvBufferMaxSize];
     INT32 recvBufferActualSize = 0;
-    jbyteArray result = NULL;
 
-    buf = (UINT8*) e->GetByteArrayElements (data, NULL);
-    buflen = e->GetArrayLength (data);
+    ScopedByteArrayRW bytes(e, data);
 
-    ALOGD("%s: enter; handle=0x%X; buf len=%ld", __FUNCTION__, handle, buflen);
-    SecureElement::getInstance().transceive (buf, buflen, recvBuffer, recvBufferMaxSize, recvBufferActualSize, gGeneralTransceiveTimeout);
+    ALOGD("%s: enter; handle=0x%X; buf len=%zu", __FUNCTION__, handle, bytes.size());
+    SecureElement::getInstance().transceive(reinterpret_cast<UINT8*>(&bytes[0]), bytes.size(), recvBuffer, recvBufferMaxSize, recvBufferActualSize, gGeneralTransceiveTimeout);
 
     //copy results back to java
-    result = e->NewByteArray (recvBufferActualSize);
-    if (result != NULL)
-    {
-        e->SetByteArrayRegion (result, 0, recvBufferActualSize, (jbyte *) recvBuffer);
+    jbyteArray result = e->NewByteArray(recvBufferActualSize);
+    if (result != NULL) {
+        e->SetByteArrayRegion(result, 0, recvBufferActualSize, (jbyte *) recvBuffer);
     }
 
-    e->ReleaseByteArrayElements (data, (jbyte *) buf, JNI_ABORT);
     ALOGD("%s: exit: recv len=%ld", __FUNCTION__, recvBufferActualSize);
     return result;
 }
@@ -173,7 +180,7 @@ static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject o, jin
 ** Returns:         Secure element's unique ID.
 **
 *******************************************************************************/
-static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv* e, jobject o, jint handle)
+static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
     jbyteArray secureElementUid = NULL;
@@ -197,7 +204,7 @@ static jbyteArray nativeNfcSecureElement_doGetUid (JNIEnv* e, jobject o, jint ha
 ** Returns:         Array of technologies.
 **
 *******************************************************************************/
-static jintArray nativeNfcSecureElement_doGetTechList (JNIEnv* e, jobject o, jint handle)
+static jintArray nativeNfcSecureElement_doGetTechList (JNIEnv*, jobject, jint handle)
 {
     ALOGD("%s: enter; handle=0x%X", __FUNCTION__, handle);
     jintArray techList = NULL;
@@ -242,4 +249,3 @@ int register_com_android_nfc_NativeNfcSecureElement(JNIEnv *e)
 
 
 } // namespace android
-

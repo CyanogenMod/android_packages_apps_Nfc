@@ -45,6 +45,8 @@ public interface DeviceHost {
          */
         public void onLlcpLinkDeactivated(NfcDepEndpoint device);
 
+        public void onLlcpFirstPacketReceived(NfcDepEndpoint device);
+
         public void onRemoteFieldActivated();
 
         public void onRemoteFieldDeactivated();

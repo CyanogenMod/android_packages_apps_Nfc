@@ -25,6 +25,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 
 /**
  * A HandoverTransfer object represents a set of files
@@ -88,6 +89,9 @@ public class HandoverTransfer implements Handler.Callback,
 
     // Variables below are only accessed on the main thread
     int mState;
+    int mCurrentCount;
+    int mSuccessCount;
+    int mTotalCount;
     boolean mCalledBack;
     Long mLastUpdate; // Last time an event occurred for this transfer
     float mProgress; // Progress in range [0..1]
@@ -106,6 +110,8 @@ public class HandoverTransfer implements Handler.Callback,
         mRemoteDevice = pendingTransfer.remoteDevice;
         mIncoming = pendingTransfer.incoming;
         mTransferId = pendingTransfer.id;
+        // For incoming transfers, count can be set later
+        mTotalCount = (pendingTransfer.uris != null) ? pendingTransfer.uris.length : 0;
         mLastUpdate = SystemClock.elapsedRealtime();
         mProgress = 0.0f;
         mState = STATE_NEW;
@@ -114,8 +120,10 @@ public class HandoverTransfer implements Handler.Callback,
         mPaths = new ArrayList<String>();
         mMimeTypes = new HashMap<String, String>();
         mMediaUris = new HashMap<String, Uri>();
-        mCancelIntent = buildCancelIntent();
+        mCancelIntent = buildCancelIntent(mIncoming);
         mUrisScanned = 0;
+        mCurrentCount = 0;
+        mSuccessCount = 0;
 
         mHandler = new Handler(Looper.getMainLooper(), this);
         mHandler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
@@ -147,9 +155,11 @@ public class HandoverTransfer implements Handler.Callback,
     public void finishTransfer(boolean success, Uri uri, String mimeType) {
         if (!isRunning()) return; // Ignore when we're no longer running
 
+        mCurrentCount++;
         if (success && uri != null) {
+            mSuccessCount++;
             if (DBG) Log.d(TAG, "Transfer success, uri " + uri + " mimeType " + mimeType);
-            this.mProgress = 1.0f;
+            mProgress = 0.0f;
             if (mimeType == null) {
                 mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
             }
@@ -164,8 +174,16 @@ public class HandoverTransfer implements Handler.Callback,
             // Do wait to see if there's another file coming.
         }
         mHandler.removeMessages(MSG_NEXT_TRANSFER_TIMER);
-        mHandler.sendEmptyMessageDelayed(MSG_NEXT_TRANSFER_TIMER, WAIT_FOR_NEXT_TRANSFER_MS);
-        updateStateAndNotification(STATE_W4_NEXT_TRANSFER);
+        if (mCurrentCount == mTotalCount) {
+            if (mIncoming) {
+                processFiles();
+            } else {
+                updateStateAndNotification(mSuccessCount > 0 ? STATE_SUCCESS : STATE_FAILED);
+            }
+        } else {
+            mHandler.sendEmptyMessageDelayed(MSG_NEXT_TRANSFER_TIMER, WAIT_FOR_NEXT_TRANSFER_MS);
+            updateStateAndNotification(STATE_W4_NEXT_TRANSFER);
+        }
     }
 
     public boolean isRunning() {
@@ -174,6 +192,10 @@ public class HandoverTransfer implements Handler.Callback,
         } else {
             return true;
         }
+    }
+
+    public void setObjectCount(int objectCount) {
+        mTotalCount = objectCount;
     }
 
     void cancel() {
@@ -189,43 +211,58 @@ public class HandoverTransfer implements Handler.Callback,
     }
 
     void updateNotification() {
-        if (!mIncoming) return; // No notifications for outgoing transfers
-
         Builder notBuilder = new Notification.Builder(mContext);
 
+        String beamString;
+        if (mIncoming) {
+            beamString = mContext.getString(R.string.beam_progress);
+        } else {
+            beamString = mContext.getString(R.string.beam_outgoing);
+        }
         if (mState == STATE_NEW || mState == STATE_IN_PROGRESS ||
                 mState == STATE_W4_NEXT_TRANSFER || mState == STATE_W4_MEDIA_SCANNER) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download);
-            notBuilder.setTicker(mContext.getString(R.string.beam_progress));
-            notBuilder.setContentTitle(mContext.getString(R.string.beam_progress));
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download :
+                    android.R.drawable.stat_sys_upload);
+            notBuilder.setTicker(beamString);
+            notBuilder.setContentTitle(beamString);
             notBuilder.addAction(R.drawable.ic_menu_cancel_holo_dark,
                     mContext.getString(R.string.cancel), mCancelIntent);
-            notBuilder.setDeleteIntent(mCancelIntent);
-            // We do have progress indication on a per-file basis, but in a multi-file
-            // transfer we don't know the total progress. So for now, just show an
-            // indeterminate progress bar.
-            notBuilder.setProgress(100, 0, true);
+            float progress = 0;
+            if (mTotalCount > 0) {
+                float progressUnit = 1.0f / mTotalCount;
+                progress = (float) mCurrentCount * progressUnit + mProgress * progressUnit;
+            }
+            if (mTotalCount > 0 && progress > 0) {
+                notBuilder.setProgress(100, (int) (100 * progress), false);
+            } else {
+                notBuilder.setProgress(100, 0, true);
+            }
         } else if (mState == STATE_SUCCESS) {
             notBuilder.setAutoCancel(true);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_complete));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
-            notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
 
-            Intent viewIntent = buildViewIntent();
-            PendingIntent contentIntent = PendingIntent.getActivity(
-                    mContext, 0, viewIntent, 0, null);
+            if (mIncoming) {
+                notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));
+                Intent viewIntent = buildViewIntent();
+                PendingIntent contentIntent = PendingIntent.getActivity(
+                        mContext, mTransferId, viewIntent, 0, null);
 
-            notBuilder.setContentIntent(contentIntent);
+                notBuilder.setContentIntent(contentIntent);
+            }
         } else if (mState == STATE_FAILED) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_failed));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
         } else if (mState == STATE_CANCELLED) {
             notBuilder.setAutoCancel(false);
-            notBuilder.setSmallIcon(android.R.drawable.stat_sys_download_done);
+            notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
+                    android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_canceled));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_canceled));
         } else {
@@ -323,13 +360,14 @@ public class HandoverTransfer implements Handler.Callback,
             if (mIncoming) {
                 processFiles();
             } else {
-                updateStateAndNotification(STATE_SUCCESS);
+                updateStateAndNotification(mSuccessCount > 0 ? STATE_SUCCESS : STATE_FAILED);
             }
             return true;
         } else if (msg.what == MSG_TRANSFER_TIMEOUT) {
             // No update on this transfer for a while, check
             // to see if it's still running, and fail it if it is.
             if (isRunning()) {
+                if (DBG) Log.d(TAG, "Transfer timed out");
                 updateStateAndNotification(STATE_FAILED);
             }
         }
@@ -375,10 +413,12 @@ public class HandoverTransfer implements Handler.Callback,
         return viewIntent;
     }
 
-    PendingIntent buildCancelIntent() {
+    PendingIntent buildCancelIntent(boolean incoming) {
         Intent intent = new Intent(HandoverService.ACTION_CANCEL_HANDOVER_TRANSFER);
         intent.putExtra(HandoverService.EXTRA_SOURCE_ADDRESS, mRemoteDevice.getAddress());
-        PendingIntent pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
+        intent.putExtra(HandoverService.EXTRA_INCOMING, incoming ? 1 : 0);
+        PendingIntent pi = PendingIntent.getBroadcast(mContext, mTransferId, intent,
+                PendingIntent.FLAG_ONE_SHOT);
 
         return pi;
     }
@@ -407,7 +447,7 @@ public class HandoverTransfer implements Handler.Callback,
     File generateMultiplePath(String beamRoot) {
         // Generate a unique directory with the date
         String format = "yyyy-MM-dd";
-        SimpleDateFormat sdf = new SimpleDateFormat(format);
+        SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.US);
         String newPath = beamRoot + "beam-" + sdf.format(new Date());
         File newFile = new File(newPath);
         int count = 0;

@@ -15,6 +15,7 @@
  */
 
 #pragma once
+#undef LOG_TAG
 #define LOG_TAG "BrcmNfcJni"
 #include <JNIHelp.h>
 #include <jni.h>
@@ -83,6 +84,7 @@
 #define TARGET_TYPE_NDEF_FORMATABLE       7
 #define TARGET_TYPE_MIFARE_CLASSIC        8
 #define TARGET_TYPE_MIFARE_UL             9
+#define TARGET_TYPE_KOVIO_BARCODE         10
 
 
 //define a few NXP error codes that NFC service expects;
@@ -128,6 +130,21 @@ struct nfc_jni_native_data
    int tHandle;
    int tProtocols[16];
    int handles[16];
+};
+
+
+class ScopedAttach {
+ public:
+  ScopedAttach(JavaVM* vm, JNIEnv** env) : vm_(vm) {
+    vm_->AttachCurrentThread(env, NULL);
+  }
+
+  ~ScopedAttach() {
+    vm_->DetachCurrentThread();
+  }
+
+ private:
+  JavaVM* vm_;
 };
 
 

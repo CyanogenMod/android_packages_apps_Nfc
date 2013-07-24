@@ -10,12 +10,14 @@
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"Pinagana ang NFC."</string>
     <string name="touch" msgid="4727218133711188355">"Pindutin upang i-beam"</string>
     <string name="beam_progress" msgid="7453634884807323920">"Dumarating na beam..."</string>
+    <string name="beam_outgoing" msgid="4679536649779123495">"Nagbi-beam..."</string>
     <string name="beam_complete" msgid="477026736424637435">"Kumpleto na ang pag-beam"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Hindi nakumpleto ang beam"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Kinansela ang beam"</string>
     <string name="cancel" msgid="61873902552555096">"Kanselahin"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Pindutin upang tingnan"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Hindi sinusuportahan ng device ng receiver ang malaking paglipat ng file sa pamamagitan ng beam."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"Pagsamahing muli ang mga device"</string>
     <string name="connecting_headset" msgid="3929250919225573008">"Kumokonekta"</string>
     <string name="connected_headset" msgid="4047751837023241955">"Nakakonekta"</string>
     <string name="connect_headset_failed" msgid="7500801585498094863">"Hindi makakonekta"</string>
