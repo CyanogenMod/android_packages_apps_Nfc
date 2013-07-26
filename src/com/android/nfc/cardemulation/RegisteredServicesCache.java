@@ -185,23 +185,26 @@ public class RegisteredServicesCache {
         mContext.registerReceiverAsUser(receiver, UserHandle.ALL, sdFilter, null, null);
     }
 
-    public ArrayList<CardEmulationService> resolveAidPrefix(String aid) {
+    public ArrayList<ComponentName> resolveAidPrefix(String aid) {
         if (aid == null || aid.length() == 0) return null;
 
-        ArrayList<CardEmulationService> matchedServices = new ArrayList<CardEmulationService>();
+        ArrayList<ComponentName> matchedServices = new ArrayList<ComponentName>();
         synchronized (mLock) {
             char nextAidChar = (char) (aid.charAt(aid.length() - 1) + 1);
             String nextAid = aid.substring(0, aid.length() - 1) + nextAidChar;
             SortedMap<String, ArrayList<CardEmulationService>> matches = mAidToServices.subMap(aid, nextAid);
-            // Iterate over all matches
-            for (Map.Entry<String, ArrayList<CardEmulationService>> match : matches.entrySet()) {
-                dump(match.getValue());
-                matchedServices.addAll(match.getValue());
+            // The first match is lexicographically closest to what the reader asked;
+            if (matches.isEmpty()) {
+                return null;
+            } else {
+                Log.d(TAG, "Requested AID: " + aid + " resolved to " + matches.firstKey());
+                // Return all component-names registering for this AID
+                ArrayList<CardEmulationService> serviceMatches = matches.get(matches.firstKey());
+                for (CardEmulationService service : serviceMatches) {
+                    matchedServices.add(service.serviceName);
+                }
             }
-        }
-        if (DEBUG) {
-            Log.d(TAG, "Matched services: ");
-            dump(matchedServices);
+
         }
         return matchedServices;
     }
@@ -267,9 +270,8 @@ public class RegisteredServicesCache {
         // 1. Finding all HCE services and making sure mUserServices is correct
         PackageManager pm;
         try {
-            UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
             pm = mContext.createPackageContextAsUser("android", 0,
-                    currentUser).getPackageManager();
+                    new UserHandle(userId)).getPackageManager();
         } catch (NameNotFoundException e) {
             Log.e(TAG, "Could not create user package context");
             return;
@@ -428,11 +430,9 @@ public class RegisteredServicesCache {
 
         AttributeSet attrs = Xml.asAttributeSet(parser);
         TypedArray sa = res.obtainAttributes(attrs,
-                com.android.internal.R.styleable.ApduService);
-        boolean paymentService = sa.getBoolean(
-                com.android.internal.R.styleable.ApduService_paymentService, false);
+                com.android.internal.R.styleable.HostApduService);
         String description = sa.getString(
-                com.android.internal.R.styleable.ApduService_description);
+                com.android.internal.R.styleable.HostApduService_description);
         ArrayList<String> items = new ArrayList<String>();
         final int depth = parser.getDepth();
         while (((eventType = parser.next()) != XmlPullParser.END_TAG || parser.getDepth() > depth)
@@ -444,6 +444,8 @@ public class RegisteredServicesCache {
                 String aid = a.getString(com.android.internal.R.styleable.AidFilter_name);
                 String aidDescription = a.getString(
                         com.android.internal.R.styleable.AidFilter_description);
+                String category = a.getString(
+                        com.android.internal.R.styleable.AidFilter_category);
                 items.add(aid);
             }
         }
@@ -458,7 +460,7 @@ public class RegisteredServicesCache {
             if (aids.size() > 0) {
                 return new CardEmulationService(
                         new ComponentName(resolveInfo.serviceInfo.packageName,
-                        resolveInfo.serviceInfo.name), aids, paymentService);
+                        resolveInfo.serviceInfo.name), aids, false);
             } else {
                 Log.e(TAG, "Could not find any valid aid-filer tags");
             }
