@@ -1003,9 +1003,9 @@ static void nfc_jni_Discover_14443_4_PCD_callback(void *pContext, phLibNfc_Handl
       tag = e->NewObject(tag_cls, ctor);
 
       /* Generate technology list */
-      jintArray techList;
-      jintArray handleList;
-      jintArray typeList;
+      ScopedLocalRef<jintArray> techList(e, NULL);
+      ScopedLocalRef<jintArray> handleList(e, NULL);
+      ScopedLocalRef<jintArray> typeList(e, NULL);
       psRemoteDevList[0].psRemoteDevInfo = psRemoteDevInfo;
       psRemoteDevList[0].hTargetDev = handle;
       nfc_jni_get_technology_tree(e, psRemoteDevList,
@@ -1014,26 +1014,19 @@ static void nfc_jni_Discover_14443_4_PCD_callback(void *pContext, phLibNfc_Handl
 
       /* Push the technology list into the java object */
       f = e->GetFieldID(tag_cls, "mTechList", "[I");
-      e->SetObjectField(tag, f, techList);
+      e->SetObjectField(tag, f, techList.get());
 
       f = e->GetFieldID(tag_cls, "mTechHandles", "[I");
-      e->SetObjectField(tag, f, handleList);
+      e->SetObjectField(tag, f, handleList.get());
 
       f = e->GetFieldID(tag_cls, "mTechLibNfcTypes", "[I");
-      e->SetObjectField(tag, f, typeList);
+      e->SetObjectField(tag, f, typeList.get());
 
       f = e->GetFieldID(tag_cls, "mConnectedTechIndex", "I");
       e->SetIntField(tag, f,(jint)-1);
 
       f = e->GetFieldID(tag_cls, "mConnectedHandle", "I");
       e->SetIntField(tag, f,(jint)-1);
-
-      if(techList!=NULL)
-        e->DeleteLocalRef(techList);
-      if(handleList!=NULL)
-        e->DeleteLocalRef(handleList);
-      if(typeList!=NULL)
-        e->DeleteLocalRef(typeList);
 
       if (nat->tag != NULL) {
           e->DeleteGlobalRef(nat->tag);
