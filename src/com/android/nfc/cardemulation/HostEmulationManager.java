@@ -29,7 +29,6 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
 import com.android.nfc.NfcService;
-import com.android.nfc.cardemulation.RegisteredServicesCache.CardEmulationService;
 
 import java.util.ArrayList;
 
@@ -174,13 +173,14 @@ public class HostEmulationManager {
 
     boolean dispatchAidLocked(String aid) {
         Log.d(TAG, "dispatchAidLocked");
-        ArrayList<CardEmulationService> matchingServices = mAidCache.resolveAidPrefix(aid);
-        if (matchingServices.size() == 0) {
+        ArrayList<ComponentName> matchingServices = mAidCache.resolveAidPrefix(aid);
+        if (matchingServices == null || matchingServices.size() == 0) {
             Log.e(TAG, "Could not find matching services for AID " + aid);
         } else if (matchingServices.size() == 1) {
-            CardEmulationService service = matchingServices.get(0);
+            ComponentName service = matchingServices.get(0);
             Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
-            aidIntent.setComponent(service.serviceName);
+            aidIntent.setComponent(service);
+            Log.e(TAG, "Resolved to service " + service);
             if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
                 return true;
             } else {
@@ -188,9 +188,9 @@ public class HostEmulationManager {
             }
         } else {
             Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX, picking first");
-            CardEmulationService service = matchingServices.get(0);
+            ComponentName service = matchingServices.get(0);
             Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
-            aidIntent.setComponent(service.serviceName);
+            aidIntent.setComponent(service);
             if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
                 return true;
             } else {
