@@ -237,6 +237,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             switch (msg.what) {
                 case MSG_REGISTER_CLIENT:
                     mClient = msg.replyTo;
+                    // Restore state from previous instance
+                    mBluetoothEnabledByNfc = msg.arg1 != 0;
+                    mBluetoothHeadsetConnected = msg.arg2 != 0;
                     break;
                 case MSG_DEREGISTER_CLIENT:
                     mClient = null;
@@ -404,6 +407,13 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     }
 
     @Override
+    public boolean onUnbind(Intent intent) {
+        // prevent any future callbacks to the client, no rebind call needed.
+        mClient = null;
+        return false;
+    }
+
+    @Override
     public void onTransferComplete(HandoverTransfer transfer, boolean success) {
         // Called on the main thread
 
@@ -439,6 +449,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             Message msg = Message.obtain(null,
                     connected ? HandoverManager.MSG_HEADSET_CONNECTED
                               : HandoverManager.MSG_HEADSET_NOT_CONNECTED);
+            msg.arg1 = mBluetoothEnabledByNfc ? 1 : 0;
             try {
                 mClient.send(msg);
             } catch (RemoteException e) {

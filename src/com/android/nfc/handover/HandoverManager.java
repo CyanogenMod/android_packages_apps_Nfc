@@ -19,6 +19,7 @@ package com.android.nfc.handover;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
@@ -76,9 +77,13 @@ public class HandoverManager {
     final Object mLock = new Object();
     // Variables below synchronized on mLock
     HashMap<Integer, PendingHandoverTransfer> mPendingTransfers;
+    ArrayList<Message> mPendingServiceMessages;
+    boolean mBluetoothHeadsetPending;
     boolean mBluetoothHeadsetConnected;
+    boolean mBluetoothEnabledByNfc;
     int mHandoverTransferId;
     Messenger mService = null;
+    boolean mBinding = false;
     boolean mBound;
     String mLocalBluetoothAddress;
     boolean mEnabled;
@@ -105,14 +110,19 @@ public class HandoverManager {
                         }
                         break;
                     case MSG_HEADSET_CONNECTED:
+                        mBluetoothEnabledByNfc = msg.arg1 != 0;
                         mBluetoothHeadsetConnected = true;
+                        mBluetoothHeadsetPending = false;
                         break;
                     case MSG_HEADSET_NOT_CONNECTED:
+                        mBluetoothEnabledByNfc = false; // No need to maintain this state any longer
                         mBluetoothHeadsetConnected = false;
+                        mBluetoothHeadsetPending = false;
                         break;
                     default:
                         break;
                 }
+                unbindServiceIfNeededLocked(false);
             }
         }
     };
@@ -122,14 +132,26 @@ public class HandoverManager {
         public void onServiceConnected(ComponentName name, IBinder service) {
             synchronized (mLock) {
                 mService = new Messenger(service);
+                mBinding = false;
                 mBound = true;
-                // Register this client
+                // Register this client and transfer last known service state
                 Message msg = Message.obtain(null, HandoverService.MSG_REGISTER_CLIENT);
+                msg.arg1 = mBluetoothEnabledByNfc ? 1 : 0;
+                msg.arg2 = mBluetoothHeadsetConnected ? 1 : 0;
                 msg.replyTo = mMessenger;
                 try {
                     mService.send(msg);
                 } catch (RemoteException e) {
                     Log.e(TAG, "Failed to register client");
+                }
+                // Send all queued messages
+                while (!mPendingServiceMessages.isEmpty()) {
+                    msg = mPendingServiceMessages.remove(0);
+                    try {
+                        mService.send(msg);
+                    } catch (RemoteException e) {
+                        Log.e(TAG, "Failed to send queued message to service");
+                    }
                 }
             }
         }
@@ -137,7 +159,8 @@ public class HandoverManager {
         @Override
         public void onServiceDisconnected(ComponentName name) {
             synchronized (mLock) {
-                if (mBound) {
+                Log.d(TAG, "Service disconnected");
+                if (mService != null) {
                     try {
                         Message msg = Message.obtain(null, HandoverService.MSG_DEREGISTER_CLIENT);
                         msg.replyTo = mMessenger;
@@ -148,6 +171,9 @@ public class HandoverManager {
                 }
                 mService = null;
                 mBound = false;
+                mBluetoothHeadsetPending = false;
+                mPendingTransfers.clear();
+                mPendingServiceMessages.clear();
             }
         }
     };
@@ -157,13 +183,13 @@ public class HandoverManager {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         mPendingTransfers = new HashMap<Integer, PendingHandoverTransfer>();
+        mPendingServiceMessages = new ArrayList<Message>();
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_USER_SWITCHED);
         mContext.registerReceiver(mReceiver, filter, null, null);
 
-        mContext.bindServiceAsUser(new Intent(mContext, HandoverService.class), mConnection,
-                Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
         mEnabled = true;
+        mBluetoothEnabledByNfc = false;
     }
 
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -171,13 +197,41 @@ public class HandoverManager {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (action.equals(Intent.ACTION_USER_SWITCHED)) {
-                // Re-bind a service for the current user
-                mContext.unbindService(mConnection);
-                mContext.bindServiceAsUser(new Intent(mContext, HandoverService.class), mConnection,
-                        Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
+                // Just force unbind the service.
+                unbindServiceIfNeededLocked(true);
             }
         }
     };
+
+    /**
+     * @return whether the service was bound to successfully
+     */
+    boolean bindServiceIfNeededLocked() {
+        if (!mBinding) {
+            Log.d(TAG, "Binding to handover service");
+            boolean bindSuccess = mContext.bindServiceAsUser(new Intent(mContext,
+                    HandoverService.class), mConnection, Context.BIND_AUTO_CREATE,
+                    UserHandle.CURRENT);
+            mBinding = bindSuccess;
+            return bindSuccess;
+        } else {
+           // A previous bind is pending
+           return true;
+        }
+    }
+
+    void unbindServiceIfNeededLocked(boolean force) {
+        // If no service operation is pending, unbind
+        if (mBound && (force || (!mBluetoothHeadsetPending && mPendingTransfers.isEmpty()))) {
+            Log.d(TAG, "Unbinding from service.");
+            mContext.unbindService(mConnection);
+            mBound = false;
+            mPendingServiceMessages.clear();
+            mBluetoothHeadsetPending = false;
+            mPendingTransfers.clear();
+        }
+        return;
+    }
 
     static NdefRecord createCollisionRecord() {
         byte[] random = new byte[2];
@@ -302,21 +356,15 @@ public class HandoverManager {
         synchronized (mLock) {
             if (!mEnabled) return null;
 
-            if (!mBound) {
-                Log.e(TAG, "Could not connect to handover service");
-                return null;
-            }
             Message msg = Message.obtain(null, HandoverService.MSG_START_INCOMING_TRANSFER);
             PendingHandoverTransfer transfer = registerInTransferLocked(bluetoothData.device);
             Bundle transferData = new Bundle();
             transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
             msg.setData(transferData);
-            try {
-                mService.send(msg);
-            } catch (RemoteException e) {
-                Log.e(TAG, "Could not connect to handover service");
-               removeTransferLocked(transfer.id);
-               return null;
+
+            if (!sendOrQueueMessageLocked(msg)) {
+                removeTransferLocked(transfer.id);
+                return null;
             }
         }
         // BT OOB found, whitelist it for incoming OPP data
@@ -328,6 +376,26 @@ public class HandoverManager {
                 bluetoothData.device.getAddress() + "]->[" + mLocalBluetoothAddress + "]");
 
         return selectMessage;
+    }
+
+    public boolean sendOrQueueMessageLocked(Message msg) {
+        if (!mBound || mService == null) {
+            // Need to start service, let us know if we can queue the message
+            if (!bindServiceIfNeededLocked()) {
+                Log.e(TAG, "Could not start service");
+                return false;
+            }
+            // Queue the message to send when the service is bound
+            mPendingServiceMessages.add(msg);
+        } else {
+            try {
+                mService.send(msg);
+            } catch (RemoteException e) {
+                Log.e(TAG, "Could not connect to handover service");
+                return false;
+            }
+        }
+        return true;
     }
 
     public boolean tryHandover(NdefMessage m) {
@@ -347,23 +415,14 @@ public class HandoverManager {
                 if (DBG) Log.d(TAG, "BT handover, but BT not available");
                 return true;
             }
-            if (!mBound) {
-                Log.e(TAG, "Could not connect to handover service");
-                return false;
-            }
 
             Message msg = Message.obtain(null, HandoverService.MSG_HEADSET_HANDOVER, 0, 0);
             Bundle headsetData = new Bundle();
             headsetData.putParcelable(HandoverService.EXTRA_HEADSET_DEVICE, handover.device);
             headsetData.putString(HandoverService.EXTRA_HEADSET_NAME, handover.name);
             msg.setData(headsetData);
-            try {
-                mService.send(msg);
-            } catch (RemoteException e) {
-                return false;
-            }
+            return sendOrQueueMessageLocked(msg);
         }
-        return true;
     }
 
     // This starts sending an Uri over BT
@@ -374,11 +433,6 @@ public class HandoverManager {
         if (data != null && data.valid) {
             // Register a new handover transfer object
             synchronized (mLock) {
-                if (!mBound) {
-                    Log.e(TAG, "Could not connect to handover service");
-                    return;
-                }
-
                 Message msg = Message.obtain(null, HandoverService.MSG_START_OUTGOING_TRANSFER, 0, 0);
                 PendingHandoverTransfer transfer = registerOutTransferLocked(data, uris);
                 Bundle transferData = new Bundle();
@@ -386,11 +440,7 @@ public class HandoverManager {
                 msg.setData(transferData);
                 if (DBG) Log.d(TAG, "Initiating outgoing transfer, [" + mLocalBluetoothAddress +
                         "]->[" + data.device.getAddress() + "]");
-                try {
-                    mService.send(msg);
-                } catch (RemoteException e) {
-                    removeTransferLocked(transfer.id);
-                }
+                sendOrQueueMessageLocked(msg);
             }
         }
     }

@@ -292,9 +292,9 @@ public class HandoverTransfer implements Handler.Callback,
         this.mState = newState;
         this.mLastUpdate = SystemClock.elapsedRealtime();
 
-        if (mHandler.hasMessages(MSG_TRANSFER_TIMEOUT)) {
-            // Update timeout timer
-            mHandler.removeMessages(MSG_TRANSFER_TIMEOUT);
+        mHandler.removeMessages(MSG_TRANSFER_TIMEOUT);
+        if (isRunning()) {
+            // Update timeout timer if we're still running
             mHandler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
         }
 
@@ -380,12 +380,9 @@ public class HandoverTransfer implements Handler.Callback,
             }
             return true;
         } else if (msg.what == MSG_TRANSFER_TIMEOUT) {
-            // No update on this transfer for a while, check
-            // to see if it's still running, and fail it if it is.
-            if (isRunning()) {
-                if (DBG) Log.d(TAG, "Transfer timed out");
-                updateStateAndNotification(STATE_FAILED);
-            }
+            // No update on this transfer for a while, fail it.
+            if (DBG) Log.d(TAG, "Transfer timed out for id: " + Integer.toString(mTransferId));
+            updateStateAndNotification(STATE_FAILED);
         }
         return false;
     }
