@@ -33,6 +33,7 @@ import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -49,12 +50,14 @@ import android.nfc.FormatException;
 import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
+import android.nfc.INfcCardEmulation;
 import android.nfc.INfcTag;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
+import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
@@ -249,6 +252,7 @@ public class NfcService implements DeviceHostListener {
     TagService mNfcTagService;
     NfcAdapterService mNfcAdapter;
     NfcAdapterExtrasService mExtrasService;
+    CardEmulationService mCardEmulationService;
     boolean mIsAirplaneSensitive;
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
@@ -260,7 +264,7 @@ public class NfcService implements DeviceHostListener {
     private KeyguardManager mKeyguard;
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
-    private RegisteredServicesCache mAidCache;
+    private RegisteredServicesCache mServiceCache;
     private HostEmulationManager mHostEmulationManager;
     private AidRoutingManager mAidRoutingManager;
 
@@ -415,6 +419,7 @@ public class NfcService implements DeviceHostListener {
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
         mExtrasService = new NfcAdapterExtrasService();
+        mCardEmulationService = new CardEmulationService();
 
         Log.i(TAG, "Starting NFC service");
 
@@ -482,8 +487,8 @@ public class NfcService implements DeviceHostListener {
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HCE);
         if (mIsHceCapable) {
             mAidRoutingManager = new AidRoutingManager();
-            mAidCache = new RegisteredServicesCache(mContext, mAidRoutingManager);
-            mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
+            mServiceCache = new RegisteredServicesCache(mContext, mAidRoutingManager);
+            mHostEmulationManager = new HostEmulationManager(mContext, mServiceCache);
         }
         if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
@@ -706,7 +711,7 @@ public class NfcService implements DeviceHostListener {
 
             if (mIsHceCapable) {
                 // Generate the initial card emulation routing table
-                mAidCache.generateServicesForUser(ActivityManager.getCurrentUser());
+                mServiceCache.invalidateCache(ActivityManager.getCurrentUser(), true);
             }
 
             synchronized(NfcService.this) {
@@ -1026,6 +1031,11 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
+        public INfcCardEmulation getNfcCardEmulationInterface() {
+            return mCardEmulationService;
+        }
+
+        @Override
         public int getState() throws RemoteException {
             synchronized (NfcService.this) {
                 return mState;
@@ -1053,6 +1063,50 @@ public class NfcService implements DeviceHostListener {
             mDeviceHost.enableDiscovery();
         }
     }
+
+    final class CardEmulationService extends INfcCardEmulation.Stub {
+        @Override
+        public boolean isDefaultServiceForCategory(int userId, ComponentName service,
+                String category) throws RemoteException {
+            if (!mIsHceCapable) {
+                return false;
+            }
+            // TODO perm
+            ApduServiceInfo defaultService = mServiceCache.getDefaultServiceForCategory(userId,
+                    category);
+            return (defaultService != null && defaultService.getComponent().equals(service));
+        }
+
+        @Override
+        public boolean setDefaultServiceForCategory(int userId, ComponentName service,
+                String category) throws RemoteException {
+
+            if (!mIsHceCapable) {
+                return false;
+            }
+            // TODO perm
+            return mServiceCache.setDefaultServiceForCategory(userId, service, category);
+        }
+        @Override
+        public List<ApduServiceInfo> getServices(int userId, String category)
+                throws RemoteException {
+            if (!mIsHceCapable) {
+                return null;
+            }
+            // TODO perm
+            return mServiceCache.getServicesForCategory(userId, category);
+        }
+
+        @Override
+        public boolean isDefaultServiceForAid(int userHandle, ComponentName service, String aid)
+                throws RemoteException {
+            if (!mIsHceCapable) {
+                return false;
+            }
+            // TODO perm
+            return false;
+        }
+    };
 
     final class TagService extends INfcTag.Stub {
         @Override

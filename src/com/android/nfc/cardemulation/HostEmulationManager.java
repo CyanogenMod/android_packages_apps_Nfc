@@ -16,10 +16,12 @@
 
 package com.android.nfc.cardemulation;
 
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
@@ -27,6 +29,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.Log;
 import com.android.nfc.NfcService;
 
@@ -173,25 +176,28 @@ public class HostEmulationManager {
 
     boolean dispatchAidLocked(String aid) {
         Log.d(TAG, "dispatchAidLocked");
-        ArrayList<ComponentName> matchingServices = mAidCache.resolveAidPrefix(aid);
+        int userId = ActivityManager.getCurrentUser();
+        ArrayList<ApduServiceInfo> matchingServices = mAidCache.resolveAidPrefix(userId, aid);
         if (matchingServices == null || matchingServices.size() == 0) {
             Log.e(TAG, "Could not find matching services for AID " + aid);
         } else if (matchingServices.size() == 1) {
-            ComponentName service = matchingServices.get(0);
+            ComponentName service = matchingServices.get(0).getComponent();
             Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
             aidIntent.setComponent(service);
             Log.e(TAG, "Resolved to service " + service);
-            if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
+            if (mContext.bindServiceAsUser(aidIntent, mConnection, Context.BIND_AUTO_CREATE,
+                    new UserHandle(userId))) {
                 return true;
             } else {
                 Log.e(TAG, "Could not bind service");
             }
         } else {
             Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX, picking first");
-            ComponentName service = matchingServices.get(0);
+            ComponentName service = matchingServices.get(0).getComponent();
             Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
             aidIntent.setComponent(service);
-            if (mContext.bindService(aidIntent, mConnection, Context.BIND_AUTO_CREATE)) {
+            if (mContext.bindServiceAsUser(aidIntent, mConnection, Context.BIND_AUTO_CREATE,
+                    new UserHandle(userId))) {
                 return true;
             } else {
                 Log.e(TAG, "Could not bind service");

@@ -16,10 +16,7 @@
 
 package com.android.nfc.cardemulation;
 
-import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlSerializer;
-
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -28,26 +25,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ServiceInfo;
-import android.content.res.Resources;
-import android.content.res.TypedArray;
-import android.content.res.XmlResourceParser;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.database.ContentObserver;
+import android.net.Uri;
+import android.nfc.cardemulation.ApduServiceInfo;
+import android.nfc.cardemulation.ApduServiceInfo.AidGroup;
+import android.nfc.cardemulation.CardEmulationManager;
 import android.nfc.cardemulation.HostApduService;
-import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.UserHandle;
-import android.util.AtomicFile;
-import android.util.AttributeSet;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
-import android.util.Xml;
-
-import com.android.internal.util.FastXmlSerializer;
 import com.google.android.collect.Maps;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -64,9 +57,10 @@ public class RegisteredServicesCache {
     static final String TAG = "RegisteredAidCache";
     static final boolean DEBUG = true;
 
+    static final String AID_CATEGORY_PAYMENT = CardEmulationManager.CATEGORY_PAYMENT;
+
     final Context mContext;
     final AtomicReference<BroadcastReceiver> mReceiver;
-    final AtomicFile mAidDefaultsFile;
     final AidRoutingManager mRoutingManager;
 
     final Object mLock = new Object();
@@ -76,57 +70,65 @@ public class RegisteredServicesCache {
     final SparseArray<UserServices> mUserServices = new SparseArray<UserServices>();
 
     // mAidServices is a tree that maps an AID to a list of handling services
-    // running on Android. It does *not* include apps that registered AIDs
-    // for an eSE/UICC
-    final TreeMap<String, ArrayList<CardEmulationService>> mAidToServices =
-            new TreeMap<String, ArrayList<CardEmulationService>>();
+    // on Android. It is only valid for the current user.
+    final TreeMap<String, ArrayList<ApduServiceInfo>> mAidToServices =
+            new TreeMap<String, ArrayList<ApduServiceInfo>>();
 
-    public static class CardEmulationService {
-        public final ComponentName serviceName;
-        public final ArrayList<String> aids;
-        public final int route;
-        public final boolean isPaymentService;
+    // mAidCache is a lookup table for quickly mapping an AID to one or
+    // more services. It differs from mAidServices in the sense that it
+    // has already accounted for defaults, and hence its return value
+    // is authoritative for the current set of services and defaults.
+    // It is only valid for the current user.
+    final HashMap<String, ArrayList<ApduServiceInfo>> mAidCache =
+            Maps.newHashMap();
 
-        CardEmulationService(ComponentName serviceName, ArrayList<String> aids,
-                boolean isPaymentService) {
-            this.serviceName = serviceName;
-            this.aids = aids;
-            this.isPaymentService = isPaymentService;
-            this.route = 0; // TODO
+    final Handler mHandler = new Handler(Looper.getMainLooper());
+
+    private final class SettingsObserver extends ContentObserver {
+        public SettingsObserver(Handler handler) {
+            super(handler);
         }
 
         @Override
-        public String toString() {
-            StringBuilder out = new StringBuilder("ComponentInfo: ");
-            out.append(serviceName);
-            out.append(", AIDs: ");
-            for (String aid : aids) {
-                out.append(aid);
-                out.append(", ");
+        public void onChange(boolean selfChange, Uri uri) {
+            super.onChange(selfChange, uri);
+            synchronized (mLock) {
+                // Do it just for the current user. If it was in fact
+                // a change made for another user, we'll sync it down
+                // on user switch.
+                int currentUser = ActivityManager.getCurrentUser();
+                UserServices userServices = findOrCreateUserLocked(currentUser);
+                updateFromSettingsLocked(currentUser);
+                generateAidCacheLocked(userServices);
+                updateRoutingLocked(userServices);
             }
-            return out.toString();
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof CardEmulationService)) return false;
-            CardEmulationService thatService = (CardEmulationService) o;
-
-            return thatService.serviceName.equals(this.serviceName);
-        }
-
-        @Override
-        public int hashCode() {
-            return serviceName.hashCode();
-        }
-    }
+    };
 
     private static class UserServices {
-        public final HashMap<ComponentName, CardEmulationService> services =
+        /**
+         * All services that have registered
+         */
+        public final HashMap<ComponentName, ApduServiceInfo> services =
+                Maps.newHashMap(); // Re-built at run-time
+
+        /**
+         * AIDs per category
+         */
+        public final HashMap<String, Set<String>> categoryAids =
                 Maps.newHashMap();
+
+        /**
+         * Default component per category
+         */
         public final HashMap<String, ComponentName> defaults =
-                Maps.newHashMap(); // Persisted on file-system
+                Maps.newHashMap();
+
+        /**
+         * Whether auto-select mode is enabled per category
+         */
+        public final HashMap<String, Boolean> mode =
+                Maps.newHashMap();
     };
 
     private UserServices findOrCreateUserLocked(int userId) {
@@ -142,13 +144,6 @@ public class RegisteredServicesCache {
         mContext = context;
         mRoutingManager = routingManager;
 
-        File dataDir = Environment.getDataDirectory();
-        File nfcDir = new File(dataDir, "nfc");
-        mAidDefaultsFile = new AtomicFile(new File(nfcDir, "aid_defaults"));
-
-        // Load defaults from file
-        readDefaultsFromPersistentFile();
-
         final BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -160,7 +155,7 @@ public class RegisteredServicesCache {
                             (Intent.ACTION_PACKAGE_ADDED.equals(action) ||
                              Intent.ACTION_PACKAGE_REMOVED.equals(action));
                     if (!replaced) {
-                        generateServicesForUser(UserHandle.getUserId(uid));
+                        invalidateCache(UserHandle.getUserId(uid), false);
                     } else {
                         if (DEBUG) Log.d(TAG, "Ignoring package intent due to package being replaced.");
                     }
@@ -183,53 +178,168 @@ public class RegisteredServicesCache {
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         mContext.registerReceiverAsUser(receiver, UserHandle.ALL, sdFilter, null, null);
+
+        SettingsObserver observer = new SettingsObserver(mHandler);
+        context.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
+                true, observer, UserHandle.USER_ALL);
+        context.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_MODE),
+                true, observer, UserHandle.USER_ALL);
     }
 
-    public ArrayList<ComponentName> resolveAidPrefix(String aid) {
+    ArrayList<ApduServiceInfo> resolveAidPrefix(String aid) {
         if (aid == null || aid.length() == 0) return null;
 
-        ArrayList<ComponentName> matchedServices = new ArrayList<ComponentName>();
         synchronized (mLock) {
             char nextAidChar = (char) (aid.charAt(aid.length() - 1) + 1);
             String nextAid = aid.substring(0, aid.length() - 1) + nextAidChar;
-            SortedMap<String, ArrayList<CardEmulationService>> matches = mAidToServices.subMap(aid, nextAid);
+            SortedMap<String, ArrayList<ApduServiceInfo>> matches =
+                    mAidToServices.subMap(aid, nextAid);
             // The first match is lexicographically closest to what the reader asked;
             if (matches.isEmpty()) {
                 return null;
             } else {
-                Log.d(TAG, "Requested AID: " + aid + " resolved to " + matches.firstKey());
-                // Return all component-names registering for this AID
-                ArrayList<CardEmulationService> serviceMatches = matches.get(matches.firstKey());
-                for (CardEmulationService service : serviceMatches) {
-                    matchedServices.add(service.serviceName);
-                }
+                return mAidCache.get(matches.firstKey());
             }
-
         }
-        return matchedServices;
     }
 
-    void dump(ArrayList<CardEmulationService> services) {
-        for (CardEmulationService service : services) {
+    public ArrayList<ApduServiceInfo> resolveAidPrefix(int userId, String aid) {
+        synchronized (mLock) {
+            UserServices userServices = findOrCreateUserLocked(userId);
+            char nextAidChar = (char) (aid.charAt(aid.length() - 1) + 1);
+            String nextAid = aid.substring(0, aid.length() - 1) + nextAidChar;
+            SortedMap<String, ArrayList<ApduServiceInfo>> matches =
+                    mAidToServices.subMap(aid, nextAid);
+            // The first match is lexicographically closest to what the reader asked;
+            if (matches.isEmpty()) {
+                return null;
+            } else {
+                return resolveAidLocked(userServices, matches.firstKey());
+            }
+        }
+    }
+
+    /**
+     * Resolves an AID to a set of services that can handle it.
+     */
+    public ArrayList<ApduServiceInfo> resolveAidLocked(UserServices userServices, String aid) {
+        ArrayList<ApduServiceInfo> resolvedServices = mAidToServices.get(aid);
+        if (resolvedServices == null || resolvedServices.size() == 0) {
+            Log.d(TAG, "Could not resolve AID " + aid + " to any service.");
+            return null;
+        }
+        Log.e(TAG, "resolveAidLocked: resolving AID " + aid);
+        ArrayList<ApduServiceInfo> resolved = new ArrayList<ApduServiceInfo>();
+
+        Set<String> paymentAids = userServices.categoryAids.get(AID_CATEGORY_PAYMENT);
+        if (paymentAids != null && paymentAids.contains(aid)) {
+            Log.d(TAG, "resolveAidLocked: AID " + aid + " is a payment AID");
+            // This AID has been registered as a payment AID by at least one service.
+            // Get default component for payment.
+            ComponentName defaultComponent = userServices.defaults.get(AID_CATEGORY_PAYMENT);
+            Log.d(TAG, "resolveAidLocked: default payment component is " + defaultComponent);
+            if (resolvedServices.size() == 1) {
+                ApduServiceInfo resolvedService = resolvedServices.get(0);
+                Log.d(TAG, "resolveAidLocked: resolved single service " +
+                        resolvedService.getComponent());
+                if (resolvedService.equals(defaultComponent)) {
+                    Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
+                        resolvedService.getComponent());
+                    resolvedServices.clear();
+                    resolved.add(resolvedService);
+                } else {
+                    // Route to this one service if uncontended for all AIDs.
+                    boolean foundConflict = false;
+                    for (String registeredAid : resolvedService.getAids()) {
+                        ArrayList<ApduServiceInfo> servicesForAid =
+                                mAidToServices.get(registeredAid);
+                        if (servicesForAid != null && servicesForAid.size() > 1) {
+                            foundConflict = true;
+                        }
+                    }
+                    if (!foundConflict) {
+                        Log.d(TAG, "resolveAidLocked: DECISION: routing to " +
+                            resolvedService.getComponent());
+                        resolved.add(resolvedService);
+                    } else {
+                        // will drop out below with empty list
+                        Log.d(TAG, "resolveAidLocked: DECISION: not routing AID " + aid +
+                                " because only part of it's <aid-group> is uncontended");
+                    }
+                }
+            } else if (resolvedServices.size() > 1) {
+                // More services have registered. If there's a default and it
+                // registered this AID, go with the default. Otherwise, add all.
+                Log.d(TAG, "resovleAidLocked: multiple services matched.");
+                if (defaultComponent != null) {
+                    for (ApduServiceInfo service : resolvedServices) {
+                        if (service.getComponent().equals(defaultComponent)) {
+                            Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
+                                    service.getComponent());
+                            resolved.add(service);
+                            break;
+                        }
+                    }
+                    if (resolved.size() == 0) {
+                        // If we didn't find the default, just add all
+                        // TODO is this right? when does this happen?
+                        Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing all");
+                        resolved.addAll(resolvedServices);
+                    }
+                }
+            } // else -> should not hit, we checked for 0 before.
+        } else {
+            // This AID is not a payment AID, just return all components
+            // that can handle it.
+            Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing all");
+            for (ApduServiceInfo service : resolvedServices) {
+                resolved.add(service);
+            }
+        }
+        return resolved;
+    }
+
+    void dump(ArrayList<ApduServiceInfo> services) {
+        for (ApduServiceInfo service : services) {
             if (DEBUG) Log.d(TAG, service.toString());
         }
     }
 
+    void generateAidCategoriesLocked(UserServices userServices) {
+        // Trash existing mapping
+        userServices.categoryAids.clear();
+
+        for (ApduServiceInfo service : userServices.services.values()) {
+            ArrayList<AidGroup> aidGroups = service.getAidGroups();
+            if (aidGroups == null) continue;
+            for (AidGroup aidGroup : aidGroups) {
+                String groupCategory = aidGroup.getCategory();
+                Set<String> categoryAids = userServices.categoryAids.get(groupCategory);
+                if (categoryAids == null) {
+                    categoryAids = new HashSet<String>();
+                }
+                categoryAids.addAll(aidGroup.getAids());
+                userServices.categoryAids.put(groupCategory, categoryAids);
+            }
+        }
+    }
+
     void generateAidTreeForUserLocked(UserServices userServices) {
-        Log.d(TAG, "generateAidTree");
         // Easiest is to just build the entire tree again
         mAidToServices.clear();
-        for (CardEmulationService service : userServices.services.values()) {
-            Log.d(TAG, "generateAidTree component: " + service.serviceName);
-            for (String aid : service.aids) {
+        for (ApduServiceInfo service : userServices.services.values()) {
+            Log.d(TAG, "generateAidTree component: " + service.getComponent());
+            for (String aid : service.getAids()) {
                 Log.d(TAG, "generateAidTree AID: " + aid);
                 // Check if a mapping exists for this AID
                 if (mAidToServices.containsKey(aid)) {
-                    final ArrayList<CardEmulationService> aidServices = mAidToServices.get(aid);
+                    final ArrayList<ApduServiceInfo> aidServices = mAidToServices.get(aid);
                     aidServices.add(service);
                 } else {
-                    final ArrayList<CardEmulationService> aidServices =
-                            new ArrayList<CardEmulationService>();
+                    final ArrayList<ApduServiceInfo> aidServices =
+                            new ArrayList<ApduServiceInfo>();
                     aidServices.add(service);
                     mAidToServices.put(aid, aidServices);
                 }
@@ -237,34 +347,108 @@ public class RegisteredServicesCache {
         }
     }
 
-    void addAidsForServiceLocked(CardEmulationService service, ArrayList<String> aids) {
-        service.aids.addAll(aids);
-    }
-
-    void removeAidsForServiceLocked(UserServices services, CardEmulationService service,
-            ArrayList<String> aids) {
-        for (String aid : aids) {
-            if (services.defaults.containsKey(aid) &&
-                    services.defaults.get(aid).equals(service.serviceName)) {
-                // Remove default
-                if (DEBUG) Log.d(TAG, "Removing default service for AID: " + aid);
-                services.defaults.remove(aid);
-            }
-            service.aids.remove(aid);
+    void generateAidCacheLocked(UserServices userServices) {
+        mAidCache.clear();
+        for (Map.Entry<String, ArrayList<ApduServiceInfo>> aidEntry:
+            mAidToServices.entrySet()) {
+            String aid = aidEntry.getKey();
+            mAidCache.put(aid, resolveAidLocked(userServices, aid));
         }
     }
 
-    boolean containsServiceLocked(ArrayList<CardEmulationService> services, ComponentName serviceName) {
-        for (CardEmulationService service : services) {
-            if (service.serviceName.equals(serviceName)) return true;
+    boolean containsServiceLocked(ArrayList<ApduServiceInfo> services, ComponentName serviceName) {
+        for (ApduServiceInfo service : services) {
+            if (service.getComponent().equals(serviceName)) return true;
         }
         return false;
     }
 
-    public void generateServicesForUser(int userId) {
-        // This code consists of 3 main phases:
-        // - Finding all HCE services and making sure mUserServices is correct
+    void updateFromSettingsLocked(int userId) {
+        UserServices userServices = findOrCreateUserLocked(userId);
+
+        // Load current payment default from settings
+        String name = Settings.Secure.getStringForUser(
+                mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
+                userId);
+        userServices.defaults.put(AID_CATEGORY_PAYMENT,
+                name != null ? ComponentName.unflattenFromString(name) : null);
+
+        Log.e(TAG, "Setting default component to: " + (name != null ?
+                ComponentName.unflattenFromString(name) : "null"));
+        // Load payment mode from settings
+        String mode = Settings.Secure.getStringForUser(mContext.getContentResolver(),
+                Settings.Secure.NFC_PAYMENT_MODE, userId);
+        Log.e(TAG, "Setting mode to: " + mode);
+        if (mode != null) {
+            userServices.mode.put(AID_CATEGORY_PAYMENT,
+                    CardEmulationManager.PAYMENT_MODE_MANUAL.equals(mode) ? false : true);
+        }
+    }
+
+    public ApduServiceInfo getDefaultServiceForCategory(int userId, String category) {
+        if (!CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+            Log.e(TAG, "Not allowing defaults for category " + category);
+            return null;
+        }
+        synchronized (mLock) {
+            UserServices userServices = findOrCreateUserLocked(userId);
+            // Load current payment default from settings
+            String name = Settings.Secure.getStringForUser(
+                    mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
+                    userId);
+            if (name != null) {
+                ComponentName serviceComponent = ComponentName.unflattenFromString(name);
+                return serviceComponent != null ?
+                        userServices.services.get(serviceComponent) : null;
+            } else {
+                return null;
+            }
+        }
+    }
+
+    public boolean isDefaultServiceForAid(int userId, ComponentName service, String aid) {
+        ArrayList<ApduServiceInfo> serviceList = mAidCache.get(aid);
+        if (serviceList == null || serviceList.size() == 0) return false;
+
+        ApduServiceInfo serviceInfo = serviceList.get(0);
+
+        return service.equals(serviceInfo);
+    }
+
+    public boolean setDefaultServiceForCategory(int userId, ComponentName service,
+            String category) {
+        if (!CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+            Log.e(TAG, "Not allowing defaults for category " + category);
+            return false;
+        }
+        synchronized (mLock) {
+            UserServices userServices = findOrCreateUserLocked(userId);
+            if (userServices.services.get(service) != null) {
+                Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                        Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT, service.flattenToString(),
+                        userId);
+            }
+        }
+        return true;
+    }
+
+    public ArrayList<ApduServiceInfo> getServicesForCategory(int userId, String category) {
+        final ArrayList<ApduServiceInfo> enabledServices = new ArrayList<ApduServiceInfo>();
+        synchronized (mLock) {
+            UserServices userServices = findOrCreateUserLocked(userId);
+            for (ApduServiceInfo service : userServices.services.values()) {
+                if (service.hasCategory(category)) enabledServices.add(service);
+            }
+        }
+        return enabledServices;
+    }
+
+    public void invalidateCache(int userId, boolean initialRun) {
+        // This code consists of a few phases:
+        // - Finding all HCE services and making sure mUserServices.services is correct
+        // - Rebuilding the UserServices.categoryAids HashMap from userServices
         // - Rebuilding the mAidToServices lookup table from userServices
+        // - Rebuilding the mAidCache lookup table from mAidToServices
         // - Rebuilding the AID routing table from mAidToServices lookup table
 
         // 1. Finding all HCE services and making sure mUserServices is correct
@@ -277,7 +461,7 @@ public class RegisteredServicesCache {
             return;
         }
 
-        ArrayList<CardEmulationService> validServices = new ArrayList<CardEmulationService>();
+        ArrayList<ApduServiceInfo> validServices = new ArrayList<ApduServiceInfo>();
 
         List<ResolveInfo> resolvedServices = pm.queryIntentServicesAsUser(
                 new Intent(HostApduService.SERVICE_INTERFACE),
@@ -285,7 +469,16 @@ public class RegisteredServicesCache {
 
         for (ResolveInfo resolvedService : resolvedServices) {
             try {
-                CardEmulationService service = parseServiceInfo(pm, resolvedService);
+                ServiceInfo si = resolvedService.serviceInfo;
+                ComponentName componentName = new ComponentName(si.packageName, si.name);
+                if (!android.Manifest.permission.BIND_NFC_SERVICE.equals(
+                        si.permission)) {
+                    Log.e(TAG, "Skipping APDU service " + componentName +
+                            ": it does not require the permission " +
+                            android.Manifest.permission.BIND_NFC_SERVICE);
+                    continue;
+                }
+                ApduServiceInfo service = new ApduServiceInfo(pm, resolvedService);
                 if (service != null) {
                     validServices.add(service);
                 }
@@ -296,86 +489,102 @@ public class RegisteredServicesCache {
             }
         }
 
-
         synchronized (mLock) {
             UserServices userServices = findOrCreateUserLocked(userId);
 
+            // Restore defaults from settings
+            updateFromSettingsLocked(userId);
+
+            ComponentName defaultForPayment = userServices.defaults.get(AID_CATEGORY_PAYMENT);
+
             // Find removed services
-            Iterator<Map.Entry<ComponentName, CardEmulationService>> it =
+            Iterator<Map.Entry<ComponentName, ApduServiceInfo>> it =
                     userServices.services.entrySet().iterator();
             while (it.hasNext()) {
-                Map.Entry<ComponentName, CardEmulationService> entry =
-                        (Map.Entry<ComponentName, CardEmulationService>) it.next();
+                Map.Entry<ComponentName, ApduServiceInfo> entry =
+                        (Map.Entry<ComponentName, ApduServiceInfo>) it.next();
                 if (!containsServiceLocked(validServices, entry.getKey())) {
                     Log.d(TAG, "Service removed: " + entry.getKey());
+                    if (entry.getKey().equals(defaultForPayment)) {
+                        Log.d(TAG, "Clearing as default for payment");
+                        setDefaultServiceForCategory(userId, null, AID_CATEGORY_PAYMENT);
+                    }
                     it.remove();
                 }
             }
-            for (CardEmulationService service : validServices) {
-                if (DEBUG) Log.d(TAG, "Processing service: " + service.serviceName +
-                        "AIDs: " + service.aids);
-                // TODO this is O(N^2) and not very nice
-                if (userServices.services.containsKey(service.serviceName)) {
-                    ArrayList<String> addedAids = new ArrayList<String>();
-                    ArrayList<String> removedAids = new ArrayList<String>();
-                    CardEmulationService existingService = userServices.services.get(service.serviceName);
-                    for (String aid : existingService.aids) {
-                        if (!service.aids.contains(aid)) removedAids.add(aid);
+
+            // Manage default state
+            for (ApduServiceInfo service : validServices) {
+                if (DEBUG) Log.d(TAG, "Processing service: " + service.getComponent() +
+                        "AIDs: " + service.getAids());
+                ApduServiceInfo existingService =
+                        userServices.services.put(service.getComponent(), service);
+
+                if (existingService != null) {
+                    if (existingService.hasCategory(AID_CATEGORY_PAYMENT) &&
+                            !service.hasCategory(AID_CATEGORY_PAYMENT)) {
+                        // Payment category removed, remove our default settings
+                        if (service.getComponent().equals(defaultForPayment)) {
+                            setDefaultServiceForCategory(userId, null, AID_CATEGORY_PAYMENT);
+                        }
+                    } else if (!existingService.hasCategory(
+                            CardEmulationManager.CATEGORY_PAYMENT) &&
+                            service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
+                        if (defaultForPayment == null) {
+                            setDefaultServiceForCategory(userId, service.getComponent(),
+                                    AID_CATEGORY_PAYMENT);
+                        }
                     }
-                    for (String aid : service.aids) {
-                        if (!existingService.aids.contains(aid)) addedAids.add(aid);
-                    }
-                    addAidsForServiceLocked(existingService, addedAids);
-                    removeAidsForServiceLocked(userServices, existingService, removedAids);
                 } else {
-                    // New service, just store it
-                    userServices.services.put(service.serviceName, service);
+                    if (defaultForPayment == null)
+                        setDefaultServiceForCategory(userId, service.getComponent(),
+                                AID_CATEGORY_PAYMENT);
                 }
             }
-            // 2. Rebuild mAidToServices
+
+            // 2. Generate AID category hashmap
+            generateAidCategoriesLocked(userServices);
+
+            // 3. Rebuild mAidToServices
             generateAidTreeForUserLocked(userServices);
 
-            // 3. Recompute routing table
+            // 4. Generate a quick-lookup AID cache
+            generateAidCacheLocked(userServices);
+
+            // 5. Recompute routing table from the AID cache
             updateRoutingLocked(userServices);
         }
         dump(validServices);
     }
 
+    void setDefaultIfNeededLocked(int userId, ApduServiceInfo service, String category) {
+        if (service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
+            ApduServiceInfo defaultForCategory = getDefaultServiceForCategory(userId, category);
+            if (defaultForCategory == null) {
+                setDefaultServiceForCategory(userId, service.getComponent(), category);
+            }
+        }
+    }
+
     void updateRoutingLocked(UserServices userServices) {
         final Set<String> handledAids = new HashSet<String>();
         // For each AID, find interested services
-        for (Map.Entry<String, ArrayList<CardEmulationService>> aidEntry :
-                mAidToServices.entrySet()) {
+        for (Map.Entry<String, ArrayList<ApduServiceInfo>> aidEntry:
+                mAidCache.entrySet()) {
             String aid = aidEntry.getKey();
-            ArrayList<CardEmulationService> aidServices = aidEntry.getValue();
+            ArrayList<ApduServiceInfo> aidServices = aidEntry.getValue();
             // Find the current routing for this AID
             int currentRoute = mRoutingManager.getRouteForAid(aid);
-            if (DEBUG) Log.d(TAG, "updateRouting: AID " + aid + " registered service count: " +
-                    Integer.toString(aidServices.size()) + " current route: " +
-                    Integer.toString(currentRoute));
             if (aidServices.size() == 0) {
                 // No interested services, if there is a current routing remove it
                 mRoutingManager.removeAid(aid);
             } else if (aidServices.size() == 1) {
                 // Only one service, make sure that is the current default route
-                CardEmulationService service = aidServices.get(0);
-                mRoutingManager.setRouteForAid(aid, service.route);
+                ApduServiceInfo service = aidServices.get(0);
+                mRoutingManager.setRouteForAid(aid, 0); // TODO
             } else if (aidServices.size() > 1) {
-                // Multiple services, check for default, if no default,
-                // route to host to ask for default.
-                if (userServices.defaults.get(aid) == null) {
-                    if (currentRoute != 0) { // TODO constant for host
-                        mRoutingManager.setRouteForAid(aid, 0);
-                    }
-                } else {
-                    // Default is set, make sure the current route points to it
-                    ComponentName defaultServiceName = userServices.defaults.get(aid);
-                    CardEmulationService defaultService =
-                            userServices.services.get(defaultServiceName);
-                    if (defaultService != null && currentRoute != defaultService.route) {
-                        mRoutingManager.setRouteForAid(aid, defaultService.route);
-                    }
-                }
+                // Multiple services, need to route to host to ask
+                mRoutingManager.setRouteForAid(aid, 0);
             }
             handledAids.add(aid);
         }
@@ -389,189 +598,7 @@ public class RegisteredServicesCache {
                 mRoutingManager.removeAid(aid);
             }
         }
-
         // And commit the routing
         mRoutingManager.commitRouting();
-    }
-
-    CardEmulationService parseServiceInfo(PackageManager pm, ResolveInfo info) throws XmlPullParserException, IOException {
-        ServiceInfo si = info.serviceInfo;
-
-        XmlResourceParser parser = null;
-        try {
-            parser = si.loadXmlMetaData(pm, HostApduService.SERVICE_META_DATA);
-            if (parser == null) {
-                throw new XmlPullParserException("No " + HostApduService.SERVICE_META_DATA +
-                        " meta-data");
-            }
-
-            return parseAidList(pm.getResourcesForApplication(si.applicationInfo), si.packageName,
-                    parser, info);
-        } catch (NameNotFoundException e) {
-            throw new XmlPullParserException("Unable to load resources for " + si.packageName);
-        } finally {
-            if (parser != null) parser.close();
-        }
-    }
-
-    CardEmulationService parseAidList(Resources res, String packageName, XmlPullParser parser,
-            ResolveInfo resolveInfo)
-            throws XmlPullParserException, IOException {
-        int eventType = parser.getEventType();
-        while (eventType != XmlPullParser.START_TAG && eventType != XmlPullParser.END_DOCUMENT) {
-            eventType = parser.next();
-        }
-
-        String tagName = parser.getName();
-        if (!"apdu-service".equals(tagName)) {
-            throw new XmlPullParserException(
-                    "Meta-data does not start with <apdu-service> tag");
-        }
-
-        AttributeSet attrs = Xml.asAttributeSet(parser);
-        TypedArray sa = res.obtainAttributes(attrs,
-                com.android.internal.R.styleable.HostApduService);
-        String description = sa.getString(
-                com.android.internal.R.styleable.HostApduService_description);
-        ArrayList<String> items = new ArrayList<String>();
-        final int depth = parser.getDepth();
-        while (((eventType = parser.next()) != XmlPullParser.END_TAG || parser.getDepth() > depth)
-                && eventType != XmlPullParser.END_DOCUMENT) {
-            tagName = parser.getName();
-            if (eventType == XmlPullParser.START_TAG && "aid-filter".equals(tagName)) {
-                final TypedArray a = res.obtainAttributes(attrs,
-                        com.android.internal.R.styleable.AidFilter);
-                String aid = a.getString(com.android.internal.R.styleable.AidFilter_name);
-                String aidDescription = a.getString(
-                        com.android.internal.R.styleable.AidFilter_description);
-                String category = a.getString(
-                        com.android.internal.R.styleable.AidFilter_category);
-                items.add(aid);
-            }
-        }
-
-        int size = items.size();
-        if (size > 0) {
-            final ArrayList<String> aids = new ArrayList<String>();
-            for (String aid : items) {
-                Log.e(TAG, "Checking AID: " + aid);
-                if (isValidAid(aid)) aids.add(aid);
-            }
-            if (aids.size() > 0) {
-                return new CardEmulationService(
-                        new ComponentName(resolveInfo.serviceInfo.packageName,
-                        resolveInfo.serviceInfo.name), aids, false);
-            } else {
-                Log.e(TAG, "Could not find any valid aid-filer tags");
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Parses whether a String contains a valid AID. Rules:
-     * - AID may not be null or empty
-     * - Number of characters is even (ie 0123 is valid, 123 is not)
-     * - TODO min prefix length?
-     */
-    boolean isValidAid(String aid) {
-        if (aid == null)
-            return false;
-
-        int aidLength = aid.length();
-        if (aidLength == 0 || (aidLength % 2) != 0) {
-            Log.e(TAG, "AID " + aid + " is not correctly formatted.");
-            return false;
-        }
-        return true;
-    }
-
-    void readDefaultsFromPersistentFile() {
-        FileInputStream fis = null;
-        try {
-            if (!mAidDefaultsFile.getBaseFile().exists()) {
-                if (DEBUG) Log.d(TAG, "defaults file did not exist");
-                return;
-            }
-            fis = mAidDefaultsFile.openRead();
-            XmlPullParser parser = Xml.newPullParser();
-            parser.setInput(fis, null);
-            int eventType = parser.getEventType();
-            while (eventType != XmlPullParser.START_TAG &&
-                    eventType != XmlPullParser.END_DOCUMENT) {
-                eventType = parser.next();
-            }
-            String tagName = parser.getName();
-            UserServices userServices = null;
-            synchronized (mLock) {
-                do {
-                    if (eventType == XmlPullParser.START_TAG && "services".equals(tagName)) {
-                        int currentUserId = Integer.parseInt(parser.getAttributeValue(0));
-                        userServices = findOrCreateUserLocked(currentUserId);
-                    }
-
-                    if (eventType == XmlPullParser.START_TAG && "aid".equals(tagName) &&
-                            userServices != null) {
-                        String aid = parser.getAttributeValue(0);
-                        String component = parser.getAttributeValue(1);
-
-                        ComponentName componentName = ComponentName.unflattenFromString(component);
-                        if (componentName != null) {
-                            userServices.defaults.put(aid, componentName);
-                        }
-                        else {
-                            Log.e(TAG, "Could not unflatten component string " + component);
-                        }
-                    }
-                    if (eventType == XmlPullParser.END_TAG && "services".equals(tagName)) {
-                        // Done with current map
-                        userServices = null;
-                    }
-                    eventType = parser.next();
-                    tagName = parser.getName();
-                } while (eventType != XmlPullParser.END_DOCUMENT);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error reading AID defaults", e);
-        } finally {
-            if (fis != null) {
-                try {
-                    fis.close();
-                } catch (java.io.IOException e1) {
-                }
-            }
-        }
-    }
-
-    void writeDefaultsToPersistentFile() {
-        FileOutputStream fos = null;
-        try {
-            fos = mAidDefaultsFile.startWrite();
-            XmlSerializer out = new FastXmlSerializer();
-            out.setOutput(fos, "utf-8");
-            out.startDocument(null, true);
-            out.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true);
-            synchronized (mLock) {
-                for (int i = 0; i < mUserServices.size(); i++) {
-                    final UserServices userServices = mUserServices.valueAt(i);
-                    out.startTag(null, "services");
-                    out.attribute(null, "userId", Integer.toString(mUserServices.keyAt(i)));
-                    for (Map.Entry<String, ComponentName> aidDefault : userServices.defaults.entrySet()) {
-                        out.startTag(null, "aid");
-                        out.attribute(null, "value", aidDefault.getKey());
-                        out.attribute(null, "defaultComponent",
-                                aidDefault.getValue().flattenToShortString());
-                        out.endTag(null, "aid");
-                    }
-                    out.endTag(null, "services");
-                }
-            }
-            out.endDocument();
-            mAidDefaultsFile.finishWrite(fos);
-        } catch (java.io.IOException e) {
-           if (fos != null) {
-               mAidDefaultsFile.failWrite(fos);
-           }
-        }
     }
 }
