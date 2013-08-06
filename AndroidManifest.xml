@@ -56,6 +56,20 @@
             android:excludeFromRecents="true"
             android:multiprocess="true"
         />
+
+        <activity android:name=".cardemulation.AppChooserActivity"
+            android:theme="@*android:style/Theme.Holo.Dialog.Alert"
+            android:finishOnCloseSystemDialogs="true"
+            android:excludeFromRecents="true"
+            android:multiprocess="true"
+        />
+
+        <activity android:name=".cardemulation.TapAgainDialog"
+            android:theme="@*android:style/Theme.Holo.Dialog.Alert"
+            android:finishOnCloseSystemDialogs="true"
+            android:excludeFromRecents="true"
+            android:multiprocess="true"
+        />
         <activity android:name=".NfcRootActivity"
             android:theme="@*android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true"

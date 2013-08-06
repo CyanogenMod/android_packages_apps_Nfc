@@ -1087,6 +1087,17 @@ public class NfcService implements DeviceHostListener {
             // TODO perm
             return mServiceCache.setDefaultServiceForCategory(userId, service, category);
         }
+
+        @Override
+        public boolean setDefaultForNextTap(int userId, ComponentName service)
+                throws RemoteException {
+            if (!mIsHceCapable) {
+                return false;
+            }
+            // TODO perm
+            return mServiceCache.setDefaultForNextTap(userId, service);
+        }
+
         @Override
         public List<ApduServiceInfo> getServices(int userId, String category)
                 throws RemoteException {

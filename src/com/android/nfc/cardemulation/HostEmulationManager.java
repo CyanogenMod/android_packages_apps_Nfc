@@ -51,6 +51,7 @@ public class HostEmulationManager {
 
     // Variables below protected by mLock
     boolean mBound;
+    boolean mClearNextTapDefault;
     Messenger mService;
     int mState;
     byte[] mSelectApdu;
@@ -65,6 +66,7 @@ public class HostEmulationManager {
     public void notifyHostEmulationActivated() {
         Log.d(TAG, "notifyHostEmulationActivated");
         synchronized (mLock) {
+            mClearNextTapDefault = mAidCache.isNextTapOverriden();
             if (mState != STATE_IDLE) {
                 Log.e(TAG, "Got activation event in non-idle state");
                 if (mState >= STATE_W4_SERVICE) {
@@ -129,6 +131,9 @@ public class HostEmulationManager {
     public void notifyNostEmulationDeactivated() {
         Log.d(TAG, "notifyHostEmulationDeactivated");
         synchronized (mLock) {
+            if (mClearNextTapDefault) {
+                mAidCache.setDefaultForNextTap(ActivityManager.getCurrentUser(), null);
+            }
             if (mState == STATE_IDLE) {
                 Log.e(TAG, "Got deactivation event while in idle state");
                 return;
@@ -155,6 +160,14 @@ public class HostEmulationManager {
         }
     }
 
+    void launchResolver(ArrayList<ComponentName> components, String category) {
+        Intent intent = new Intent(mContext, AppChooserActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putParcelableArrayListExtra(AppChooserActivity.EXTRA_COMPONENTS, components);
+        intent.putExtra(AppChooserActivity.EXTRA_CATEGORY, category);
+        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+    }
+
     String findSelectAid(byte[] data) {
         if (data == null || data.length < 6) {
             Log.d(TAG, "Data size too small for SELECT APDU");
@@ -176,9 +189,15 @@ public class HostEmulationManager {
 
     boolean dispatchAidLocked(String aid) {
         Log.d(TAG, "dispatchAidLocked");
+        // Regardless of what happens, if we're having a tap again
+        // activity up, close it
+        Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
+        intent.setPackage("com.android.nfc");
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
         int userId = ActivityManager.getCurrentUser();
         ArrayList<ApduServiceInfo> matchingServices = mAidCache.resolveAidPrefix(userId, aid);
         if (matchingServices == null || matchingServices.size() == 0) {
+            // TODO return 6A82?
             Log.e(TAG, "Could not find matching services for AID " + aid);
         } else if (matchingServices.size() == 1) {
             ComponentName service = matchingServices.get(0).getComponent();
@@ -192,16 +211,13 @@ public class HostEmulationManager {
                 Log.e(TAG, "Could not bind service");
             }
         } else {
-            Log.e(TAG, "Multiple services matched; TODO, conflict resolution UX, picking first");
-            ComponentName service = matchingServices.get(0).getComponent();
-            Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
-            aidIntent.setComponent(service);
-            if (mContext.bindServiceAsUser(aidIntent, mConnection, Context.BIND_AUTO_CREATE,
-                    new UserHandle(userId))) {
-                return true;
-            } else {
-                Log.e(TAG, "Could not bind service");
+            final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
+            for (ApduServiceInfo service : matchingServices) {
+               components.add(service.getComponent());
             }
+            // Get corresponding category
+            String category = mAidCache.getCategoryForAid(userId, aid);
+            launchResolver(components, category);
         }
         return false;
     }
