@@ -157,7 +157,8 @@ public class RegisteredServicesCache {
                             (Intent.ACTION_PACKAGE_ADDED.equals(action) ||
                              Intent.ACTION_PACKAGE_REMOVED.equals(action));
                     if (!replaced) {
-                        invalidateCache(UserHandle.getUserId(uid), false);
+                        // TODO only apply routing if uid is current user!
+                        invalidateCache(UserHandle.getUserId(uid));
                     } else {
                         if (DEBUG) Log.d(TAG, "Ignoring package intent due to package being replaced.");
                     }
@@ -482,14 +483,13 @@ public class RegisteredServicesCache {
         return enabledServices;
     }
 
-    public void invalidateCache(int userId, boolean initialRun) {
+    public void invalidateCache(int userId) {
         // This code consists of a few phases:
         // - Finding all HCE services and making sure mUserServices.services is correct
         // - Rebuilding the UserServices.categoryAids HashMap from userServices
         // - Rebuilding the mAidToServices lookup table from userServices
         // - Rebuilding the mAidCache lookup table from mAidToServices
         // - Rebuilding the AID routing table from mAidToServices lookup table
-
         // 1. Finding all HCE services and making sure mUserServices is correct
         PackageManager pm;
         try {
@@ -531,7 +531,7 @@ public class RegisteredServicesCache {
         synchronized (mLock) {
             UserServices userServices = findOrCreateUserLocked(userId);
 
-            // Restore defaults from settings
+            // TODO most code below is all default-handling; should factor out
             updateFromSettingsLocked(userId);
 
             ComponentName defaultForPayment = userServices.defaults.get(AID_CATEGORY_PAYMENT);

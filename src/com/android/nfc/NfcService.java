@@ -711,7 +711,7 @@ public class NfcService implements DeviceHostListener {
 
             if (mIsHceCapable) {
                 // Generate the initial card emulation routing table
-                mServiceCache.invalidateCache(ActivityManager.getCurrentUser(), true);
+                mServiceCache.invalidateCache(ActivityManager.getCurrentUser());
             }
 
             synchronized(NfcService.this) {
@@ -2367,6 +2367,7 @@ public class NfcService implements DeviceHostListener {
                 }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 mP2pLinkManager.onUserSwitched();
+                mServiceCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
             }
         }
     };
