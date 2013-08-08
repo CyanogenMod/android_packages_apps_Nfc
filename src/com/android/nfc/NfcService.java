@@ -274,6 +274,12 @@ public class NfcService implements DeviceHostListener {
         context.enforceCallingOrSelfPermission(ADMIN_PERM, ADMIN_PERM_ERROR);
     }
 
+    public static void validateUserId(int userId) {
+        if (userId != UserHandle.getCallingUserId()) {
+            throw new SecurityException("userId passed in it not the calling user.");
+        }
+    }
+
     public void enforceNfceeAdminPerm(String pkg) {
         if (pkg == null) {
             throw new SecurityException("caller must pass a package name");
@@ -1071,20 +1077,32 @@ public class NfcService implements DeviceHostListener {
             if (!mIsHceCapable) {
                 return false;
             }
-            // TODO perm
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            validateUserId(userId);
             ApduServiceInfo defaultService = mServiceCache.getDefaultServiceForCategory(userId,
                     category);
             return (defaultService != null && defaultService.getComponent().equals(service));
         }
 
         @Override
-        public boolean setDefaultServiceForCategory(int userId, ComponentName service,
-                String category) throws RemoteException {
-
+        public boolean isDefaultServiceForAid(int userId, ComponentName service, String aid)
+                throws RemoteException {
             if (!mIsHceCapable) {
                 return false;
             }
-            // TODO perm
+            validateUserId(userId);
+            mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
+            return mServiceCache.isDefaultServiceForAid(userId, service, aid);
+        }
+
+        @Override
+        public boolean setDefaultServiceForCategory(int userId, ComponentName service,
+                String category) throws RemoteException {
+            if (!mIsHceCapable) {
+                return false;
+            }
+            validateUserId(userId);
+            enforceAdminPerm(mContext);
             return mServiceCache.setDefaultServiceForCategory(userId, service, category);
         }
 
@@ -1094,7 +1112,9 @@ public class NfcService implements DeviceHostListener {
             if (!mIsHceCapable) {
                 return false;
             }
-            // TODO perm
+            validateUserId(userId);
+            enforceAdminPerm(mContext);
+            mHostEmulationManager.setDefaultForNextTap(service);
             return mServiceCache.setDefaultForNextTap(userId, service);
         }
 
@@ -1104,18 +1124,9 @@ public class NfcService implements DeviceHostListener {
             if (!mIsHceCapable) {
                 return null;
             }
-            // TODO perm
+            validateUserId(userId);
+            enforceAdminPerm(mContext);
             return mServiceCache.getServicesForCategory(userId, category);
-        }
-
-        @Override
-        public boolean isDefaultServiceForAid(int userHandle, ComponentName service, String aid)
-                throws RemoteException {
-            if (!mIsHceCapable) {
-                return false;
-            }
-            // TODO perm
-            return false;
         }
     };
 

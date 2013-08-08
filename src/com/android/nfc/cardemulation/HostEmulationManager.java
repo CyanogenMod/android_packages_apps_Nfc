@@ -21,15 +21,20 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.nfc.cardemulation.ApduServiceInfo;
+import android.nfc.cardemulation.CardEmulationManager;
 import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.Log;
 import com.android.nfc.NfcService;
 
@@ -41,7 +46,10 @@ public class HostEmulationManager {
     static final int STATE_IDLE = 0;
     static final int STATE_W4_SELECT = 1;
     static final int STATE_W4_SERVICE = 2;
-    static final int STATE_XFER = 3;
+    static final int STATE_W4_DEACTIVATE = 3;
+    static final int STATE_XFER = 4;
+
+    static final byte[] AID_NOT_FOUND = {0x6A, (byte)0x82};
 
     final Context mContext;
     final RegisteredServicesCache mAidCache;
@@ -49,10 +57,32 @@ public class HostEmulationManager {
 
     final Object mLock;
 
-    // Variables below protected by mLock
-    boolean mBound;
+    // All variables below protected by mLock
+
+    /** Whether we need to clear the "next tap" service at the end
+     *  of this transaction.
+     */
     boolean mClearNextTapDefault;
+
+    // Variables below are for a non-payment service,
+    // that is typically only bound in the STATE_XFER state.
     Messenger mService;
+    boolean mServiceBound;
+    ComponentName mServiceName;
+
+    // Variables below are for a payment service,
+    // which is typically bound persistently to improve on
+    // latency.
+    Messenger mPaymentService;
+    boolean mPaymentServiceBound;
+    ComponentName mPaymentServiceName;
+
+    // mActiveService denotes the service interface
+    // that is the current active one, until a new SELECT AID
+    // comes in that may be resolved to a different service.
+    // On deactivation, mActiveService stops being valid.
+    Messenger mActiveService;
+
     int mState;
     byte[] mSelectApdu;
 
@@ -61,17 +91,43 @@ public class HostEmulationManager {
         mLock = new Object();
         mAidCache = aidCache;
         mState = STATE_IDLE;
+        SettingsObserver observer = new SettingsObserver(mHandler);
+        context.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
+                true, observer, UserHandle.USER_ALL);
+
+        // Bind to payment default if existing
+        int userId = ActivityManager.getCurrentUser();
+        String name = Settings.Secure.getStringForUser(
+                mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
+                userId);
+        if (name != null) {
+            ComponentName serviceComponent = ComponentName.unflattenFromString(name);
+            bindPaymentServiceLocked(userId, serviceComponent);
+        }
+    }
+
+    public void setDefaultForNextTap(ComponentName service) {
+        synchronized (mLock) {
+            if (service != null) {
+                bindServiceIfNeededLocked(service);
+            } else {
+                unbindServiceIfNeededLocked();
+            }
+        }
     }
 
     public void notifyHostEmulationActivated() {
         Log.d(TAG, "notifyHostEmulationActivated");
         synchronized (mLock) {
             mClearNextTapDefault = mAidCache.isNextTapOverriden();
+            // Regardless of what happens, if we're having a tap again
+            // activity up, close it
+            Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
+            intent.setPackage("com.android.nfc");
+            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
             if (mState != STATE_IDLE) {
                 Log.e(TAG, "Got activation event in non-idle state");
-                if (mState >= STATE_W4_SERVICE) {
-                    unbindServiceLocked();
-                }
             }
             mState = STATE_W4_SELECT;
         }
@@ -80,47 +136,71 @@ public class HostEmulationManager {
     public void notifyHostEmulationData(byte[] data) {
         Log.d(TAG, "notifyHostEmulationData");
         String selectAid = findSelectAid(data);
+        ComponentName resolvedService = null;
         synchronized (mLock) {
+            if (mState == STATE_IDLE) {
+                Log.e(TAG, "Got data in idle state.");
+                return;
+            } else if (mState == STATE_W4_DEACTIVATE) {
+                Log.e(TAG, "Dropping APDU in STATE_W4_DECTIVATE");
+                return;
+            }
+            if (selectAid != null) {
+                ArrayList<ComponentName> services = resolveSelectAidLocked(selectAid);
+                if (services.size() == 0) {
+                    // Tell the remote we don't handle this AID
+                    NfcService.getInstance().sendData(AID_NOT_FOUND);
+                    return;
+                } else if (services.size() == 1) {
+                    // We have a single service
+                    resolvedService = services.get(0);
+                } else {
+                    int userId = ActivityManager.getCurrentUser();
+                    // Get corresponding category
+                    String category = mAidCache.getCategoryForAid(userId, selectAid);
+                    // Just ignore all future APDUs until we resolve to only one
+                    mState = STATE_W4_DEACTIVATE;
+                    launchResolver(services, category);
+                    return;
+                }
+            }
             switch (mState) {
-            case STATE_IDLE:
-                Log.e(TAG, "Got data in idle state");
-                break;
             case STATE_W4_SELECT:
                 if (selectAid != null) {
-                    mSelectApdu = data;
-                    if (dispatchAidLocked(selectAid))
+                    Messenger existingService = bindServiceIfNeededLocked(resolvedService);
+                    if (existingService != null) {
+                        Log.d(TAG, "Binding to existing service");
+                        mState = STATE_XFER;
+                        sendDataToServiceLocked(existingService, data);
+                    } else {
+                        // Waiting for service to be bound
+                        Log.d(TAG, "Waiting for new service.");
+                        // Queue SELECT APDU to be used
+                        mSelectApdu = data;
                         mState = STATE_W4_SERVICE;
+                    }
                 } else {
                     Log.d(TAG, "Dropping non-select APDU in STATE_W4_SELECT");
                 }
                 break;
             case STATE_W4_SERVICE:
-                if (selectAid != null) {
-                    // This should normally not happen, but deal with it gracefully
-                    unbindServiceLocked();
-                    mSelectApdu = data;
-                    if (dispatchAidLocked(selectAid))
-                        mState = STATE_W4_SERVICE;
-                } else {
-                    Log.d(TAG, "Unexpected APDU in STATE_W4_SERVICE");
-                }
+                Log.d(TAG, "Unexpected APDU in STATE_W4_SERVICE");
                 break;
             case STATE_XFER:
-                // TODO if we get another select we may need to resolve
-                // it to a different service
-                if (mService != null) {
-                    Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
-                    Bundle dataBundle = new Bundle();
-                    dataBundle.putByteArray("data", data);
-                    msg.setData(dataBundle);
-                    msg.replyTo = mMessenger;
-                    try {
-                        Log.d(TAG, "Sending data to service");
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        Log.e(TAG, "Remote service has died, dropping APDU");
+                if (selectAid != null) {
+                    Messenger existingService = bindServiceIfNeededLocked(resolvedService);
+                    if (existingService != null) {
+                        sendDataToServiceLocked(existingService, data);
+                        mState = STATE_XFER;
+                    } else {
+                        // Waiting for service to be bound
+                        mState = STATE_W4_SERVICE;
                     }
+                } else if (mActiveService != null) {
+                    // Regular APDU data
+                    sendDataToServiceLocked(mActiveService, data);
                 } else {
+                    // No SELECT AID and no active service.
                     Log.d(TAG, "Service no longer bound, dropping APDU");
                 }
                 break;
@@ -131,32 +211,142 @@ public class HostEmulationManager {
     public void notifyNostEmulationDeactivated() {
         Log.d(TAG, "notifyHostEmulationDeactivated");
         synchronized (mLock) {
+            if (mState == STATE_IDLE) {
+                Log.e(TAG, "Got deactivation event while in idle state");
+            }
             if (mClearNextTapDefault) {
                 mAidCache.setDefaultForNextTap(ActivityManager.getCurrentUser(), null);
             }
-            if (mState == STATE_IDLE) {
-                Log.e(TAG, "Got deactivation event while in idle state");
-                return;
-            }
-            if (mService != null) {
-                // Send a MSG_DEACTIVATED
-                Message msg = Message.obtain(null, HostApduService.MSG_DEACTIVATED);
-                try {
-                    mService.send(msg);
-                } catch (RemoteException e) {
-                    // Don't care
-                }
-            }
-            unbindServiceLocked();
+            sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_LINK_LOSS);
+            mActiveService = null;
+            unbindServiceIfNeededLocked();
             mState = STATE_IDLE;
         }
     }
 
-    void unbindServiceLocked() {
-        mContext.unbindService(mConnection);
-        synchronized (mLock) {
-            mBound = false;
+    ArrayList<ComponentName> resolveSelectAidLocked(String selectAid) {
+        final ArrayList<ApduServiceInfo> services = resolveAidLocked(selectAid);
+        final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
+        if (services == null || services.size() == 0) {
+            Log.e(TAG, "Could not find matching services for AID " + selectAid);
+        } else if (services.size() == 1) {
+            components.add(services.get(0).getComponent());
+        } else {
+            for (ApduServiceInfo service : services) {
+                if (service.getComponent().equals(mActiveService)) {
+                    // Always prefer the currently bound service
+                   components.clear();
+                   components.add(service.getComponent());
+                   break;
+                }
+               components.add(service.getComponent());
+            }
+        }
+        return components;
+    }
+
+    Messenger bindServiceIfNeededLocked(ComponentName service) {
+        if (mPaymentServiceBound && mPaymentServiceName.equals(service)) {
+            Log.d(TAG, "Service already bound as payment service.");
+            return mPaymentService;
+        } else if (mServiceBound && mServiceName.equals(service)) {
+            Log.d(TAG, "Service already bound as regular service.");
+            return mService;
+        } else {
+            Log.d(TAG, "Binding to service " + service);
+            unbindServiceIfNeededLocked();
+            Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
+            aidIntent.setComponent(service);
+            if (mContext.bindServiceAsUser(aidIntent, mConnection,
+                    Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
+            } else {
+                Log.e(TAG, "Could not bind service");
+            }
+            return null;
+        }
+    }
+
+    void sendDataToServiceLocked(Messenger service, byte[] data) {
+        if (service != mActiveService) {
+            sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_DESELECTED);
+            mActiveService = service;
+        }
+        Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
+        Bundle dataBundle = new Bundle();
+        dataBundle.putByteArray("data", data);
+        msg.setData(dataBundle);
+        msg.replyTo = mMessenger;
+        try {
+            Log.d(TAG, "Sending data to service");
+            mActiveService.send(msg);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Remote service has died, dropping APDU");
+        }
+    }
+
+    void sendDeactivateToActiveServiceLocked(int reason) {
+        if (mActiveService == null) return;
+        Message msg = Message.obtain(null, HostApduService.MSG_DEACTIVATED);
+        msg.arg1 = reason;
+        try {
+            mActiveService.send(msg);
+        } catch (RemoteException e) {
+            // Don't care
+        }
+    }
+
+    final Handler mHandler = new Handler(Looper.getMainLooper());
+
+    private final class SettingsObserver extends ContentObserver {
+        public SettingsObserver(Handler handler) {
+            super(handler);
+        }
+
+        @Override
+        public void onChange(boolean selfChange, Uri uri) {
+            super.onChange(selfChange, uri);
+            synchronized (mLock) {
+                // Do it just for the current user. If it was in fact
+                // a change made for another user, we'll sync it down
+                // on user switch.
+                int userId = ActivityManager.getCurrentUser();
+                // Get current default payment app
+                ApduServiceInfo paymentApp = mAidCache.getDefaultServiceForCategory(userId,
+                        CardEmulationManager.CATEGORY_PAYMENT);
+                if (paymentApp != null) {
+                    bindPaymentServiceLocked(userId, paymentApp.getComponent());
+                } else {
+                    unbindPaymentServiceLocked(userId);
+                }
+            }
+        }
+    };
+
+    void unbindPaymentServiceLocked(int userId) {
+        if (mPaymentServiceBound) {
+            mContext.unbindService(mPaymentConnection);
+            mPaymentServiceBound = false;
+            mPaymentService = null;
+            mPaymentServiceName = null;
+        }
+    }
+
+    void bindPaymentServiceLocked(int userId, ComponentName service) {
+        unbindPaymentServiceLocked(userId);
+
+        Intent intent = new Intent(HostApduService.SERVICE_INTERFACE);
+        intent.setComponent(service);
+        mContext.bindServiceAsUser(intent, mPaymentConnection,
+                Context.BIND_AUTO_CREATE, new UserHandle(userId));
+    }
+
+    void unbindServiceIfNeededLocked() {
+        if (mServiceBound) {
+            Log.d(TAG, "Unbinding from service " + mServiceName);
+            mContext.unbindService(mConnection);
+            mServiceBound = false;
             mService = null;
+            mServiceName = null;
         }
     }
 
@@ -187,61 +377,43 @@ public class HostEmulationManager {
         return null;
     }
 
-    boolean dispatchAidLocked(String aid) {
-        Log.d(TAG, "dispatchAidLocked");
-        // Regardless of what happens, if we're having a tap again
-        // activity up, close it
-        Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
-        intent.setPackage("com.android.nfc");
-        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
-        int userId = ActivityManager.getCurrentUser();
-        ArrayList<ApduServiceInfo> matchingServices = mAidCache.resolveAidPrefix(userId, aid);
-        if (matchingServices == null || matchingServices.size() == 0) {
-            // TODO return 6A82?
-            Log.e(TAG, "Could not find matching services for AID " + aid);
-        } else if (matchingServices.size() == 1) {
-            ComponentName service = matchingServices.get(0).getComponent();
-            Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
-            aidIntent.setComponent(service);
-            Log.e(TAG, "Resolved to service " + service);
-            if (mContext.bindServiceAsUser(aidIntent, mConnection, Context.BIND_AUTO_CREATE,
-                    new UserHandle(userId))) {
-                return true;
-            } else {
-                Log.e(TAG, "Could not bind service");
-            }
-        } else {
-            final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
-            for (ApduServiceInfo service : matchingServices) {
-               components.add(service.getComponent());
-            }
-            // Get corresponding category
-            String category = mAidCache.getCategoryForAid(userId, aid);
-            launchResolver(components, category);
-        }
-        return false;
+    final ArrayList<ApduServiceInfo> resolveAidLocked(String aid) {
+        Log.d(TAG, "resolveAidLocked");
+        return mAidCache.resolveAidPrefix(aid);
     }
+
+    private ServiceConnection mPaymentConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            synchronized (mLock) {
+                mPaymentServiceName = name;
+                mPaymentService = new Messenger(service);
+                mPaymentServiceBound = true;
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            synchronized (mLock) {
+                mPaymentService = null;
+                mPaymentServiceBound = false;
+                mPaymentServiceName = null;
+            }
+        }
+    };
 
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             synchronized (mLock) {
                 mService = new Messenger(service);
-                mBound = true;
+                mServiceBound = true;
+                mServiceName = name;
                 Log.d(TAG, "Service bound");
                 mState = STATE_XFER;
                 // Send pending select APDU
                 if (mSelectApdu != null) {
-                    Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
-                    Bundle dataBundle = new Bundle();
-                    dataBundle.putByteArray("data", mSelectApdu);
-                    msg.setData(dataBundle);
-                    msg.replyTo = mMessenger;
-                    try {
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        Log.d(TAG, "Service gone!");
-                    }
+                    sendDataToServiceLocked(mService, mSelectApdu);
                     mSelectApdu = null;
                 }
             }
@@ -252,7 +424,7 @@ public class HostEmulationManager {
             synchronized (mLock) {
                 Log.d(TAG, "Service unbound");
                 mService = null;
-                mBound = false;
+                mServiceBound = false;
             }
         }
     };

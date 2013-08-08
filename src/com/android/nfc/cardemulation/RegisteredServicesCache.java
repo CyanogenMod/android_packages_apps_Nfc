@@ -33,6 +33,7 @@ import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.cardemulation.ApduServiceInfo.AidGroup;
 import android.nfc.cardemulation.CardEmulationManager;
 import android.nfc.cardemulation.HostApduService;
+import android.nfc.cardemulation.OffHostApduService;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
@@ -100,9 +101,13 @@ public class RegisteredServicesCache {
                 // on user switch.
                 int currentUser = ActivityManager.getCurrentUser();
                 UserServices userServices = findOrCreateUserLocked(currentUser);
-                updateFromSettingsLocked(currentUser);
-                generateAidCacheLocked(userServices);
-                updateRoutingLocked(userServices);
+                boolean changed = updateFromSettingsLocked(currentUser);
+                if (changed) {
+                    generateAidCacheLocked(userServices);
+                    updateRoutingLocked(userServices);
+                } else {
+                    Log.d(TAG, "Not updating aid cache + routing: nothing changed.");
+                }
             }
         }
     };
@@ -157,8 +162,12 @@ public class RegisteredServicesCache {
                             (Intent.ACTION_PACKAGE_ADDED.equals(action) ||
                              Intent.ACTION_PACKAGE_REMOVED.equals(action));
                     if (!replaced) {
-                        // TODO only apply routing if uid is current user!
-                        invalidateCache(UserHandle.getUserId(uid));
+                        int currentUser = ActivityManager.getCurrentUser();
+                        if (currentUser == UserHandle.getUserId(uid)) {
+                            invalidateCache(UserHandle.getUserId(uid));
+                        } else {
+                            // Cache will automatically be updated on user switch
+                        }
                     } else {
                         if (DEBUG) Log.d(TAG, "Ignoring package intent due to package being replaced.");
                     }
@@ -191,9 +200,8 @@ public class RegisteredServicesCache {
                 true, observer, UserHandle.USER_ALL);
     }
 
-    public ArrayList<ApduServiceInfo> resolveAidPrefix(int userId, String aid) {
+    public ArrayList<ApduServiceInfo> resolveAidPrefix(String aid) {
         synchronized (mLock) {
-            UserServices userServices = findOrCreateUserLocked(userId);
             char nextAidChar = (char) (aid.charAt(aid.length() - 1) + 1);
             String nextAid = aid.substring(0, aid.length() - 1) + nextAidChar;
             SortedMap<String, ArrayList<ApduServiceInfo>> matches =
@@ -202,8 +210,7 @@ public class RegisteredServicesCache {
             if (matches.isEmpty()) {
                 return null;
             } else {
-                // TODO return values from cache here
-                return resolveAidLocked(userServices, matches.firstKey());
+                return mAidCache.get(matches.firstKey());
             }
         }
     }
@@ -361,24 +368,29 @@ public class RegisteredServicesCache {
         return false;
     }
 
-    void updateFromSettingsLocked(int userId) {
+    boolean updateFromSettingsLocked(int userId) {
         UserServices userServices = findOrCreateUserLocked(userId);
+        boolean changed = false;
 
         // Load current payment default from settings
         String name = Settings.Secure.getStringForUser(
                 mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
                 userId);
-        userServices.defaults.put(AID_CATEGORY_PAYMENT,
-                name != null ? ComponentName.unflattenFromString(name) : null);
-        Log.e(TAG, "Setting default component to: " + (name != null ?
+        ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
+        ComponentName oldDefault = userServices.defaults.put(AID_CATEGORY_PAYMENT, newDefault);
+        changed |= newDefault != oldDefault;
+        Log.e(TAG, "Set default component to: " + (name != null ?
                 ComponentName.unflattenFromString(name) : "null"));
 
         // Load payment mode from settings
-        String mode = Settings.Secure.getStringForUser(mContext.getContentResolver(),
+        String newModeString = Settings.Secure.getStringForUser(mContext.getContentResolver(),
                 Settings.Secure.NFC_PAYMENT_MODE, userId);
-        Log.e(TAG, "Setting mode to: " + mode);
-        userServices.mode.put(AID_CATEGORY_PAYMENT,
-                CardEmulationManager.PAYMENT_MODE_MANUAL.equals(mode) ? false : true);
+        boolean newMode = !CardEmulationManager.PAYMENT_MODE_MANUAL.equals(newModeString);
+        Log.e(TAG, "Setting mode to: " + newMode);
+        Boolean oldMode = userServices.mode.put(AID_CATEGORY_PAYMENT, newMode);
+        changed |= (oldMode == null) || (newMode != oldMode.booleanValue());
+
+        return changed;
     }
 
     public String getCategoryForAid(int userId, String aid) {
@@ -504,10 +516,16 @@ public class RegisteredServicesCache {
 
         List<ResolveInfo> resolvedServices = pm.queryIntentServicesAsUser(
                 new Intent(HostApduService.SERVICE_INTERFACE),
-                PackageManager.GET_META_DATA, ActivityManager.getCurrentUser());
+                PackageManager.GET_META_DATA, userId);
+
+        List<ResolveInfo> resolvedOffHostServices = pm.queryIntentServicesAsUser(
+                new Intent(OffHostApduService.SERVICE_INTERFACE),
+                PackageManager.GET_META_DATA, userId);
+        resolvedServices.addAll(resolvedOffHostServices);
 
         for (ResolveInfo resolvedService : resolvedServices) {
             try {
+                boolean onHost = !resolvedOffHostServices.contains(resolvedService);
                 ServiceInfo si = resolvedService.serviceInfo;
                 ComponentName componentName = new ComponentName(si.packageName, si.name);
                 if (!android.Manifest.permission.BIND_NFC_SERVICE.equals(
@@ -517,7 +535,7 @@ public class RegisteredServicesCache {
                             android.Manifest.permission.BIND_NFC_SERVICE);
                     continue;
                 }
-                ApduServiceInfo service = new ApduServiceInfo(pm, resolvedService);
+                ApduServiceInfo service = new ApduServiceInfo(pm, resolvedService, onHost);
                 if (service != null) {
                     validServices.add(service);
                 }
@@ -617,18 +635,16 @@ public class RegisteredServicesCache {
                 mAidCache.entrySet()) {
             String aid = aidEntry.getKey();
             ArrayList<ApduServiceInfo> aidServices = aidEntry.getValue();
-            // Find the current routing for this AID
-            int currentRoute = mRoutingManager.getRouteForAid(aid);
             if (aidServices.size() == 0) {
                 // No interested services, if there is a current routing remove it
                 mRoutingManager.removeAid(aid);
             } else if (aidServices.size() == 1) {
                 // Only one service, make sure that is the current default route
                 ApduServiceInfo service = aidServices.get(0);
-                mRoutingManager.setRouteForAid(aid, 0); // TODO
+                mRoutingManager.setRouteForAid(aid, service.isOnHost());
             } else if (aidServices.size() > 1) {
                 // Multiple services, need to route to host to ask
-                mRoutingManager.setRouteForAid(aid, 0);
+                mRoutingManager.setRouteForAid(aid, true);
             }
             handledAids.add(aid);
         }

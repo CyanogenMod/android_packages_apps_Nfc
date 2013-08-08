@@ -31,6 +31,11 @@ public class AidRoutingManager {
     // TODO locking, but this class will likely
     // need to be called with lock held.
 
+    // For Nexus device, just a static route to the eSE
+    // OEMs/Carriers could manually map off-host AIDs
+    // to the correct route.
+    static final int DEFAULT_OFFHOST_ROUTE = 0xF4;
+
     // mAidRoutingTable contains the current routing table. The index is the route ID.
     // The route can include routes to a eSE/UICC.
     final SparseArray<Set<String>> mAidRoutingTable = new SparseArray<Set<String>>();
@@ -59,8 +64,11 @@ public class AidRoutingManager {
         return routedAids;
     }
 
-    public boolean setRouteForAid(String aid, int route) {
+    public boolean setRouteForAid(String aid, boolean onHost) {
         int currentRoute = getRouteForAid(aid);
+        Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " ,current:" +
+                Integer.toString(currentRoute));
+        int route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
         if (route == currentRoute) return true;
 
         if (currentRoute != -1) {
