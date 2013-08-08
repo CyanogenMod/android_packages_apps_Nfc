@@ -194,6 +194,7 @@ public class HostEmulationManager {
                         mState = STATE_XFER;
                     } else {
                         // Waiting for service to be bound
+                        mSelectApdu = data;
                         mState = STATE_W4_SERVICE;
                     }
                 } else if (mActiveService != null) {
