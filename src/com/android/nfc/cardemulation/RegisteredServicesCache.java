@@ -40,6 +40,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
+
 import com.google.android.collect.Maps;
 
 import java.io.IOException;
@@ -357,6 +358,7 @@ public class RegisteredServicesCache {
         for (Map.Entry<String, ArrayList<ApduServiceInfo>> aidEntry:
             mAidToServices.entrySet()) {
             String aid = aidEntry.getKey();
+            Log.e(TAG, "Mapping aid " + aid + "to: " + resolveAidLocked(userServices, aid));
             mAidCache.put(aid, resolveAidLocked(userServices, aid));
         }
     }
@@ -549,10 +551,11 @@ public class RegisteredServicesCache {
         synchronized (mLock) {
             UserServices userServices = findOrCreateUserLocked(userId);
 
-            // TODO most code below is all default-handling; should factor out
             updateFromSettingsLocked(userId);
 
+            // Deal with defaults; if a default app is removed, notify the user.
             ComponentName defaultForPayment = userServices.defaults.get(AID_CATEGORY_PAYMENT);
+            boolean paymentModeAuto = userServices.mode.get(AID_CATEGORY_PAYMENT);
 
             // Find removed services
             Iterator<Map.Entry<ComponentName, ApduServiceInfo>> it =
@@ -562,53 +565,37 @@ public class RegisteredServicesCache {
                         (Map.Entry<ComponentName, ApduServiceInfo>) it.next();
                 if (!containsServiceLocked(validServices, entry.getKey())) {
                     Log.d(TAG, "Service removed: " + entry.getKey());
-                    if (entry.getKey().equals(defaultForPayment)) {
+                    if (entry.getKey().equals(defaultForPayment) && paymentModeAuto) {
                         Log.d(TAG, "Clearing as default for payment");
-                        setDefaultServiceForCategory(userId, null, AID_CATEGORY_PAYMENT);
+                        notifyDefaultServiceRemoved(entry.getValue().loadLabel(pm));
                     }
                     it.remove();
                 }
             }
 
-            // Manage default state if we're in auto-mode
-            boolean paymentModeAuto = userServices.mode.get(AID_CATEGORY_PAYMENT);
             int numPaymentApps = 0;
             ApduServiceInfo paymentService = null;
             for (ApduServiceInfo service : validServices) {
                 if (DEBUG) Log.d(TAG, "Processing service: " + service.getComponent() +
                         "AIDs: " + service.getAids());
+                ApduServiceInfo existingService =
+                        userServices.services.put(service.getComponent(), service);
                 if (service.hasCategory(AID_CATEGORY_PAYMENT)) {
                     numPaymentApps++;
                     paymentService = service;
                 }
-                ApduServiceInfo existingService =
-                        userServices.services.put(service.getComponent(), service);
-
-                if (existingService != null) {
-                    if (existingService.hasCategory(AID_CATEGORY_PAYMENT) &&
+                if (existingService != null && existingService.hasCategory(AID_CATEGORY_PAYMENT) &&
                             !service.hasCategory(AID_CATEGORY_PAYMENT)) {
-                        // Payment category removed, remove our default settings
-                        if (service.getComponent().equals(defaultForPayment) && paymentModeAuto) {
-                            setDefaultServiceForCategory(userId, null, AID_CATEGORY_PAYMENT);
-                        }
-                    } else if (!existingService.hasCategory(
-                            CardEmulationManager.CATEGORY_PAYMENT) &&
-                            service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
-                        if (defaultForPayment == null && paymentModeAuto) {
-                            setDefaultServiceForCategory(userId, service.getComponent(),
-                                    AID_CATEGORY_PAYMENT);
-                        }
+                    // This is a rather special case but we have to deal with it: what if your default
+                    // payment app suddenly stops offering payment AIDs.
+                    if (service.getComponent().equals(defaultForPayment) && paymentModeAuto) {
+                        notifyDefaultServiceRemoved(existingService.loadLabel(pm));
                     }
-                } else {
-                    if (defaultForPayment == null && paymentModeAuto)
-                        setDefaultServiceForCategory(userId, service.getComponent(),
-                                AID_CATEGORY_PAYMENT);
                 }
             }
 
-            if (!paymentModeAuto && numPaymentApps == 1) {
-                // Special case; if we're in manual mode with only 1 app,
-                // switch to auto.
+            if (numPaymentApps == 1) {
+                Log.d(TAG, "Only one payment app installed, setting default to: " + paymentService.getComponent());
                 setDefaultServiceForCategory(userId, paymentService.getComponent(),
                         AID_CATEGORY_PAYMENT);
             }
@@ -626,6 +613,12 @@ public class RegisteredServicesCache {
             updateRoutingLocked(userServices);
         }
         dump(validServices);
+    }
+
+    void notifyDefaultServiceRemoved(CharSequence serviceName) {
+        Intent intent = new Intent(mContext, DefaultRemovedActivity.class);
+        intent.putExtra(DefaultRemovedActivity.EXTRA_DEFAULT_NAME, serviceName);
+        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
     }
 
     void updateRoutingLocked(UserServices userServices) {

@@ -2378,7 +2378,9 @@ public class NfcService implements DeviceHostListener {
                 }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 mP2pLinkManager.onUserSwitched();
-                mServiceCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
+                if (mServiceCache != null) {
+                    mServiceCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
+                }
             }
         }
     };

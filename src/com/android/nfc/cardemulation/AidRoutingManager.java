@@ -28,13 +28,12 @@ import java.util.Set;
 public class AidRoutingManager {
     static final String TAG = "AidRoutingManager";
 
-    // TODO locking, but this class will likely
-    // need to be called with lock held.
-
     // For Nexus device, just a static route to the eSE
     // OEMs/Carriers could manually map off-host AIDs
-    // to the correct route.
+    // to the correct eSE/UICC based on state they keep.
     static final int DEFAULT_OFFHOST_ROUTE = 0xF4;
+
+    final Object mLock = new Object();
 
     // mAidRoutingTable contains the current routing table. The index is the route ID.
     // The route can include routes to a eSE/UICC.
@@ -51,40 +50,45 @@ public class AidRoutingManager {
     }
 
     public boolean aidsRoutedToHost() {
-        Set<String> aidsToHost = mAidRoutingTable.get(0);
-        return aidsToHost != null && aidsToHost.size() > 0;
+        synchronized(mLock) {
+            Set<String> aidsToHost = mAidRoutingTable.get(0);
+            return aidsToHost != null && aidsToHost.size() > 0;
+        }
     }
 
     public Set<String> getRoutedAids() {
-        // TODO maybe just keep mRoutedAids for speed
         Set<String> routedAids = new HashSet<String>();
-        for (Map.Entry<String, Integer> aidEntry : mRouteForAid.entrySet()) {
-            routedAids.add(aidEntry.getKey());
+        synchronized (mLock) {
+            for (Map.Entry<String, Integer> aidEntry : mRouteForAid.entrySet()) {
+                routedAids.add(aidEntry.getKey());
+            }
         }
         return routedAids;
     }
 
     public boolean setRouteForAid(String aid, boolean onHost) {
-        int currentRoute = getRouteForAid(aid);
-        Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " ,current:" +
-                Integer.toString(currentRoute));
-        int route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
-        if (route == currentRoute) return true;
+        int route;
+        synchronized (mLock) {
+            int currentRoute = getRouteForAidLocked(aid);
+            Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current:" +
+                    Integer.toString(currentRoute));
+            route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
+            if (route == currentRoute) return true;
 
-        if (currentRoute != -1) {
-            // Remove current routing
-            removeAid(aid);
+            if (currentRoute != -1) {
+                // Remove current routing
+                removeAid(aid);
+            }
+            Set<String> aids = mAidRoutingTable.get(route);
+            if (aids == null) {
+               aids = new HashSet<String>();
+               mAidRoutingTable.put(route, aids);
+            }
+            aids.add(aid);
+            mRouteForAid.put(aid, route);
+            mDirty = true;
         }
-        Set<String> aids = mAidRoutingTable.get(route);
-        if (aids == null) {
-           aids = new HashSet<String>();
-           mAidRoutingTable.put(route, aids);
-        }
-        aids.add(aid);
-        mRouteForAid.put(aid, route);
         NfcService.getInstance().routeAids(aid, route);
-
-        mDirty = true;
         return true;
     }
 
@@ -95,35 +99,41 @@ public class AidRoutingManager {
     public void onNfccRoutingTableCleared() {
         // The routing table in the controller was cleared
         // To stay in sync, clear our own tables.
-        mAidRoutingTable.clear();
-        mRouteForAid.clear();
+        synchronized (mLock) {
+            mAidRoutingTable.clear();
+            mRouteForAid.clear();
+        }
     }
 
     public boolean removeAid(String aid) {
-        Integer route = mRouteForAid.get(aid);
-        if (route == null) {
-           Log.e(TAG, "removeAid(): No existing route for " + aid);
-           return false;
+        synchronized (mLock) {
+            Integer route = mRouteForAid.get(aid);
+            if (route == null) {
+               Log.e(TAG, "removeAid(): No existing route for " + aid);
+               return false;
+            }
+            Set<String> aids = mAidRoutingTable.get(route);
+            if (aids == null) return false;
+            aids.remove(aid);
+            mRouteForAid.remove(aid);
+            NfcService.getInstance().unrouteAids(aid);
+            mDirty = true;
         }
-        Set<String> aids = mAidRoutingTable.get(route);
-        if (aids == null) return false;
-        aids.remove(aid);
-        mRouteForAid.remove(aid);
-        NfcService.getInstance().unrouteAids(aid);
-        mDirty = true;
         return true;
     }
 
     public void commitRouting() {
-        if (mDirty) {
-            NfcService.getInstance().commitRouting();
-            mDirty = false;
-        } else {
-            Log.d(TAG, "Not committing routing because table not dirty.");
+        synchronized (mLock) {
+            if (mDirty) {
+                NfcService.getInstance().commitRouting();
+                mDirty = false;
+            } else {
+                Log.d(TAG, "Not committing routing because table not dirty.");
+            }
         }
     }
 
-    int getRouteForAid(String aid) {
+    int getRouteForAidLocked(String aid) {
         Integer route = mRouteForAid.get(aid);
         return route == null ? -1 : route;
     }

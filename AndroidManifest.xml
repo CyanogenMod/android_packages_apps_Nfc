@@ -65,6 +65,14 @@
             android:multiprocess="true"
         />
 
+        <activity android:name=".cardemulation.DefaultRemovedActivity"
+            android:theme="@*android:style/Theme.Holo.Dialog.Alert"
+            android:finishOnCloseSystemDialogs="true"
+            android:excludeFromRecents="true"
+            android:clearTaskOnLaunch="true"
+            android:multiprocess="true"
+        />
+
         <activity android:name=".cardemulation.TapAgainDialog"
             android:theme="@*android:style/Theme.Holo.Dialog.Alert"
             android:finishOnCloseSystemDialogs="true"

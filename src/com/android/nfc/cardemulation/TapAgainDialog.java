@@ -64,8 +64,6 @@ public class TapAgainDialog extends AlertActivity {
         registerReceiver(mReceiver, filter);
         AlertController.AlertParams ap = mAlertParams;
 
-        final ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-
         ap.mTitle = "";
         ap.mView = getLayoutInflater().inflate(com.android.nfc.R.layout.tapagain, null);
 
