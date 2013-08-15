@@ -25,6 +25,7 @@ import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.handover.HandoverManager;
 import com.android.nfc.cardemulation.AidRoutingManager;
 import com.android.nfc.cardemulation.HostEmulationManager;
+import com.android.nfc.cardemulation.RegisteredAidCache;
 import com.android.nfc.cardemulation.RegisteredServicesCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
@@ -264,7 +265,7 @@ public class NfcService implements DeviceHostListener {
     private KeyguardManager mKeyguard;
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
-    private RegisteredServicesCache mServiceCache;
+    private RegisteredAidCache mAidCache;
     private HostEmulationManager mHostEmulationManager;
     private AidRoutingManager mAidRoutingManager;
 
@@ -493,8 +494,8 @@ public class NfcService implements DeviceHostListener {
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HCE);
         if (mIsHceCapable) {
             mAidRoutingManager = new AidRoutingManager();
-            mServiceCache = new RegisteredServicesCache(mContext, mAidRoutingManager);
-            mHostEmulationManager = new HostEmulationManager(mContext, mServiceCache);
+            mAidCache = new RegisteredAidCache(mContext);
+            mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
         }
         if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
@@ -717,7 +718,7 @@ public class NfcService implements DeviceHostListener {
 
             if (mIsHceCapable) {
                 // Generate the initial card emulation routing table
-                mServiceCache.invalidateCache(ActivityManager.getCurrentUser());
+                mAidCache.invalidateCache(ActivityManager.getCurrentUser());
             }
 
             synchronized(NfcService.this) {
@@ -1079,9 +1080,9 @@ public class NfcService implements DeviceHostListener {
             }
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             validateUserId(userId);
-            ApduServiceInfo defaultService = mServiceCache.getDefaultServiceForCategory(userId,
+            ComponentName defaultService = mAidCache.getDefaultServiceForCategory(userId,
                     category);
-            return (defaultService != null && defaultService.getComponent().equals(service));
+            return (defaultService != null && defaultService.equals(service));
         }
 
         @Override
@@ -1092,7 +1093,7 @@ public class NfcService implements DeviceHostListener {
             }
             validateUserId(userId);
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
-            return mServiceCache.isDefaultServiceForAid(userId, service, aid);
+            return mAidCache.isDefaultServiceForAid(userId, service, aid);
         }
 
         @Override
@@ -1103,7 +1104,7 @@ public class NfcService implements DeviceHostListener {
             }
             validateUserId(userId);
             enforceAdminPerm(mContext);
-            return mServiceCache.setDefaultServiceForCategory(userId, service, category);
+            return mAidCache.setDefaultServiceForCategory(userId, service, category);
         }
 
         @Override
@@ -1115,7 +1116,7 @@ public class NfcService implements DeviceHostListener {
             validateUserId(userId);
             enforceAdminPerm(mContext);
             mHostEmulationManager.setDefaultForNextTap(service);
-            return mServiceCache.setDefaultForNextTap(userId, service);
+            return mAidCache.setDefaultForNextTap(userId, service);
         }
 
         @Override
@@ -1126,7 +1127,7 @@ public class NfcService implements DeviceHostListener {
             }
             validateUserId(userId);
             enforceAdminPerm(mContext);
-            return mServiceCache.getServicesForCategory(userId, category);
+            return mAidCache.getServicesForCategory(userId, category);
         }
     };
 
@@ -2378,8 +2379,8 @@ public class NfcService implements DeviceHostListener {
                 }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 mP2pLinkManager.onUserSwitched();
-                if (mServiceCache != null) {
-                    mServiceCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
+                if (mAidCache != null) {
+                    mAidCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
                 }
             }
         }

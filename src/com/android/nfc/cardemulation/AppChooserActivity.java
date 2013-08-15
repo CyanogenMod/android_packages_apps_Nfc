@@ -51,6 +51,7 @@ public class AppChooserActivity extends AlertActivity
 
     public static final String EXTRA_COMPONENTS = "components";
     public static final String EXTRA_CATEGORY = "category";
+    public static final String EXTRA_FAILED_COMPONENT = "failed_component";
 
     private int mIconSize;
     private ListView mListView;
@@ -59,11 +60,11 @@ public class AppChooserActivity extends AlertActivity
     private String mCategory;
 
     protected void onCreate(Bundle savedInstanceState, String category,
-            ArrayList<ComponentName> options) {
+            ArrayList<ComponentName> options, ComponentName failedComponent) {
         setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
         super.onCreate(savedInstanceState);
 
-        if (options == null || options.size() == 0) {
+        if ((options == null || options.size() == 0) && failedComponent == null) {
             Log.e(TAG, "No components passed in.");
             finish();
             return;
@@ -78,20 +79,45 @@ public class AppChooserActivity extends AlertActivity
         final ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         mIconSize = am.getLauncherLargeIconSize();
 
-        mListAdapter = new ListAdapter(this, options);
+        // Three cases:
+        // 1. Failed component and no alternatives: just an OK box
+        // 2. Failed component and alternatives: pick alternative
+        // 3. No failed component and alternatives: pick alternative
+        PackageManager pm = getPackageManager();
 
-        if (CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
-            ap.mTitle = "Pay with";
-        } else {
-            ap.mTitle = "Complete tap with";
+        CharSequence applicationLabel = "unknown";
+        if (failedComponent != null) {
+            try {
+                ApplicationInfo info = pm.getApplicationInfo(failedComponent.getPackageName(), 0);
+                applicationLabel = info.loadLabel(pm);
+            } catch (NameNotFoundException e) {
+            }
+
         }
-        ap.mView = getLayoutInflater().inflate(com.android.nfc.R.layout.cardemu_resolver, null);
+        if (options.size() == 0 && failedComponent != null) {
+            ap.mTitle = "";
+            ap.mMessage = "This transaction couldn't be completed with " + applicationLabel + ".";
+            ap.mPositiveButtonText = "OK";
+            setupAlert();
+        } else {
+            mListAdapter = new ListAdapter(this, options);
+            if (failedComponent != null) {
+                ap.mTitle = "Couldn't use " + applicationLabel + ".";
+            } else {
+                if (CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+                    ap.mTitle = "Pay with";
+                } else {
+                    ap.mTitle = "Complete tap with";
+                }
+            }
+            ap.mView = getLayoutInflater().inflate(com.android.nfc.R.layout.cardemu_resolver, null);
 
-        mListView = (ListView) ap.mView.findViewById(com.android.nfc.R.id.resolver_list);
-        mListView.setAdapter(mListAdapter);
-        mListView.setOnItemClickListener(this);
+            mListView = (ListView) ap.mView.findViewById(com.android.nfc.R.id.resolver_list);
+            mListView.setAdapter(mListAdapter);
+            mListView.setOnItemClickListener(this);
 
-        setupAlert();
+            setupAlert();
+        }
     }
 
     @Override
@@ -99,7 +125,8 @@ public class AppChooserActivity extends AlertActivity
         Intent intent = getIntent();
         ArrayList<ComponentName> components = intent.getParcelableArrayListExtra(EXTRA_COMPONENTS);
         String category = intent.getStringExtra(EXTRA_CATEGORY);
-        onCreate(savedInstanceState, category, components);
+        ComponentName failedComponent = intent.getParcelableExtra(EXTRA_FAILED_COMPONENT);
+        onCreate(savedInstanceState, category, components, failedComponent);
     }
 
     @Override

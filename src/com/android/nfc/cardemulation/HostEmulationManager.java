@@ -37,6 +37,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 import com.android.nfc.NfcService;
+import com.android.nfc.cardemulation.RegisteredAidCache.AidResolveInfo;
 
 import java.util.ArrayList;
 
@@ -50,9 +51,10 @@ public class HostEmulationManager {
     static final int STATE_XFER = 4;
 
     static final byte[] AID_NOT_FOUND = {0x6A, (byte)0x82};
+    static final byte[] UNKNOWN_ERROR = {0x6F, 0x00};
 
     final Context mContext;
-    final RegisteredServicesCache mAidCache;
+    final RegisteredAidCache mAidCache;
     final Messenger mMessenger = new Messenger (new MessageHandler());
 
     final Object mLock;
@@ -82,11 +84,13 @@ public class HostEmulationManager {
     // comes in that may be resolved to a different service.
     // On deactivation, mActiveService stops being valid.
     Messenger mActiveService;
+    ComponentName mActiveServiceName;
 
+    String mLastSelectedAid;
     int mState;
     byte[] mSelectApdu;
 
-    public HostEmulationManager(Context context, RegisteredServicesCache aidCache) {
+    public HostEmulationManager(Context context, RegisteredAidCache aidCache) {
         mContext = context;
         mLock = new Object();
         mAidCache = aidCache;
@@ -146,21 +150,29 @@ public class HostEmulationManager {
                 return;
             }
             if (selectAid != null) {
-                ArrayList<ComponentName> services = resolveSelectAidLocked(selectAid);
-                if (services.size() == 0) {
+                AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(selectAid);
+                if (resolveInfo == null || resolveInfo.services.size() == 0) {
                     // Tell the remote we don't handle this AID
                     NfcService.getInstance().sendData(AID_NOT_FOUND);
                     return;
-                } else if (services.size() == 1) {
-                    // We have a single service
-                    resolvedService = services.get(0);
+                }
+                mLastSelectedAid = resolveInfo.aid;
+                if (resolveInfo.defaultService != null) {
+                    // Resolve to default
+                    resolvedService = resolveInfo.defaultService.getComponent();
+                    // TODO also handle case where we prefer the bound service?
                 } else {
-                    int userId = ActivityManager.getCurrentUser();
+                    // We have no default, and either one or more services.
+                    // Ask the user to confirm.
+                    final ArrayList<ComponentName> services = new ArrayList<ComponentName>();
+                    for (ApduServiceInfo service : resolveInfo.services) {
+                        services.add(service.getComponent());
+                    }
                     // Get corresponding category
-                    String category = mAidCache.getCategoryForAid(userId, selectAid);
+                    String category = mAidCache.getCategoryForAid(resolveInfo.aid);
                     // Just ignore all future APDUs until we resolve to only one
                     mState = STATE_W4_DEACTIVATE;
-                    launchResolver(services, category);
+                    launchResolver(services, null, category);
                     return;
                 }
             }
@@ -181,6 +193,7 @@ public class HostEmulationManager {
                     }
                 } else {
                     Log.d(TAG, "Dropping non-select APDU in STATE_W4_SELECT");
+                    NfcService.getInstance().sendData(UNKNOWN_ERROR);
                 }
                 break;
             case STATE_W4_SERVICE:
@@ -220,30 +233,10 @@ public class HostEmulationManager {
             }
             sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_LINK_LOSS);
             mActiveService = null;
+            mActiveServiceName = null;
             unbindServiceIfNeededLocked();
             mState = STATE_IDLE;
         }
-    }
-
-    ArrayList<ComponentName> resolveSelectAidLocked(String selectAid) {
-        final ArrayList<ApduServiceInfo> services = resolveAidLocked(selectAid);
-        final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
-        if (services == null || services.size() == 0) {
-            Log.e(TAG, "Could not find matching services for AID " + selectAid);
-        } else if (services.size() == 1) {
-            components.add(services.get(0).getComponent());
-        } else {
-            for (ApduServiceInfo service : services) {
-                if (service.getComponent().equals(mActiveService)) {
-                    // Always prefer the currently bound service
-                   components.clear();
-                   components.add(service.getComponent());
-                   break;
-                }
-               components.add(service.getComponent());
-            }
-        }
-        return components;
     }
 
     Messenger bindServiceIfNeededLocked(ComponentName service) {
@@ -271,6 +264,11 @@ public class HostEmulationManager {
         if (service != mActiveService) {
             sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_DESELECTED);
             mActiveService = service;
+            if (service.equals(mPaymentService)) {
+                mActiveServiceName = mPaymentServiceName;
+            } else {
+                mActiveServiceName = mServiceName;
+            }
         }
         Message msg = Message.obtain(null, HostApduService.MSG_COMMAND_APDU);
         Bundle dataBundle = new Bundle();
@@ -278,7 +276,6 @@ public class HostEmulationManager {
         msg.setData(dataBundle);
         msg.replyTo = mMessenger;
         try {
-            Log.d(TAG, "Sending data to service");
             mActiveService.send(msg);
         } catch (RemoteException e) {
             Log.e(TAG, "Remote service has died, dropping APDU");
@@ -311,11 +308,10 @@ public class HostEmulationManager {
                 // a change made for another user, we'll sync it down
                 // on user switch.
                 int userId = ActivityManager.getCurrentUser();
-                // Get current default payment app
-                ApduServiceInfo paymentApp = mAidCache.getDefaultServiceForCategory(userId,
+                ComponentName paymentApp = mAidCache.getDefaultServiceForCategory(userId,
                         CardEmulationManager.CATEGORY_PAYMENT);
                 if (paymentApp != null) {
-                    bindPaymentServiceLocked(userId, paymentApp.getComponent());
+                    bindPaymentServiceLocked(userId, paymentApp);
                 } else {
                     unbindPaymentServiceLocked(userId);
                 }
@@ -351,17 +347,22 @@ public class HostEmulationManager {
         }
     }
 
-    void launchResolver(ArrayList<ComponentName> components, String category) {
+    void launchResolver(ArrayList<ComponentName> components, ComponentName failedComponent,
+            String category) {
         Intent intent = new Intent(mContext, AppChooserActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         intent.putParcelableArrayListExtra(AppChooserActivity.EXTRA_COMPONENTS, components);
         intent.putExtra(AppChooserActivity.EXTRA_CATEGORY, category);
+        if (failedComponent != null) {
+            intent.putExtra(AppChooserActivity.EXTRA_FAILED_COMPONENT, failedComponent);
+        }
         mContext.startActivityAsUser(intent, UserHandle.CURRENT);
     }
 
     String findSelectAid(byte[] data) {
         if (data == null || data.length < 6) {
             Log.d(TAG, "Data size too small for SELECT APDU");
+            return null;
         }
         // TODO we'll support only logical channel 0 in CLA?
         // TODO support chaining bits in CLA?
@@ -376,11 +377,6 @@ public class HostEmulationManager {
             return bytesToString(data, 5, aidLength);
         }
         return null;
-    }
-
-    final ArrayList<ApduServiceInfo> resolveAidLocked(String aid) {
-        Log.d(TAG, "resolveAidLocked");
-        return mAidCache.resolveAidPrefix(aid);
     }
 
     private ServiceConnection mPaymentConnection = new ServiceConnection() {
@@ -433,6 +429,15 @@ public class HostEmulationManager {
     class MessageHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
+            synchronized(mLock) {
+                if (mActiveService == null) {
+                    Log.d(TAG, "Dropping service response message; service no longer active.");
+                    return;
+                } else if (!msg.replyTo.getBinder().equals(mActiveService.getBinder())) {
+                    Log.d(TAG, "Dropping service response message; service no longer bound.");
+                    return;
+                }
+            }
             if (msg.what == HostApduService.MSG_RESPONSE_APDU) {
                 Bundle dataBundle = msg.getData();
                 if (dataBundle == null) {
@@ -452,6 +457,20 @@ public class HostEmulationManager {
                     NfcService.getInstance().sendData(data);
                 } else {
                     Log.d(TAG, "Dropping data, wrong state " + Integer.toString(state));
+                }
+            } else if (msg.what == HostApduService.MSG_UNHANDLED) {
+                synchronized (mLock) {
+                    AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(mLastSelectedAid);
+                    String category = mAidCache.getCategoryForAid(mLastSelectedAid);
+                    if (resolveInfo.services.size() > 0) {
+                        final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
+                        for (ApduServiceInfo service : resolveInfo.services) {
+                            if (!service.getComponent().equals(mActiveServiceName)) {
+                                components.add(service.getComponent());
+                            }
+                        }
+                        launchResolver(components, mActiveServiceName, category);
+                    }
                 }
             }
         }
