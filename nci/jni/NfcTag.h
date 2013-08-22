@@ -32,7 +32,7 @@ class NfcTag
 {
 public:
     enum ActivationState {Idle, Sleep, Active};
-    static const int MAX_NUM_TECHNOLOGY = 10; //max number of technologies supported by one or more tags
+    static const int MAX_NUM_TECHNOLOGY = 11; //max number of technologies supported by one or more tags
     int mTechList [MAX_NUM_TECHNOLOGY]; //array of NFC technologies according to NFC service
     int mTechHandles [MAX_NUM_TECHNOLOGY]; //array of tag handles according to NFC service
     int mTechLibNfcTypes [MAX_NUM_TECHNOLOGY]; //array of detailed tag types according to NFC service
