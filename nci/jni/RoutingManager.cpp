@@ -72,6 +72,7 @@ RoutingManager& RoutingManager::getInstance ()
 void RoutingManager::setDefaultRouting()
 {
     tNFA_STATUS nfaStat;
+    SyncEventGuard guard (mRoutingEvent);
     // Default routing for NFC-A technology
     nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0x01, 0, 0);
     if (nfaStat == NFA_STATUS_OK)
