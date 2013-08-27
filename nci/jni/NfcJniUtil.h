@@ -120,6 +120,7 @@ struct nfc_jni_native_data
    int opt;
 
    int tech_mask;
+   int discovery_duration;
 
    /* Tag detected */
    jobject tag;
