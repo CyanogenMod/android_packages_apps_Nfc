@@ -296,6 +296,7 @@ public class NativeNfcManager implements DeviceHost {
     public void setP2pTargetModes(int modes) {
         doSetP2pTargetModes(modes);
     }
+
     @Override
     public boolean getExtendedLengthApdusSupported() {
         // TODO check BCM support
@@ -326,6 +327,20 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public String dump() {
         return doDump();
+    }
+
+    private native void doEnableReaderMode(int technologies);
+    @Override
+    public boolean enableReaderMode(int technologies) {
+        doEnableReaderMode(technologies);
+        return true;
+    }
+
+    private native void doDisableReaderMode();
+    @Override
+    public boolean disableReaderMode() {
+        doDisableReaderMode();
+        return true;
     }
 
     /**
@@ -409,4 +424,5 @@ public class NativeNfcManager implements DeviceHost {
     private void notifyHostEmuDeactivated() {
         mListener.onHostCardEmulationDeactivated();
     }
+
 }

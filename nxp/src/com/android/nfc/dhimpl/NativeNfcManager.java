@@ -359,6 +359,16 @@ public class NativeNfcManager implements DeviceHost {
         doSetP2pTargetModes(modes);
     }
 
+    public boolean enableReaderMode(int technologies) {
+        // Not supported yet on NXP chipsets
+        return false;
+    }
+
+    public boolean disableReaderMode() {
+        // Not supported yet on NXP chipsets
+        return false;
+    }
+
     @Override
     public boolean getExtendedLengthApdusSupported() {
         // Not supported on the PN544

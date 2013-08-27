@@ -26,9 +26,9 @@ import com.android.nfc.handover.HandoverManager;
 import com.android.nfc.cardemulation.AidRoutingManager;
 import com.android.nfc.cardemulation.HostEmulationManager;
 import com.android.nfc.cardemulation.RegisteredAidCache;
-import com.android.nfc.cardemulation.RegisteredServicesCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
+
 import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
@@ -83,6 +83,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 
 public class NfcService implements DeviceHostListener {
@@ -214,6 +215,8 @@ public class NfcService implements DeviceHostListener {
     // fields below are protected by this
     private NativeNfcSecureElement mSecureElement;
     private OpenSecureElement mOpenEe;  // null when EE closed
+    private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
+            new ReaderModeDeathRecipient();
     private int mEeRoutingState;  // contactless interface routing
 
     // fields below must be used only on the UI thread and therefore aren't synchronized
@@ -230,6 +233,8 @@ public class NfcService implements DeviceHostListener {
     boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
     boolean mHostRouteEnabled;   // current Device Host state of host-based routing
+    boolean mReaderModeEnabled;  // current Device Host state of reader mode
+    int mReaderModeFlags;
     List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
     // mState is protected by this, however it is only modified in onCreate()
@@ -1069,6 +1074,42 @@ public class NfcService implements DeviceHostListener {
             mDeviceHost.disableDiscovery();
             mDeviceHost.enableDiscovery();
         }
+
+        @Override
+        public void setReaderMode(IBinder binder, int flags) throws RemoteException {
+            synchronized (NfcService.this) {
+                if (flags == mReaderModeFlags) return;
+
+                if (flags != 0) {
+                    try {
+                        binder.linkToDeath(mReaderModeDeathRecipient, 0);
+                    } catch (RemoteException e) {
+                        Log.e(TAG, "Remote binder has already died.");
+                        return;
+                    }
+                } else {
+                    try {
+                        binder.unlinkToDeath(mReaderModeDeathRecipient, 0);
+                    } catch (NoSuchElementException e) {
+                        Log.e(TAG, "Reader mode Binder was never registered.");
+                    }
+                }
+                mReaderModeFlags = flags;
+                applyRouting(false);
+            }
+        }
+    }
+
+    final class ReaderModeDeathRecipient implements IBinder.DeathRecipient {
+        @Override
+        public void binderDied() {
+            synchronized (NfcService.this) {
+                if (mReaderModeFlags != 0) {
+                    mReaderModeFlags = 0;
+                    applyRouting(false);
+                }
+            }
+        }
     }
 
     final class CardEmulationService extends INfcCardEmulation.Stub {
@@ -1860,6 +1901,14 @@ public class NfcService implements DeviceHostListener {
                         mNfcPollingEnabled = true;
                         mDeviceHost.enableDiscovery();
                     }
+                    if (mReaderModeFlags != 0 && !mReaderModeEnabled) {
+                        mReaderModeEnabled = true;
+                        mDeviceHost.enableReaderMode(mReaderModeFlags);
+                    }
+                    if (mReaderModeFlags == 0 && mReaderModeEnabled) {
+                        mReaderModeEnabled = false;
+                        mDeviceHost.disableReaderMode();
+                    }
                 } else if (mInProvisionMode && mScreenState >= SCREEN_STATE_ON_LOCKED) {
                     // Special case for setup provisioning
                     if (!mNfcPollingEnabled) {
@@ -1870,6 +1919,10 @@ public class NfcService implements DeviceHostListener {
                 } else {
                     if (force || mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C OFF");
+                        if (mReaderModeEnabled) {
+                            mReaderModeEnabled = false;
+                            mDeviceHost.disableReaderMode();
+                        }
                         mNfcPollingEnabled = false;
                         mDeviceHost.disableDiscovery();
                     }
@@ -2029,6 +2082,16 @@ public class NfcService implements DeviceHostListener {
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     playSound(SOUND_START);
+                    int readerModeFlags = 0;
+                    synchronized (NfcService.this) {
+                        readerModeFlags = mReaderModeFlags;
+                    }
+                    if ((readerModeFlags & NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK) != 0) {
+                        if (DBG) Log.d(TAG, "Skipping NDEF detection in reader mode");
+                        tag.startPresenceChecking();
+                        dispatchTagEndpoint(tag);
+                        break;
+                    }
                     if (tag.getConnectedTechnology() == TagTechnology.NFC_BARCODE) {
                         // When these tags start containing NDEF, they will require
                         // the stack to deal with them in a different way, since

@@ -371,7 +371,6 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
         ALOGD ("%s: Kovio", fn);
         mTechList [mNumTechList] = TARGET_TYPE_KOVIO_BARCODE;
         break;
-
     default:
         ALOGE ("%s: unknown protocol ????", fn);
         mTechList [mNumTechList] = TARGET_TYPE_UNKNOWN;
@@ -480,7 +479,6 @@ void NfcTag::discoverTechnologies (tNFA_DISC_RESULT& discoveryData)
     case NFC_PROTOCOL_15693: //is TagTechnology.NFC_V by Java API
         mTechList [mNumTechList] = TARGET_TYPE_ISO15693;
         break;
-
     default:
         ALOGE ("%s: unknown protocol ????", fn);
         mTechList [mNumTechList] = TARGET_TYPE_UNKNOWN;
@@ -1097,22 +1095,35 @@ void NfcTag::resetTechnologies ()
 void NfcTag::selectFirstTag ()
 {
     static const char fn [] = "NfcTag::selectFirstTag";
-    ALOGD ("%s: nfa target h=0x%X; protocol=0x%X",
-            fn, mTechHandles [0], mTechLibNfcTypes [0]);
-	tNFA_INTF_TYPE rf_intf = NFA_INTERFACE_FRAME;
+    int foundIdx = -1;
+    tNFA_INTF_TYPE rf_intf = NFA_INTERFACE_FRAME;
 
-	if (mTechLibNfcTypes [0] == NFA_PROTOCOL_ISO_DEP)
-	{
-		rf_intf = NFA_INTERFACE_ISO_DEP;
-	}
-	else if (mTechLibNfcTypes [0] == NFA_PROTOCOL_NFC_DEP)
-		rf_intf = NFA_INTERFACE_NFC_DEP;
-	else
-		rf_intf = NFA_INTERFACE_FRAME;
+    for (int i = 0; i < mNumTechList; i++)
+    {
+        ALOGD ("%s: nfa target idx=%d h=0x%X; protocol=0x%X",
+                fn, i, mTechHandles [i], mTechLibNfcTypes [i]);
+        if (mTechLibNfcTypes[i] != NFA_PROTOCOL_NFC_DEP)
+        {
+            foundIdx = i;
+            break;
+        }
+    }
 
-    tNFA_STATUS stat = NFA_Select (mTechHandles [0], mTechLibNfcTypes [0], rf_intf);
-    if (stat != NFA_STATUS_OK)
-        ALOGE ("%s: fail select; error=0x%X", fn, stat);
+    if (foundIdx != -1)
+    {
+        if (mTechLibNfcTypes [foundIdx] == NFA_PROTOCOL_ISO_DEP)
+        {
+            rf_intf = NFA_INTERFACE_ISO_DEP;
+        }
+        else
+            rf_intf = NFA_INTERFACE_FRAME;
+
+        tNFA_STATUS stat = NFA_Select (mTechHandles [foundIdx], mTechLibNfcTypes [foundIdx], rf_intf);
+        if (stat != NFA_STATUS_OK)
+            ALOGE ("%s: fail select; error=0x%X", fn, stat);
+    }
+    else
+        ALOGE ("%s: only found NFC-DEP technology.", fn);
 }
 
 

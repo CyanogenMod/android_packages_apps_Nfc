@@ -255,4 +255,8 @@ public interface DeviceHost {
     int getDefaultLlcpRwSize();
 
     String dump();
+
+    boolean enableReaderMode(int technologies);
+
+    boolean disableReaderMode();
 }
