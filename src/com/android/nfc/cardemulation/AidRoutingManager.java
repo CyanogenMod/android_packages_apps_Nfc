@@ -28,7 +28,7 @@ import java.util.Set;
 public class AidRoutingManager {
     static final String TAG = "AidRoutingManager";
 
-    // For Nexus device, just a static route to the eSE
+    // For Nexus devices, just a static route to the eSE
     // OEMs/Carriers could manually map off-host AIDs
     // to the correct eSE/UICC based on state they keep.
     static final int DEFAULT_OFFHOST_ROUTE = 0xF4;
@@ -70,8 +70,8 @@ public class AidRoutingManager {
         int route;
         synchronized (mLock) {
             int currentRoute = getRouteForAidLocked(aid);
-            Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current:" +
-                    Integer.toString(currentRoute));
+            Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current: 0x" +
+                    Integer.toHexString(currentRoute));
             route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
             if (route == currentRoute) return true;
 

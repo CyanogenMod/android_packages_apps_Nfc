@@ -28,7 +28,6 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.cardemulation.ApduServiceInfo;
-import android.nfc.cardemulation.CardEmulationManager;
 import android.nfc.cardemulation.HostApduService;
 import android.nfc.cardemulation.OffHostApduService;
 import android.os.UserHandle;
@@ -39,6 +38,7 @@ import com.google.android.collect.Maps;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -60,9 +60,7 @@ public class RegisteredServicesCache {
     final Callback mCallback;
 
     public interface Callback {
-        void onServicesUpdated(int userId);
-        void onServiceRemoved(ComponentName service);
-        void onServiceCategoryRemoved(ApduServiceInfo service, String category);
+        void onServicesUpdated(int userId, final List<ApduServiceInfo> services);
     };
 
     private static class UserServices {
@@ -142,9 +140,13 @@ public class RegisteredServicesCache {
     }
 
     public boolean hasService(int userId, ComponentName service) {
+        return getService(userId, service) != null;
+    }
+
+    public ApduServiceInfo getService(int userId, ComponentName service) {
         synchronized (mLock) {
             UserServices userServices = findOrCreateUserLocked(userId);
-            return userServices.services.containsKey(service);
+            return userServices.services.get(service);
         }
     }
 
@@ -212,8 +214,6 @@ public class RegisteredServicesCache {
             }
         }
 
-        final ArrayList<ComponentName> removedServices = new ArrayList<ComponentName>();
-        final ArrayList<ApduServiceInfo> categoryRemovedServices = new ArrayList<ApduServiceInfo>();
         synchronized (mLock) {
             UserServices userServices = findOrCreateUserLocked(userId);
 
@@ -225,33 +225,17 @@ public class RegisteredServicesCache {
                         (Map.Entry<ComponentName, ApduServiceInfo>) it.next();
                 if (!containsServiceLocked(validServices, entry.getKey())) {
                     Log.d(TAG, "Service removed: " + entry.getKey());
-                    removedServices.add(entry.getKey());
                     it.remove();
                 }
             }
-
             for (ApduServiceInfo service : validServices) {
-                if (DEBUG) Log.d(TAG, "Processing service: " + service.getComponent() +
+                if (DEBUG) Log.d(TAG, "Adding service: " + service.getComponent() +
                         " AIDs: " + service.getAids());
-                ApduServiceInfo existingService =
-                        userServices.services.put(service.getComponent(), service);
-                if (existingService != null &&
-                        existingService.hasCategory(CardEmulationManager.CATEGORY_PAYMENT) &&
-                        !service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
-                    categoryRemovedServices.add(service);
-                }
+                userServices.services.put(service.getComponent(), service);
             }
-
         }
 
-        for (ComponentName service : removedServices) {
-            mCallback.onServiceRemoved(service);
-        }
-        for (ApduServiceInfo service : categoryRemovedServices) {
-            mCallback.onServiceCategoryRemoved(service, CardEmulationManager.CATEGORY_PAYMENT);
-        }
-
-        mCallback.onServicesUpdated(userId);
+        mCallback.onServicesUpdated(userId, Collections.unmodifiableList(validServices));
         dump(validServices);
     }
 }

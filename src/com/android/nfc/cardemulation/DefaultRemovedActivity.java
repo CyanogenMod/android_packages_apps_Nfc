@@ -11,17 +11,14 @@ import com.android.internal.app.AlertController;
 
 public class DefaultRemovedActivity extends AlertActivity implements
         DialogInterface.OnClickListener {
-    public static final String EXTRA_DEFAULT_NAME = "default";
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
         super.onCreate(savedInstanceState);
-        CharSequence appName = getIntent().getCharSequenceExtra(EXTRA_DEFAULT_NAME);
 
         AlertController.AlertParams ap = mAlertParams;
 
-        ap.mMessage = appName + " was your preferred option for tap and pay. Choose another?";
+        ap.mMessage = "Your preferred service for tap and pay was removed. Choose another?";
         ap.mNegativeButtonText = getString(R.string.no);
         ap.mPositiveButtonText = getString(R.string.yes);
         ap.mPositiveButtonListener = this;

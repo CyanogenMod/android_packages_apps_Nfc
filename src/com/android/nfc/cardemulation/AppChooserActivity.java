@@ -38,6 +38,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
@@ -61,8 +63,8 @@ public class AppChooserActivity extends AlertActivity
 
     protected void onCreate(Bundle savedInstanceState, String category,
             ArrayList<ComponentName> options, ComponentName failedComponent) {
-        setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
         super.onCreate(savedInstanceState);
+        setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
 
         if ((options == null || options.size() == 0) && failedComponent == null) {
             Log.e(TAG, "No components passed in.");
@@ -118,6 +120,8 @@ public class AppChooserActivity extends AlertActivity
 
             setupAlert();
         }
+        Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
     }
 
     @Override
