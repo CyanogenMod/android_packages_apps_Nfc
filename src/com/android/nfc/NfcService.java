@@ -499,7 +499,7 @@ public class NfcService implements DeviceHostListener {
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HCE);
         if (mIsHceCapable) {
             mAidRoutingManager = new AidRoutingManager();
-            mAidCache = new RegisteredAidCache(mContext);
+            mAidCache = new RegisteredAidCache(mContext, mAidRoutingManager);
             mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
         }
         if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
@@ -1122,7 +1122,7 @@ public class NfcService implements DeviceHostListener {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             validateUserId(userId);
             ComponentName defaultService = mAidCache.getDefaultServiceForCategory(userId,
-                    category);
+                    category, true);
             return (defaultService != null && defaultService.equals(service));
         }
 

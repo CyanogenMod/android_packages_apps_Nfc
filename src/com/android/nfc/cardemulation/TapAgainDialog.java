@@ -16,7 +16,6 @@
 
 package com.android.nfc.cardemulation;
 
-import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -28,6 +27,8 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.NfcAdapter;
 import android.nfc.cardemulation.CardEmulationManager;
 import android.os.Bundle;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.TextView;
 
 import com.android.internal.R;
@@ -52,8 +53,9 @@ public class TapAgainDialog extends AlertActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
         super.onCreate(savedInstanceState);
+
+        setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
 
         final NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
         mCardEmuManager = CardEmulationManager.getInstance(adapter);
@@ -80,6 +82,8 @@ public class TapAgainDialog extends AlertActivity {
         } catch (NameNotFoundException e) {
             finish();
         }
+        Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
     }
 
     @Override

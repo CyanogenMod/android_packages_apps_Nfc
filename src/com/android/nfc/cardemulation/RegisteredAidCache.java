@@ -4,8 +4,6 @@ import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.nfc.cardemulation.ApduServiceInfo;
@@ -31,6 +29,8 @@ import java.util.TreeMap;
 public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     static final String TAG = "RegisteredAidCache";
 
+    static final boolean DBG = true;
+
     // mAidServices is a tree that maps an AID to a list of handling services
     // on Android. It is only valid for the current user.
     final TreeMap<String, ArrayList<ApduServiceInfo>> mAidToServices =
@@ -44,10 +44,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     final HashMap<String, AidResolveInfo> mAidCache =
             Maps.newHashMap();
 
-    final HashMap<String, ComponentName> mCurrentDefaults =
-            Maps.newHashMap();
-
-    final HashMap<String, Boolean> mCurrentMode =
+    final HashMap<String, ComponentName> mCategoryDefaults =
             Maps.newHashMap();
 
     final class AidResolveInfo {
@@ -70,7 +67,6 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     final AidRoutingManager mRoutingManager;
 
     ComponentName mNextTapComponent = null;
-    List<ApduServiceInfo> mCurrentServices = null;
 
     private final class SettingsObserver extends ContentObserver {
         public SettingsObserver(Handler handler) {
@@ -90,23 +86,20 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                     generateAidCacheLocked();
                     updateRoutingLocked();
                 } else {
-                    Log.d(TAG, "Not updating aid cache + routing: nothing changed.");
+                    if (DBG) Log.d(TAG, "Not updating aid cache + routing: nothing changed.");
                 }
             }
         }
     };
 
-    public RegisteredAidCache(Context context) {
+    public RegisteredAidCache(Context context, AidRoutingManager routingManager) {
         SettingsObserver observer = new SettingsObserver(mHandler);
         context.getContentResolver().registerContentObserver(
                 Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
                 true, observer, UserHandle.USER_ALL);
-        context.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_MODE),
-                true, observer, UserHandle.USER_ALL);
         mContext = context;
         mServiceCache = new RegisteredServicesCache(context, this);
-        mRoutingManager = new AidRoutingManager();
+        mRoutingManager = routingManager;
 
         updateFromSettingsLocked(ActivityManager.getCurrentUser());
     }
@@ -147,11 +140,17 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     public boolean isDefaultServiceForAid(int userId, ComponentName service, String aid) {
         AidResolveInfo resolveInfo = mAidCache.get(aid);
 
-        if (resolveInfo.services == null || resolveInfo.services.size() == 0
-                || resolveInfo.services.size() > 1) return false;
-        ApduServiceInfo serviceInfo = resolveInfo.services.get(0);
+        if (resolveInfo.services == null || resolveInfo.services.size() == 0) return false;
 
-        return service.equals(serviceInfo);
+        if (service.equals(resolveInfo.defaultService)) {
+            return true;
+        } else if (resolveInfo.services.size() == 1) {
+            ApduServiceInfo serviceInfo = resolveInfo.services.get(0);
+            return service.equals(serviceInfo);
+        } else {
+            // More than one service, not the default
+            return false;
+        }
     }
 
     public boolean setDefaultServiceForCategory(int userId, ComponentName service,
@@ -164,13 +163,10 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             // TODO Not really nice to be writing to Settings.Secure here...
             // ideally we overlay our local changes over whatever is in
             // Settings.Secure
-            if (mServiceCache.hasService(userId, service)) {
+            if (service == null || mServiceCache.hasService(userId, service)) {
                 Settings.Secure.putStringForUser(mContext.getContentResolver(),
-                        Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT, service.flattenToString(),
-                        userId);
-                Settings.Secure.putStringForUser(mContext.getContentResolver(),
-                        Settings.Secure.NFC_PAYMENT_MODE, CardEmulationManager.PAYMENT_MODE_AUTO,
-                        userId);
+                        Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
+                        service != null ? service.flattenToString() : null, userId);
             } else {
                 Log.e(TAG, "Could not find default service to make default: " + service);
             }
@@ -178,7 +174,8 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         return true;
     }
 
-    public ComponentName getDefaultServiceForCategory(int userId, String category) {
+    public ComponentName getDefaultServiceForCategory(int userId, String category,
+            boolean validateInstalled) {
         if (!CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
             Log.e(TAG, "Not allowing defaults for category " + category);
             return null;
@@ -190,8 +187,11 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                     userId);
             if (name != null) {
                 ComponentName service = ComponentName.unflattenFromString(name);
-                return ((service != null && mServiceCache.hasService(userId, service)) ?
-                        service : null);
+                if (!validateInstalled || service == null) {
+                    return service;
+                } else {
+                    return mServiceCache.hasService(userId, service) ? service : null;
+                }
             } else {
                 return null;
             }
@@ -221,7 +221,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
      */
      AidResolveInfo resolveAidLocked(List<ApduServiceInfo> resolvedServices, String aid) {
         if (resolvedServices == null || resolvedServices.size() == 0) {
-            Log.d(TAG, "Could not resolve AID " + aid + " to any service.");
+            if (DBG) Log.d(TAG, "Could not resolve AID " + aid + " to any service.");
             return null;
         }
         AidResolveInfo resolveInfo = new AidResolveInfo();
@@ -230,24 +230,26 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         resolveInfo.defaultService = null;
 
         ComponentName defaultComponent = mNextTapComponent;
-        Log.d(TAG, "resolveAidLocked: next tap component is " + defaultComponent);
+        if (DBG) Log.d(TAG, "resolveAidLocked: next tap component is " + defaultComponent);
         Set<String> paymentAids = mCategoryAids.get(CardEmulationManager.CATEGORY_PAYMENT);
         if (paymentAids != null && paymentAids.contains(aid)) {
-            Log.d(TAG, "resolveAidLocked: AID " + aid + " is a payment AID");
+            if (DBG) Log.d(TAG, "resolveAidLocked: AID " + aid + " is a payment AID");
             // This AID has been registered as a payment AID by at least one service.
             // Get default component for payment if no next tap default.
             if (defaultComponent == null) {
-                defaultComponent = mCurrentDefaults.get(CardEmulationManager.CATEGORY_PAYMENT);
+                defaultComponent = mCategoryDefaults.get(CardEmulationManager.CATEGORY_PAYMENT);
             }
-            Log.d(TAG, "resolveAidLocked: default payment component is " + defaultComponent);
+            // By default, store all resolved services
+            resolveInfo.services.addAll(resolvedServices);
+            if (DBG) Log.d(TAG, "resolveAidLocked: default payment component is "
+                    + defaultComponent);
             if (resolvedServices.size() == 1) {
                 ApduServiceInfo resolvedService = resolvedServices.get(0);
                 Log.d(TAG, "resolveAidLocked: resolved single service " +
                         resolvedService.getComponent());
                 if (resolvedService.equals(defaultComponent)) {
-                    Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
+                    if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
                         resolvedService.getComponent());
-                    resolveInfo.services.add(resolvedService);
                     resolveInfo.defaultService = resolvedService;
                 } else {
                     // So..since we resolved to only one service, and this AID
@@ -276,15 +278,13 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                         }
                     }
                     if (!foundConflict) {
-                        Log.d(TAG, "resolveAidLocked: DECISION: routing to " +
+                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to " +
                             resolvedService.getComponent());
                         // Treat this as if it's the default for this AID
-                        resolveInfo.services.add(resolvedService);
                         resolveInfo.defaultService = resolvedService;
                     } else {
                         // Allow this service to handle, but don't set as default
-                        resolveInfo.services.add(resolvedService);
-                        Log.d(TAG, "resolveAidLocked: DECISION: routing AID " + aid +
+                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing AID " + aid +
                                 " to " + resolvedService.getComponent() +
                                 ", but will ask confirmation because its AID group is contended.");
                     }
@@ -292,30 +292,28 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             } else if (resolvedServices.size() > 1) {
                 // More services have registered. If there's a default and it
                 // registered this AID, go with the default. Otherwise, add all.
-                Log.d(TAG, "resolveAidLocked: multiple services matched.");
-                resolveInfo.services.addAll(resolvedServices);
+                if (DBG) Log.d(TAG, "resolveAidLocked: multiple services matched.");
                 if (defaultComponent != null) {
                     for (ApduServiceInfo service : resolvedServices) {
                         if (service.getComponent().equals(defaultComponent)) {
-                            Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
-                                    service.getComponent());
+                            if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) "
+                                    + service.getComponent());
                             resolveInfo.defaultService = service;
                             break;
                         }
                     }
                     if (resolveInfo.defaultService == null) {
-                        Log.d(TAG, "resolveAidLocked: DECISION: routing to all services");
+                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to all services");
                     }
                 }
             } // else -> should not hit, we checked for 0 before.
         } else {
             // This AID is not a payment AID, just return all components
             // that can handle it, but be mindful of (next tap) defaults.
-            resolveInfo.services.addAll(resolvedServices);
             for (ApduServiceInfo service : resolvedServices) {
                 if (service.getComponent().equals(defaultComponent)) {
-                    Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing to (default) " +
-                            service.getComponent());
+                    if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, " +
+                            "routing to (default) " + service.getComponent());
                     resolveInfo.defaultService = service;
                     break;
                 }
@@ -325,30 +323,23 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                 // if there is only one.
                 if (resolveInfo.services.size() == 1) {
                     resolveInfo.defaultService = resolveInfo.services.get(0);
-                    Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing to (default) " +
-                            resolveInfo.defaultService.getComponent());
+                    if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, " +
+                            "routing to (default) " + resolveInfo.defaultService.getComponent());
                 } else {
-                    Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing all");
+                    if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: cat OTHER AID, routing all");
                 }
             }
         }
         return resolveInfo;
     }
 
-    void notifyDefaultServiceRemoved(CharSequence serviceName) {
-        Intent intent = new Intent(mContext, DefaultRemovedActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(DefaultRemovedActivity.EXTRA_DEFAULT_NAME, serviceName);
-        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
-    }
-
-    void generateAidTreeLocked() {
+    void generateAidTreeLocked(List<ApduServiceInfo> services) {
         // Easiest is to just build the entire tree again
         mAidToServices.clear();
-        for (ApduServiceInfo service : mCurrentServices) {
-            Log.d(TAG, "generateAidTree component: " + service.getComponent());
+        for (ApduServiceInfo service : services) {
+            if (DBG) Log.d(TAG, "generateAidTree component: " + service.getComponent());
             for (String aid : service.getAids()) {
-                Log.d(TAG, "generateAidTree AID: " + aid);
+                if (DBG) Log.d(TAG, "generateAidTree AID: " + aid);
                 // Check if a mapping exists for this AID
                 if (mAidToServices.containsKey(aid)) {
                     final ArrayList<ApduServiceInfo> aidServices = mAidToServices.get(aid);
@@ -363,11 +354,11 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         }
     }
 
-    void generateAidCategoriesLocked() {
+    void generateAidCategoriesLocked(List<ApduServiceInfo> services) {
         // Trash existing mapping
         mCategoryAids.clear();
 
-        for (ApduServiceInfo service : mCurrentServices) {
+        for (ApduServiceInfo service : services) {
             ArrayList<AidGroup> aidGroups = service.getAidGroups();
             if (aidGroups == null) continue;
             for (AidGroup aidGroup : aidGroups) {
@@ -390,20 +381,11 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                 mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
                 userId);
         ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
-        ComponentName oldDefault = mCurrentDefaults.put(CardEmulationManager.CATEGORY_PAYMENT,
+        ComponentName oldDefault = mCategoryDefaults.put(CardEmulationManager.CATEGORY_PAYMENT,
                 newDefault);
         changed |= newDefault != oldDefault;
-        Log.e(TAG, "Set default component to: " + (name != null ?
+        if (DBG) Log.d(TAG, "Updating default component to: " + (name != null ?
                 ComponentName.unflattenFromString(name) : "null"));
-
-        // Load payment mode from settings
-        String newModeString = Settings.Secure.getStringForUser(mContext.getContentResolver(),
-                Settings.Secure.NFC_PAYMENT_MODE, userId);
-        boolean newMode = !CardEmulationManager.PAYMENT_MODE_MANUAL.equals(newModeString);
-        Log.e(TAG, "Setting mode to: " + newMode);
-        Boolean oldMode = mCurrentMode.put(CardEmulationManager.CATEGORY_PAYMENT, newMode);
-        changed |= (oldMode == null) || (newMode != oldMode.booleanValue());
-
         return changed;
     }
 
@@ -446,7 +428,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         Set<String> routedAids = mRoutingManager.getRoutedAids();
         for (String aid : routedAids) {
             if (!handledAids.contains(aid)) {
-                Log.d(TAG, "Removing routing for AID " + aid + ", because " +
+                if (DBG) Log.d(TAG, "Removing routing for AID " + aid + ", because " +
                         "there are no no interested services.");
                 mRoutingManager.removeAid(aid);
             }
@@ -455,38 +437,102 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         mRoutingManager.commitRouting();
     }
 
-    @Override
-    public void onServiceRemoved(ComponentName service) {
-        // Can no longer load the label, since the app
-        // is likely gone from the filesystem.
-        notifyDefaultServiceRemoved("");
+    public void showDefaultRemovedDialog() {
+        Intent intent = new Intent(mContext, DefaultRemovedActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
     }
 
-    @Override
-    public void onServiceCategoryRemoved(ApduServiceInfo service, String category) {
-        PackageManager pm;
-        try {
-            pm = mContext.createPackageContextAsUser("android", 0,
-                    UserHandle.CURRENT).getPackageManager();
-        } catch (NameNotFoundException e) {
-            Log.e(TAG, "Could not create user package context");
-            return;
+    void onPaymentDefaultRemoved(int userId, List<ApduServiceInfo> services) {
+        int numPaymentServices = 0;
+        ComponentName lastFoundPaymentService = null;
+        for (ApduServiceInfo service : services) {
+            if (service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT))  {
+                numPaymentServices++;
+                lastFoundPaymentService = service.getComponent();
+            }
         }
-        notifyDefaultServiceRemoved(service.loadLabel(pm));
+        if (DBG) Log.d(TAG, "Number of payment services is " +
+                Integer.toString(numPaymentServices));
+        if (numPaymentServices == 0) {
+            if (DBG) Log.d(TAG, "Default removed, no services left.");
+            // No payment services left, unset default and don't ask the user
+            setDefaultServiceForCategory(userId, null,
+                    CardEmulationManager.CATEGORY_PAYMENT);
+        } else if (numPaymentServices == 1) {
+            // Only one left, automatically make it the default
+            if (DBG) Log.d(TAG, "Default removed, making remaining service default.");
+            setDefaultServiceForCategory(userId, lastFoundPaymentService,
+                    CardEmulationManager.CATEGORY_PAYMENT);
+        } else if (numPaymentServices > 1) {
+            // More than one left, unset default and ask the user if he wants
+            // to set a new one
+            if (DBG) Log.d(TAG, "Default removed, asking user to pick.");
+            setDefaultServiceForCategory(userId, null,
+                    CardEmulationManager.CATEGORY_PAYMENT);
+            showDefaultRemovedDialog();
+        }
+    }
+
+    void setDefaultIfNeededLocked(int userId, List<ApduServiceInfo> services) {
+        int numPaymentServices = 0;
+        ComponentName lastFoundPaymentService = null;
+        for (ApduServiceInfo service : services) {
+            if (service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT))  {
+                numPaymentServices++;
+                lastFoundPaymentService = service.getComponent();
+            }
+        }
+        if (numPaymentServices > 1) {
+            // More than one service left, leave default unset
+            if (DBG) Log.d(TAG, "No default set, more than one service left.");
+        } else if (numPaymentServices == 1) {
+            // Make single found payment service the default
+            if (DBG) Log.d(TAG, "No default set, making single service default.");
+            setDefaultServiceForCategory(userId, lastFoundPaymentService,
+                    CardEmulationManager.CATEGORY_PAYMENT);
+        } else {
+            // No payment services left, leave default at null
+            if (DBG) Log.d(TAG, "No default set, last payment service removed.");
+        }
+    }
+
+    void checkDefaultsLocked(int userId, List<ApduServiceInfo> services) {
+        ComponentName defaultPaymentService =
+                getDefaultServiceForCategory(userId, CardEmulationManager.CATEGORY_PAYMENT, false);
+        Log.d(TAG, "Current default: " + defaultPaymentService);
+        if (defaultPaymentService != null) {
+            // Validate the default is still installed and handling payment
+            ApduServiceInfo serviceInfo = mServiceCache.getService(userId, defaultPaymentService);
+            if (serviceInfo == null) {
+                Log.e(TAG, "Default payment service unexpectedly removed.");
+                onPaymentDefaultRemoved(userId, services);
+            } else if (!serviceInfo.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
+                if (DBG) Log.d(TAG, "Default payment service had payment category removed");
+                onPaymentDefaultRemoved(userId, services);
+            } else {
+                // Default still exists and handles the category, nothing do
+                if (DBG) Log.d(TAG, "Default payment service still ok.");
+            }
+        } else {
+            // A payment service may have been removed, leaving only one;
+            // in that case, automatically set that app as default.
+            setDefaultIfNeededLocked(userId, services);
+        }
     }
 
     @Override
-    public void onServicesUpdated(int userId) {
+    public void onServicesUpdated(int userId, List<ApduServiceInfo> services) {
         synchronized (mLock) {
             if (ActivityManager.getCurrentUser() == userId) {
-                mCurrentServices = mServiceCache.getServices(userId);
-                // Rebuild our internal data-structure
-                generateAidTreeLocked();
-                generateAidCategoriesLocked();
+                // Rebuild our internal data-structures
+                checkDefaultsLocked(userId, services);
+                generateAidTreeLocked(services);
+                generateAidCategoriesLocked(services);
                 generateAidCacheLocked();
                 updateRoutingLocked();
             } else {
-                Log.e(TAG, "Ignoring service update because it is not for the current user.");
+                if (DBG) Log.d(TAG, "Ignoring update because it's not for the current user.");
             }
         }
     }

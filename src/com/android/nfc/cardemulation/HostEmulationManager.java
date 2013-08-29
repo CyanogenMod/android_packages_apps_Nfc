@@ -17,6 +17,7 @@
 package com.android.nfc.cardemulation;
 
 import android.app.ActivityManager;
+import android.app.KeyguardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -56,7 +57,7 @@ public class HostEmulationManager {
     final Context mContext;
     final RegisteredAidCache mAidCache;
     final Messenger mMessenger = new Messenger (new MessageHandler());
-
+    final KeyguardManager mKeyguard;
     final Object mLock;
 
     // All variables below protected by mLock
@@ -95,6 +96,7 @@ public class HostEmulationManager {
         mLock = new Object();
         mAidCache = aidCache;
         mState = STATE_IDLE;
+        mKeyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
         SettingsObserver observer = new SettingsObserver(mHandler);
         context.getContentResolver().registerContentObserver(
                 Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
@@ -160,6 +162,15 @@ public class HostEmulationManager {
                 if (resolveInfo.defaultService != null) {
                     // Resolve to default
                     resolvedService = resolveInfo.defaultService.getComponent();
+                    // Check if resolvedService requires unlock
+                    if (resolveInfo.defaultService.requiresUnlock() &&
+                            mKeyguard.isKeyguardLocked() && mKeyguard.isKeyguardSecure()) {
+                        String category = mAidCache.getCategoryForAid(resolveInfo.aid);
+                        // Just ignore all future APDUs until next tap
+                        mState = STATE_W4_DEACTIVATE;
+                        launchTapAgain(resolvedService, category);
+                        return;
+                    }
                     // TODO also handle case where we prefer the bound service?
                 } else {
                     // We have no default, and either one or more services.
@@ -309,7 +320,7 @@ public class HostEmulationManager {
                 // on user switch.
                 int userId = ActivityManager.getCurrentUser();
                 ComponentName paymentApp = mAidCache.getDefaultServiceForCategory(userId,
-                        CardEmulationManager.CATEGORY_PAYMENT);
+                        CardEmulationManager.CATEGORY_PAYMENT, true);
                 if (paymentApp != null) {
                     bindPaymentServiceLocked(userId, paymentApp);
                 } else {
@@ -345,6 +356,14 @@ public class HostEmulationManager {
             mService = null;
             mServiceName = null;
         }
+    }
+
+    void launchTapAgain(ComponentName service, String category) {
+        Intent dialogIntent = new Intent(mContext, TapAgainDialog.class);
+        dialogIntent.putExtra(TapAgainDialog.EXTRA_CATEGORY, category);
+        dialogIntent.putExtra(TapAgainDialog.EXTRA_COMPONENT, service);
+        dialogIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        mContext.startActivityAsUser(dialogIntent, UserHandle.CURRENT);
     }
 
     void launchResolver(ArrayList<ComponentName> components, ComponentName failedComponent,
