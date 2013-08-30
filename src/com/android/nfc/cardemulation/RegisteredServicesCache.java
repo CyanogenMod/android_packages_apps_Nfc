@@ -107,23 +107,7 @@ public class RegisteredServicesCache {
                 }
             }
         };
-
         mReceiver = new AtomicReference<BroadcastReceiver>(receiver);
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
-        intentFilter.addDataScheme("package");
-        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, intentFilter, null, null);
-
-        // Register for events related to sdcard operations
-        IntentFilter sdFilter = new IntentFilter();
-        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
-        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
-        mContext.registerReceiverAsUser(receiver, UserHandle.ALL, sdFilter, null, null);
-
     }
 
     void dump(ArrayList<ApduServiceInfo> services) {
@@ -170,6 +154,28 @@ public class RegisteredServicesCache {
         return services;
     }
 
+    public void onNfcDisabled() {
+        mContext.unregisterReceiver(mReceiver.get());
+    }
+
+    public void onNfcEnabled() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        intentFilter.addDataScheme("package");
+        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, intentFilter, null, null);
+
+        // Register for events related to sdcard operations
+        IntentFilter sdFilter = new IntentFilter();
+        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, sdFilter, null, null);
+
+        invalidateCache(ActivityManager.getCurrentUser());
+    }
+
     public void invalidateCache(int userId) {
         PackageManager pm;
         try {
@@ -185,6 +191,12 @@ public class RegisteredServicesCache {
         List<ResolveInfo> resolvedServices = pm.queryIntentServicesAsUser(
                 new Intent(HostApduService.SERVICE_INTERFACE),
                 PackageManager.GET_META_DATA, userId);
+
+        List<ResolveInfo> resolvedLegacyServices = pm.queryIntentServicesAsUser(
+                new Intent(HostApduService.OLD_SERVICE_INTERFACE),
+                PackageManager.GET_META_DATA, userId);
+
+        resolvedServices.addAll(resolvedLegacyServices);
 
         List<ResolveInfo> resolvedOffHostServices = pm.queryIntentServicesAsUser(
                 new Intent(OffHostApduService.SERVICE_INTERFACE),

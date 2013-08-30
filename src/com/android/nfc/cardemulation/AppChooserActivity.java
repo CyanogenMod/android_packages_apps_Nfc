@@ -32,7 +32,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.graphics.drawable.Drawable;
 import android.nfc.NfcAdapter;
-import android.nfc.cardemulation.CardEmulationManager;
+import android.nfc.cardemulation.CardEmulation;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -58,7 +58,7 @@ public class AppChooserActivity extends AlertActivity
     private int mIconSize;
     private ListView mListView;
     private ListAdapter mListAdapter;
-    private CardEmulationManager mCardEmuManager;
+    private CardEmulation mCardEmuManager;
     private String mCategory;
 
     protected void onCreate(Bundle savedInstanceState, String category,
@@ -75,7 +75,7 @@ public class AppChooserActivity extends AlertActivity
         mCategory = category;
 
         final NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
-        mCardEmuManager = CardEmulationManager.getInstance(adapter);
+        mCardEmuManager = CardEmulation.getInstance(adapter);
         AlertController.AlertParams ap = mAlertParams;
 
         final ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
@@ -106,7 +106,7 @@ public class AppChooserActivity extends AlertActivity
             if (failedComponent != null) {
                 ap.mTitle = "Couldn't use " + applicationLabel + ".";
             } else {
-                if (CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+                if (CardEmulation.CATEGORY_PAYMENT.equals(category)) {
                     ap.mTitle = "Pay with";
                 } else {
                     ap.mTitle = "Complete tap with";

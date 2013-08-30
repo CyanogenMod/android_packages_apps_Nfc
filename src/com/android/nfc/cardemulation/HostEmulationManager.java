@@ -25,7 +25,7 @@ import android.content.ServiceConnection;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.nfc.cardemulation.ApduServiceInfo;
-import android.nfc.cardemulation.CardEmulationManager;
+import android.nfc.cardemulation.CardEmulation;
 import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
@@ -265,7 +265,10 @@ public class HostEmulationManager {
             if (mContext.bindServiceAsUser(aidIntent, mConnection,
                     Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
             } else {
-                Log.e(TAG, "Could not bind service");
+                Log.e(TAG, "Could not bind service, trying legacy");
+                aidIntent.setAction(HostApduService.OLD_SERVICE_INTERFACE);
+                mContext.bindServiceAsUser(aidIntent, mConnection,
+                        Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
             }
             return null;
         }
@@ -320,7 +323,7 @@ public class HostEmulationManager {
                 // on user switch.
                 int userId = ActivityManager.getCurrentUser();
                 ComponentName paymentApp = mAidCache.getDefaultServiceForCategory(userId,
-                        CardEmulationManager.CATEGORY_PAYMENT, true);
+                        CardEmulation.CATEGORY_PAYMENT, true);
                 if (paymentApp != null) {
                     bindPaymentServiceLocked(userId, paymentApp);
                 } else {
@@ -344,8 +347,13 @@ public class HostEmulationManager {
 
         Intent intent = new Intent(HostApduService.SERVICE_INTERFACE);
         intent.setComponent(service);
-        mContext.bindServiceAsUser(intent, mPaymentConnection,
-                Context.BIND_AUTO_CREATE, new UserHandle(userId));
+        if (!mContext.bindServiceAsUser(intent, mPaymentConnection,
+                Context.BIND_AUTO_CREATE, new UserHandle(userId))) {
+            // TODO Remove this
+            Log.d(TAG, "Failed to bind interface, trying legacy.");
+            mContext.bindServiceAsUser(intent, mPaymentConnection,
+                    Context.BIND_AUTO_CREATE, new UserHandle(userId));
+        }
     }
 
     void unbindServiceIfNeededLocked() {
