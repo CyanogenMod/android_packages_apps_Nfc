@@ -7,8 +7,8 @@ import android.content.Intent;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.nfc.cardemulation.ApduServiceInfo;
+import android.nfc.cardemulation.CardEmulation;
 import android.nfc.cardemulation.ApduServiceInfo.AidGroup;
-import android.nfc.cardemulation.CardEmulationManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
@@ -65,6 +65,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     final Object mLock = new Object();
     final Context mContext;
     final AidRoutingManager mRoutingManager;
+    final SettingsObserver mSettingsObserver;
 
     ComponentName mNextTapComponent = null;
 
@@ -93,10 +94,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     };
 
     public RegisteredAidCache(Context context, AidRoutingManager routingManager) {
-        SettingsObserver observer = new SettingsObserver(mHandler);
-        context.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
-                true, observer, UserHandle.USER_ALL);
+        mSettingsObserver = new SettingsObserver(mHandler);
         mContext = context;
         mServiceCache = new RegisteredServicesCache(context, this);
         mRoutingManager = routingManager;
@@ -105,7 +103,9 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     }
 
     public boolean isNextTapOverriden() {
-        return mNextTapComponent != null;
+        synchronized (mLock) {
+            return mNextTapComponent != null;
+        }
     }
 
     public AidResolveInfo resolveAidPrefix(String aid) {
@@ -128,11 +128,11 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
     public String getCategoryForAid(String aid) {
         synchronized (mLock) {
-            Set<String> paymentAids = mCategoryAids.get(CardEmulationManager.CATEGORY_PAYMENT);
+            Set<String> paymentAids = mCategoryAids.get(CardEmulation.CATEGORY_PAYMENT);
             if (paymentAids != null && paymentAids.contains(aid)) {
-                return CardEmulationManager.CATEGORY_PAYMENT;
+                return CardEmulation.CATEGORY_PAYMENT;
             } else {
-                return CardEmulationManager.CATEGORY_OTHER;
+                return CardEmulation.CATEGORY_OTHER;
             }
         }
     }
@@ -155,7 +155,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
     public boolean setDefaultServiceForCategory(int userId, ComponentName service,
             String category) {
-        if (!CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+        if (!CardEmulation.CATEGORY_PAYMENT.equals(category)) {
             Log.e(TAG, "Not allowing defaults for category " + category);
             return false;
         }
@@ -176,7 +176,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
     public ComponentName getDefaultServiceForCategory(int userId, String category,
             boolean validateInstalled) {
-        if (!CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+        if (!CardEmulation.CATEGORY_PAYMENT.equals(category)) {
             Log.e(TAG, "Not allowing defaults for category " + category);
             return null;
         }
@@ -231,13 +231,13 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
         ComponentName defaultComponent = mNextTapComponent;
         if (DBG) Log.d(TAG, "resolveAidLocked: next tap component is " + defaultComponent);
-        Set<String> paymentAids = mCategoryAids.get(CardEmulationManager.CATEGORY_PAYMENT);
+        Set<String> paymentAids = mCategoryAids.get(CardEmulation.CATEGORY_PAYMENT);
         if (paymentAids != null && paymentAids.contains(aid)) {
             if (DBG) Log.d(TAG, "resolveAidLocked: AID " + aid + " is a payment AID");
             // This AID has been registered as a payment AID by at least one service.
             // Get default component for payment if no next tap default.
             if (defaultComponent == null) {
-                defaultComponent = mCategoryDefaults.get(CardEmulationManager.CATEGORY_PAYMENT);
+                defaultComponent = mCategoryDefaults.get(CardEmulation.CATEGORY_PAYMENT);
             }
             // By default, store all resolved services
             resolveInfo.services.addAll(resolvedServices);
@@ -267,7 +267,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                     //    when touching the same terminal.
                     boolean foundConflict = false;
                     for (AidGroup aidGroup : resolvedService.getAidGroups()) {
-                        if (aidGroup.getCategory().equals(CardEmulationManager.CATEGORY_PAYMENT)) {
+                        if (aidGroup.getCategory().equals(CardEmulation.CATEGORY_PAYMENT)) {
                             for (String registeredAid : aidGroup.getAids()) {
                                 ArrayList<ApduServiceInfo> servicesForAid =
                                         mAidToServices.get(registeredAid);
@@ -381,7 +381,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                 mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
                 userId);
         ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
-        ComponentName oldDefault = mCategoryDefaults.put(CardEmulationManager.CATEGORY_PAYMENT,
+        ComponentName oldDefault = mCategoryDefaults.put(CardEmulation.CATEGORY_PAYMENT,
                 newDefault);
         changed |= newDefault != oldDefault;
         if (DBG) Log.d(TAG, "Updating default component to: " + (name != null ?
@@ -437,7 +437,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         mRoutingManager.commitRouting();
     }
 
-    public void showDefaultRemovedDialog() {
+    void showDefaultRemovedDialog() {
         Intent intent = new Intent(mContext, DefaultRemovedActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         mContext.startActivityAsUser(intent, UserHandle.CURRENT);
@@ -447,7 +447,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         int numPaymentServices = 0;
         ComponentName lastFoundPaymentService = null;
         for (ApduServiceInfo service : services) {
-            if (service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT))  {
+            if (service.hasCategory(CardEmulation.CATEGORY_PAYMENT))  {
                 numPaymentServices++;
                 lastFoundPaymentService = service.getComponent();
             }
@@ -458,18 +458,18 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             if (DBG) Log.d(TAG, "Default removed, no services left.");
             // No payment services left, unset default and don't ask the user
             setDefaultServiceForCategory(userId, null,
-                    CardEmulationManager.CATEGORY_PAYMENT);
+                    CardEmulation.CATEGORY_PAYMENT);
         } else if (numPaymentServices == 1) {
             // Only one left, automatically make it the default
             if (DBG) Log.d(TAG, "Default removed, making remaining service default.");
             setDefaultServiceForCategory(userId, lastFoundPaymentService,
-                    CardEmulationManager.CATEGORY_PAYMENT);
+                    CardEmulation.CATEGORY_PAYMENT);
         } else if (numPaymentServices > 1) {
             // More than one left, unset default and ask the user if he wants
             // to set a new one
             if (DBG) Log.d(TAG, "Default removed, asking user to pick.");
             setDefaultServiceForCategory(userId, null,
-                    CardEmulationManager.CATEGORY_PAYMENT);
+                    CardEmulation.CATEGORY_PAYMENT);
             showDefaultRemovedDialog();
         }
     }
@@ -478,7 +478,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         int numPaymentServices = 0;
         ComponentName lastFoundPaymentService = null;
         for (ApduServiceInfo service : services) {
-            if (service.hasCategory(CardEmulationManager.CATEGORY_PAYMENT))  {
+            if (service.hasCategory(CardEmulation.CATEGORY_PAYMENT))  {
                 numPaymentServices++;
                 lastFoundPaymentService = service.getComponent();
             }
@@ -490,7 +490,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             // Make single found payment service the default
             if (DBG) Log.d(TAG, "No default set, making single service default.");
             setDefaultServiceForCategory(userId, lastFoundPaymentService,
-                    CardEmulationManager.CATEGORY_PAYMENT);
+                    CardEmulation.CATEGORY_PAYMENT);
         } else {
             // No payment services left, leave default at null
             if (DBG) Log.d(TAG, "No default set, last payment service removed.");
@@ -499,7 +499,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
     void checkDefaultsLocked(int userId, List<ApduServiceInfo> services) {
         ComponentName defaultPaymentService =
-                getDefaultServiceForCategory(userId, CardEmulationManager.CATEGORY_PAYMENT, false);
+                getDefaultServiceForCategory(userId, CardEmulation.CATEGORY_PAYMENT, false);
         Log.d(TAG, "Current default: " + defaultPaymentService);
         if (defaultPaymentService != null) {
             // Validate the default is still installed and handling payment
@@ -507,7 +507,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             if (serviceInfo == null) {
                 Log.e(TAG, "Default payment service unexpectedly removed.");
                 onPaymentDefaultRemoved(userId, services);
-            } else if (!serviceInfo.hasCategory(CardEmulationManager.CATEGORY_PAYMENT)) {
+            } else if (!serviceInfo.hasCategory(CardEmulation.CATEGORY_PAYMENT)) {
                 if (DBG) Log.d(TAG, "Default payment service had payment category removed");
                 onPaymentDefaultRemoved(userId, services);
             } else {
@@ -539,5 +539,21 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
     public void invalidateCache(int currentUser) {
         mServiceCache.invalidateCache(currentUser);
+    }
+
+    public void onNfcDisabled() {
+        mContext.getContentResolver().unregisterContentObserver(mSettingsObserver);
+        mServiceCache.onNfcDisabled();
+        mRoutingManager.onNfccRoutingTableCleared();
+    }
+
+    public void onNfcEnabled() {
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
+                true, mSettingsObserver, UserHandle.USER_ALL);
+        synchronized (mLock) {
+            updateFromSettingsLocked(ActivityManager.getCurrentUser());
+        }
+        mServiceCache.onNfcEnabled();
     }
 }

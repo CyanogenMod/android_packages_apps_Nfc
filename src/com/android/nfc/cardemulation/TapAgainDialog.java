@@ -25,7 +25,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.NfcAdapter;
-import android.nfc.cardemulation.CardEmulationManager;
+import android.nfc.cardemulation.CardEmulation;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
@@ -41,7 +41,7 @@ public class TapAgainDialog extends AlertActivity {
     public static final String EXTRA_CATEGORY = "category";
 
     // Variables below only accessed on the main thread
-    private CardEmulationManager mCardEmuManager;
+    private CardEmulation mCardEmuManager;
     private boolean mClosedOnRequest = false;
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -58,7 +58,7 @@ public class TapAgainDialog extends AlertActivity {
         setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
 
         final NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
-        mCardEmuManager = CardEmulationManager.getInstance(adapter);
+        mCardEmuManager = CardEmulation.getInstance(adapter);
         Intent intent = getIntent();
         String category = intent.getStringExtra(EXTRA_CATEGORY);
         ComponentName component = (ComponentName) intent.getParcelableExtra(EXTRA_COMPONENT);
@@ -73,7 +73,7 @@ public class TapAgainDialog extends AlertActivity {
         try {
             ApplicationInfo appInfo = pm.getApplicationInfo(component.getPackageName(), 0);
             TextView tv = (TextView) ap.mView.findViewById(com.android.nfc.R.id.textview);
-            if (CardEmulationManager.CATEGORY_PAYMENT.equals(category)) {
+            if (CardEmulation.CATEGORY_PAYMENT.equals(category)) {
                 tv.setText("Tap again to pay\nwith " + appInfo.loadLabel(pm));
             } else {
                 tv.setText("Tap again to complete\nwith " + appInfo.loadLabel(pm));

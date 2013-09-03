@@ -723,7 +723,7 @@ public class NfcService implements DeviceHostListener {
 
             if (mIsHceCapable) {
                 // Generate the initial card emulation routing table
-                mAidCache.invalidateCache(ActivityManager.getCurrentUser());
+                mAidCache.onNfcEnabled();
             }
 
             synchronized(NfcService.this) {
@@ -759,7 +759,7 @@ public class NfcService implements DeviceHostListener {
             watchDog.start();
 
             if (mIsHceCapable) {
-                mAidRoutingManager.onNfccRoutingTableCleared();
+                mAidCache.onNfcDisabled();
             }
 
             mP2pLinkManager.enableDisable(false, false);

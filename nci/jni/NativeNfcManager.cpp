@@ -314,6 +314,12 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         nativeNfcTag_resetPresenceCheck();
         if (isPeerToPeer(eventData->activated))
         {
+            if (sReaderModeEnabled)
+            {
+                ALOGD("%s: ignoring peer target in reader mode.", __FUNCTION__);
+                NFA_Deactivate (FALSE);
+                break;
+            }
             sP2pActive = true;
             ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __FUNCTION__);
             // Disable RF field events in case of p2p
@@ -1760,6 +1766,7 @@ static void nfcManager_doEnableReaderMode (JNIEnv*, jobject, jint technologies)
     if (sDiscoveryEnabled) {
         sReaderModeEnabled = true;
         PeerToPeer::getInstance().enableP2pListening(false);
+        NFA_PauseP2p();
         NFA_DisableListening();
         // Limit polling to these technologies
         int tech_mask = 0;
@@ -1784,6 +1791,7 @@ static void nfcManager_doDisableReaderMode (JNIEnv* e, jobject o)
     struct nfc_jni_native_data *nat = getNative(e, o);
     if (sDiscoveryEnabled) {
         sReaderModeEnabled = false;
+        NFA_ResumeP2p();
         PeerToPeer::getInstance().enableP2pListening(true);
         NFA_EnableListening();
         NFA_SetRfDiscoveryDuration(nat->discovery_duration);
