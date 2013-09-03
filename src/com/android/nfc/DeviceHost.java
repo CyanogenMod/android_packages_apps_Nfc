@@ -81,7 +81,7 @@ public interface DeviceHost {
 
         boolean presenceCheck();
         boolean isPresent();
-        void startPresenceChecking();
+        void startPresenceChecking(int presenceCheckDelay);
 
         int[] getTechList();
         void removeTechnology(int tech); // TODO remove this one
