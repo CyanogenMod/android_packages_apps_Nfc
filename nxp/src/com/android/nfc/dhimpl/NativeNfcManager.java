@@ -359,14 +359,16 @@ public class NativeNfcManager implements DeviceHost {
         doSetP2pTargetModes(modes);
     }
 
+    private native void doEnableReaderMode(int technologies);
     public boolean enableReaderMode(int technologies) {
-        // Not supported yet on NXP chipsets
-        return false;
+        doEnableReaderMode(technologies);
+        return true;
     }
 
+    private native void doDisableReaderMode();
     public boolean disableReaderMode() {
-        // Not supported yet on NXP chipsets
-        return false;
+        doDisableReaderMode();
+        return true;
     }
 
     @Override

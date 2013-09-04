@@ -291,7 +291,7 @@ clean_and_return:
 /*
  *  Utility to recover poll bytes from target infos
  */
-static void set_target_pollBytes(JNIEnv *e, jobject tag,
+void set_target_pollBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     ScopedLocalRef<jclass> tag_cls(e, e->GetObjectClass(tag));
@@ -372,7 +372,7 @@ static void set_target_pollBytes(JNIEnv *e, jobject tag,
 /*
  *  Utility to recover activation bytes from target infos
  */
-static void set_target_activationBytes(JNIEnv *e, jobject tag,
+void set_target_activationBytes(JNIEnv *e, jobject tag,
         phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo)
 {
     ScopedLocalRef<jclass> tag_cls(e, e->GetObjectClass(tag));

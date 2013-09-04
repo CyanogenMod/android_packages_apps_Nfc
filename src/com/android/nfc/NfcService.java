@@ -2347,15 +2347,24 @@ public class NfcService implements DeviceHostListener {
             Tag tag = new Tag(tagEndpoint.getUid(), tagEndpoint.getTechList(),
                     tagEndpoint.getTechExtras(), tagEndpoint.getHandle(), mNfcTagService);
             registerTagObject(tagEndpoint);
-            if (readerParams != null && readerParams.callback != null) {
+            if (readerParams != null) {
                 try {
-                    readerParams.callback.onTagDiscovered(tag);
                     if ((readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) {
                         playSound(SOUND_END);
                     }
-                    return;
+                    if (readerParams.callback != null) {
+                        readerParams.callback.onTagDiscovered(tag);
+                        return;
+                    } else {
+                        // Follow normal dispatch below
+                    }
                 } catch (RemoteException e) {
                     Log.e(TAG, "Reader mode remote has died, falling back.");
+                    // Intentional fall-through
+                } catch (Exception e) {
+                    // Catch any other exception
+                    Log.e(TAG, "App exception, not dispatching.");
+                    return;
                 }
             }
             if (!mNfcDispatcher.dispatchTag(tag)) {
