@@ -81,6 +81,11 @@ static void nfc_jni_transaction_callback(void *context,
         phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status);
 static bool performDownload(struct nfc_jni_native_data *nat, bool takeLock);
 
+extern void set_target_activationBytes(JNIEnv *e, jobject tag,
+        phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo);
+extern void set_target_pollBytes(JNIEnv *e, jobject tag,
+        phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo);
+
 /*
  * Deferred callback called when client thread must be exited
  */
@@ -1051,6 +1056,10 @@ static void nfc_jni_Discovery_notification_callback(void *pContext,
 
         f = e->GetFieldID(tag_cls.get(), "mConnectedHandle", "I");
         e->SetIntField(tag.get(), f,(jint)-1);
+
+        set_target_pollBytes(e, tag.get(), psRemoteDevList->psRemoteDevInfo);
+
+        set_target_activationBytes(e, tag.get(), psRemoteDevList->psRemoteDevInfo);
       }
 
       storedHandle = remDevHandle;
@@ -2419,6 +2428,55 @@ static void com_android_nfc_NfcManager_doAbort(JNIEnv *e, jobject o)
     emergency_recovery(NULL);
 }
 
+static void com_android_nfc_NfcManager_doEnableReaderMode(JNIEnv *e, jobject o,
+        jint modes)
+{
+    struct nfc_jni_native_data *nat = NULL;
+    nat = nfc_jni_get_nat(e, o);
+    CONCURRENCY_LOCK();
+    nat->p2p_initiator_modes = 0;
+    nat->p2p_target_modes = 0;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = TRUE;
+    nat->discovery_cfg.Duration = 100000; /* in ms */
+    if ((modes & 0x01) == 0)
+    {
+        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = FALSE;
+    }
+    if ((modes & 0x02) == 0)
+    {
+        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = FALSE;
+    }
+    if ((modes & 0x04) == 0)
+    {
+        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = FALSE;
+        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = FALSE;
+    }
+    if ((modes & 0x08) == 0)
+    {
+        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = FALSE;
+    }
+    nfc_jni_start_discovery_locked(nat, FALSE);
+    CONCURRENCY_UNLOCK();
+}
+
+static void com_android_nfc_NfcManager_doDisableReaderMode(JNIEnv *e, jobject o)
+{
+    struct nfc_jni_native_data *nat = NULL;
+    nat = nfc_jni_get_nat(e, o);
+    CONCURRENCY_LOCK();
+    nat->p2p_initiator_modes = phNfc_eP2P_ALL;
+    nat->p2p_target_modes = 0x0E; // All passive except 106, active
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = FALSE;
+    nat->discovery_cfg.Duration = 300000; /* in ms */
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = TRUE;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = TRUE;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = TRUE;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = TRUE;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = TRUE;
+    nfc_jni_start_discovery_locked(nat, FALSE);
+    CONCURRENCY_UNLOCK();
+}
+
 static void com_android_nfc_NfcManager_doSetP2pInitiatorModes(JNIEnv *e, jobject o,
         jint modes)
 {
@@ -2619,6 +2677,12 @@ static JNINativeMethod gMethods[] =
 
    {"doSetP2pTargetModes","(I)V",
       (void *)com_android_nfc_NfcManager_doSetP2pTargetModes},
+
+   {"doEnableReaderMode","(I)V",
+      (void *)com_android_nfc_NfcManager_doEnableReaderMode},
+
+   {"doDisableReaderMode","()V",
+      (void *)com_android_nfc_NfcManager_doDisableReaderMode},
 
    {"doDump", "()Ljava/lang/String;",
       (void *)com_android_nfc_NfcManager_doDump},

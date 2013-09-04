@@ -207,6 +207,9 @@ public class NativeNfcTag implements TagEndpoint {
         // Once we start presence checking, we allow the upper layers
         // to know the tag is in the field.
         mIsPresent = true;
+        if (mConnectedTechIndex == -1 && mTechList.length > 0) {
+            connect(mTechList[0]);
+        }
         if (mWatchdog == null) {
             mWatchdog = new PresenceCheckWatchdog(presenceCheckDelay);
             mWatchdog.start();
