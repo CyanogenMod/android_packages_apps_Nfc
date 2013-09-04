@@ -192,12 +192,6 @@ public class RegisteredServicesCache {
                 new Intent(HostApduService.SERVICE_INTERFACE),
                 PackageManager.GET_META_DATA, userId);
 
-        List<ResolveInfo> resolvedLegacyServices = pm.queryIntentServicesAsUser(
-                new Intent(HostApduService.OLD_SERVICE_INTERFACE),
-                PackageManager.GET_META_DATA, userId);
-
-        resolvedServices.addAll(resolvedLegacyServices);
-
         List<ResolveInfo> resolvedOffHostServices = pm.queryIntentServicesAsUser(
                 new Intent(OffHostApduService.SERVICE_INTERFACE),
                 PackageManager.GET_META_DATA, userId);
