@@ -35,7 +35,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.nfc.BeamShareData;
-import android.nfc.INdefPushCallback;
+import android.nfc.IAppCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
@@ -197,7 +197,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
     NdefMessage mMessageToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     Uri[] mUrisToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     int mSendFlags; // not valid in SEND_STATE_NOTHING_TO_SEND
-    INdefPushCallback mCallbackNdef;
+    IAppCallback mCallbackNdef;
     String[] mValidCallbackPackages;
     SendTask mSendTask;
     SharedPreferences mPrefs;
@@ -283,7 +283,7 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
      * currently off or P2P send is currently off). They will become
      * active as soon as P2P send is enabled.
      */
-    public void setNdefCallback(INdefPushCallback callbackNdef, int callingUid) {
+    public void setNdefCallback(IAppCallback callbackNdef, int callingUid) {
         synchronized (this) {
             mCallbackNdef = callbackNdef;
             mValidCallbackPackages = mPackageManager.getPackagesForUid(callingUid);
