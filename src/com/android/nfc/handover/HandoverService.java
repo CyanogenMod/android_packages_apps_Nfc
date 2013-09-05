@@ -211,6 +211,10 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         Bundle msgData = msg.getData();
         BluetoothDevice device = (BluetoothDevice) msgData.getParcelable(EXTRA_HEADSET_DEVICE);
         String name = (String) msgData.getString(EXTRA_HEADSET_NAME);
+        if (mBluetoothHeadsetHandover != null) {
+           Log.d(TAG, "Ignoring pairing request, existing handover in progress.");
+           return;
+        }
         mBluetoothHeadsetHandover = new BluetoothHeadsetHandover(HandoverService.this,
                 device, name, HandoverService.this);
         if (mBluetoothAdapter.isEnabled()) {
