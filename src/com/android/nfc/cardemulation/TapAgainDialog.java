@@ -19,6 +19,7 @@ package com.android.nfc.cardemulation;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
@@ -35,7 +36,7 @@ import com.android.internal.R;
 import com.android.internal.app.AlertActivity;
 import com.android.internal.app.AlertController;
 
-public class TapAgainDialog extends AlertActivity {
+public class TapAgainDialog extends AlertActivity implements DialogInterface.OnClickListener {
     public static final String ACTION_CLOSE = "com.android.nfc.cardmeulation.close_tap_dialog";
     public static final String EXTRA_COMPONENT = "component";
     public static final String EXTRA_CATEGORY = "category";
@@ -63,6 +64,7 @@ public class TapAgainDialog extends AlertActivity {
         String category = intent.getStringExtra(EXTRA_CATEGORY);
         ComponentName component = (ComponentName) intent.getParcelableExtra(EXTRA_COMPONENT);
         IntentFilter filter = new IntentFilter(ACTION_CLOSE);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
         registerReceiver(mReceiver, filter);
         AlertController.AlertParams ap = mAlertParams;
 
@@ -74,10 +76,13 @@ public class TapAgainDialog extends AlertActivity {
             ApplicationInfo appInfo = pm.getApplicationInfo(component.getPackageName(), 0);
             TextView tv = (TextView) ap.mView.findViewById(com.android.nfc.R.id.textview);
             if (CardEmulation.CATEGORY_PAYMENT.equals(category)) {
-                tv.setText("Tap again to pay\nwith " + appInfo.loadLabel(pm));
+                String formatString = getString(com.android.nfc.R.string.tap_again_to_pay);
+                tv.setText(String.format(formatString, appInfo.loadLabel(pm)));
             } else {
-                tv.setText("Tap again to complete\nwith " + appInfo.loadLabel(pm));
+                String formatString = getString(com.android.nfc.R.string.tap_again_to_complete);
+                tv.setText(String.format(formatString, appInfo.loadLabel(pm)));
             }
+            ap.mNegativeButtonText = getString(R.string.cancel);
             setupAlert();
         } catch (NameNotFoundException e) {
             finish();
@@ -88,8 +93,8 @@ public class TapAgainDialog extends AlertActivity {
 
     @Override
     protected void onDestroy() {
-        unregisterReceiver(mReceiver);
         super.onDestroy();
+        unregisterReceiver(mReceiver);
     }
 
     @Override
@@ -98,5 +103,10 @@ public class TapAgainDialog extends AlertActivity {
         if (!mClosedOnRequest) {
             mCardEmuManager.setDefaultForNextTap(null);
         }
+    }
+
+    @Override
+    public void onClick(DialogInterface dialog, int which) {
+        finish();
     }
 }
