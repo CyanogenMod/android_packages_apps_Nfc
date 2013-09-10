@@ -265,10 +265,7 @@ public class HostEmulationManager {
             if (mContext.bindServiceAsUser(aidIntent, mConnection,
                     Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
             } else {
-                Log.e(TAG, "Could not bind service, trying legacy");
-                aidIntent.setAction(HostApduService.OLD_SERVICE_INTERFACE);
-                mContext.bindServiceAsUser(aidIntent, mConnection,
-                        Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
+                Log.e(TAG, "Could not bind service.");
             }
             return null;
         }
