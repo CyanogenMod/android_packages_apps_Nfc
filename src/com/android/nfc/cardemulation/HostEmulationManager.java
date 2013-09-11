@@ -175,15 +175,11 @@ public class HostEmulationManager {
                 } else {
                     // We have no default, and either one or more services.
                     // Ask the user to confirm.
-                    final ArrayList<ComponentName> services = new ArrayList<ComponentName>();
-                    for (ApduServiceInfo service : resolveInfo.services) {
-                        services.add(service.getComponent());
-                    }
                     // Get corresponding category
                     String category = mAidCache.getCategoryForAid(resolveInfo.aid);
                     // Just ignore all future APDUs until we resolve to only one
                     mState = STATE_W4_DEACTIVATE;
-                    launchResolver(services, null, category);
+                    launchResolver((ArrayList<ApduServiceInfo>)resolveInfo.services, null, category);
                     return;
                 }
             }
@@ -371,11 +367,11 @@ public class HostEmulationManager {
         mContext.startActivityAsUser(dialogIntent, UserHandle.CURRENT);
     }
 
-    void launchResolver(ArrayList<ComponentName> components, ComponentName failedComponent,
+    void launchResolver(ArrayList<ApduServiceInfo> services, ComponentName failedComponent,
             String category) {
         Intent intent = new Intent(mContext, AppChooserActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        intent.putParcelableArrayListExtra(AppChooserActivity.EXTRA_COMPONENTS, components);
+        intent.putParcelableArrayListExtra(AppChooserActivity.EXTRA_APDU_SERVICES, services);
         intent.putExtra(AppChooserActivity.EXTRA_CATEGORY, category);
         if (failedComponent != null) {
             intent.putExtra(AppChooserActivity.EXTRA_FAILED_COMPONENT, failedComponent);
@@ -487,13 +483,13 @@ public class HostEmulationManager {
                     AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(mLastSelectedAid);
                     String category = mAidCache.getCategoryForAid(mLastSelectedAid);
                     if (resolveInfo.services.size() > 0) {
-                        final ArrayList<ComponentName> components = new ArrayList<ComponentName>();
+                        final ArrayList<ApduServiceInfo> services = new ArrayList<ApduServiceInfo>();
                         for (ApduServiceInfo service : resolveInfo.services) {
                             if (!service.getComponent().equals(mActiveServiceName)) {
-                                components.add(service.getComponent());
+                                services.add(service);
                             }
                         }
-                        launchResolver(components, mActiveServiceName, category);
+                        launchResolver(services, mActiveServiceName, category);
                     }
                 }
             }

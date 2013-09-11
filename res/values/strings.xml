@@ -40,4 +40,21 @@
     <string name="confirm_pairing">Are you sure you want to pair the Bluetooth device <xliff:g id="device_name">%1$s</xliff:g>?</string>
     <string name="pair_yes">Yes</string>
     <string name="pair_no">No</string>
+
+    <!-- String that is prompting the user to tap his NFC phone against a payment reader again, to
+         pay with the specified app -->
+    <string name="tap_again_to_pay">Tap again to pay with <xliff:g id="app">%1$s</xliff:g></string>
+    <!-- String that is prompting the user to tap his NFC phone against a generic NFC reader again, to
+         pay with the specified app -->
+    <string name="tap_again_to_complete">Tap again to complete with <xliff:g id="app">%1$s</xliff:g></string>
+    <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
+    <string name="transaction_failure">This transaction couldn\'t be completed with <xliff:g id="app">%1$s</xliff:g>.</string>
+    <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
+    <string name="could_not_use_app">Couldn\'t use <xliff:g id="app">%1$s</xliff:g>.</string>
+    <!-- Label for a dialog showing a list of applications can be paid with -->
+    <string name="pay_with">Pay with</string>
+    <!-- Label for a dialog showing a list of applications that can be used to complete the NFC action -->
+    <string name="complete_with">Complete with</string>
 </resources>

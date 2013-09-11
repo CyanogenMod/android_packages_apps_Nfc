@@ -19,6 +19,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
+              android:layout_gravity="center"
               android:orientation="vertical">
     <FrameLayout android:layout_width="match_parent"
                  android:layout_height="wrap_content"
@@ -29,6 +30,8 @@
             android:layout_height="match_parent"
             android:id="@+id/resolver_list"
             android:clickable="true"
-            android:footerDividersEnabled="false" />
+            android:dividerHeight="16dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp"/>
     </FrameLayout>
 </LinearLayout>

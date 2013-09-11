@@ -16,28 +16,14 @@
 ** limitations under the License.
 */
 -->
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_height="76dp"
-            android:layout_width="match_parent">
-
-    <ImageView android:id="@+id/appicon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:scaleType="fitCenter"
-            android:gravity="center_vertical"
-            />
-
-    <!-- Activity name -->
-    <TextView android:id="@+id/applabel"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical|left"
-            android:minLines="2"
-            android:maxLines="2"
-            android:paddingStart="4dip"
-            android:paddingEnd="4dip" />
+            android:layout_width="match_parent"
+            android:gravity="center">
+    <ImageView android:id="@+id/banner"
+        android:layout_height="96dp"
+        android:layout_width="260dp"
+        android:gravity="center"
+        android:layout_centerHorizontal="true"/>
 </LinearLayout>
