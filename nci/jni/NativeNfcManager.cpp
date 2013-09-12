@@ -1072,10 +1072,11 @@ void enableDisableLptd (bool enable)
     }
     // Bail if we checked and didn't find any LPTD config before
     if (!sHasLptd) return;
+    UINT8 enable_byte = enable ? 0x01 : 0x00;
 
     SyncEventGuard guard(sNfaSetConfigEvent);
 
-    stat = NFA_SetConfig(NCI_PARAM_ID_TAGSNIFF_CFG, 1, enable ? 0x01 : 0x00);
+    stat = NFA_SetConfig(NCI_PARAM_ID_TAGSNIFF_CFG, 1, &enable_byte);
     if (stat == NFA_STATUS_OK)
         sNfaSetConfigEvent.wait ();
     else
