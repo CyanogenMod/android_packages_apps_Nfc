@@ -18,6 +18,8 @@
 #include "NfcJniUtil.h"
 #include "JavaClassConstants.h"
 
+#include <cutils/log.h>
+#include <JNIHelp.h>
 
 namespace android
 {

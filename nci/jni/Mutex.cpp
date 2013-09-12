@@ -20,6 +20,8 @@
 
 #include "Mutex.h"
 #include "NfcJniUtil.h"
+
+#include <cutils/log.h>
 #include <errno.h>
 
 /*******************************************************************************

@@ -19,6 +19,9 @@
 #include "NfcAdaptation.h"
 #include "PeerToPeer.h"
 #include "JavaClassConstants.h"
+
+#include <JNIHelp.h>
+
 extern "C"
 {
     #include "nfa_api.h"

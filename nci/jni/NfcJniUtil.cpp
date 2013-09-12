@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 #include "NfcJniUtil.h"
+
+#include <cutils/log.h>
 #include <errno.h>
+#include <JNIHelp.h>
 #include <ScopedLocalRef.h>
 
 
