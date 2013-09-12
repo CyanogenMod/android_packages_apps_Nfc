@@ -227,6 +227,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         AidResolveInfo resolveInfo = new AidResolveInfo();
         Log.e(TAG, "resolveAidLocked: resolving AID " + aid);
         resolveInfo.services = new ArrayList<ApduServiceInfo>();
+        resolveInfo.services.addAll(resolvedServices);
         resolveInfo.defaultService = null;
 
         ComponentName defaultComponent = mNextTapComponent;
@@ -239,8 +240,6 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             if (defaultComponent == null) {
                 defaultComponent = mCategoryDefaults.get(CardEmulation.CATEGORY_PAYMENT);
             }
-            // By default, store all resolved services
-            resolveInfo.services.addAll(resolvedServices);
             if (DBG) Log.d(TAG, "resolveAidLocked: default payment component is "
                     + defaultComponent);
             if (resolvedServices.size() == 1) {
