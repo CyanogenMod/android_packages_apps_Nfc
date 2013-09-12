@@ -1042,6 +1042,47 @@ TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
+void enableDisableLptd (bool enable)
+{
+    // This method is *NOT* thread-safe. Right now
+    // it is only called from the same thread so it's
+    // not an issue.
+    static bool sCheckedLptd = false;
+    static bool sHasLptd = false;
+
+    tNFA_STATUS stat = NFA_STATUS_OK;
+    if (!sCheckedLptd)
+    {
+        sCheckedLptd = true;
+        SyncEventGuard guard (sNfaGetConfigEvent);
+        tNFA_PMID configParam[1] = {NCI_PARAM_ID_TAGSNIFF_CFG};
+        stat = NFA_GetConfig(1, configParam);
+        if (stat != NFA_STATUS_OK)
+        {
+            ALOGE("%s: NFA_GetConfig failed", __FUNCTION__);
+            return;
+        }
+        sNfaGetConfigEvent.wait ();
+        if (sCurrentConfigLen < 4 || sConfig[1] != NCI_PARAM_ID_TAGSNIFF_CFG) {
+            ALOGE("%s: Config TLV length %d returned is too short", __FUNCTION__,
+                    sCurrentConfigLen);
+            return;
+        }
+        sHasLptd = true;
+    }
+    // Bail if we checked and didn't find any LPTD config before
+    if (!sHasLptd) return;
+
+    SyncEventGuard guard(sNfaSetConfigEvent);
+
+    stat = NFA_SetConfig(NCI_PARAM_ID_TAGSNIFF_CFG, 1, enable ? 0x01 : 0x00);
+    if (stat == NFA_STATUS_OK)
+        sNfaSetConfigEvent.wait ();
+    else
+        ALOGE("%s: Could not configure LPTD feature", __FUNCTION__);
+    return;
+}
+
 void setUiccIdleTimeout (bool enable)
 {
     // This method is *NOT* thread-safe. Right now
@@ -1781,6 +1822,7 @@ static void nfcManager_doEnableReaderMode (JNIEnv*, jobject, jint technologies)
         if (technologies & 0x10)
            tech_mask |= NFA_TECHNOLOGY_MASK_KOVIO;
 
+        enableDisableLptd(false);
         NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
         restartPollingWithTechMask(tech_mask);
     }
@@ -1794,6 +1836,8 @@ static void nfcManager_doDisableReaderMode (JNIEnv* e, jobject o)
         NFA_ResumeP2p();
         PeerToPeer::getInstance().enableP2pListening(true);
         NFA_EnableListening();
+
+        enableDisableLptd(true);
         NFA_SetRfDiscoveryDuration(nat->discovery_duration);
         restartPollingWithTechMask(nat->tech_mask);
     }

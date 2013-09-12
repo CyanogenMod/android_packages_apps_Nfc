@@ -2438,23 +2438,11 @@ static void com_android_nfc_NfcManager_doEnableReaderMode(JNIEnv *e, jobject o,
     nat->p2p_target_modes = 0;
     nat->discovery_cfg.PollDevInfo.PollCfgInfo.DisableCardEmulation = TRUE;
     nat->discovery_cfg.Duration = 100000; /* in ms */
-    if ((modes & 0x01) == 0)
-    {
-        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = FALSE;
-    }
-    if ((modes & 0x02) == 0)
-    {
-        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = FALSE;
-    }
-    if ((modes & 0x04) == 0)
-    {
-        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = FALSE;
-        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = FALSE;
-    }
-    if ((modes & 0x08) == 0)
-    {
-        nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = FALSE;
-    }
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = (modes & 0x01) != 0;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = (modes & 0x02) != 0;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = (modes & 0x04) != 0;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = (modes & 0x04) != 0;
+    nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = (modes & 0x08) != 0;
     nfc_jni_start_discovery_locked(nat, FALSE);
     CONCURRENCY_UNLOCK();
 }
