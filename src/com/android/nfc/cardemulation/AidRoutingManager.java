@@ -28,6 +28,14 @@ import java.util.Set;
 public class AidRoutingManager {
     static final String TAG = "AidRoutingManager";
 
+    // This is the default IsoDep protocol route; it means
+    // that for any AID that needs to be routed to this
+    // destination, we won't need to add a rule to the routing
+    // table, because this destination is already the default route.
+    //
+    // For Nexus devices, the default route is always 0x00.
+    static final int DEFAULT_ROUTE = 0x00;
+
     // For Nexus devices, just a static route to the eSE
     // OEMs/Carriers could manually map off-host AIDs
     // to the correct eSE/UICC based on state they keep.
@@ -86,9 +94,11 @@ public class AidRoutingManager {
             }
             aids.add(aid);
             mRouteForAid.put(aid, route);
-            mDirty = true;
+            if (route != DEFAULT_ROUTE) {
+                NfcService.getInstance().routeAids(aid, route);
+                mDirty = true;
+            }
         }
-        NfcService.getInstance().routeAids(aid, route);
         return true;
     }
 
@@ -116,8 +126,10 @@ public class AidRoutingManager {
             if (aids == null) return false;
             aids.remove(aid);
             mRouteForAid.remove(aid);
-            NfcService.getInstance().unrouteAids(aid);
-            mDirty = true;
+            if (route.intValue() != DEFAULT_ROUTE) {
+                NfcService.getInstance().unrouteAids(aid);
+                mDirty = true;
+            }
         }
         return true;
     }
