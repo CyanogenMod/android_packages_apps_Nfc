@@ -53,8 +53,8 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
         mEeRegisterEvent.wait ();
     }
 
-    // Get the "default" EE
-    if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
+    // Get the "default" route
+    if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
         mDefaultEe = num;
     else
         mDefaultEe = 0x00;
