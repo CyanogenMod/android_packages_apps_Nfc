@@ -23,22 +23,16 @@
     <string name="connect_headset_failed" msgid="7500801585498094863">"Impossible d’établir la connexion."</string>
     <string name="disconnecting_headset" msgid="868262189044372780">"Déconnexion en cours…"</string>
     <string name="disconnected_headset" msgid="4066109452701733916">"Déconnecté"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Association en cours…"</string>
+    <string name="pairing_headset" msgid="6443461444755646137">"Association en cours"</string>
     <string name="pairing_headset_failed" msgid="6509629663883514688">"Impossible d\'effectuer l\'association."</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Impossible d\'activer le Bluetooth."</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"Voulez-vous vraiment associer l\'appareil Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g> ?"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"Voulez-vous vraiment associer l\'appareil Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Oui"</string>
     <string name="pair_no" msgid="5022308368904055020">"Non"</string>
-    <!-- no translation found for tap_again_to_pay (5754988005412859897) -->
-    <skip />
-    <!-- no translation found for tap_again_to_complete (5423640945118279123) -->
-    <skip />
-    <!-- no translation found for transaction_failure (7828102078637936513) -->
-    <skip />
-    <!-- no translation found for could_not_use_app (8137587876138569083) -->
-    <skip />
-    <!-- no translation found for pay_with (5531545488795798945) -->
-    <skip />
-    <!-- no translation found for complete_with (6797459104103012992) -->
-    <skip />
+    <string name="tap_again_to_pay" msgid="5754988005412859897">"Touchez à nouveau pour payer avec <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="tap_again_to_complete" msgid="5423640945118279123">"Touchez à nouveau pour terminer la transaction avec <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="transaction_failure" msgid="7828102078637936513">"Cette transaction n\'a pas pu être effectuée avec <xliff:g id="APP">%1$s</xliff:g>."</string>
+    <string name="could_not_use_app" msgid="8137587876138569083">"Impossible d\'utiliser <xliff:g id="APP">%1$s</xliff:g>."</string>
+    <string name="pay_with" msgid="5531545488795798945">"Payer avec"</string>
+    <string name="complete_with" msgid="6797459104103012992">"Compatible avec :"</string>
 </resources>
