@@ -29,16 +29,10 @@
     <string name="confirm_pairing" msgid="4112568077038265363">"Sigur doriţi să împerecheaţi dispozitivul Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Da"</string>
     <string name="pair_no" msgid="5022308368904055020">"Nu"</string>
-    <!-- no translation found for tap_again_to_pay (5754988005412859897) -->
-    <skip />
-    <!-- no translation found for tap_again_to_complete (5423640945118279123) -->
-    <skip />
-    <!-- no translation found for transaction_failure (7828102078637936513) -->
-    <skip />
-    <!-- no translation found for could_not_use_app (8137587876138569083) -->
-    <skip />
-    <!-- no translation found for pay_with (5531545488795798945) -->
-    <skip />
-    <!-- no translation found for complete_with (6797459104103012992) -->
-    <skip />
+    <string name="tap_again_to_pay" msgid="5754988005412859897">"Atingeți din nou pentru a plăti cu <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="tap_again_to_complete" msgid="5423640945118279123">"Atingeți din nou pentru a finaliza cu <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="transaction_failure" msgid="7828102078637936513">"Această tranzacție nu a putut fi finalizată cu <xliff:g id="APP">%1$s</xliff:g>."</string>
+    <string name="could_not_use_app" msgid="8137587876138569083">"Nu s-a putut utiliza <xliff:g id="APP">%1$s</xliff:g>."</string>
+    <string name="pay_with" msgid="5531545488795798945">"Plătiți cu"</string>
+    <string name="complete_with" msgid="6797459104103012992">"Finalizați cu"</string>
 </resources>
