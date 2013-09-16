@@ -29,16 +29,10 @@
     <string name="confirm_pairing" msgid="4112568077038265363">"آیا مطمئن هستید که می‌خواهید دستگاه بلوتوث <xliff:g id="DEVICE_NAME">%1$s</xliff:g> را جفت کنید؟"</string>
     <string name="pair_yes" msgid="3525614878559994448">"بله"</string>
     <string name="pair_no" msgid="5022308368904055020">"خیر"</string>
-    <!-- no translation found for tap_again_to_pay (5754988005412859897) -->
-    <skip />
-    <!-- no translation found for tap_again_to_complete (5423640945118279123) -->
-    <skip />
-    <!-- no translation found for transaction_failure (7828102078637936513) -->
-    <skip />
-    <!-- no translation found for could_not_use_app (8137587876138569083) -->
-    <skip />
-    <!-- no translation found for pay_with (5531545488795798945) -->
-    <skip />
-    <!-- no translation found for complete_with (6797459104103012992) -->
-    <skip />
+    <string name="tap_again_to_pay" msgid="5754988005412859897">"برای پرداخت با <xliff:g id="APP">%1$s</xliff:g>، دوباره ضربه بزنید"</string>
+    <string name="tap_again_to_complete" msgid="5423640945118279123">"برای تکمیل از طریق <xliff:g id="APP">%1$s</xliff:g>، دوباره ضربه بزنید"</string>
+    <string name="transaction_failure" msgid="7828102078637936513">"این تراکنش با <xliff:g id="APP">%1$s</xliff:g> تکمیل نشد."</string>
+    <string name="could_not_use_app" msgid="8137587876138569083">"نتوانست از <xliff:g id="APP">%1$s</xliff:g> استفاده کند."</string>
+    <string name="pay_with" msgid="5531545488795798945">"پرداخت با"</string>
+    <string name="complete_with" msgid="6797459104103012992">"تکمیل با"</string>
 </resources>
