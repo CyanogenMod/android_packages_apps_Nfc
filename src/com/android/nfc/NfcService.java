@@ -2141,6 +2141,12 @@ public class NfcService implements DeviceHostListener {
 
                 case MSG_CARD_EMULATION:
                     if (DBG) Log.d(TAG, "Card Emulation message");
+                    /* Tell the host-emu manager an AID has been selected on
+                     * a secure element.
+                     */
+                    if (mHostEmulationManager != null) {
+                        mHostEmulationManager.notifyOffHostAidSelected();
+                    }
                     byte[] aid = (byte[]) msg.obj;
                     /* Send broadcast */
                     Intent aidIntent = new Intent();
