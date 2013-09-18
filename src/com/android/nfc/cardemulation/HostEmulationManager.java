@@ -44,12 +44,21 @@ import java.util.ArrayList;
 
 public class HostEmulationManager {
     static final String TAG = "HostEmulationManager";
+    static final boolean DBG = false;
 
     static final int STATE_IDLE = 0;
     static final int STATE_W4_SELECT = 1;
     static final int STATE_W4_SERVICE = 2;
     static final int STATE_W4_DEACTIVATE = 3;
     static final int STATE_XFER = 4;
+
+    /** Minimum AID lenth as per ISO7816 */
+    static final int MINIMUM_AID_LENGTH = 5;
+
+    /** Length of Select APDU header including length byte */
+    static final int SELECT_APDU_HDR_LENGTH = 5;
+
+    static final byte INSTR_SELECT = (byte)0xA4;
 
     static final byte[] AID_NOT_FOUND = {0x6A, (byte)0x82};
     static final byte[] UNKNOWN_ERROR = {0x6F, 0x00};
@@ -246,6 +255,21 @@ public class HostEmulationManager {
         }
     }
 
+    public void notifyOffHostAidSelected() {
+        Log.d(TAG, "notifyOffHostAidSelected");
+        synchronized (mLock) {
+            if (mState != STATE_XFER || mActiveService == null) {
+                // Don't bother telling, we're not bound to any service yet
+            } else {
+                sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_DESELECTED);
+            }
+            mActiveService = null;
+            mActiveServiceName = null;
+            unbindServiceIfNeededLocked();
+            mState = STATE_W4_SELECT;
+        }
+    }
+
     Messenger bindServiceIfNeededLocked(ComponentName service) {
         if (mPaymentServiceBound && mPaymentServiceName.equals(service)) {
             Log.d(TAG, "Service already bound as payment service.");
@@ -342,10 +366,7 @@ public class HostEmulationManager {
         intent.setComponent(service);
         if (!mContext.bindServiceAsUser(intent, mPaymentConnection,
                 Context.BIND_AUTO_CREATE, new UserHandle(userId))) {
-            // TODO Remove this
-            Log.d(TAG, "Failed to bind interface, trying legacy.");
-            mContext.bindServiceAsUser(intent, mPaymentConnection,
-                    Context.BIND_AUTO_CREATE, new UserHandle(userId));
+            Log.e(TAG, "Could not bind (persistent) payment service.");
         }
     }
 
@@ -380,21 +401,25 @@ public class HostEmulationManager {
     }
 
     String findSelectAid(byte[] data) {
-        if (data == null || data.length < 6) {
-            Log.d(TAG, "Data size too small for SELECT APDU");
+        if (data == null || data.length < SELECT_APDU_HDR_LENGTH + MINIMUM_AID_LENGTH) {
+            if (DBG) Log.d(TAG, "Data size too small for SELECT APDU");
             return null;
         }
-        // TODO we'll support only logical channel 0 in CLA?
-        // TODO support chaining bits in CLA?
-        // TODO what about selection using DF/EF identifiers and/or path?
-        // TODO what about P2?
-        // TODO what about the default selection status?
-        if (data[0] == 0x00 && data[1] == (byte)0xA4 && data[2] == 0x04) {
+        // To accept a SELECT AID for dispatch, we require the following:
+        // Class byte must be 0x00: logical channel set to zero, no secure messaging, no chaining
+        // Instruction byte must be 0xA4: SELECT instruction
+        // P1: must be 0x04: select by application identifier
+        // P2: File control information is only relevant for higher-level application,
+        //     and we only support "first or only occurrence".
+        if (data[0] == 0x00 && data[1] == INSTR_SELECT && data[2] == 0x04) {
+            if (data[3] != 0x00) {
+                Log.d(TAG, "Selecting next, last or previous AID occurrence is not supported");
+            }
             int aidLength = data[4];
-            if (data.length < 5 + aidLength) {
+            if (data.length < SELECT_APDU_HDR_LENGTH + aidLength) {
                 return null;
             }
-            return bytesToString(data, 5, aidLength);
+            return bytesToString(data, SELECT_APDU_HDR_LENGTH, aidLength);
         }
         return null;
     }
