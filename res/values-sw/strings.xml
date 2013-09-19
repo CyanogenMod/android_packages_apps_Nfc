@@ -29,9 +29,9 @@
     <string name="confirm_pairing" msgid="4112568077038265363">"Una uhakika unataka kuoanisha kifaa cha Bluetooth cha <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Ndiyo"</string>
     <string name="pair_no" msgid="5022308368904055020">"Hapana"</string>
-    <string name="tap_again_to_pay" msgid="5754988005412859897">"Gonga tena kulipa kwa <xliff:g id="APP">%1$s</xliff:g>"</string>
-    <string name="tap_again_to_complete" msgid="5423640945118279123">"Gonga tena kukamilisha kwa <xliff:g id="APP">%1$s</xliff:g>"</string>
-    <string name="transaction_failure" msgid="7828102078637936513">"Ununuzi huu haukuweza kukamilika kwa <xliff:g id="APP">%1$s</xliff:g>."</string>
+    <string name="tap_again_to_pay" msgid="5754988005412859897">"Gonga tena ili kulipa kwa <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="tap_again_to_complete" msgid="5423640945118279123">"Gonga tena ili kukamilisha kwa <xliff:g id="APP">%1$s</xliff:g>"</string>
+    <string name="transaction_failure" msgid="7828102078637936513">"Ununuzi huu haukuweza kukamilishwa kwa <xliff:g id="APP">%1$s</xliff:g>."</string>
     <string name="could_not_use_app" msgid="8137587876138569083">"Haikuweza kutumia <xliff:g id="APP">%1$s</xliff:g>."</string>
     <string name="pay_with" msgid="5531545488795798945">"Lipa kwa"</string>
     <string name="complete_with" msgid="6797459104103012992">"Kamilisha kwa"</string>
