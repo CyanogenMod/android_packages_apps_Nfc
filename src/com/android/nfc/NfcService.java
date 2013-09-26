@@ -1135,9 +1135,7 @@ public class NfcService implements DeviceHostListener {
             }
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
             validateUserId(userId);
-            ComponentName defaultService = mAidCache.getDefaultServiceForCategory(userId,
-                    category, true);
-            return (defaultService != null && defaultService.equals(service));
+            return mAidCache.isDefaultServiceForCategory(userId, category, service);
         }
 
         @Override

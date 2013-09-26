@@ -138,8 +138,23 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     }
 
     public boolean isDefaultServiceForAid(int userId, ComponentName service, String aid) {
-        AidResolveInfo resolveInfo = mAidCache.get(aid);
-
+        AidResolveInfo resolveInfo = null;
+        boolean serviceFound = false;
+        synchronized (mLock) {
+            serviceFound = mServiceCache.hasService(userId, service);
+        }
+        if (!serviceFound) {
+            // If we don't know about this service yet, it may have just been enabled
+            // using PackageManager.setComponentEnabledSetting(). The PackageManager
+            // broadcasts are delayed by 10 seconds in that scenario, which causes
+            // calls to our APIs referencing that service to fail.
+            // Hence, update the cache in case we don't know about the service.
+            if (DBG) Log.d(TAG, "Didn't find passed in service, invalidating cache.");
+            mServiceCache.invalidateCache(userId);
+        }
+        synchronized (mLock) {
+            resolveInfo = mAidCache.get(aid);
+        }
         if (resolveInfo.services == null || resolveInfo.services.size() == 0) return false;
 
         if (resolveInfo.defaultService != null) {
@@ -173,7 +188,28 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         return true;
     }
 
-    public ComponentName getDefaultServiceForCategory(int userId, String category,
+    public boolean isDefaultServiceForCategory(int userId, String category,
+            ComponentName service) {
+        boolean serviceFound = false;
+        synchronized (mLock) {
+            // If we don't know about this service yet, it may have just been enabled
+            // using PackageManager.setComponentEnabledSetting(). The PackageManager
+            // broadcasts are delayed by 10 seconds in that scenario, which causes
+            // calls to our APIs referencing that service to fail.
+            // Hence, update the cache in case we don't know about the service.
+            if (DBG) Log.d(TAG, "Didn't find passed in service, invalidating cache.");
+            serviceFound = mServiceCache.hasService(userId, service);
+        }
+        if (!serviceFound) {
+            if (DBG) Log.d(TAG, "Didn't find passed in service, invalidating cache.");
+            mServiceCache.invalidateCache(userId);
+        }
+        ComponentName defaultService =
+                getDefaultServiceForCategory(userId, category, true);
+        return (defaultService != null && defaultService.equals(service));
+    }
+
+    ComponentName getDefaultServiceForCategory(int userId, String category,
             boolean validateInstalled) {
         if (!CardEmulation.CATEGORY_PAYMENT.equals(category)) {
             Log.e(TAG, "Not allowing defaults for category " + category);
