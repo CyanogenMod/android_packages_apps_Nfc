@@ -142,11 +142,10 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
 
         if (resolveInfo.services == null || resolveInfo.services.size() == 0) return false;
 
-        if (service.equals(resolveInfo.defaultService)) {
-            return true;
+        if (resolveInfo.defaultService != null) {
+            return service.equals(resolveInfo.defaultService.getComponent());
         } else if (resolveInfo.services.size() == 1) {
-            ApduServiceInfo serviceInfo = resolveInfo.services.get(0);
-            return service.equals(serviceInfo);
+            return service.equals(resolveInfo.services.get(0).getComponent());
         } else {
             // More than one service, not the default
             return false;
@@ -246,7 +245,8 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                 ApduServiceInfo resolvedService = resolvedServices.get(0);
                 Log.d(TAG, "resolveAidLocked: resolved single service " +
                         resolvedService.getComponent());
-                if (resolvedService.equals(defaultComponent)) {
+                if (defaultComponent != null &&
+                        defaultComponent.equals(resolvedService.getComponent())) {
                     if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to (default) " +
                         resolvedService.getComponent());
                     resolveInfo.defaultService = resolvedService;

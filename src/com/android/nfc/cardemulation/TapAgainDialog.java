@@ -26,6 +26,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.NfcAdapter;
+import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.cardemulation.CardEmulation;
 import android.os.Bundle;
 import android.view.Window;
@@ -38,7 +39,8 @@ import com.android.internal.app.AlertController;
 
 public class TapAgainDialog extends AlertActivity implements DialogInterface.OnClickListener {
     public static final String ACTION_CLOSE = "com.android.nfc.cardmeulation.close_tap_dialog";
-    public static final String EXTRA_COMPONENT = "component";
+    public static final String EXTRA_APDU_SERVICE = "apdu_service";
+
     public static final String EXTRA_CATEGORY = "category";
 
     // Variables below only accessed on the main thread
@@ -62,7 +64,7 @@ public class TapAgainDialog extends AlertActivity implements DialogInterface.OnC
         mCardEmuManager = CardEmulation.getInstance(adapter);
         Intent intent = getIntent();
         String category = intent.getStringExtra(EXTRA_CATEGORY);
-        ComponentName component = (ComponentName) intent.getParcelableExtra(EXTRA_COMPONENT);
+        ApduServiceInfo serviceInfo = intent.getParcelableExtra(EXTRA_APDU_SERVICE);
         IntentFilter filter = new IntentFilter(ACTION_CLOSE);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         registerReceiver(mReceiver, filter);
@@ -72,21 +74,25 @@ public class TapAgainDialog extends AlertActivity implements DialogInterface.OnC
         ap.mView = getLayoutInflater().inflate(com.android.nfc.R.layout.tapagain, null);
 
         PackageManager pm = getPackageManager();
-        try {
-            ApplicationInfo appInfo = pm.getApplicationInfo(component.getPackageName(), 0);
-            TextView tv = (TextView) ap.mView.findViewById(com.android.nfc.R.id.textview);
-            if (CardEmulation.CATEGORY_PAYMENT.equals(category)) {
-                String formatString = getString(com.android.nfc.R.string.tap_again_to_pay);
-                tv.setText(String.format(formatString, appInfo.loadLabel(pm)));
+        TextView tv = (TextView) ap.mView.findViewById(com.android.nfc.R.id.textview);
+        String description = serviceInfo.getDescription();
+        if (description == null) {
+            CharSequence label = serviceInfo.loadLabel(pm);
+            if (label == null) {
+                finish();
             } else {
-                String formatString = getString(com.android.nfc.R.string.tap_again_to_complete);
-                tv.setText(String.format(formatString, appInfo.loadLabel(pm)));
+                description = label.toString();
             }
-            ap.mNegativeButtonText = getString(R.string.cancel);
-            setupAlert();
-        } catch (NameNotFoundException e) {
-            finish();
         }
+        if (CardEmulation.CATEGORY_PAYMENT.equals(category)) {
+            String formatString = getString(com.android.nfc.R.string.tap_again_to_pay);
+            tv.setText(String.format(formatString, description));
+        } else {
+            String formatString = getString(com.android.nfc.R.string.tap_again_to_complete);
+            tv.setText(String.format(formatString, description));
+        }
+        ap.mNegativeButtonText = getString(R.string.cancel);
+        setupAlert();
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
     }

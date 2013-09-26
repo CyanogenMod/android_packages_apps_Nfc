@@ -57,4 +57,7 @@
     <string name="pay_with">Pay with</string>
     <!-- Label for a dialog showing a list of applications that can be used to complete the NFC action -->
     <string name="complete_with">Complete with</string>
+    <!-- String that is telling the user that his default app for tap and pay has been removed,
+         and asks him to pick another app as default.-->
+    <string name="default_pay_app_removed">Your preferred service for tap &amp; pay was removed. Choose another?"</string>
 </resources>
