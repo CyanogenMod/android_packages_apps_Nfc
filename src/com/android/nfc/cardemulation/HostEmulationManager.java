@@ -170,18 +170,25 @@ public class HostEmulationManager {
                 mLastSelectedAid = resolveInfo.aid;
                 if (resolveInfo.defaultService != null) {
                     // Resolve to default
-                    resolvedService = resolveInfo.defaultService.getComponent();
                     // Check if resolvedService requires unlock
                     if (resolveInfo.defaultService.requiresUnlock() &&
                             mKeyguard.isKeyguardLocked() && mKeyguard.isKeyguardSecure()) {
                         String category = mAidCache.getCategoryForAid(resolveInfo.aid);
                         // Just ignore all future APDUs until next tap
                         mState = STATE_W4_DEACTIVATE;
-                        launchTapAgain(resolvedService, category);
+                        launchTapAgain(resolveInfo.defaultService, category);
                         return;
                     }
-                    // TODO also handle case where we prefer the bound service?
-                } else {
+                    resolvedService = resolveInfo.defaultService.getComponent();
+                } else if (mActiveServiceName != null) {
+                    for (ApduServiceInfo service : resolveInfo.services) {
+                        if (mActiveServiceName.equals(service.getComponent())) {
+                            resolvedService = mActiveServiceName;
+                            break;
+                        }
+                    }
+                }
+                if (resolvedService == null) {
                     // We have no default, and either one or more services.
                     // Ask the user to confirm.
                     // Get corresponding category
@@ -380,10 +387,10 @@ public class HostEmulationManager {
         }
     }
 
-    void launchTapAgain(ComponentName service, String category) {
+    void launchTapAgain(ApduServiceInfo service, String category) {
         Intent dialogIntent = new Intent(mContext, TapAgainDialog.class);
         dialogIntent.putExtra(TapAgainDialog.EXTRA_CATEGORY, category);
-        dialogIntent.putExtra(TapAgainDialog.EXTRA_COMPONENT, service);
+        dialogIntent.putExtra(TapAgainDialog.EXTRA_APDU_SERVICE, service);
         dialogIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         mContext.startActivityAsUser(dialogIntent, UserHandle.CURRENT);
     }

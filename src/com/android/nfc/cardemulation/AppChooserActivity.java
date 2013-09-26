@@ -140,8 +140,9 @@ public class AppChooserActivity extends AlertActivity
 
             mListView = (ListView) ap.mView.findViewById(com.android.nfc.R.id.resolver_list);
             if (isPayment) {
-                mListView.setDivider(null);
-                mListView.setDividerHeight(0);
+                mListView.setDivider(getResources().getDrawable(android.R.color.transparent));
+                int height = (int) (getResources().getDisplayMetrics().density * 16);
+                mListView.setDividerHeight(height);
             } else {
                 mListView.setPadding(0, 0, 0, 0);
             }
@@ -166,23 +167,23 @@ public class AppChooserActivity extends AlertActivity
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         DisplayAppInfo info = (DisplayAppInfo) mListAdapter.getItem(position);
-        mCardEmuManager.setDefaultForNextTap(info.component);
+        mCardEmuManager.setDefaultForNextTap(info.serviceInfo.getComponent());
         Intent dialogIntent = new Intent(this, TapAgainDialog.class);
         dialogIntent.putExtra(TapAgainDialog.EXTRA_CATEGORY, mCategory);
-        dialogIntent.putExtra(TapAgainDialog.EXTRA_COMPONENT, info.component);
+        dialogIntent.putExtra(TapAgainDialog.EXTRA_APDU_SERVICE, info.serviceInfo);
         startActivity(dialogIntent);
         finish();
     }
 
     final class DisplayAppInfo {
-        ComponentName component;
+        ApduServiceInfo serviceInfo;
         CharSequence displayLabel;
         Drawable displayIcon;
         Drawable displayBanner;
 
-        public DisplayAppInfo(ComponentName component, CharSequence label, Drawable icon,
+        public DisplayAppInfo(ApduServiceInfo serviceInfo, CharSequence label, Drawable icon,
                 Drawable banner) {
-            this.component = component;
+            this.serviceInfo = serviceInfo;
             displayIcon = icon;
             displayLabel = label;
             displayBanner = banner;
@@ -201,7 +202,8 @@ public class AppChooserActivity extends AlertActivity
             mList = new ArrayList<DisplayAppInfo>();
             mIsPayment = CardEmulation.CATEGORY_PAYMENT.equals(mCategory);
             for (ApduServiceInfo service : services) {
-                CharSequence label = service.loadLabel(pm);
+                CharSequence label = service.getDescription();
+                if (label == null) label = service.loadLabel(pm);
                 Drawable icon = service.loadIcon(pm);
                 Drawable banner = null;
                 if (mIsPayment) {
@@ -211,7 +213,7 @@ public class AppChooserActivity extends AlertActivity
                         continue;
                     }
                 }
-                DisplayAppInfo info = new DisplayAppInfo(service.getComponent(), label, icon, banner);
+                DisplayAppInfo info = new DisplayAppInfo(service, label, icon, banner);
                 mList.add(info);
             }
         }

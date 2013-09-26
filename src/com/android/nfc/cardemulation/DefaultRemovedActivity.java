@@ -18,7 +18,7 @@ public class DefaultRemovedActivity extends AlertActivity implements
 
         AlertController.AlertParams ap = mAlertParams;
 
-        ap.mMessage = "Your preferred service for tap and pay was removed. Choose another?";
+        ap.mMessage = getString(com.android.nfc.R.string.default_pay_app_removed);
         ap.mNegativeButtonText = getString(R.string.no);
         ap.mPositiveButtonText = getString(R.string.yes);
         ap.mPositiveButtonListener = this;
