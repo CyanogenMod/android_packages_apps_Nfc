@@ -198,7 +198,6 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             // broadcasts are delayed by 10 seconds in that scenario, which causes
             // calls to our APIs referencing that service to fail.
             // Hence, update the cache in case we don't know about the service.
-            if (DBG) Log.d(TAG, "Didn't find passed in service, invalidating cache.");
             serviceFound = mServiceCache.hasService(userId, service);
         }
         if (!serviceFound) {
