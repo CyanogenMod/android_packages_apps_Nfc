@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Impossibile utilizzare <xliff:g id="APP">%1$s</xliff:g>."</string>
     <string name="pay_with" msgid="5531545488795798945">"Paga con"</string>
     <string name="complete_with" msgid="6797459104103012992">"Completa con"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Il tuo servizio preferito per Tocca e paga è stato rimosso. Vuoi sceglierne un altro?"</string>
 </resources>
