@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"មិន​អាច​ប្រើ <xliff:g id="APP">%1$s</xliff:g> ។"</string>
     <string name="pay_with" msgid="5531545488795798945">"បង់ប្រាក់​ជាមួយ"</string>
     <string name="complete_with" msgid="6797459104103012992">"បំពេញ​ជាមួយ"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"សេវាកម្ម​ដែល​អ្នក​ពេញ​ចិត្ត​សម្រាប់​ប៉ះ &amp; បង់​ប្រាក់​ត្រូវ​បាន​យក​ចេញ។ ជ្រើស​សេវាកម្ម​ផ្សេង?"</string>
 </resources>
