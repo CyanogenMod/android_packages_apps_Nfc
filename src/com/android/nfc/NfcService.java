@@ -29,6 +29,7 @@ import com.android.nfc.cardemulation.RegisteredAidCache;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
 
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
@@ -684,6 +685,8 @@ public class NfcService implements DeviceHostListener {
                     } else {
                         Log.d(TAG,"NFC is off.  Checking firmware version");
                         mDeviceHost.checkFirmware();
+                        // Build initial AID cache even if NFC is off
+                        mAidCache.invalidateCache(ActivityManager.getCurrentUser());
                     }
                     if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
                         Log.i(TAG, "First Boot");
