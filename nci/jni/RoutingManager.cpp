@@ -251,6 +251,7 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
             routingManager.notifyActivated();
         }
         break;
+    case NFA_DEACTIVATED_EVT:
     case NFA_CE_DEACTIVATED_EVT:
         {
             routingManager.notifyDeactivated();
