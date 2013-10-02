@@ -68,6 +68,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     final SettingsObserver mSettingsObserver;
 
     ComponentName mNextTapComponent = null;
+    boolean mNfcEnabled = false;
 
     private final class SettingsObserver extends ContentObserver {
         public SettingsObserver(Handler handler) {
@@ -436,6 +437,10 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     }
 
     void updateRoutingLocked() {
+        if (!mNfcEnabled) {
+            if (DBG) Log.d(TAG, "Not updating routing table because NFC is off.");
+            return;
+        }
         final Set<String> handledAids = new HashSet<String>();
         // For each AID, find interested services
         for (Map.Entry<String, AidResolveInfo> aidEntry:
@@ -577,6 +582,9 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     }
 
     public void onNfcDisabled() {
+        synchronized (mLock) {
+            mNfcEnabled = false;
+        }
         mContext.getContentResolver().unregisterContentObserver(mSettingsObserver);
         mServiceCache.onNfcDisabled();
         mRoutingManager.onNfccRoutingTableCleared();
@@ -587,6 +595,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                 Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
                 true, mSettingsObserver, UserHandle.USER_ALL);
         synchronized (mLock) {
+            mNfcEnabled = true;
             updateFromSettingsLocked(ActivityManager.getCurrentUser());
         }
         mServiceCache.onNfcEnabled();
