@@ -260,7 +260,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             return null;
         }
         AidResolveInfo resolveInfo = new AidResolveInfo();
-        Log.e(TAG, "resolveAidLocked: resolving AID " + aid);
+        if (DBG) Log.d(TAG, "resolveAidLocked: resolving AID " + aid);
         resolveInfo.services = new ArrayList<ApduServiceInfo>();
         resolveInfo.services.addAll(resolvedServices);
         resolveInfo.defaultService = null;
@@ -279,7 +279,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                     + defaultComponent);
             if (resolvedServices.size() == 1) {
                 ApduServiceInfo resolvedService = resolvedServices.get(0);
-                Log.d(TAG, "resolveAidLocked: resolved single service " +
+                if (DBG) Log.d(TAG, "resolveAidLocked: resolved single service " +
                         resolvedService.getComponent());
                 if (defaultComponent != null &&
                         defaultComponent.equals(resolvedService.getComponent())) {
@@ -409,8 +409,6 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     }
 
     boolean updateFromSettingsLocked(int userId) {
-        boolean changed = false;
-
         // Load current payment default from settings
         String name = Settings.Secure.getStringForUser(
                 mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
@@ -418,10 +416,9 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
         ComponentName oldDefault = mCategoryDefaults.put(CardEmulation.CATEGORY_PAYMENT,
                 newDefault);
-        changed |= newDefault != oldDefault;
         if (DBG) Log.d(TAG, "Updating default component to: " + (name != null ?
                 ComponentName.unflattenFromString(name) : "null"));
-        return changed;
+        return newDefault != oldDefault;
     }
 
     void generateAidCacheLocked() {
@@ -539,7 +536,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     void checkDefaultsLocked(int userId, List<ApduServiceInfo> services) {
         ComponentName defaultPaymentService =
                 getDefaultServiceForCategory(userId, CardEmulation.CATEGORY_PAYMENT, false);
-        Log.d(TAG, "Current default: " + defaultPaymentService);
+        if (DBG) Log.d(TAG, "Current default: " + defaultPaymentService);
         if (defaultPaymentService != null) {
             // Validate the default is still installed and handling payment
             ApduServiceInfo serviceInfo = mServiceCache.getService(userId, defaultPaymentService);
@@ -558,6 +555,7 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
             // in that case, automatically set that app as default.
             setDefaultIfNeededLocked(userId, services);
         }
+        updateFromSettingsLocked(userId);
     }
 
     @Override

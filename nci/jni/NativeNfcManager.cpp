@@ -141,7 +141,7 @@ static bool                 sIsSecElemSelected = false;  //has NFC service selec
                                      | NFA_TECHNOLOGY_MASK_F_ACTIVE \
                                      | NFA_TECHNOLOGY_MASK_KOVIO)
 #define DEFAULT_DISCOVERY_DURATION       500
-#define READER_MODE_DISCOVERY_DURATION   100
+#define READER_MODE_DISCOVERY_DURATION   200
 
 static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
@@ -1290,6 +1290,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     sDiscoveryEnabled = false;
     sIsDisabling = false;
     sIsSecElemSelected = false;
+    gActivated = false;
 
     {
         //unblock NFA_EnablePolling() and NFA_DisablePolling()
