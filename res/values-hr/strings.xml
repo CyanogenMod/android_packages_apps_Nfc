@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Upotreba aplikacije <xliff:g id="APP">%1$s</xliff:g> nije uspjela."</string>
     <string name="pay_with" msgid="5531545488795798945">"Plati pomoću aplikacije"</string>
     <string name="complete_with" msgid="6797459104103012992">"Dovrši pomoću aplikacije"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Vaša je odabrana usluga za opciju Dodirni i plati uklonjena. Želite li odabrati drugu?"</string>
 </resources>

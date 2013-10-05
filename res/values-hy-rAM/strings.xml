@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Չկարողացանք օգտագործել <xliff:g id="APP">%1$s</xliff:g> հավելվածը:"</string>
     <string name="pay_with" msgid="5531545488795798945">"Վճարել"</string>
     <string name="complete_with" msgid="6797459104103012992">"Ավարտել"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Հպելու և վճարելու համար ձեր նախընտրած ծառայությունը հեռացվել է: Ընտրե՞լ մեկ ուրիշը:"</string>
 </resources>

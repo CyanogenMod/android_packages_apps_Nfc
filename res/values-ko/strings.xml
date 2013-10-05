@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"<xliff:g id="APP">%1$s</xliff:g>을(를) 사용할 수 없습니다."</string>
     <string name="pay_with" msgid="5531545488795798945">"결제 가능한 애플리케이션"</string>
     <string name="complete_with" msgid="6797459104103012992">"사용 가능한 애플리케이션"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"탭앤페이에 사용하는 기본 서비스가 삭제되었습니다. 다른 앱을 선택하시겠습니까?"</string>
 </resources>

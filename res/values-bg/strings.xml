@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"<xliff:g id="APP">%1$s</xliff:g> не можа да се използва."</string>
     <string name="pay_with" msgid="5531545488795798945">"Плащане със:"</string>
     <string name="complete_with" msgid="6797459104103012992">"Извършване със:"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Предпочитаната от вас услуга за функцията „докоснете и платете“ бе премахната. Ще изберете ли друга?"</string>
 </resources>
