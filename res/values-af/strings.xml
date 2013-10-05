@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Kon nie <xliff:g id="APP">%1$s</xliff:g> gebruik nie."</string>
     <string name="pay_with" msgid="5531545488795798945">"Betaal met"</string>
     <string name="complete_with" msgid="6797459104103012992">"Voltooi met"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Jou voorkeurdiens vir tik en betaal is verwyder. Wil jy \'n ander een kies?"</string>
 </resources>

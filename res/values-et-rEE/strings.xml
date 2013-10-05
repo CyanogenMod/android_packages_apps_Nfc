@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Rakendust <xliff:g id="APP">%1$s</xliff:g> ei saanud kasutada."</string>
     <string name="pay_with" msgid="5531545488795798945">"Maksmine rakendusega"</string>
     <string name="complete_with" msgid="6797459104103012992">"Teostamine rakendusega"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Funktsiooni Puuduta ja maksa eelistatud teenus on eemaldatud. Kas soovite valida teise teenuse?"</string>
 </resources>

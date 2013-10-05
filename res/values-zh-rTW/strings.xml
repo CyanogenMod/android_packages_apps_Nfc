@@ -35,4 +35,5 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"無法使用「<xliff:g id="APP">%1$s</xliff:g>」。"</string>
     <string name="pay_with" msgid="5531545488795798945">"使用以下應用程式完成付款："</string>
     <string name="complete_with" msgid="6797459104103012992">"使用以下應用程式完成操作："</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"您偏好的感應付款服務已遭移除，要選擇其他服務嗎？"</string>
 </resources>
