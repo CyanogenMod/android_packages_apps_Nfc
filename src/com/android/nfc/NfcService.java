@@ -686,7 +686,9 @@ public class NfcService implements DeviceHostListener {
                         Log.d(TAG,"NFC is off.  Checking firmware version");
                         mDeviceHost.checkFirmware();
                         // Build initial AID cache even if NFC is off
-                        mAidCache.invalidateCache(ActivityManager.getCurrentUser());
+                        if (mAidCache != null) {
+                            mAidCache.invalidateCache(ActivityManager.getCurrentUser());
+                        }
                     }
                     if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
                         Log.i(TAG, "First Boot");
