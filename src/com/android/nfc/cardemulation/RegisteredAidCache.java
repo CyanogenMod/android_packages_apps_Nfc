@@ -17,6 +17,8 @@ import android.util.Log;
 
 import com.google.android.collect.Maps;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,7 +31,7 @@ import java.util.TreeMap;
 public class RegisteredAidCache implements RegisteredServicesCache.Callback {
     static final String TAG = "RegisteredAidCache";
 
-    static final boolean DBG = true;
+    static final boolean DBG = false;
 
     // mAidServices is a tree that maps an AID to a list of handling services
     // on Android. It is only valid for the current user.
@@ -100,6 +102,9 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         mServiceCache = new RegisteredServicesCache(context, this);
         mRoutingManager = routingManager;
 
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
+                true, mSettingsObserver, UserHandle.USER_ALL);
         updateFromSettingsLocked(ActivityManager.getCurrentUser());
     }
 
@@ -582,19 +587,46 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         synchronized (mLock) {
             mNfcEnabled = false;
         }
-        mContext.getContentResolver().unregisterContentObserver(mSettingsObserver);
         mServiceCache.onNfcDisabled();
         mRoutingManager.onNfccRoutingTableCleared();
     }
 
     public void onNfcEnabled() {
-        mContext.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
-                true, mSettingsObserver, UserHandle.USER_ALL);
         synchronized (mLock) {
             mNfcEnabled = true;
             updateFromSettingsLocked(ActivityManager.getCurrentUser());
         }
         mServiceCache.onNfcEnabled();
+    }
+
+    String dumpEntry(Map.Entry<String, AidResolveInfo> entry) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("    \"" + entry.getKey() + "\"\n");
+        ApduServiceInfo defaultService = entry.getValue().defaultService;
+        ComponentName defaultComponent = defaultService != null ?
+                defaultService.getComponent() : null;
+
+        for (ApduServiceInfo service : entry.getValue().services) {
+            sb.append("        ");
+            if (service.getComponent().equals(defaultComponent)) {
+                sb.append("*DEFAULT* ");
+            }
+            sb.append(service.getComponent() +
+                    " (Description: " + service.getDescription() + ")\n");
+        }
+        return sb.toString();
+    }
+
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+       mServiceCache.dump(fd, pw, args);
+       pw.println("AID cache entries: ");
+       for (Map.Entry<String, AidResolveInfo> entry : mAidCache.entrySet()) {
+           pw.println(dumpEntry(entry));
+       }
+       pw.println("Category defaults: ");
+       for (Map.Entry<String, ComponentName> entry : mCategoryDefaults.entrySet()) {
+           pw.println("    " + entry.getKey() + "->" + entry.getValue());
+       }
+       pw.println("");
     }
 }
