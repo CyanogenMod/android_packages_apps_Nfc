@@ -28,6 +28,8 @@ import java.util.Set;
 public class AidRoutingManager {
     static final String TAG = "AidRoutingManager";
 
+    static final boolean DBG = false;
+
     // This is the default IsoDep protocol route; it means
     // that for any AID that needs to be routed to this
     // destination, we won't need to add a rule to the routing
@@ -78,7 +80,7 @@ public class AidRoutingManager {
         int route;
         synchronized (mLock) {
             int currentRoute = getRouteForAidLocked(aid);
-            Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current: 0x" +
+            if (DBG) Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current: 0x" +
                     Integer.toHexString(currentRoute));
             route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
             if (route == currentRoute) return true;
@@ -119,7 +121,7 @@ public class AidRoutingManager {
         synchronized (mLock) {
             Integer route = mRouteForAid.get(aid);
             if (route == null) {
-               Log.e(TAG, "removeAid(): No existing route for " + aid);
+               if (DBG) Log.d(TAG, "removeAid(): No existing route for " + aid);
                return false;
             }
             Set<String> aids = mAidRoutingTable.get(route);
@@ -140,7 +142,7 @@ public class AidRoutingManager {
                 NfcService.getInstance().commitRouting();
                 mDirty = false;
             } else {
-                Log.d(TAG, "Not committing routing because table not dirty.");
+                if (DBG) Log.d(TAG, "Not committing routing because table not dirty.");
             }
         }
     }
