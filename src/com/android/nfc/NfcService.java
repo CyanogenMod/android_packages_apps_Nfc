@@ -506,7 +506,7 @@ public class NfcService implements DeviceHostListener {
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         PackageManager pm = mContext.getPackageManager();
-        mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HCE);
+        mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION);
         if (mIsHceCapable) {
             mAidRoutingManager = new AidRoutingManager();
             mAidCache = new RegisteredAidCache(mContext, mAidRoutingManager);
@@ -686,7 +686,7 @@ public class NfcService implements DeviceHostListener {
                         Log.d(TAG,"NFC is off.  Checking firmware version");
                         mDeviceHost.checkFirmware();
                         // Build initial AID cache even if NFC is off
-                        if (mAidCache != null) {
+                        if (mIsHceCapable) {
                             mAidCache.invalidateCache(ActivityManager.getCurrentUser());
                         }
                     }
@@ -2492,7 +2492,7 @@ public class NfcService implements DeviceHostListener {
                 }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 mP2pLinkManager.onUserSwitched();
-                if (mAidCache != null) {
+                if (mIsHceCapable) {
                     mAidCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
                 }
             }
@@ -2554,6 +2554,9 @@ public class NfcService implements DeviceHostListener {
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
             pw.println("mOpenEe=" + mOpenEe);
             mP2pLinkManager.dump(fd, pw, args);
+            if (mIsHceCapable) {
+                mAidCache.dump(fd, pw, args);
+            }
             mNfceeAccessControl.dump(fd, pw, args);
             mNfcDispatcher.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
