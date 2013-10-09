@@ -17,6 +17,7 @@
 package com.android.nfc.cardemulation;
 
 import org.xmlpull.v1.XmlPullParserException;
+
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -36,7 +37,9 @@ import android.util.SparseArray;
 
 import com.google.android.collect.Maps;
 
+import java.io.FileDescriptor;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RegisteredServicesCache {
     static final String TAG = "RegisteredServicesCache";
-    static final boolean DEBUG = true;
+    static final boolean DEBUG = false;
 
     final Context mContext;
     final AtomicReference<BroadcastReceiver> mReceiver;
@@ -89,8 +92,8 @@ public class RegisteredServicesCache {
             public void onReceive(Context context, Intent intent) {
                 final int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
                 String action = intent.getAction();
+                if (DEBUG) Log.d(TAG, "Intent action: " + action);
                 if (uid != -1) {
-                    if (DEBUG) Log.d(TAG, "Intent action: " + action);
                     boolean replaced = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false) &&
                             (Intent.ACTION_PACKAGE_ADDED.equals(action) ||
                              Intent.ACTION_PACKAGE_REMOVED.equals(action));
@@ -108,6 +111,22 @@ public class RegisteredServicesCache {
             }
         };
         mReceiver = new AtomicReference<BroadcastReceiver>(receiver);
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_FIRST_LAUNCH);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_RESTARTED);
+        intentFilter.addDataScheme("package");
+        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, intentFilter, null, null);
+
+        // Register for events related to sdcard operations
+        IntentFilter sdFilter = new IntentFilter();
+        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, sdFilter, null, null);
     }
 
     void dump(ArrayList<ApduServiceInfo> services) {
@@ -155,24 +174,10 @@ public class RegisteredServicesCache {
     }
 
     public void onNfcDisabled() {
-        mContext.unregisterReceiver(mReceiver.get());
+
     }
 
     public void onNfcEnabled() {
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
-        intentFilter.addDataScheme("package");
-        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, intentFilter, null, null);
-
-        // Register for events related to sdcard operations
-        IntentFilter sdFilter = new IntentFilter();
-        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
-        sdFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
-        mContext.registerReceiverAsUser(mReceiver.get(), UserHandle.ALL, sdFilter, null, null);
-
         invalidateCache(ActivityManager.getCurrentUser());
     }
 
@@ -243,5 +248,15 @@ public class RegisteredServicesCache {
 
         mCallback.onServicesUpdated(userId, Collections.unmodifiableList(validServices));
         dump(validServices);
+    }
+
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Registered HCE services for current user: ");
+        UserServices userServices = findOrCreateUserLocked(ActivityManager.getCurrentUser());
+        for (ApduServiceInfo service : userServices.services.values()) {
+            pw.println("    " + service.getComponent() +
+                    " (Description: " + service.getDescription() + ")");
+        }
+        pw.println("");
     }
 }
