@@ -26,7 +26,7 @@
     <string name="pairing_headset" msgid="6443461444755646137">"በማጣመር ላይ"</string>
     <string name="pairing_headset_failed" msgid="6509629663883514688">"ማጣመር አልተቻለም"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"ብሉቱዝ ማንቃት አልተቻለም"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"እርግጠኛ ነህ የብሉቱዝ መሣሪያው <xliff:g id="DEVICE_NAME">%1$s</xliff:g>ን ማጣመር ትፈልጋለህ?"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"እርግጠኛ ንዎት የብሉቱዝ መሣሪያው <xliff:g id="DEVICE_NAME">%1$s</xliff:g>ን ማጣመር ይፈልጋሉ?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"አዎ"</string>
     <string name="pair_no" msgid="5022308368904055020">"የለም"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"በ<xliff:g id="APP">%1$s</xliff:g> ለመክፈል በድጋሚ መታ ያድርጉ"</string>
