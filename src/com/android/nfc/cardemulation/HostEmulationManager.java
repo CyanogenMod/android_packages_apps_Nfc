@@ -60,6 +60,9 @@ public class HostEmulationManager {
 
     static final byte INSTR_SELECT = (byte)0xA4;
 
+    static final String ANDROID_HCE_AID = "A000000476416E64726F6964484345";
+    static final byte[] ANDROID_HCE_RESPONSE = {0x14, (byte)0x81, 0x00, 0x00, (byte)0x90, 0x00};
+
     static final byte[] AID_NOT_FOUND = {0x6A, (byte)0x82};
     static final byte[] UNKNOWN_ERROR = {0x6F, 0x00};
 
@@ -161,6 +164,10 @@ public class HostEmulationManager {
                 return;
             }
             if (selectAid != null) {
+                if (selectAid.equals(ANDROID_HCE_AID)) {
+                    NfcService.getInstance().sendData(ANDROID_HCE_RESPONSE);
+                    return;
+                }
                 AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(selectAid);
                 if (resolveInfo == null || resolveInfo.services.size() == 0) {
                     // Tell the remote we don't handle this AID
@@ -177,6 +184,14 @@ public class HostEmulationManager {
                         // Just ignore all future APDUs until next tap
                         mState = STATE_W4_DEACTIVATE;
                         launchTapAgain(resolveInfo.defaultService, category);
+                        return;
+                    }
+                    // In no circumstance should this be an OffHostService -
+                    // we should never get this AID on the host in the first place
+                    if (!resolveInfo.defaultService.isOnHost()) {
+                        Log.e(TAG, "AID that was meant to go off-host was routed to host." +
+                                " Check routing table configuration.");
+                        NfcService.getInstance().sendData(AID_NOT_FOUND);
                         return;
                     }
                     resolvedService = resolveInfo.defaultService.getComponent();
