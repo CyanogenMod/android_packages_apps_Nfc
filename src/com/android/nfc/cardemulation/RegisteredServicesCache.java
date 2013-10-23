@@ -207,6 +207,14 @@ public class RegisteredServicesCache {
                 boolean onHost = !resolvedOffHostServices.contains(resolvedService);
                 ServiceInfo si = resolvedService.serviceInfo;
                 ComponentName componentName = new ComponentName(si.packageName, si.name);
+                // Check if the package holds the NFC permission
+                if (pm.checkPermission(android.Manifest.permission.NFC, si.packageName) !=
+                        PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Skipping APDU service " + componentName +
+                            ": it does not require the permission " +
+                            android.Manifest.permission.NFC);
+                    continue;
+                }
                 if (!android.Manifest.permission.BIND_NFC_SERVICE.equals(
                         si.permission)) {
                     Log.e(TAG, "Skipping APDU service " + componentName +
