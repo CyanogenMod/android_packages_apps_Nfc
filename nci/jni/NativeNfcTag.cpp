@@ -1305,7 +1305,7 @@ static jboolean nativeNfcTag_doPresenceCheck (JNIEnv*, jobject)
         return JNI_FALSE;
     }
 
-    status = NFA_RwPresenceCheck ();
+    status = NFA_RwPresenceCheck (NFA_RW_PRES_CHK_DEFAULT);
     if (status == NFA_STATUS_OK)
     {
         if (sem_wait (&sPresenceCheckSem))
