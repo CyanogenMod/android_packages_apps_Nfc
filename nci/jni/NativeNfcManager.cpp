@@ -150,8 +150,6 @@ static bool isListenMode(tNFA_ACTIVATED& activated);
 
 static UINT16 sCurrentConfigLen;
 static UINT8 sConfig[256];
-static UINT8 sLongGuardTime[] = { 0x00, 0x20 };
-static UINT8 sDefaultGuardTime[] = { 0x00, 0x11 };
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
@@ -1044,31 +1042,6 @@ TheEnd:
     ALOGD ("%s: exit", __FUNCTION__);
 }
 
-void enableDisableLongGuardTime (bool enable)
-{
-    // TODO
-    // This is basically a work-around for an issue
-    // in BCM20791B5: if a reader is configured as follows
-    // 1) Only polls for NFC-A
-    // 2) Cuts field between polls
-    // 3) Has a short guard time (~5ms)
-    // the BCM20791B5 doesn't wake up when such a reader
-    // is polling it. Unfortunately the default reader
-    // mode configuration on Android matches those
-    // criteria. To avoid the issue, increase the guard
-    // time when in reader mode.
-    //
-    // Proper fix is firmware patch for B5 controllers.
-    SyncEventGuard guard(sNfaSetConfigEvent);
-    tNFA_STATUS stat = NFA_SetConfig(NCI_PARAM_ID_T1T_RDR_ONLY, 2,
-            enable ? sLongGuardTime : sDefaultGuardTime);
-    if (stat == NFA_STATUS_OK)
-        sNfaSetConfigEvent.wait ();
-    else
-        ALOGE("%s: Could not configure longer guard time", __FUNCTION__);
-    return;
-}
-
 void enableDisableLptd (bool enable)
 {
     // This method is *NOT* thread-safe. Right now
@@ -1852,7 +1825,6 @@ static void nfcManager_doEnableReaderMode (JNIEnv*, jobject, jint technologies)
            tech_mask |= NFA_TECHNOLOGY_MASK_KOVIO;
 
         enableDisableLptd(false);
-        enableDisableLongGuardTime(true);
         NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
         restartPollingWithTechMask(tech_mask);
     }
@@ -1868,7 +1840,6 @@ static void nfcManager_doDisableReaderMode (JNIEnv* e, jobject o)
         NFA_EnableListening();
 
         enableDisableLptd(true);
-        enableDisableLongGuardTime(false);
         NFA_SetRfDiscoveryDuration(nat->discovery_duration);
         restartPollingWithTechMask(nat->tech_mask);
     }
