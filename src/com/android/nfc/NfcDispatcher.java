@@ -16,6 +16,7 @@
 
 package com.android.nfc;
 
+import android.nfc.NfcUnlock;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
 
@@ -55,7 +56,7 @@ import java.util.List;
 /**
  * Dispatch of NFC events to start activities
  */
-public class NfcDispatcher {
+class NfcDispatcher {
     static final boolean DBG = true;
     static final String TAG = "NfcDispatcher";
 
@@ -65,6 +66,9 @@ public class NfcDispatcher {
     final ContentResolver mContentResolver;
     final HandoverManager mHandoverManager;
     final String[] mProvisioningMimes;
+    final ScreenStateHelper mScreenStateHelper;
+    final NfcUnlockSettingsService mNfcUnlockSettingsService;
+
 
     // Locked on this
     PendingIntent mOverrideIntent;
@@ -72,13 +76,19 @@ public class NfcDispatcher {
     String[][] mOverrideTechLists;
     boolean mProvisioningOnly;
 
-    public NfcDispatcher(Context context, HandoverManager handoverManager, boolean provisionOnly) {
+    NfcDispatcher(Context context,
+                  HandoverManager handoverManager,
+                  boolean provisionOnly,
+                  NfcUnlockSettingsService nfcUnlockSettingsService) {
         mContext = context;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mContentResolver = context.getContentResolver();
         mHandoverManager = handoverManager;
+        mScreenStateHelper = new ScreenStateHelper(context);
+        mNfcUnlockSettingsService = nfcUnlockSettingsService;
+
         synchronized (this) {
             mProvisioningOnly = provisionOnly;
         }
@@ -202,25 +212,38 @@ public class NfcDispatcher {
 
     /** Returns false if no activities were found to dispatch to */
     public boolean dispatchTag(Tag tag) {
-        NdefMessage message = null;
-        Ndef ndef = Ndef.get(tag);
-        if (ndef != null) {
-            message = ndef.getCachedNdefMessage();
-        }
-        if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
-
         PendingIntent overrideIntent;
         IntentFilter[] overrideFilters;
         String[][] overrideTechLists;
         boolean provisioningOnly;
 
-        DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
         synchronized (this) {
             overrideFilters = mOverrideFilters;
             overrideIntent = mOverrideIntent;
             overrideTechLists = mOverrideTechLists;
             provisioningOnly = mProvisioningOnly;
         }
+
+        if (!provisioningOnly &&
+                mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+            if (!NfcUnlock.getPropertyEnabled()) {
+                return false;
+            }
+
+            if(!mNfcUnlockSettingsService.tryUnlock(ActivityManager.getCurrentUser(), tag)) {
+                return false;
+            }
+        }
+
+        NdefMessage message = null;
+        Ndef ndef = Ndef.get(tag);
+        if (ndef != null) {
+            message = ndef.getCachedNdefMessage();
+        }
+
+        if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
+
+        DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
 
         resumeAppSwitches();
 

@@ -22,6 +22,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.NFC_UNLOCK" />
     <uses-permission android:name="android.permission.BIND_NFC_SERVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.STATUS_BAR" />
