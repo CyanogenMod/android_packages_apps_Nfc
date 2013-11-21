@@ -1148,7 +1148,7 @@ static jint nativeNfcTag_doCheckNdef (JNIEnv* e, jobject, jintArray ndefInfo)
         e->ReleaseIntArrayElements (ndefInfo, ndef, 0);
         status = NFA_STATUS_FAILED;
     }
-    else if (sCheckNdefStatus == NFA_STATUS_TIMEOUT)
+    else if ((sCheckNdefStatus == NFA_STATUS_TIMEOUT) && (NfcTag::getInstance ().getProtocol() == NFC_PROTOCOL_ISO_DEP))
     {
         pn544InteropStopPolling ();
         status = sCheckNdefStatus;
