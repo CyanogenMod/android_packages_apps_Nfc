@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="app_name" msgid="78565911793142902">"سرویس Nfc"</string>
+    <string name="app_name" msgid="78565911793142902">"‏سرویس Nfc"</string>
     <string name="nfcUserLabel" msgid="7708535817084357357">"Nfc"</string>
-    <string name="inbound_me_profile_title" msgid="6146013785225412693">"مخاطب از طریق NFC دریافت شد"</string>
+    <string name="inbound_me_profile_title" msgid="6146013785225412693">"‏مخاطب از طریق NFC دریافت شد"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"برای افزودن این فرد به‌عنوان یک مخاطب، لمس کنید."</string>
-    <string name="outbound_me_profile_title" msgid="2523625031572784769">"تعامل NFC کامل شد"</string>
+    <string name="outbound_me_profile_title" msgid="2523625031572784769">"‏تعامل NFC کامل شد"</string>
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"لمس کنید تا اطلاعات تماس خود را به این فرد بدهید."</string>
-    <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"با NFC فعال شده."</string>
+    <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"‏با NFC فعال شده."</string>
     <string name="touch" msgid="4727218133711188355">"برای پخش، لمس کنید"</string>
     <string name="beam_progress" msgid="7453634884807323920">"در حال دریافت پرتو..."</string>
     <string name="beam_outgoing" msgid="4679536649779123495">"پرتو…"</string>
