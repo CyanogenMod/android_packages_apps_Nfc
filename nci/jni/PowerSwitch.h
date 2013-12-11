@@ -45,6 +45,22 @@ public:
 
     /*******************************************************************************
     **
+    ** Description:     POWER_STATE_OFF: power level is OFF when screen is off.
+    **                  POWER_STATE_FULL: controller is in full-power state when screen is off.
+    **                                    after a period of inactivity, controller goes into snooze
+    **                                    mode.
+    **                  POWER_STATE_CARD_EMULATION: screen-off card-emulation
+    **                                              (CE4/CE3/CE1 modes are used),
+    **
+    *******************************************************************************/
+    enum ScreenOffPowerState {
+        POWER_STATE_OFF = 0,
+        POWER_STATE_FULL = 1,
+        POWER_STATE_CARD_EMULATION = 2
+    };
+
+    /*******************************************************************************
+    **
     ** Description:     DISCOVERY: Discovery is enabled
     **                  SE_ROUTING: Routing to SE is enabled.
     **                  SE_CONNECTED: SE is connected.
@@ -146,6 +162,17 @@ public:
     *******************************************************************************/
     bool setLevel (PowerLevel level);
 
+    /*******************************************************************************
+    **
+    ** Function:        setScreenOffPowerState
+    **
+    ** Description:     Set the controller's screen off power state.
+    **                  state: the desired screen off power state.
+    **
+    ** Returns:         True if ok.
+    **
+    *******************************************************************************/
+    bool setScreenOffPowerState (ScreenOffPowerState state);
 
     /*******************************************************************************
     **
@@ -257,4 +284,17 @@ private:
     **
     *******************************************************************************/
     const char* powerLevelToString (PowerLevel level);
+
+
+    /*******************************************************************************
+    **
+    ** Function:        screenOffPowerStateToString
+    **
+    ** Description:     Decode screen-off power state to a string.
+    **                  state: power state
+    **
+    ** Returns:         Text representation of screen-off power state.
+    **
+    *******************************************************************************/
+    const char* screenOffPowerStateToString (ScreenOffPowerState state);
 };

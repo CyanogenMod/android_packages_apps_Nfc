@@ -212,10 +212,26 @@ bool PowerSwitch::setLevel (PowerLevel newLevel)
         break;
     }
 
+    ALOGD("%s: actual power level=%s", fn, powerLevelToString(mCurrLevel));
+
 TheEnd:
     mMutex.unlock ();
     return retval;
 }
+
+
+bool PowerSwitch::setScreenOffPowerState (ScreenOffPowerState newState)
+{
+    ALOGD ("PowerSwitch::setScreenOffPowerState: level=%s (%u)",
+        screenOffPowerStateToString(newState), newState);
+
+    mMutex.lock ();
+    mDesiredScreenOffPowerState = (int) newState;
+    mMutex.unlock ();
+
+    return true;
+}
+
 
 /*******************************************************************************
 **
@@ -399,6 +415,30 @@ const char* PowerSwitch::powerLevelToString (PowerLevel level)
     }
 }
 
+/*******************************************************************************
+**
+** Function:        screenOffPowerStateToString
+**
+** Description:     Decode power level to a string.
+**                  level: power level.
+**
+** Returns:         Text representation of power level.
+**
+*******************************************************************************/
+const char* PowerSwitch::screenOffPowerStateToString (ScreenOffPowerState state)
+{
+    switch (state)
+    {
+    case POWER_STATE_OFF:
+        return "SOPS-POWER_OFF";
+    case POWER_STATE_FULL:
+        return "SOPS-FULL";
+    case POWER_STATE_CARD_EMULATION:
+        return "SOPS-CARD_EMULATION";
+    default:
+        return "SOPS-unknown????";
+    }
+}
 
 /*******************************************************************************
 **

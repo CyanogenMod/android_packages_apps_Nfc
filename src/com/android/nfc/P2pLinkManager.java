@@ -116,7 +116,7 @@ interface P2pEventListener {
  * Does simple debouncing of the LLCP link - so that even if the link
  * drops and returns the user does not know.
  */
-public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
+class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     static final String TAG = "NfcP2pLinkManager";
     static final boolean DBG = true;
 
@@ -379,12 +379,12 @@ public class P2pLinkManager implements Handler.Callback, P2pEventListener.Callba
         }
     }
 
-    public void onUserSwitched() {
+    public void onUserSwitched(int userId) {
         // Update the cached package manager in case of user switch
         synchronized (P2pLinkManager.this) {
             try {
                 mPackageManager  = mContext.createPackageContextAsUser("android", 0,
-                        new UserHandle(ActivityManager.getCurrentUser())).getPackageManager();
+                        new UserHandle(userId)).getPackageManager();
             } catch (NameNotFoundException e) {
                 Log.e(TAG, "Failed to retrieve PackageManager for user");
             }

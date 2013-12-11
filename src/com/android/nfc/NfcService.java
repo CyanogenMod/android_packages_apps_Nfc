@@ -143,10 +143,14 @@ public class NfcService implements DeviceHostListener {
     static final int EE_ERROR_EXT_FIELD = -5;
     static final int EE_ERROR_NFC_DISABLED = -6;
 
-    /**
-     * minimum screen state that enables NFC polling (discovery)
-     */
-    static final int POLLING_MODE = ScreenStateHelper.SCREEN_STATE_ON_LOCKED;
+    // Polling technology masks
+    static final int NFC_POLL_DEFAULT = 0;
+    static final int NFC_POLL_A = 0x01;
+    static final int NFC_POLL_B = 0x02;
+    static final int NFC_POLL_F = 0x04;
+    static final int NFC_POLL_ISO15693 = 0x08;
+    static final int NFC_POLL_B_PRIME = 0x10;
+    static final int NFC_POLL_KOVIO = 0x20;
 
     // Time to wait for NFC controller to initialize before watchdog
     // goes off. This time is chosen large, because firmware download
@@ -214,6 +218,10 @@ public class NfcService implements DeviceHostListener {
     // fields below must be used only on the UI thread and therefore aren't synchronized
     boolean mP2pStarted = false;
 
+
+    // minimum screen state that enables NFC polling (discovery)
+    private int mPollingMode;
+
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     // mSePackages holds packages that accessed the SE, but only for the owner user,
@@ -267,10 +275,12 @@ public class NfcService implements DeviceHostListener {
     private HostEmulationManager mHostEmulationManager;
     private AidRoutingManager mAidRoutingManager;
     private ScreenStateHelper mScreenStateHelper;
+    private int mUserId;
 
     private NfcUnlockSettingsService mNfcUnlockSettingsService;
 
     private static NfcService sService;
+
 
     public void enforceNfceeAdminPerm(String pkg) {
         if (pkg == null) {
@@ -420,13 +430,13 @@ public class NfcService implements DeviceHostListener {
     }
 
     public NfcService(Application nfcApplication) {
+        mUserId = ActivityManager.getCurrentUser();
         mContext = nfcApplication;
 
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
         mExtrasService = new NfcAdapterExtrasService();
         mCardEmulationService = new CardEmulationService();
-        mNfcUnlockSettingsService = new NfcUnlockSettingsService(mContext);
 
         Log.i(TAG, "Starting NFC service");
 
@@ -435,6 +445,18 @@ public class NfcService implements DeviceHostListener {
         mScreenStateHelper = new ScreenStateHelper(mContext);
         mContentResolver = mContext.getContentResolver();
         mDeviceHost = new NativeNfcManager(mContext, this);
+        mNfcUnlockSettingsService = new NfcUnlockSettingsService(mContext, mDeviceHost,
+                new NfcUnlockSettingsService.NfcUnlockSettingsEventCallback() {
+                    @Override
+                    public void onNfcUnlockEnabledChange(boolean enabled) {
+                        synchronized (NfcService.this) {
+                            mPollingMode = getPollingModeForNfcUnlockState(enabled);
+                        }
+                    }
+                });
+
+        mPollingMode = getPollingModeForNfcUnlockState(
+                mNfcUnlockSettingsService.getNfcUnlockEnabled(mUserId));
 
         mHandoverManager = new HandoverManager(mContext);
         boolean isNfcProvisioningEnabled = false;
@@ -517,6 +539,12 @@ public class NfcService implements DeviceHostListener {
         }
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
+    }
+
+    private int getPollingModeForNfcUnlockState(boolean enabled) {
+        return enabled
+                ? ScreenStateHelper.SCREEN_STATE_ON_LOCKED
+                : ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
     }
 
     void initSoundPool() {
@@ -663,7 +691,7 @@ public class NfcService implements DeviceHostListener {
                         mDeviceHost.checkFirmware();
                         // Build initial AID cache even if NFC is off
                         if (mIsHceCapable) {
-                            mAidCache.invalidateCache(ActivityManager.getCurrentUser());
+                            mAidCache.invalidateCache(getUserId());
                         }
                     }
                     if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
@@ -699,7 +727,10 @@ public class NfcService implements DeviceHostListener {
             try {
                 mRoutingWakeLock.acquire();
                 try {
-                    if (!mDeviceHost.initialize()) {
+                    boolean enableScreenOffSuspendMode = mNfcUnlockSettingsService
+                            .getNfcUnlockEnabled(getUserId());
+
+                    if (!mDeviceHost.initialize(enableScreenOffSuspendMode)) {
                         Log.w(TAG, "Error enabling NFC");
                         updateState(NfcAdapter.STATE_OFF);
                         return false;
@@ -911,6 +942,10 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
+    synchronized int getUserId() {
+        return mUserId;
+    }
+
 
     final class NfcAdapterService extends INfcAdapter.Stub {
         @Override
@@ -1074,7 +1109,7 @@ public class NfcService implements DeviceHostListener {
             mDeviceHost.setP2pInitiatorModes(initiatorModes);
             mDeviceHost.setP2pTargetModes(targetModes);
             mDeviceHost.disableDiscovery();
-            mDeviceHost.enableDiscovery();
+            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
         }
 
         @Override
@@ -1624,7 +1659,7 @@ public class NfcService implements DeviceHostListener {
                 if (handle < 0) {
 
                     if (restorePolling) {
-                        mDeviceHost.enableDiscovery();
+                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
                         mNfcPollingEnabled = true;
                     }
                     return handle;
@@ -1860,7 +1895,7 @@ public class NfcService implements DeviceHostListener {
                      * The async LLCP callback will crash since the routing code
                      * is overwriting globals it relies on.
                      */
-                    if (POLLING_MODE > ScreenStateHelper.SCREEN_STATE_OFF) {
+                    if (getPollingMode() > ScreenStateHelper.SCREEN_STATE_OFF) {
                         if (force || mNfcPollingEnabled) {
                             Log.d(TAG, "NFC-C OFF, disconnect");
                             mNfcPollingEnabled = false;
@@ -1909,11 +1944,23 @@ public class NfcService implements DeviceHostListener {
                 }
 
                 // configure NFC-C polling
-                if (mScreenState >= POLLING_MODE) {
+                if (!mInProvisionMode && mScreenState >= getPollingMode()) {
                     if (force || !mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C ON");
                         mNfcPollingEnabled = true;
-                        mDeviceHost.enableDiscovery();
+
+                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+                            mDeviceHost.enableDiscovery(
+                                    mNfcUnlockSettingsService.getRegisteredTechMask(getUserId()),
+                                    false);
+                        } else {
+                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                        }
+                    } else if (mNfcPollingEnabled) {
+                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
+                            mDeviceHost.disableDiscovery();
+                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                        }
                     }
                     if (mReaderModeParams != null && !mReaderModeEnabled) {
                         mReaderModeEnabled = true;
@@ -1929,7 +1976,7 @@ public class NfcService implements DeviceHostListener {
                     if (!mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C ON");
                         mNfcPollingEnabled = true;
-                        mDeviceHost.enableDiscovery();
+                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
                     }
                 } else {
                     if (force || mNfcPollingEnabled) {
@@ -2498,9 +2545,13 @@ public class NfcService implements DeviceHostListener {
                     new EnableDisableTask().execute(TASK_ENABLE);
                 }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
-                mP2pLinkManager.onUserSwitched();
+                int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0);
+                synchronized (this) {
+                    mUserId = userId;
+                }
+                mP2pLinkManager.onUserSwitched(getUserId());
                 if (mIsHceCapable) {
-                    mAidCache.invalidateCache(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0));
+                    mAidCache.invalidateCache(getUserId());
                 }
             }
         }
@@ -2559,6 +2610,11 @@ public class NfcService implements DeviceHostListener {
             pw.println(mDeviceHost.dump());
 
         }
+    }
+
+
+    private synchronized int getPollingMode() {
+        return mPollingMode;
     }
 
 }

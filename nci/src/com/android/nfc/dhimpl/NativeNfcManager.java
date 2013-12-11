@@ -56,6 +56,7 @@ public class NativeNfcManager implements DeviceHost {
         System.loadLibrary("nfc_nci_jni");
     }
 
+
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
@@ -64,6 +65,7 @@ public class NativeNfcManager implements DeviceHost {
 
     private final DeviceHostListener mListener;
     private final Context mContext;
+
 
     public NativeNfcManager(Context context, DeviceHostListener listener) {
         mListener = listener;
@@ -82,10 +84,10 @@ public class NativeNfcManager implements DeviceHost {
         doDownload();
     }
 
-    private native boolean doInitialize();
+    private native boolean doInitialize(boolean enableScreenOffSuspend);
 
     @Override
-    public boolean initialize() {
+    public boolean initialize(boolean enableScreenOffSuspend) {
         SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
@@ -97,7 +99,7 @@ public class NativeNfcManager implements DeviceHost {
             } catch (InterruptedException e) { }
         }
 
-        return doInitialize();
+        return doInitialize(enableScreenOffSuspend);
     }
 
     private native boolean doDeinitialize();
@@ -128,7 +130,7 @@ public class NativeNfcManager implements DeviceHost {
     public native boolean unrouteAid(byte[] aid);
 
     @Override
-    public native void enableDiscovery();
+    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
 
     @Override
     public native void disableDiscovery();
@@ -340,6 +342,20 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public boolean disableReaderMode() {
         doDisableReaderMode();
+        return true;
+    }
+
+    private native void doEnableScreenOffSuspend();
+    @Override
+    public boolean enableScreenOffSuspend() {
+        doEnableScreenOffSuspend();
+        return true;
+    }
+
+    private native void doDisableScreenOffSuspend();
+    @Override
+    public boolean disableScreenOffSuspend() {
+        doDisableScreenOffSuspend();
         return true;
     }
 

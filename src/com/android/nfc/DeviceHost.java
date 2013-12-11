@@ -181,21 +181,21 @@ public interface DeviceHost {
     /**
      * Called at boot if NFC is disabled to give the device host an opportunity
      * to check the firmware version to see if it needs updating. Normally the firmware version
-     * is checked during {@link #initialize()}, but the firmware may need to be updated after
-     * an OTA update.
+     * is checked during {@link #initialize(boolean enableScreenOffSuspend)},
+     * but the firmware may need to be updated after an OTA update.
      *
      * <p>This is called from a thread
      * that may block for long periods of time during the update process.
      */
     public void checkFirmware();
 
-    public boolean initialize();
+    public boolean initialize(boolean enableSnoozeMode);
 
     public boolean deinitialize();
 
     public String getName();
 
-    public void enableDiscovery();
+    public void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
 
     public void disableDiscovery();
 
@@ -259,4 +259,8 @@ public interface DeviceHost {
     boolean enableReaderMode(int technologies);
 
     boolean disableReaderMode();
+
+    boolean enableScreenOffSuspend();
+
+    boolean disableScreenOffSuspend();
 }
