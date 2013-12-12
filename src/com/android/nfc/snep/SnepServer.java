@@ -211,9 +211,8 @@ public final class SnepServer {
                         LlcpSocket communicationSocket = serverSocket.accept();
                         if (DBG) Log.d(TAG, "accept returned " + communicationSocket);
                         if (communicationSocket != null) {
-                            int miu = communicationSocket.getRemoteMiu();
                             int fragmentLength = (mFragmentLength == -1) ?
-                                    miu : Math.min(miu, mFragmentLength);
+                                    mMiu : Math.min(mMiu, mFragmentLength);
                             new ConnectionThread(communicationSocket, fragmentLength).start();
                         }
 
