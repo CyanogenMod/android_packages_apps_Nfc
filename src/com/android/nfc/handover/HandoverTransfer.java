@@ -102,6 +102,7 @@ public class HandoverTransfer implements Handler.Callback,
     final NotificationManager mNotificationManager;
     final BluetoothDevice mRemoteDevice;
     final Callback mCallback;
+    final Long mStartTime;
 
     // Variables below are only accessed on the main thread
     int mState;
@@ -145,6 +146,8 @@ public class HandoverTransfer implements Handler.Callback,
         mHandler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
+
+        mStartTime = System.currentTimeMillis();
     }
 
     void whitelistOppDevice(BluetoothDevice device) {
@@ -228,7 +231,7 @@ public class HandoverTransfer implements Handler.Callback,
 
     void updateNotification() {
         Builder notBuilder = new Notification.Builder(mContext);
-
+        notBuilder.setWhen(mStartTime);
         String beamString;
         if (mIncoming) {
             beamString = mContext.getString(R.string.beam_progress);
