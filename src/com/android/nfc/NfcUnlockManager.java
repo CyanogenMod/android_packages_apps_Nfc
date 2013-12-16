@@ -16,12 +16,9 @@
 
 package com.android.nfc;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteOpenHelper;
 import android.nfc.Tag;
+import android.nfc.tech.TagTechnology;
 import android.provider.Settings;
 import android.text.format.Time;
 import android.util.AtomicFile;
@@ -31,7 +28,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -52,6 +52,7 @@ class NfcUnlockManager {
 
     private static final String TAG_KEY = "tag";
     private static final String TIMESTAMP_KEY = "timestamp";
+    private static final String TECH_KEY = "tech";
 
     private static final String NFC_LOCK_FILE_FORMAT = "/%d.nfclock.key";
 
@@ -64,7 +65,7 @@ class NfcUnlockManager {
     }
 
     boolean canUnlock(int userId, Tag tag) {
-        String hashedTagId = hashTagId(tag.getId());
+        String hashedTagId = hashTag(tag.getId());
 
         if (hashedTagId == null) {
             return false;
@@ -78,7 +79,7 @@ class NfcUnlockManager {
     }
 
     boolean registerTag(int userId, Tag tag) {
-        String hashedTagId = hashTagId(tag.getId());
+        String hashedTagId = hashTag(tag.getId());
 
         if (hashedTagId == null) {
             return false;
@@ -91,8 +92,12 @@ class NfcUnlockManager {
             if (unlockSettings.containsTag(hashedTagId)) {
                 return true;
             }
-
-            unlockSettings.addTag(hashedTagId);
+            try {
+                unlockSettings.addTag(hashedTagId, tag.getTechCodeList());
+            } catch (IllegalArgumentException ex) {
+                Log.e(TAG, "registerTag failed", ex);
+                return false;
+            }
 
             try {
                 // TODO: consider writing in a thread
@@ -146,43 +151,54 @@ class NfcUnlockManager {
         }
     }
 
-    // TODO: consider using SQLite DB and loading all files on startup.
-    private UnlockSettings loadUnlockSettings(int userId) {
-        Log.i(TAG, "Loading config...");
-        AtomicFile nfcLockFile = null;
-        List<String> tagList = new ArrayList<String>();
-        List<Long>  timestamps = new ArrayList<Long>();
+    public boolean deregisterTag(int userId, long timestamp) {
+        UnlockSettings unlockSettings = maybeLoadUnlockSettings(userId);
 
-        try {
-            nfcLockFile = new AtomicFile(new File(getNfcLockFile(userId)));
-
-            byte[] bytes = nfcLockFile.readFully();
-            JSONArray tagArray = new JSONArray(new String(bytes));
-
-            for (int i = 0; i < tagArray.length(); ++i) {
+        synchronized (unlockSettings) {
+            if (unlockSettings.removeTag(timestamp)) {
                 try {
-                    JSONObject tagAndTimestamp = tagArray.getJSONObject(i);
-                    String tag = tagAndTimestamp.getString(TAG_KEY);
-                    String time = tagAndTimestamp.getString(TIMESTAMP_KEY);
-                    long timeMillis = Long.parseLong(time);
-                    tagList.add(tag);
-                    timestamps.add(timeMillis);
-                } catch (JSONException ex) {
-                    Log.e(TAG, "Encountered corrupt data. Skipping.", ex);
-                } catch (NumberFormatException ex) {
-                    Log.e(TAG, "Encountered corrupt timestamp. Skipping.", ex);
+                    // TODO: consider writing in a thread
+                    writeUnlockSettings(userId, unlockSettings);
+                    return true;
+                } catch (IOException ex) {
+                    Log.e(TAG, "Failed to persist unlock settings changes.", ex);
+                    return false;
+                } catch (IllegalStateException ex) {
+                    Log.e(TAG, "Settings corrupted, unable to persist changes.");
+                    return false;
                 }
             }
-
-        } catch (FileNotFoundException ex) {
-            Log.i(TAG, "NFC Lock file not found");
-        } catch (IOException ex) {
-            Log.e(TAG, "Failed to read from NFC lock file", ex);
-        } catch (JSONException e) {
-            // No tags are registered
         }
 
-        return new UnlockSettings(tagList, timestamps);
+        return false;
+    }
+
+    public int getRegisteredTechMask(int userId) {
+        UnlockSettings unlockSettings = maybeLoadUnlockSettings(userId);
+        return unlockSettings.getTechMask();
+    }
+
+
+    private String getNfcLockFile(int userId) throws  IOException {
+        return mContext.getFilesDir().getAbsolutePath()
+                .concat(String.format(NFC_LOCK_FILE_FORMAT, userId));
+    }
+
+    private static String hashTag(byte[] tagId) {
+        String algo = null;
+        byte[] sha1;
+        byte[] md5;
+
+        try {
+            sha1 = MessageDigest.getInstance(algo = "SHA-1").digest(tagId);
+            md5 = MessageDigest.getInstance(algo = "MD5").digest(tagId);
+        } catch (NoSuchAlgorithmException ex) {
+            Log.e(TAG, "Failed to encode tag due to missing algo: " + algo);
+            return null;
+        }
+
+        return Base64.encodeToString(sha1, Base64.DEFAULT)
+                + Base64.encodeToString(md5, Base64.DEFAULT);
     }
 
     private void writeUnlockSettings(int userId, UnlockSettings unlockSettings)
@@ -214,108 +230,131 @@ class NfcUnlockManager {
         }
     }
 
-    private String getNfcLockFile(int userId) throws  IOException {
-        return mContext.getFilesDir().getAbsolutePath()
-                .concat(String.format(NFC_LOCK_FILE_FORMAT, userId));
-    }
 
-    private static String hashTagId(byte[] tagId) {
-        String algo = null;
-        byte[] sha1;
-        byte[] md5;
+    // TODO: consider using SQLite DB and loading all files on startup.
+    private UnlockSettings loadUnlockSettings(int userId) {
+        Log.i(TAG, "Loading config...");
+        AtomicFile nfcLockFile = null;
+        List<String> tagList = new ArrayList<String>();
+        List<Long>  timestamps = new ArrayList<Long>();
+        List<Integer> technologies = new ArrayList<Integer>();
 
         try {
-            sha1 = MessageDigest.getInstance(algo = "SHA-1").digest(tagId);
-            md5 = MessageDigest.getInstance(algo = "MD5").digest(tagId);
-        } catch (NoSuchAlgorithmException ex) {
-            Log.e(TAG, "Failed to encode tag due to missing algo: " + algo);
-            return null;
-        }
+            nfcLockFile = new AtomicFile(new File(getNfcLockFile(userId)));
 
-        return Base64.encodeToString(sha1, Base64.DEFAULT)
-                + Base64.encodeToString(md5, Base64.DEFAULT);
-    }
+            byte[] bytes = nfcLockFile.readFully();
+            JSONArray tagArray = new JSONArray(new String(bytes));
 
-    public boolean deregisterTag(int userId, long timestamp) {
-        UnlockSettings unlockSettings = maybeLoadUnlockSettings(userId);
-
-        synchronized (unlockSettings) {
-            if (unlockSettings.removeTag(timestamp)) {
+            for (int i = 0; i < tagArray.length(); ++i) {
                 try {
-                    // TODO: consider writing in a thread
-                    writeUnlockSettings(userId, unlockSettings);
-                    return true;
-                } catch (IOException ex) {
-                    Log.e(TAG, "Failed to persist unlock settings changes.", ex);
-                    return false;
-                } catch (IllegalStateException ex) {
-                    Log.e(TAG, "Settings corrupted, unable to persist changes.");
-                    return false;
+                    JSONObject tagData = tagArray.getJSONObject(i);
+                    String tag = tagData.getString(TAG_KEY);
+                    String time = tagData.getString(TIMESTAMP_KEY);
+                    int technology = tagData.getInt(TECH_KEY);
+                    long timeMillis = Long.parseLong(time);
+                    tagList.add(tag);
+                    timestamps.add(timeMillis);
+                    technologies.add(technology);
+                } catch (JSONException ex) {
+                    Log.e(TAG, "Encountered corrupt data. Skipping.", ex);
+                } catch (NumberFormatException ex) {
+                    Log.e(TAG, "Encountered corrupt timestamp. Skipping.", ex);
                 }
             }
+
+        } catch (FileNotFoundException ex) {
+            Log.i(TAG, "NFC Lock file not found");
+        } catch (IOException ex) {
+            Log.e(TAG, "Failed to read from NFC lock file", ex);
+        } catch (JSONException e) {
+            // No tags are registered
         }
 
-        return false;
+        return new UnlockSettings(tagList, timestamps, technologies);
     }
 
     private class UnlockSettings {
+        private final Map<Integer, Integer> TECH_CODE_TO_MASK = new HashMap<Integer, Integer>();
 
-        private final List<String> tags;
-        private final Set<String> tagSet;
-        private final List<Long> timestamps;
+        private final List<String> mTags;
+        private final Set<String> mTagSet;
+        private final List<Long> mTimestamps;
+        private final List<Integer> mTechList;
 
+        private int mTechMask;
 
-        UnlockSettings(List<String> tags, List<Long> timestamps) {
-            this.tags = tags;
-            this.timestamps = timestamps;
-            this.tagSet = new HashSet<String>(tags);
+        UnlockSettings(List<String> tags, List<Long> timestamps, List<Integer> technologies) {
+            this.mTags = tags;
+            this.mTimestamps = timestamps;
+            this.mTagSet = new HashSet<String>(tags);
+            this.mTechList = new ArrayList<Integer>(technologies);
+
+            computeTechMask();
+
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_A, NfcService.NFC_POLL_A);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_B,
+                    NfcService.NFC_POLL_B | NfcService.NFC_POLL_B_PRIME);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_V, NfcService.NFC_POLL_ISO15693);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_F, NfcService.NFC_POLL_F);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_BARCODE, NfcService.NFC_POLL_KOVIO);
         }
 
         List<Long> getTimestamps() {
-            return new ArrayList<Long>(timestamps);
+            return new ArrayList<Long>(mTimestamps);
         }
 
-        void addTag(String tag) {
+        void addTag(String tag, int[] techList) throws IllegalArgumentException {
 
-            if (tagSet.contains(tag)) {
+            if (mTagSet.contains(tag)) {
                 return;
             }
 
-            tags.add(tag);
-            tagSet.add(tag);
+            populateTechList(techList);
+
+            mTags.add(tag);
+            mTagSet.add(tag);
             Time time = new Time();
             time.setToNow();
-            timestamps.add(time.toMillis(true));
+            mTimestamps.add(time.toMillis(true));
+        }
+
+        int getTechMask() {
+            return mTechMask;
         }
 
         boolean removeTag(long timestamp) {
-            int tagIndex = timestamps.indexOf(timestamp);
+            int tagIndex = mTimestamps.indexOf(timestamp);
 
             if (tagIndex < 0) {
                 return false;
             }
 
-            String toRemove = tags.get(tagIndex);
+            String toRemove = mTags.get(tagIndex);
 
-            tags.remove(tagIndex);
-            timestamps.remove(tagIndex);
-            tagSet.remove(toRemove);
+            mTags.remove(tagIndex);
+            mTimestamps.remove(tagIndex);
+            mTechList.remove(tagIndex);
+            mTagSet.remove(toRemove);
+
+            computeTechMask();
 
             return true;
         }
 
+
         boolean containsTag(String tag) {
-            return tags.contains(tag);
+            return mTags.contains(tag);
         }
 
         JSONArray toJSONArray() throws IllegalStateException {
             JSONArray unlockSettings = new JSONArray();
 
-            for (int i = 0; i < tags.size(); ++i) {
+            for (int i = 0; i < mTags.size(); ++i) {
                 JSONObject thisTag = new JSONObject();
                 try {
-                    thisTag.put(TAG_KEY, tags.get(i));
-                    thisTag.put(TIMESTAMP_KEY, timestamps.get(i));
+                    thisTag.put(TAG_KEY, mTags.get(i));
+                    thisTag.put(TIMESTAMP_KEY, mTimestamps.get(i));
+                    thisTag.put(TECH_KEY, mTechList.get(i));
 
                     unlockSettings.put(thisTag);
                 } catch (JSONException ex) {
@@ -326,5 +365,36 @@ class NfcUnlockManager {
 
             return unlockSettings;
         }
+
+        private void populateTechList(int[] techList) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < techList.length; i++) {
+                if (TECH_CODE_TO_MASK.containsKey(techList[i])) {
+                    int mask = TECH_CODE_TO_MASK.get(techList[i]);
+                    mTechList.add(mask);
+                    mTechMask |= mask;
+                    return;
+                }
+                builder.append(techList[i] + ",");
+            }
+
+            String technologies = builder.toString();
+            throw new IllegalArgumentException(
+                    String.format(
+                            "No supported technologies found in set [%s]. Refusing to add tag.",
+                            technologies.substring(0, technologies.length() - 1)));
+        }
+
+
+        private void computeTechMask() {
+            int techMask = 0;
+
+            for (int mask : mTechList) {
+                techMask |= mask;
+            }
+
+            mTechMask = techMask;
+        }
     }
 }
+

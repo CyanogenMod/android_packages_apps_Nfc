@@ -134,7 +134,7 @@ public class NativeNfcManager implements DeviceHost {
     private native boolean doInitialize();
 
     @Override
-    public boolean initialize() {
+    public boolean initialize(boolean enableScreenOffSuspendUnused) {
         SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
@@ -186,7 +186,7 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
-    public native void enableDiscovery();
+    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
 
     @Override
     public native void disableDiscovery();
@@ -368,6 +368,20 @@ public class NativeNfcManager implements DeviceHost {
     private native void doDisableReaderMode();
     public boolean disableReaderMode() {
         doDisableReaderMode();
+        return true;
+    }
+
+    @Override
+    public boolean enableScreenOffSuspend() {
+        // Snooze mode not supported on NXP silicon
+        Log.i(TAG, "Snooze mode is not supported on NXP NFCC");
+        return false;
+    }
+
+    @Override
+    public boolean disableScreenOffSuspend() {
+        // Snooze mode not supported on NXP silicon
+        Log.i(TAG, "Snooze mode is not supported on NXP NFCC");
         return true;
     }
 

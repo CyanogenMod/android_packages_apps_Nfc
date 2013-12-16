@@ -22,24 +22,37 @@ import android.nfc.INfcUnlockSettings;
 import android.nfc.NfcUnlock;
 import android.nfc.Tag;
 import android.os.RemoteException;
-import android.util.Log;
 
 final class NfcUnlockSettingsService extends INfcUnlockSettings.Stub {
 
+    interface NfcUnlockSettingsEventCallback {
+
+        /**
+         * Called when NFC Unlock is turned on (enabled=true) or off (enabled=false).
+         */
+        void onNfcUnlockEnabledChange(boolean enabled);
+    }
+
+
     private static final String TAG = "NfcUnlockSettingsService";
 
-    private final NfcUnlockManager mUnlockHelper;
+    private final NfcUnlockManager mUnlockManager;
     private final Context mContext;
+    private final DeviceHost mDeviceHost;
+    private NfcUnlockSettingsEventCallback mCallback;
 
-    NfcUnlockSettingsService(Context context) {
+    NfcUnlockSettingsService(Context context, DeviceHost deviceHost,
+                             NfcUnlockSettingsEventCallback callback) {
         this.mContext = context;
-        this.mUnlockHelper = new NfcUnlockManager(mContext);
+        this.mUnlockManager = new NfcUnlockManager(mContext);
+        this.mDeviceHost = deviceHost;
+        this.mCallback = callback;
     }
 
     @Override
     public boolean tryUnlock(int userId, Tag tag) {
         NfcPermissions.enforceAdminPermissions(mContext);
-        if (mUnlockHelper.canUnlock(userId, tag) && mUnlockHelper.getNfcUnlockEnabled(userId)) {
+        if (mUnlockManager.canUnlock(userId, tag) && mUnlockManager.getNfcUnlockEnabled(userId)) {
             mContext.sendBroadcast(new Intent().setAction(NfcUnlock.ACTION_NFC_UNLOCK));
             return true;
         }
@@ -50,31 +63,44 @@ final class NfcUnlockSettingsService extends INfcUnlockSettings.Stub {
     @Override
     public boolean registerTag(int userId, Tag tag) {
         NfcPermissions.enforceAdminPermissions(mContext);
-        return mUnlockHelper.registerTag(userId, tag);
+        return mUnlockManager.registerTag(userId, tag);
     }
 
     @Override
     public boolean deregisterTag(int userId, long timestamp) {
         NfcPermissions.enforceAdminPermissions(mContext);
-        return mUnlockHelper.deregisterTag(userId, timestamp);
+        return mUnlockManager.deregisterTag(userId, timestamp);
     }
 
     @Override
     public long[] getTagRegistryTimes(int userId) {
         NfcPermissions.enforceAdminPermissions(mContext);
-        return mUnlockHelper.getTagRegistryTimes(userId);
+        return mUnlockManager.getTagRegistryTimes(userId);
     }
 
     @Override
     public boolean getNfcUnlockEnabled(int userId) {
         NfcPermissions.enforceUserPermissions(mContext);
-        return mUnlockHelper.getNfcUnlockEnabled(userId);
+        return mUnlockManager.getNfcUnlockEnabled(userId);
     }
 
     @Override
     public void setNfcUnlockEnabled(int userId, boolean enabled) throws RemoteException {
         NfcPermissions.enforceAdminPermissions(mContext);
-        mUnlockHelper.setNfcUnlockEnabled(userId, enabled);
+
+        if (enabled) {
+            mDeviceHost.enableScreenOffSuspend();
+        } else {
+            mDeviceHost.disableScreenOffSuspend();
+        }
+
+        mCallback.onNfcUnlockEnabledChange(enabled);
+        mUnlockManager.setNfcUnlockEnabled(userId, enabled);
+
+    }
+
+    int getRegisteredTechMask(int userId) {
+        return mUnlockManager.getRegisteredTechMask(userId);
     }
 
 }

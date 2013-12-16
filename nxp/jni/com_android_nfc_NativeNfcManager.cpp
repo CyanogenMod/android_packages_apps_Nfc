@@ -1446,7 +1446,10 @@ static void com_android_nfc_NfcManager_disableDiscovery(JNIEnv *e, jobject o)
 
 }
 
-static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o) {
+// TODO: use enable_lptd
+static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o, jint modes,
+        jboolean enable_lptd)
+{
     NFCSTATUS ret;
     struct nfc_jni_native_data *nat;
 
@@ -1475,6 +1478,16 @@ static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o) {
       nat->registry_info.ISO14443_4B==TRUE?"4B":"",
       nat->registry_info.NFC==TRUE?"P2P":"",
       nat->registry_info.ISO15693==TRUE?"R":"", ret);
+
+
+      if (modes != 0)
+      {
+          nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443A = (modes & 0x01) != 0;
+          nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso14443B = (modes & 0x02) != 0;
+          nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica212 = (modes & 0x04) != 0;
+          nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableFelica424 = (modes & 0x04) != 0;
+          nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = (modes & 0x08) != 0;
+      }
 
     nfc_jni_start_discovery_locked(nat, false);
 clean_and_return:
@@ -2615,7 +2628,7 @@ static JNINativeMethod gMethods[] =
    {"doDeinitialize", "()Z",
       (void *)com_android_nfc_NfcManager_deinitialize},
 
-   {"enableDiscovery", "()V",
+   {"enableDiscovery", "(IZ)V",
       (void *)com_android_nfc_NfcManager_enableDiscovery},
 
    {"doGetSecureElementList", "()[I",

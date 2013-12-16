@@ -147,6 +147,7 @@ static void nfaConnectionCallback (UINT8 event, tNFA_CONN_EVT_DATA *eventData);
 static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventData);
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
 static bool isListenMode(tNFA_ACTIVATED& activated);
+static void enableDisableLptd (bool enable);
 
 static UINT16 sCurrentConfigLen;
 static UINT8 sConfig[256];
@@ -820,11 +821,13 @@ static jboolean nfcManager_unrouteAid (JNIEnv* e, jobject, jbyteArray aid)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
+static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o, jboolean snooze_mode)
 {
     ALOGD ("%s: enter; ver=%s nfa=%s NCI_VERSION=0x%02X",
         __FUNCTION__, nfca_version_string, nfa_version_string, NCI_VERSION);
     tNFA_STATUS stat = NFA_STATUS_OK;
+
+    PowerSwitch & powerSwitch = PowerSwitch::getInstance ();
 
     if (sIsNfaEnabled)
     {
@@ -832,7 +835,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         goto TheEnd;
     }
 
-    PowerSwitch::getInstance ().initialize (PowerSwitch::FULL_POWER);
+    powerSwitch.initialize (PowerSwitch::FULL_POWER);
 
     {
         unsigned long num = 0;
@@ -843,6 +846,12 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         {
             SyncEventGuard guard (sNfaEnableEvent);
             tHAL_NFC_ENTRY* halFuncEntries = theInstance.GetHalEntryFuncs ();
+
+            if (snooze_mode)
+            {
+                powerSwitch.setScreenOffPowerState (
+                    PowerSwitch::POWER_STATE_FULL);
+            }
 
             NFA_Init (halFuncEntries);
 
@@ -923,18 +932,22 @@ TheEnd:
 ** Description:     Start polling and listening for devices.
 **                  e: JVM environment.
 **                  o: Java object.
-**                  mode: Not used.
+**                  technologies_mask: the bitmask of technologies for which to enable discovery
+**                  enable_lptd: whether to enable low power polling (default: false)
 **
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
+static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_mask, \
+    jboolean enable_lptd)
 {
     tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
     struct nfc_jni_native_data *nat = getNative(e, o);
 
-    if (nat)
+    if (technologies_mask == 0 && nat)
         tech_mask = (tNFA_TECHNOLOGY_MASK)nat->tech_mask;
+    else if (technologies_mask != 0)
+        tech_mask = (tNFA_TECHNOLOGY_MASK) technologies_mask;
 
     ALOGD ("%s: enter; tech_mask = %02x", __FUNCTION__, tech_mask);
 
@@ -954,6 +967,9 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o)
         // Stop RF discovery to reconfigure
         startRfDiscovery(false);
     }
+
+
+    enableDisableLptd(enable_lptd);
 
     {
         SyncEventGuard guard (sNfaEnableDisablePollingEvent);
@@ -1845,6 +1861,15 @@ static void nfcManager_doDisableReaderMode (JNIEnv* e, jobject o)
     }
 }
 
+static void nfcManager_doEnableScreenOffSuspend(JNIEnv* e, jobject o)
+{
+    PowerSwitch::getInstance().setScreenOffPowerState(PowerSwitch::POWER_STATE_FULL);
+}
+
+static void nfcManager_doDisableScreenOffSuspend(JNIEnv* e, jobject o)
+{
+    PowerSwitch::getInstance().setScreenOffPowerState(PowerSwitch::POWER_STATE_OFF);
+}
 
 /*****************************************************************************
 **
@@ -1859,7 +1884,7 @@ static JNINativeMethod gMethods[] =
     {"initializeNativeStructure", "()Z",
             (void*) nfcManager_initNativeStruc},
 
-    {"doInitialize", "()Z",
+    {"doInitialize", "(Z)Z",
             (void*) nfcManager_doInitialize},
 
     {"doDeinitialize", "()Z",
@@ -1874,7 +1899,7 @@ static JNINativeMethod gMethods[] =
     {"unrouteAid", "([B)Z",
             (void*) nfcManager_unrouteAid},
 
-    {"enableDiscovery", "()V",
+    {"enableDiscovery", "(IZ)V",
             (void*) nfcManager_enableDiscovery},
 
     {"enableRoutingToHost", "()V",
@@ -1936,6 +1961,12 @@ static JNINativeMethod gMethods[] =
 
     {"doDisableReaderMode", "()V",
             (void *)nfcManager_doDisableReaderMode},
+
+    {"doEnableScreenOffSuspend", "()V",
+            (void *)nfcManager_doEnableScreenOffSuspend},
+
+    {"doDisableScreenOffSuspend", "()V",
+            (void *)nfcManager_doDisableScreenOffSuspend},
 
     {"doDump", "()Ljava/lang/String;",
             (void *)nfcManager_doDump},
