@@ -61,7 +61,7 @@ public class NativeNfcManager implements DeviceHost {
     public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
     /* Native structure */
-    private int mNative;
+    private long mNative;
 
     private final DeviceHostListener mListener;
     private final Context mContext;

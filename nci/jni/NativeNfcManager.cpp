@@ -554,8 +554,8 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
     nat->manager = e->NewGlobalRef(o);
 
     ScopedLocalRef<jclass> cls(e, e->GetObjectClass(o));
-    jfieldID f = e->GetFieldID(cls.get(), "mNative", "I");
-    e->SetIntField(o, f, (jint)nat);
+    jfieldID f = e->GetFieldID(cls.get(), "mNative", "J");
+    e->SetLongField(o, f, (jlong)nat);
 
     /* Initialize native cached references */
     gCachedNfcManagerNotifyNdefMessageListeners = e->GetMethodID(cls.get(),

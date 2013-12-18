@@ -156,8 +156,8 @@ struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o)
 {
    /* Retrieve native structure address */
    ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
-   jfieldID f = e->GetFieldID(c.get(), "mNative", "I");
-   return (struct nfc_jni_native_data*) e->GetIntField(o, f);
+   jfieldID f = e->GetFieldID(c.get(), "mNative", "J");
+   return (struct nfc_jni_native_data*) e->GetLongField(o, f);
 }
 
 struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e)
