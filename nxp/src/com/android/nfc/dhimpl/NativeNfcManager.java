@@ -27,6 +27,7 @@ import android.nfc.ErrorCodes;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
+import com.android.nfc.NfcDiscoveryParameters;
 
 import java.io.File;
 
@@ -151,23 +152,18 @@ public class NativeNfcManager implements DeviceHost {
        return false;
     }
 
+    private native void doEnableDiscovery(int techMask,
+                                          boolean enableLowPowerPolling,
+                                          boolean enableReaderMode,
+                                          boolean restart);
     @Override
-    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
+    public void enableDiscovery(NfcDiscoveryParameters params, boolean restart) {
+        doEnableDiscovery(params.getTechMask(), params.shouldEnableLowPowerDiscovery(),
+                params.shouldEnableReaderMode(), restart);
+    }
 
     @Override
     public native void disableDiscovery();
-
-    @Override
-    public void enableRoutingToHost()
-    {
-
-    }
-
-    @Override
-    public void disableRoutingToHost()
-    {
-
-    }
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
             String sn);
@@ -315,18 +311,6 @@ public class NativeNfcManager implements DeviceHost {
         doSetP2pTargetModes(modes);
     }
 
-    private native void doEnableReaderMode(int technologies);
-    public boolean enableReaderMode(int technologies) {
-        doEnableReaderMode(technologies);
-        return true;
-    }
-
-    private native void doDisableReaderMode();
-    public boolean disableReaderMode() {
-        doDisableReaderMode();
-        return true;
-    }
-
     @Override
     public boolean enableScreenOffSuspend() {
         // Snooze mode not supported on NXP silicon
@@ -345,11 +329,6 @@ public class NativeNfcManager implements DeviceHost {
     public boolean getExtendedLengthApdusSupported() {
         // Not supported on the PN544
         return false;
-    }
-
-    @Override
-    public boolean enablePN544Quirks() {
-        return true;
     }
 
     @Override

@@ -65,39 +65,7 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
         mDefaultEe = 0x00;
 
     ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
-    setDefaultRouting();
     mRxDataBuffer.clear ();
-    return true;
-}
-
-RoutingManager& RoutingManager::getInstance ()
-{
-    static RoutingManager manager;
-    return manager;
-}
-
-void RoutingManager::setDefaultRouting()
-{
-    tNFA_STATUS nfaStat;
-    SyncEventGuard guard (mRoutingEvent);
-    // Default routing for NFC-A technology
-    nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0x01, 0, 0);
-    if (nfaStat == NFA_STATUS_OK)
-        mRoutingEvent.wait ();
-    else
-        ALOGE ("Fail to set default tech routing");
-
-    // Default routing for IsoDep protocol
-    nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, NFA_PROTOCOL_MASK_ISO_DEP, 0, 0);
-    if (nfaStat == NFA_STATUS_OK)
-        mRoutingEvent.wait ();
-    else
-        ALOGE ("Fail to set default proto routing");
-
-    // Tell the UICC to only listen on Nfc-A
-    nfaStat = NFA_CeConfigureUiccListenTech (mDefaultEe, 0x01);
-    if (nfaStat != NFA_STATUS_OK)
-        ALOGE ("Failed to configure UICC listen technologies");
 
     // Tell the host-routing to only listen on Nfc-A
     nfaStat = NFA_CeSetIsoDepListenTech(0x01);
@@ -108,17 +76,56 @@ void RoutingManager::setDefaultRouting()
     nfaStat = NFA_CeRegisterAidOnDH (NULL, 0, stackCallback);
     if (nfaStat != NFA_STATUS_OK)
         ALOGE("Failed to register wildcard AID for DH");
+    return true;
+}
+
+RoutingManager& RoutingManager::getInstance ()
+{
+    static RoutingManager manager;
+    return manager;
+}
+
+void RoutingManager::enableRoutingToHost()
+{
+    tNFA_STATUS nfaStat;
 
     {
-        SyncEventGuard guard (mEeUpdateEvent);
-        // Commit the routing configuration
-        nfaStat = NFA_EeUpdateNow();
+        SyncEventGuard guard (mRoutingEvent);
+        // Default routing for NFC-A technology
+        nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0x01, 0, 0);
         if (nfaStat == NFA_STATUS_OK)
-        {
-            mEeUpdateEvent.wait (); //wait for NFA_EE_UPDATED_EVT
-        }
+            mRoutingEvent.wait ();
         else
-            ALOGE("Failed to commit routing configuration");
+            ALOGE ("Fail to set default tech routing");
+
+        // Default routing for IsoDep protocol
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, NFA_PROTOCOL_MASK_ISO_DEP, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing");
+    }
+}
+
+void RoutingManager::disableRoutingToHost()
+{
+    tNFA_STATUS nfaStat;
+
+    {
+        SyncEventGuard guard (mRoutingEvent);
+        // Default routing for NFC-A technology
+        nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default tech routing");
+
+        // Default routing for IsoDep protocol
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, 0, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing");
     }
 }
 
