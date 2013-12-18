@@ -195,9 +195,9 @@ public interface DeviceHost {
 
     public String getName();
 
-    public void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
+    public void enableDiscovery(NfcDiscoveryParameters params);
 
-    public void disableDiscovery();
+    public void disableDiscovery(boolean disableReaderMode);
 
     public void enableRoutingToHost();
 
@@ -255,10 +255,6 @@ public interface DeviceHost {
     int getDefaultLlcpRwSize();
 
     String dump();
-
-    boolean enableReaderMode(int technologies);
-
-    boolean disableReaderMode();
 
     boolean enableScreenOffSuspend();
 
