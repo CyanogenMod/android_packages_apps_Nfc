@@ -60,4 +60,6 @@
     <!-- String that is telling the user that his default app for tap and pay has been removed,
          and asks him to pick another app as default.-->
     <string name="default_pay_app_removed">Your preferred service for tap &amp; pay was removed. Choose another?"</string>
+    <!-- Label that is shown when the user must tap another NFC enabled device to send data -->
+    <string name="ask_nfc_tap">Tap another device to complete</string>
 </resources>

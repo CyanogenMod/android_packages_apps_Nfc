@@ -78,9 +78,30 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     }
 
     @Override
+    public void onP2pNfcTapRequested() {
+        mNfcService.playSound(NfcService.SOUND_START);
+        mNdefSent = false;
+        mNdefReceived = false;
+        mInDebounce = false;
+
+        mVibrator.vibrate(VIBRATION_PATTERN, -1);
+        if (mSendUi != null) {
+            mSendUi.takeScreenshot();
+            mSendUi.showPreSend(true);
+        }
+    }
+
+    @Override
+    public void onP2pTimeoutWaitingForLink() {
+        if (mSendUi != null) {
+            mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        }
+    }
+
+    @Override
     public void onP2pSendConfirmationRequested() {
         if (mSendUi != null) {
-            mSendUi.showPreSend();
+            mSendUi.showPreSend(false);
         } else {
             mCallback.onP2pSendConfirmed();
         }
@@ -149,6 +170,12 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
     }
 
     @Override
+    public void onCanceled() {
+        mSendUi.finish(SendUi.FINISH_SCALE_UP);
+        mCallback.onP2pCanceled();
+    }
+
+    @Override
     public void onP2pSendDebounce() {
         mInDebounce = true;
         mNfcService.playSound(NfcService.SOUND_ERROR);
@@ -168,4 +195,5 @@ public class P2pEventManager implements P2pEventListener, SendUi.Callback {
         }
         mInDebounce = false;
     }
+
 }

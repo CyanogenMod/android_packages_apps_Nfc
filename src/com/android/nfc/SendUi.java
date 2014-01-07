@@ -16,6 +16,8 @@
 
 package com.android.nfc;
 
+import com.android.internal.policy.PolicyManager;
+
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
@@ -35,15 +37,22 @@ import android.os.AsyncTask;
 import android.os.Binder;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.Display;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
+import android.view.WindowManager.LayoutParams;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
@@ -74,7 +83,7 @@ import android.widget.Toast;
  * All methods of this class must be called on the UI thread
  */
 public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
-        TimeAnimator.TimeListener, TextureView.SurfaceTextureListener {
+        TimeAnimator.TimeListener, TextureView.SurfaceTextureListener, android.view.Window.Callback {
     static final String TAG = "SendUi";
 
     static final float INTERMEDIATE_SCALE = 0.6f;
@@ -107,11 +116,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int STATE_IDLE = 0;
     static final int STATE_W4_SCREENSHOT = 1;
     static final int STATE_W4_SCREENSHOT_PRESEND_REQUESTED = 2;
-    static final int STATE_W4_SCREENSHOT_THEN_STOP = 3;
-    static final int STATE_W4_PRESEND = 4;
-    static final int STATE_W4_CONFIRM = 5;
-    static final int STATE_SENDING = 6;
-    static final int STATE_COMPLETE = 7;
+    static final int STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED = 3;
+    static final int STATE_W4_SCREENSHOT_THEN_STOP = 4;
+    static final int STATE_W4_PRESEND = 5;
+    static final int STATE_W4_TOUCH = 6;
+    static final int STATE_W4_NFC_TAP = 7;
+    static final int STATE_SENDING = 8;
+    static final int STATE_COMPLETE = 9;
 
     // all members are only used on UI thread
     final WindowManager mWindowManager;
@@ -167,6 +178,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     int mState;
     int mRenderedFrames;
 
+    View mDecor;
+
     // Used for holding the surface
     SurfaceTexture mSurface;
     int mSurfaceWidth;
@@ -174,6 +187,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     interface Callback {
         public void onSendConfirmed();
+        public void onCanceled();
     }
 
     public SendUi(Context context, Callback callback) {
@@ -277,6 +291,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mSuccessAnimatorSet = new AnimatorSet();
         mSuccessAnimatorSet.playSequentially(mFastSendAnimator, mFadeInAnimator);
 
+        // Create a Window with a Decor view; creating a window allows us to get callbacks
+        // on key events (which require a decor view to be dispatched).
+        mContext.setTheme(android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        Window window = PolicyManager.makeNewWindow(mContext);
+        window.setCallback(this);
+        window.requestFeature(Window.FEATURE_NO_TITLE);
+        mDecor = window.getDecorView();
+        window.setContentView(mScreenshotLayout, mWindowLayoutParams);
+
         if (mHardwareAccelerated) {
             mFireflyRenderer = new FireflyRenderer(context);
         } else {
@@ -288,7 +311,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     public void takeScreenshot() {
         // There's no point in taking the screenshot if
         // we're still finishing the previous animation.
-        if (mState >= STATE_W4_CONFIRM) {
+        if (mState >= STATE_W4_TOUCH) {
             return;
         }
         mState = STATE_W4_SCREENSHOT;
@@ -296,7 +319,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     }
 
     /** Show pre-send animation */
-    public void showPreSend() {
+    public void showPreSend(boolean promptToNfcTap) {
         switch (mState) {
             case STATE_IDLE:
                 Log.e(TAG, "Unexpected showPreSend() in STATE_IDLE");
@@ -304,9 +327,14 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             case STATE_W4_SCREENSHOT:
                 // Still waiting for screenshot, store request in state
                 // and wait for screenshot completion.
-                mState = STATE_W4_SCREENSHOT_PRESEND_REQUESTED;
+                if (promptToNfcTap) {
+                    mState = STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED;
+                } else {
+                    mState = STATE_W4_SCREENSHOT_PRESEND_REQUESTED;
+                }
                 return;
             case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+            case STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED:
                 Log.e(TAG, "Unexpected showPreSend() in STATE_W4_SCREENSHOT_PRESEND_REQUESTED");
                 return;
             case STATE_W4_PRESEND:
@@ -332,7 +360,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         mScreenshotLayout.requestFocus();
 
-        mTextHint.setText(mContext.getResources().getString(R.string.touch));
+        if (promptToNfcTap) {
+            mTextHint.setText(mContext.getResources().getString(R.string.ask_nfc_tap));
+        } else {
+            mTextHint.setText(mContext.getResources().getString(R.string.touch));
+        }
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
         mHintAnimator.start();
@@ -360,7 +392,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 break;
         }
 
-        mWindowManager.addView(mScreenshotLayout, mWindowLayoutParams);
+        mWindowManager.addView(mDecor, mWindowLayoutParams);
         // Disable statusbar pull-down
         mStatusBarManager.disable(StatusBarManager.DISABLE_EXPAND);
 
@@ -369,7 +401,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (!mHardwareAccelerated) {
             mPreAnimator.start();
         } // else, we will start the animation once we get the hardware surface
-        mState = STATE_W4_CONFIRM;
+        mState = promptToNfcTap ? STATE_W4_NFC_TAP : STATE_W4_TOUCH;
     }
 
     /** Show starting send animation */
@@ -410,6 +442,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 return;
             case STATE_W4_SCREENSHOT:
             case STATE_W4_SCREENSHOT_PRESEND_REQUESTED:
+            case STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED:
                 // Screenshot is still being captured on a separate thread.
                 // Update state, and stop everything when the capture is done.
                 mState = STATE_W4_SCREENSHOT_THEN_STOP;
@@ -473,7 +506,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     }
 
     void dismiss() {
-        if (mState < STATE_W4_CONFIRM) return;
+        if (mState < STATE_W4_TOUCH) return;
         // Immediately set to IDLE, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
         // (They can do so on the same thread).
@@ -487,7 +520,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScaleUpAnimator.cancel();
         mAlphaUpAnimator.cancel();
         mAlphaDownAnimator.cancel();
-        mWindowManager.removeView(mScreenshotLayout);
+        mWindowManager.removeView(mDecor);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
         mScreenshotBitmap = null;
         if (mToastString != null) {
@@ -525,11 +558,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             } else if (mState == STATE_W4_SCREENSHOT_THEN_STOP) {
                 // We were asked to finish, move to idle state and exit
                 mState = STATE_IDLE;
-            } else if (mState == STATE_W4_SCREENSHOT_PRESEND_REQUESTED) {
+            } else if (mState == STATE_W4_SCREENSHOT_PRESEND_REQUESTED ||
+                    mState == STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED) {
                 if (result != null) {
                     mScreenshotBitmap = result;
+                    boolean requestTap = (mState == STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED);
                     mState = STATE_W4_PRESEND;
-                    showPreSend();
+                    showPreSend(requestTap);
                 } else {
                     // Failed to take screenshot; reset state to idle
                     // and don't do anything
@@ -639,7 +674,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             mScreenshotView.setScaleX(1.0f);
             mScreenshotView.setScaleY(1.0f);
         } else if (animation == mPreAnimator) {
-            if (mHardwareAccelerated && (mState == STATE_W4_CONFIRM)) {
+            if (mHardwareAccelerated && (mState == STATE_W4_TOUCH || mState == STATE_W4_NFC_TAP)) {
                 mFireflyRenderer.start(mSurface, mSurfaceWidth, mSurfaceHeight);
             }
         }
@@ -668,7 +703,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (mState != STATE_W4_CONFIRM) {
+        if (mState != STATE_W4_TOUCH) {
             return false;
         }
         mState = STATE_SENDING;
@@ -729,5 +764,107 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 new float[] {mBlackLayer.getAlpha(), 0.9f});
         mAlphaUpAnimator.setValues(alphaUp);
         mAlphaUpAnimator.start();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // Any hardware key basically stops the animation
+        mCallback.onCanceled();
+        return false;
+    }
+
+    @Override
+    public boolean dispatchKeyShortcutEvent(KeyEvent event) {
+        return false;
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        return mScreenshotLayout.dispatchTouchEvent(event);
+    }
+
+    @Override
+    public boolean dispatchTrackballEvent(MotionEvent event) {
+        return false;
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        return false;
+    }
+
+    @Override
+    public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) {
+        return false;
+    }
+
+    @Override
+    public View onCreatePanelView(int featureId) {
+        return null;
+    }
+
+    @Override
+    public boolean onCreatePanelMenu(int featureId, Menu menu) {
+        return false;
+    }
+
+    @Override
+    public boolean onPreparePanel(int featureId, View view, Menu menu) {
+        return false;
+    }
+
+    @Override
+    public boolean onMenuOpened(int featureId, Menu menu) {
+        return false;
+    }
+
+    @Override
+    public boolean onMenuItemSelected(int featureId, MenuItem item) {
+        return false;
+    }
+
+    @Override
+    public void onWindowAttributesChanged(LayoutParams attrs) {
+    }
+
+    @Override
+    public void onContentChanged() {
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+    }
+
+    @Override
+    public void onAttachedToWindow() {
+
+    }
+
+    @Override
+    public void onDetachedFromWindow() {
+    }
+
+    @Override
+    public void onPanelClosed(int featureId, Menu menu) {
+
+    }
+
+    @Override
+    public boolean onSearchRequested() {
+        return false;
+    }
+
+    @Override
+    public ActionMode onWindowStartingActionMode(
+            android.view.ActionMode.Callback callback) {
+        return null;
+    }
+
+    @Override
+    public void onActionModeStarted(ActionMode mode) {
+    }
+
+    @Override
+    public void onActionModeFinished(ActionMode mode) {
     }
 }

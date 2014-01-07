@@ -90,8 +90,24 @@
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:noHistory="true"
-
         />
+        <activity android:name=".BeamShareActivity"
+            android:finishOnCloseSystemDialogs="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:label="Android Beam"
+            android:noHistory="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
         <service android:name=".handover.HandoverService"
             android:process=":handover"
         />

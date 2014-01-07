@@ -121,6 +121,17 @@ public class BluetoothOppHandover implements Handler.Callback {
         String mimeType = getMimeTypeForUri(mContext, mUris[0]);
         intent.setType(mimeType);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
+        for (Uri uri : mUris) {
+            // TODO we need to transfer our permission grant from NFC
+            // to the Bluetooth process. This works, but we don't have
+            // a good framework API for revoking permission yet.
+            try {
+                mContext.grantUriPermission("com.android.bluetooth", uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException e) {
+                Log.e(TAG, "Failed to transfer permission to Bluetooth process.");
+            }
+        }
         if (mUris.length == 1) {
             intent.setAction(ACTION_HANDOVER_SEND);
             intent.putExtra(Intent.EXTRA_STREAM, mUris[0]);
