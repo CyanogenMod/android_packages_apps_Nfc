@@ -295,42 +295,10 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                         resolvedService.getComponent());
                     resolveInfo.defaultService = resolvedService;
                 } else {
-                    // So..since we resolved to only one service, and this AID
-                    // is a payment AID, we know that this service is the only
-                    // service that has registered for this AID and in fact claimed
-                    // it was a payment AID.
-                    // There's two cases:
-                    // 1. All other AIDs in the payment group are uncontended:
-                    //    in this case, just route to this app. It won't get
-                    //    in the way of other apps, and is likely to interact
-                    //    with different terminal infrastructure anyway.
-                    // 2. At least one AID in the payment group is contended:
-                    //    in this case, we should ask the user to confirm,
-                    //    since it is likely to contend with other apps, even
-                    //    when touching the same terminal.
-                    boolean foundConflict = false;
-                    for (AidGroup aidGroup : resolvedService.getAidGroups()) {
-                        if (aidGroup.getCategory().equals(CardEmulation.CATEGORY_PAYMENT)) {
-                            for (String registeredAid : aidGroup.getAids()) {
-                                ArrayList<ApduServiceInfo> servicesForAid =
-                                        mAidToServices.get(registeredAid);
-                                if (servicesForAid != null && servicesForAid.size() > 1) {
-                                    foundConflict = true;
-                                }
-                            }
-                        }
-                    }
-                    if (!foundConflict) {
-                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to " +
-                            resolvedService.getComponent());
-                        // Treat this as if it's the default for this AID
-                        resolveInfo.defaultService = resolvedService;
-                    } else {
-                        // Allow this service to handle, but don't set as default
-                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing AID " + aid +
-                                " to " + resolvedService.getComponent() +
-                                ", but will ask confirmation because its AID group is contended.");
-                    }
+                    // Don't allow any AIDs of non-default payment apps to be routed
+                    if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: not routing because " +
+                            "not default payment service.");
+                    resolveInfo.services.clear();
                 }
             } else if (resolvedServices.size() > 1) {
                 // More services have registered. If there's a default and it
@@ -346,7 +314,9 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
                         }
                     }
                     if (resolveInfo.defaultService == null) {
-                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: routing to all services");
+                        if (DBG) Log.d(TAG, "resolveAidLocked: DECISION: not routing because " +
+                                "not default payment service.");
+                        resolveInfo.services.clear();
                     }
                 }
             } // else -> should not hit, we checked for 0 before.
