@@ -275,6 +275,11 @@ public class HostEmulationManager {
             mActiveServiceName = null;
             unbindServiceIfNeededLocked();
             mState = STATE_W4_SELECT;
+
+            //close the TapAgainDialog
+            Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
+            intent.setPackage("com.android.nfc");
+            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
         }
     }
 
