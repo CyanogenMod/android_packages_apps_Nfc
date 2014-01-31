@@ -256,6 +256,11 @@ class NfcDispatcher {
             return true;
         }
 
+        if (!provisioningOnly && NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
+            if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
+            return true;
+        }
+
         if (tryNdef(dispatch, message, provisioningOnly)) {
             return true;
         }

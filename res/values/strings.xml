@@ -62,4 +62,17 @@
     <string name="default_pay_app_removed">Your preferred service for tap &amp; pay was removed. Choose another?"</string>
     <!-- Label that is shown when the user must tap another NFC enabled device to send data -->
     <string name="ask_nfc_tap">Tap another device to complete</string>
+
+    <!-- Strings for connecting to a network from WiFi NFC tags -->
+    <!-- Dialog button text for confirming the user wants to connect to the network on the tag-->
+    <string name="wifi_connect">Connect</string>
+    <!-- Text informing the user that an error ocurred during the process of connecting to the network-->
+    <string name="status_unable_to_connect">Unable to connect to network</string>
+    <!-- Text informing the user that the network was connected to successfully -->
+    <string name="status_wifi_connected">Connected</string>
+    <!-- Title for dialog where user confirms that they want to connect to the network on the tag they tapped-->
+    <string name="title_connect_to_network">Connect to network</string>
+    <!-- Message prompt asking the user if they wish to connect to the given network. Contains the network name (ssid).-->
+    <string name="prompt_connect_to_network">Connect to network <xliff:g id="network_ssid">%1$s</xliff:g>?</string>
+
 </resources>
