@@ -27,7 +27,6 @@ import android.util.Log;
 
 import com.android.nfc.DeviceHost;
 import com.android.nfc.LlcpException;
-import com.android.nfc.NfcDiscoveryParameters;
 
 /**
  * Native interface to the NFC Manager functions
@@ -130,19 +129,11 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native boolean unrouteAid(byte[] aid);
 
-
-    private native void doEnableDiscovery(int techMask,
-                                          boolean enableLowPowerPolling,
-                                          boolean enableReaderMode,
-                                          boolean restartPolling);
     @Override
-    public void enableDiscovery(NfcDiscoveryParameters params) {
-        doEnableDiscovery(params.getTechMask(), params.shouldEnableLowPowerDiscovery(),
-                params.shouldEnableReaderMode(), params.shouldRestartPolling());
-    }
+    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
 
     @Override
-    public native void disableDiscovery(boolean disableReaderMode);
+    public native void disableDiscovery();
 
     @Override
     public native void enableRoutingToHost();
@@ -338,6 +329,20 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public String dump() {
         return doDump();
+    }
+
+    private native void doEnableReaderMode(int technologies);
+    @Override
+    public boolean enableReaderMode(int technologies) {
+        doEnableReaderMode(technologies);
+        return true;
+    }
+
+    private native void doDisableReaderMode();
+    @Override
+    public boolean disableReaderMode() {
+        doDisableReaderMode();
+        return true;
     }
 
     private native void doEnableScreenOffSuspend();

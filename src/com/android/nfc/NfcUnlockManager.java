@@ -291,12 +291,12 @@ class NfcUnlockManager {
 
             computeTechMask();
 
-            TECH_CODE_TO_MASK.put(TagTechnology.NFC_A, NfcDiscoveryParameters.NFC_POLL_A);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_A, NfcService.NFC_POLL_A);
             TECH_CODE_TO_MASK.put(TagTechnology.NFC_B,
-                    NfcDiscoveryParameters.NFC_POLL_B | NfcDiscoveryParameters.NFC_POLL_B_PRIME);
-            TECH_CODE_TO_MASK.put(TagTechnology.NFC_V, NfcDiscoveryParameters.NFC_POLL_ISO15693);
-            TECH_CODE_TO_MASK.put(TagTechnology.NFC_F, NfcDiscoveryParameters.NFC_POLL_F);
-            TECH_CODE_TO_MASK.put(TagTechnology.NFC_BARCODE, NfcDiscoveryParameters.NFC_POLL_KOVIO);
+                    NfcService.NFC_POLL_B | NfcService.NFC_POLL_B_PRIME);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_V, NfcService.NFC_POLL_ISO15693);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_F, NfcService.NFC_POLL_F);
+            TECH_CODE_TO_MASK.put(TagTechnology.NFC_BARCODE, NfcService.NFC_POLL_KOVIO);
         }
 
         List<Long> getTimestamps() {
