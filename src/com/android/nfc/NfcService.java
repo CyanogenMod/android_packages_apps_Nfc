@@ -143,10 +143,14 @@ public class NfcService implements DeviceHostListener {
     static final int EE_ERROR_EXT_FIELD = -5;
     static final int EE_ERROR_NFC_DISABLED = -6;
 
-    // NFC Polling states
-    static final int POLLING_STATE_OFF = 0; // No polling
-    static final int POLLING_STATE_UNLOCK = 1; // Polling only for NFC unlock tags
-    static final int POLLING_STATE_FULL = 2; // Polling for all configured tags
+    // Polling technology masks
+    static final int NFC_POLL_DEFAULT = 0;
+    static final int NFC_POLL_A = 0x01;
+    static final int NFC_POLL_B = 0x02;
+    static final int NFC_POLL_F = 0x04;
+    static final int NFC_POLL_ISO15693 = 0x08;
+    static final int NFC_POLL_B_PRIME = 0x10;
+    static final int NFC_POLL_KOVIO = 0x20;
 
     // Time to wait for NFC controller to initialize before watchdog
     // goes off. This time is chosen large, because firmware download
@@ -227,7 +231,7 @@ public class NfcService implements DeviceHostListener {
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
     boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
-    int mNfcPollingState;
+    boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
     boolean mHostRouteEnabled;   // current Device Host state of host-based routing
     boolean mReaderModeEnabled;  // current Device Host state of reader mode
     ReaderModeParams mReaderModeParams;
@@ -1104,9 +1108,8 @@ public class NfcService implements DeviceHostListener {
 
             mDeviceHost.setP2pInitiatorModes(initiatorModes);
             mDeviceHost.setP2pTargetModes(targetModes);
-            mDeviceHost.enableDiscovery(NfcDiscoveryParameters.newBuilder()
-                    .setEnableLowPowerDiscovery(false)
-                    .setRestartPolling(true).build());
+            mDeviceHost.disableDiscovery();
+            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
         }
 
         @Override
@@ -1643,12 +1646,12 @@ public class NfcService implements DeviceHostListener {
                 }
 
                 boolean restorePolling = false;
-                if (mDeviceHost.enablePN544Quirks() && mNfcPollingState > POLLING_STATE_OFF) {
+                if (mDeviceHost.enablePN544Quirks() && mNfcPollingEnabled) {
                     // Disable polling for tags/P2P when connecting to the SMX
                     // on PN544-based devices. Whenever nfceeClose is called,
                     // the polling configuration will be restored.
-                    mDeviceHost.disableDiscovery(false);
-                    mNfcPollingState = POLLING_STATE_OFF;
+                    mDeviceHost.disableDiscovery();
+                    mNfcPollingEnabled = false;
                     restorePolling = true;
                 }
 
@@ -1656,10 +1659,8 @@ public class NfcService implements DeviceHostListener {
                 if (handle < 0) {
 
                     if (restorePolling) {
-                        mDeviceHost.enableDiscovery(NfcDiscoveryParameters.newBuilder()
-                                .setEnableLowPowerDiscovery(false)
-                                .build());
-                        mNfcPollingState = POLLING_STATE_FULL;
+                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
+                        mNfcPollingEnabled = true;
                     }
                     return handle;
                 }
@@ -1895,11 +1896,11 @@ public class NfcService implements DeviceHostListener {
                      * is overwriting globals it relies on.
                      */
                     if (getPollingMode() > ScreenStateHelper.SCREEN_STATE_OFF) {
-                        if (force || mNfcPollingState > POLLING_STATE_OFF) {
+                        if (force || mNfcPollingEnabled) {
                             Log.d(TAG, "NFC-C OFF, disconnect");
-                            mDeviceHost.disableDiscovery(false);
+                            mNfcPollingEnabled = false;
+                            mDeviceHost.disableDiscovery();
                             maybeDisconnectTarget();
-                            mNfcPollingState = POLLING_STATE_OFF;
                         }
                     }
                     if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
@@ -1912,113 +1913,86 @@ public class NfcService implements DeviceHostListener {
                     return;
                 }
 
-                configureHostRouting(force);
-                configureNfceeRouting(force);
-                configureNfccPolling(force);
+                if (mIsHceCapable && mScreenState
+                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
+                        mAidRoutingManager.aidsRoutedToHost()) {
+                    if (!mHostRouteEnabled || force) {
+                        mHostRouteEnabled = true;
+                        mDeviceHost.enableRoutingToHost();
+                    }
+                } else {
+                    if (force || mHostRouteEnabled) {
+                        mHostRouteEnabled = false;
+                        mDeviceHost.disableRoutingToHost();
+                    }
+                }
+
+                // configure NFC-EE routing
+                if (mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
+                        mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
+                    if (force || !mNfceeRouteEnabled) {
+                        Log.d(TAG, "NFC-EE ON");
+                        mNfceeRouteEnabled = true;
+                        mDeviceHost.doSelectSecureElement();
+                    }
+                } else {
+                    if (force || mNfceeRouteEnabled) {
+                        Log.d(TAG, "NFC-EE OFF");
+                        mNfceeRouteEnabled = false;
+                        mDeviceHost.doDeselectSecureElement();
+                    }
+                }
+
+                // configure NFC-C polling
+                if (!mInProvisionMode && mScreenState >= getPollingMode()) {
+                    if (force || !mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C ON");
+                        mNfcPollingEnabled = true;
+
+                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+                            mDeviceHost.enableDiscovery(
+                                    mNfcUnlockSettingsService.getRegisteredTechMask(getUserId()),
+                                    false);
+                        } else {
+                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                        }
+                    } else if (mNfcPollingEnabled) {
+                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
+                            mDeviceHost.disableDiscovery();
+                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                        }
+                    }
+                    if (mReaderModeParams != null && !mReaderModeEnabled) {
+                        mReaderModeEnabled = true;
+                        mDeviceHost.enableReaderMode(mReaderModeParams.flags);
+                    }
+                    if (mReaderModeParams == null && mReaderModeEnabled) {
+                        mReaderModeEnabled = false;
+                        mDeviceHost.disableReaderMode();
+                    }
+                } else if (mInProvisionMode && mScreenState
+                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+                    // Special case for setup provisioning
+                    if (!mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C ON");
+                        mNfcPollingEnabled = true;
+                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                    }
+                } else {
+                    if (force || mNfcPollingEnabled) {
+                        Log.d(TAG, "NFC-C OFF");
+                        if (mReaderModeEnabled) {
+                            mReaderModeEnabled = false;
+                            mDeviceHost.disableReaderMode();
+                        }
+                        mNfcPollingEnabled = false;
+                        mDeviceHost.disableDiscovery();
+                    }
+                }
             } finally {
                 watchDog.cancel();
             }
         }
-    }
-
-    private void configureHostRouting(boolean force) {
-        if (mIsHceCapable
-                && mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED
-                && mAidRoutingManager.aidsRoutedToHost()) {
-            if (!mHostRouteEnabled || force) {
-                mHostRouteEnabled = true;
-                mDeviceHost.enableRoutingToHost();
-            }
-        } else {
-            if (force || mHostRouteEnabled) {
-                mHostRouteEnabled = false;
-                mDeviceHost.disableRoutingToHost();
-            }
-        }
-    }
-
-    private void configureNfceeRouting(boolean force) {
-        if (mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-            if (force || !mNfceeRouteEnabled) {
-                Log.d(TAG, "NFC-EE ON");
-                mNfceeRouteEnabled = true;
-                mDeviceHost.doSelectSecureElement();
-            }
-        } else {
-            if (force || mNfceeRouteEnabled) {
-                Log.d(TAG, "NFC-EE OFF");
-                mNfceeRouteEnabled = false;
-                mDeviceHost.doDeselectSecureElement();
-            }
-        }
-    }
-
-    private void configureNfccPolling(boolean force) {
-        if (!mInProvisionMode && mScreenState >= getPollingMode()) {
-            enablePolling(force);
-        } else if (mInProvisionMode && mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-            // Special case for setup provisioning
-            if (mNfcPollingState == POLLING_STATE_OFF) {
-                Log.d(TAG, "NFC-C ON");
-                mNfcPollingState = POLLING_STATE_FULL;
-                mDeviceHost.enableDiscovery(NfcDiscoveryParameters.getDefaultInstance());
-            }
-        } else {
-            disablePolling(force);
-        }
-    }
-
-    private void enablePolling(boolean force) {
-        NfcDiscoveryParameters.Builder paramsBuilder = NfcDiscoveryParameters.newBuilder();
-
-        if (force || mNfcPollingState == POLLING_STATE_OFF) {
-            Log.d(TAG, "NFC-C ON");
-            if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                mDeviceHost.enableDiscovery(NfcDiscoveryParameters.newBuilder()
-                        .setTechMask(mNfcUnlockSettingsService.getRegisteredTechMask(getUserId()))
-                        .setEnableLowPowerDiscovery(false)
-                        .build());
-                mNfcPollingState = POLLING_STATE_UNLOCK;
-            } else if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
-
-                if (mNfcPollingState == POLLING_STATE_UNLOCK) {
-                    paramsBuilder.setRestartPolling(true);
-                }
-
-                mNfcPollingState = POLLING_STATE_FULL;
-            }
-        } else if (mNfcPollingState == POLLING_STATE_UNLOCK) {
-            if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
-                paramsBuilder.setRestartPolling(true);
-                mNfcPollingState = POLLING_STATE_FULL;
-            }
-        }
-
-        configureReaderMode(paramsBuilder);
-
-        mDeviceHost.enableDiscovery(paramsBuilder.build());
-    }
-
-    private void disablePolling(boolean force) {
-        if (force || mNfcPollingState > POLLING_STATE_OFF) {
-            Log.d(TAG, "NFC-C OFF");
-            mNfcPollingState = POLLING_STATE_OFF;
-            mDeviceHost.disableDiscovery(mReaderModeEnabled);
-            mReaderModeEnabled = false;
-        }
-    }
-
-    private void configureReaderMode(NfcDiscoveryParameters.Builder paramsBuilder) {
-        if (mReaderModeParams != null && !mReaderModeEnabled) {
-            mReaderModeEnabled = true;
-            paramsBuilder.setTechMask(mReaderModeParams.flags);
-        } else if (mReaderModeParams == null && mReaderModeEnabled) {
-            mReaderModeEnabled = false;
-            paramsBuilder.setRestartPolling(true);
-        }
-
-        paramsBuilder.setEnableReaderMode(mReaderModeEnabled);
     }
 
     /**
@@ -2441,20 +2415,17 @@ public class NfcService implements DeviceHostListener {
                         playSound(SOUND_END);
                     }
                     if (readerParams.callback != null) {
-                        if (tag == null) {
-                            Log.e(TAG, "tag is null, unfortunately");
-                        }
                         readerParams.callback.onTagDiscovered(tag);
                         return;
                     } else {
                         // Follow normal dispatch below
                     }
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Reader mode remote has died, falling back.", e);
+                    Log.e(TAG, "Reader mode remote has died, falling back.");
                     // Intentional fall-through
                 } catch (Exception e) {
                     // Catch any other exception
-                    Log.e(TAG, "App exception, not dispatching.", e);
+                    Log.e(TAG, "App exception, not dispatching.");
                     return;
                 }
             }
@@ -2625,7 +2596,7 @@ public class NfcService implements DeviceHostListener {
             pw.println("mState=" + stateToString(mState));
             pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
-            pw.println("mNfcPollingEnabled=" + (mNfcPollingState > POLLING_STATE_OFF));
+            pw.println("mNfcPollingEnabled=" + mNfcPollingEnabled);
             pw.println("mNfceeRouteEnabled=" + mNfceeRouteEnabled);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);

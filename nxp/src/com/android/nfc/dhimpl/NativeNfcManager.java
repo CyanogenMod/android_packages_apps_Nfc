@@ -27,7 +27,6 @@ import android.nfc.ErrorCodes;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.util.Log;
-import com.android.nfc.NfcDiscoveryParameters;
 
 import java.io.File;
 
@@ -186,18 +185,11 @@ public class NativeNfcManager implements DeviceHost {
        return false;
     }
 
-    private native void doEnableDiscovery(int techMask,
-                                          boolean enableLowPowerPolling,
-                                          boolean enableReaderMode,
-                                          boolean restartPolling);
     @Override
-    public void enableDiscovery(NfcDiscoveryParameters params) {
-        doEnableDiscovery(params.getTechMask(), params.shouldEnableLowPowerDiscovery(),
-                params.shouldEnableReaderMode(), params.shouldRestartPolling());
-    }
+    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
 
     @Override
-    public native void disableDiscovery(boolean disableReaderMode);
+    public native void disableDiscovery();
 
     @Override
     public void enableRoutingToHost()
@@ -365,6 +357,18 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public void setP2pTargetModes(int modes) {
         doSetP2pTargetModes(modes);
+    }
+
+    private native void doEnableReaderMode(int technologies);
+    public boolean enableReaderMode(int technologies) {
+        doEnableReaderMode(technologies);
+        return true;
+    }
+
+    private native void doDisableReaderMode();
+    public boolean disableReaderMode() {
+        doDisableReaderMode();
+        return true;
     }
 
     @Override
