@@ -71,18 +71,21 @@ public class HandoverTransfer implements Handler.Callback,
 
     // In the states below we still accept new file transfer
     static final int STATE_NEW = 0;
+
     static final int STATE_IN_PROGRESS = 1;
     static final int STATE_W4_NEXT_TRANSFER = 2;
-
     // In the states below no new files are accepted.
     static final int STATE_W4_MEDIA_SCANNER = 3;
+
     static final int STATE_FAILED = 4;
     static final int STATE_SUCCESS = 5;
     static final int STATE_CANCELLED = 6;
-
     static final int MSG_NEXT_TRANSFER_TIMER = 0;
-    static final int MSG_TRANSFER_TIMEOUT = 1;
 
+    static final int MSG_TRANSFER_TIMEOUT = 1;
+    static final int DEVICE_TYPE_BLUETOOTH = 1;
+
+    public static final int DEVICE_TYPE_WIFI = 2;
     // We need to receive an update within this time period
     // to still consider this transfer to be "alive" (ie
     // a reason to keep the handover transport enabled).
@@ -95,12 +98,15 @@ public class HandoverTransfer implements Handler.Callback,
     static final String BEAM_DIR = "beam";
 
     final boolean mIncoming;  // whether this is an incoming transfer
+
     final int mTransferId; // Unique ID of this transfer used for notifications
+
     final PendingIntent mCancelIntent;
     final Context mContext;
     final Handler mHandler;
     final NotificationManager mNotificationManager;
     final BluetoothDevice mRemoteDevice;
+    final String mRemoteMac;
     final Callback mCallback;
     final Long mStartTime;
 
@@ -109,11 +115,13 @@ public class HandoverTransfer implements Handler.Callback,
     int mCurrentCount;
     int mSuccessCount;
     int mTotalCount;
+    int mDeviceType;
     boolean mCalledBack;
     Long mLastUpdate; // Last time an event occurred for this transfer
     float mProgress; // Progress in range [0..1]
-    ArrayList<Uri> mBtUris; // Received uris from Bluetooth OPP
-    ArrayList<String> mBtMimeTypes; // Mime-types received from Bluetooth OPP
+    ArrayList<Uri> mUris; // Received uris from transport
+    ArrayList<String> mTransferMimeTypes; // Mime-types received from transport
+    Uri[] mOutgoingUris; // URIs to send via Wifi Direct
 
     ArrayList<String> mPaths; // Raw paths on the filesystem for Beam-stored files
     HashMap<String, String> mMimeTypes; // Mime-types associated with each path
@@ -125,23 +133,25 @@ public class HandoverTransfer implements Handler.Callback,
         mContext = context;
         mCallback = callback;
         mRemoteDevice = pendingTransfer.remoteDevice;
+        mRemoteMac = pendingTransfer.remoteMacAddress;
         mIncoming = pendingTransfer.incoming;
         mTransferId = pendingTransfer.id;
+        mDeviceType = pendingTransfer.deviceType;
         // For incoming transfers, count can be set later
         mTotalCount = (pendingTransfer.uris != null) ? pendingTransfer.uris.length : 0;
         mLastUpdate = SystemClock.elapsedRealtime();
         mProgress = 0.0f;
         mState = STATE_NEW;
-        mBtUris = new ArrayList<Uri>();
-        mBtMimeTypes = new ArrayList<String>();
-        mPaths = new ArrayList<String>();
+        mUris = new ArrayList<Uri>();
+        mTransferMimeTypes = new ArrayList<String>();
         mMimeTypes = new HashMap<String, String>();
+        mPaths = new ArrayList<String>();
         mMediaUris = new HashMap<String, Uri>();
         mCancelIntent = buildCancelIntent(mIncoming);
         mUrisScanned = 0;
         mCurrentCount = 0;
         mSuccessCount = 0;
-
+        mOutgoingUris = pendingTransfer.uris;
         mHandler = new Handler(Looper.getMainLooper(), this);
         mHandler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
         mNotificationManager = (NotificationManager) mContext.getSystemService(
@@ -166,7 +176,7 @@ public class HandoverTransfer implements Handler.Callback,
 
         // We're still receiving data from this device - keep it in
         // the whitelist for a while longer
-        if (mIncoming) whitelistOppDevice(mRemoteDevice);
+        if (mIncoming && mRemoteDevice != null) whitelistOppDevice(mRemoteDevice);
 
         updateStateAndNotification(STATE_IN_PROGRESS);
     }
@@ -180,11 +190,11 @@ public class HandoverTransfer implements Handler.Callback,
             if (DBG) Log.d(TAG, "Transfer success, uri " + uri + " mimeType " + mimeType);
             mProgress = 0.0f;
             if (mimeType == null) {
-                mimeType = BluetoothOppHandover.getMimeTypeForUri(mContext, uri);
+                mimeType = MimeTypeUtil.getMimeTypeForUri(mContext, uri);
             }
             if (mimeType != null) {
-                mBtUris.add(uri);
-                mBtMimeTypes.add(mimeType);
+                mUris.add(uri);
+                mTransferMimeTypes.add(mimeType);
             } else {
                 if (DBG) Log.d(TAG, "Could not get mimeType for file.");
             }
@@ -197,6 +207,7 @@ public class HandoverTransfer implements Handler.Callback,
             if (mIncoming) {
                 processFiles();
             } else {
+                Log.i(TAG, "Updating state!");
                 updateStateAndNotification(mSuccessCount > 0 ? STATE_SUCCESS : STATE_FAILED);
             }
         } else {
@@ -221,7 +232,7 @@ public class HandoverTransfer implements Handler.Callback,
         if (!isRunning()) return;
 
         // Delete all files received so far
-        for (Uri uri : mBtUris) {
+        for (Uri uri : mUris) {
             File file = new File(uri.getPath());
             if (file.exists()) file.delete();
         }
@@ -317,13 +328,13 @@ public class HandoverTransfer implements Handler.Callback,
         String extRoot = Environment.getExternalStorageDirectory().getPath();
         File beamPath = new File(extRoot + "/" + BEAM_DIR);
 
-        if (!checkMediaStorage(beamPath) || mBtUris.size() == 0) {
+        if (!checkMediaStorage(beamPath) || mUris.size() == 0) {
             Log.e(TAG, "Media storage not valid or no uris received.");
             updateStateAndNotification(STATE_FAILED);
             return;
         }
 
-        if (mBtUris.size() > 1) {
+        if (mUris.size() > 1) {
             beamPath = generateMultiplePath(extRoot + "/" + BEAM_DIR + "/");
             if (!beamPath.isDirectory() && !beamPath.mkdir()) {
                 Log.e(TAG, "Failed to create multiple path " + beamPath.toString());
@@ -332,14 +343,15 @@ public class HandoverTransfer implements Handler.Callback,
             }
         }
 
-        for (int i = 0; i < mBtUris.size(); i++) {
-            Uri uri = mBtUris.get(i);
-            String mimeType = mBtMimeTypes.get(i);
+        for (int i = 0; i < mUris.size(); i++) {
+            Uri uri = mUris.get(i);
+            String mimeType = mTransferMimeTypes.get(i);
 
             File srcFile = new File(uri.getPath());
 
             File dstFile = generateUniqueDestination(beamPath.getAbsolutePath(),
                     uri.getLastPathSegment());
+            Log.d(TAG, "Renaming from " + srcFile);
             if (!srcFile.renameTo(dstFile)) {
                 if (DBG) Log.d(TAG, "Failed to rename from " + srcFile + " to " + dstFile);
                 srcFile.delete();
@@ -431,7 +443,8 @@ public class HandoverTransfer implements Handler.Callback,
 
     PendingIntent buildCancelIntent(boolean incoming) {
         Intent intent = new Intent(HandoverService.ACTION_CANCEL_HANDOVER_TRANSFER);
-        intent.putExtra(HandoverService.EXTRA_SOURCE_ADDRESS, mRemoteDevice.getAddress());
+        intent.putExtra(HandoverService.EXTRA_ADDRESS, mDeviceType == DEVICE_TYPE_BLUETOOTH
+                ? mRemoteDevice.getAddress() : mRemoteMac);
         intent.putExtra(HandoverService.EXTRA_INCOMING, incoming ? 1 : 0);
         PendingIntent pi = PendingIntent.getBroadcast(mContext, mTransferId, intent,
                 PendingIntent.FLAG_ONE_SHOT);

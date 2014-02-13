@@ -44,10 +44,10 @@ public class BluetoothOppHandover implements Handler.Callback {
     static final int REMOTE_BT_ENABLE_DELAY_MS = 5000;
 
     static final String ACTION_HANDOVER_SEND =
-            "android.btopp.intent.action.HANDOVER_SEND";
+            "android.nfc.handover.intent.action.HANDOVER_SEND";
 
     static final String ACTION_HANDOVER_SEND_MULTIPLE =
-            "android.btopp.intent.action.HANDOVER_SEND_MULTIPLE";
+            "android.nfc.handover.intent.action.HANDOVER_SEND_MULTIPLE";
 
     final Context mContext;
     final BluetoothDevice mDevice;
@@ -69,25 +69,6 @@ public class BluetoothOppHandover implements Handler.Callback {
 
         mHandler = new Handler(context.getMainLooper(),this);
         mState = STATE_INIT;
-    }
-
-    public static String getMimeTypeForUri(Context context, Uri uri)  {
-        if (uri.getScheme() == null) return null;
-
-        if (uri.getScheme().equals(ContentResolver.SCHEME_CONTENT)) {
-            ContentResolver cr = context.getContentResolver();
-            return cr.getType(uri);
-        } else if (uri.getScheme().equals(ContentResolver.SCHEME_FILE)) {
-            String extension = MimeTypeMap.getFileExtensionFromUrl(uri.getPath()).toLowerCase();
-            if (extension != null) {
-                return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
-            } else {
-                return null;
-            }
-        } else {
-            Log.d(TAG, "Could not determine mime type for Uri " + uri);
-            return null;
-        }
     }
 
     /**
@@ -118,7 +99,7 @@ public class BluetoothOppHandover implements Handler.Callback {
     void sendIntent() {
         Intent intent = new Intent();
         intent.setPackage("com.android.bluetooth");
-        String mimeType = getMimeTypeForUri(mContext, mUris[0]);
+        String mimeType = MimeTypeUtil.getMimeTypeForUri(mContext, mUris[0]);
         intent.setType(mimeType);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
         for (Uri uri : mUris) {
