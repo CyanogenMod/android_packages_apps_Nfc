@@ -20,6 +20,7 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
+import android.app.ActivityManager.RunningTaskInfo;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -33,6 +34,7 @@ import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
+import android.nfc.BeamShareData;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
 import android.nfc.IAppCallback;
@@ -64,6 +66,7 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+
 import com.android.nfc.DeviceHost.DeviceHostListener;
 import com.android.nfc.DeviceHost.LlcpConnectionlessSocket;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
@@ -123,6 +126,7 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_ROUTE_AID = 16;
     static final int MSG_UNROUTE_AID = 17;
     static final int MSG_COMMIT_ROUTING = 18;
+    static final int MSG_INVOKE_BEAM = 19;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -1057,10 +1061,39 @@ public class NfcService implements DeviceHostListener {
             mNfcDispatcher.setForegroundDispatch(intent, filters, techLists);
         }
 
+
         @Override
         public void setAppCallback(IAppCallback callback) {
             NfcPermissions.enforceUserPermissions(mContext);
             mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
+        }
+
+        @Override
+        public void invokeBeam() {
+            NfcPermissions.enforceUserPermissions(mContext);
+
+            // Check whether caller is in the foreground
+            int callingUid = Binder.getCallingUid();
+            String[] pkgs = mContext.getPackageManager().getPackagesForUid(callingUid);
+            ActivityManager am = (ActivityManager) mContext.getSystemService(
+                    Context.ACTIVITY_SERVICE);
+            List<RunningTaskInfo> tasks = am.getRunningTasks(1);
+            boolean found = false;
+            if (pkgs != null && tasks.size() > 0) {
+                String runningPackage = tasks.get(0).topActivity.getPackageName();
+                for (String pkg : pkgs) {
+                    if (pkg.equals(runningPackage)) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found) {
+                mP2pLinkManager.onManualBeamInvoke(null);
+            } else {
+                Log.e(TAG, "Calling activity not in foreground.");
+            }
         }
 
         @Override
@@ -2096,6 +2129,20 @@ public class NfcService implements DeviceHostListener {
         mHandler.sendEmptyMessage(MSG_COMMIT_ROUTING);
     }
 
+    public void invokeBeam(BeamShareData shareData) {
+        Message msg = Message.obtain();
+        msg.what = MSG_INVOKE_BEAM;
+        msg.obj = shareData;
+        // TODO: the delay hack exists for 2 reasons:
+        // 1) The BeamShareActivity is just finish()'d and we need the calling activity to redraw,
+        //    before taking the screenshot that we use for the Beam animation.
+        // 2) The Beam P2P logic looks at the top activity of the stack to see if the currently
+        //    registered activity is still allowed to share data. If BeamShareActivity is on top,
+        //    that logic fails.
+        // Must be a more elegant way to do this...
+        mHandler.sendMessageDelayed(msg, 250);
+    }
+
     public boolean sendData(byte[] data) {
         return mDeviceHost.sendRawFrame(data);
     }
@@ -2121,6 +2168,10 @@ public class NfcService implements DeviceHostListener {
                 case MSG_UNROUTE_AID: {
                     String aid = (String) msg.obj;
                     mDeviceHost.unrouteAid(hexStringToBytes(aid));
+                    break;
+                }
+                case MSG_INVOKE_BEAM: {
+                    mP2pLinkManager.onManualBeamInvoke((BeamShareData)msg.obj);
                     break;
                 }
                 case MSG_COMMIT_ROUTING: {
