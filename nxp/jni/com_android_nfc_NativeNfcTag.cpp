@@ -50,7 +50,7 @@ extern void nfc_jni_reset_timeout_values();
 }
 
 static void nfc_jni_connect_callback(void *pContext,
-   phLibNfc_Handle hRemoteDev,
+   phLibNfc_Handle /*hRemoteDev*/,
    phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
@@ -98,7 +98,7 @@ static void nfc_jni_checkndef_callback(void *pContext,
 }
 
 static void nfc_jni_disconnect_callback(void *pContext,
-   phLibNfc_Handle hRemoteDev, NFCSTATUS status)
+   phLibNfc_Handle /*hRemoteDev*/, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_disconnect_callback", status);
@@ -115,8 +115,8 @@ static void nfc_jni_disconnect_callback(void *pContext,
    sem_post(&pCallbackData->sem);
 }
 
-static void nfc_jni_async_disconnect_callback(void *pContext,
-   phLibNfc_Handle hRemoteDev, NFCSTATUS status)
+static void nfc_jni_async_disconnect_callback(void * /*pContext*/,
+   phLibNfc_Handle /*hRemoteDev*/, NFCSTATUS status)
 {
    LOG_CALLBACK("nfc_jni_async_disconnect_callback", status);
 
@@ -131,7 +131,7 @@ static void nfc_jni_async_disconnect_callback(void *pContext,
 static phNfc_sData_t *nfc_jni_transceive_buffer;
 
 static void nfc_jni_transceive_callback(void *pContext,
-   phLibNfc_Handle handle, phNfc_sData_t *pResBuffer, NFCSTATUS status)
+   phLibNfc_Handle /*handle*/, phNfc_sData_t *pResBuffer, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_transceive_callback", status);
@@ -492,8 +492,8 @@ clean_and_return:
    return status;
 }
 
-static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv *e,
-   jobject o, phLibNfc_Handle handle)
+static jint com_android_nfc_NativeNfcTag_doHandleReconnect(JNIEnv*,
+   jobject, phLibNfc_Handle handle)
 {
    jint status;
    struct nfc_jni_callback_data cb_data;
@@ -589,7 +589,7 @@ static jboolean com_android_nfc_NativeNfcTag_doDisconnect(JNIEnv *e, jobject o)
    /* Disconnect */
    TRACE("Disconnecting from tag (%x)", handle);
 
-   if (handle == -1) {
+   if (handle == (phLibNfc_Handle)-1) {
        // Was never connected to any tag, exit
        result = JNI_TRUE;
        ALOGE("doDisconnect() - Target already disconnected");
@@ -892,7 +892,7 @@ clean_and_return:
     return result;
 }
 
-static jint com_android_nfc_NativeNfcTag_doGetNdefType(JNIEnv *e, jobject o,
+static jint com_android_nfc_NativeNfcTag_doGetNdefType(JNIEnv*, jobject,
         jint libnfcType, jint javaType)
 {
     jint ndefType =  NDEF_UNKNOWN_TYPE;
