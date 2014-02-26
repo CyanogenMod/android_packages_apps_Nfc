@@ -36,4 +36,6 @@
     <string name="pay_with" msgid="5531545488795798945">"Betaal met"</string>
     <string name="complete_with" msgid="6797459104103012992">"Voltooi met"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Jou voorkeurdiens vir tik en betaal is verwyder. Wil jy \'n ander een kies?"</string>
+    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
+    <skip />
 </resources>
