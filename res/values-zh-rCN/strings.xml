@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"付款方式："</string>
     <string name="complete_with" msgid="6797459104103012992">"使用以下应用完成操作："</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"用于触碰付款的首选服务已遭删除，您要选择使用其他服务吗？"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"请点按其他设备来完成操作"</string>
 </resources>

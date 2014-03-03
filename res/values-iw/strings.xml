@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"שלם באמצעות"</string>
     <string name="complete_with" msgid="6797459104103012992">"השלם באמצעות"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"השירות המועדף עליך עבור \'הקש ושלם\' הוסר. האם לבחור אחר?"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"הקש על מכשיר אחר להשלמה"</string>
 </resources>

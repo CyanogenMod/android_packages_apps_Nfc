@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"پرداخت با"</string>
     <string name="complete_with" msgid="6797459104103012992">"تکمیل با"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"سرویس ترجیحی شما برای ضربه و پرداخت حذف شده است. سرویس دیگری را انتخاب می‌کنید؟"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"برای تکمیل، روی دستگاه دیگری ضربه بزنید"</string>
 </resources>

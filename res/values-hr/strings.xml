@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"Plati pomoću aplikacije"</string>
     <string name="complete_with" msgid="6797459104103012992">"Dovrši pomoću aplikacije"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Vaša je odabrana usluga za opciju Dodirni i plati uklonjena. Želite li odabrati drugu?"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"Dodirnite neki drugi uređaj da biste završili"</string>
 </resources>

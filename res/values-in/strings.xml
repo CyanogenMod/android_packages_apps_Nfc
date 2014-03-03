@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"Bayar dengan"</string>
     <string name="complete_with" msgid="6797459104103012992">"Selesaikan dengan"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Layanan pilihan Anda untuk ketuk &amp; bayar telah dihapus. Pilih yang lain?"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"Ketuk perangkat lain untuk menyelesaikan"</string>
 </resources>

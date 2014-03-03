@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"इनके द्वारा भुगतान करें"</string>
     <string name="complete_with" msgid="6797459104103012992">"इनके द्वारा पूर्ण करें"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"टैप करके भुगतान करने के लिए आपकी पसंदीदा सेवा को निकाल दिया गया था. कोई अन्‍य चुनें?"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"पूर्ण करने के लिए अन्य उपकरण टैप करें"</string>
 </resources>

@@ -36,6 +36,5 @@
     <string name="pay_with" msgid="5531545488795798945">"Վճարել"</string>
     <string name="complete_with" msgid="6797459104103012992">"Ավարտել"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Հպելու և վճարելու համար ձեր նախընտրած ծառայությունը հեռացվել է: Ընտրե՞լ մեկ ուրիշը:"</string>
-    <!-- no translation found for ask_nfc_tap (2925239870458286340) -->
-    <skip />
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"Ավարտելու համար հպեք մեկ այլ սարքի էկրանին"</string>
 </resources>
