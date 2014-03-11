@@ -135,9 +135,9 @@ int nfc_jni_get_nfc_socket_handle (JNIEnv *e, jobject o)
 struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o)
 {
    ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
-   jfieldID f = e->GetFieldID(c.get(), "mNative", "I");
+   jfieldID f = e->GetFieldID(c.get(), "mNative", "J");
    /* Retrieve native structure address */
-   return (struct nfc_jni_native_data*) e->GetIntField(o, f);
+   return (struct nfc_jni_native_data*)e->GetLongField(o, f);
 }
 
 

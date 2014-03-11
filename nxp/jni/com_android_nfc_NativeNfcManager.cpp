@@ -1658,8 +1658,8 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
    nat->manager = e->NewGlobalRef(o);
 
    cls = e->GetObjectClass(o);
-   f = e->GetFieldID(cls, "mNative", "I");
-   e->SetIntField(o, f, (jint)nat);
+   f = e->GetFieldID(cls, "mNative", "J");
+   e->SetLongField(o, f, (jlong)nat);
 
    /* Initialize native cached references */
    cached_NfcManager_notifyNdefMessageListeners = e->GetMethodID(cls,
