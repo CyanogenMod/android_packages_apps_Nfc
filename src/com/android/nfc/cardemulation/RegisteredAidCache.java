@@ -161,7 +161,10 @@ public class RegisteredAidCache implements RegisteredServicesCache.Callback {
         synchronized (mLock) {
             resolveInfo = mAidCache.get(aid);
         }
-        if (resolveInfo.services == null || resolveInfo.services.size() == 0) return false;
+        if (resolveInfo == null || resolveInfo.services == null ||
+                resolveInfo.services.size() == 0) {
+            return false;
+        }
 
         if (resolveInfo.defaultService != null) {
             return service.equals(resolveInfo.defaultService.getComponent());
