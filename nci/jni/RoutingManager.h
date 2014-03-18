@@ -57,5 +57,6 @@ private:
     int mDefaultEe;
     SyncEvent mEeRegisterEvent;
     SyncEvent mRoutingEvent;
+    SyncEvent mEeUpdateEvent;
 };
 

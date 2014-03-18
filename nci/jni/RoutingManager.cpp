@@ -108,10 +108,17 @@ void RoutingManager::setDefaultRouting()
     if (nfaStat != NFA_STATUS_OK)
         ALOGE("Failed to register wildcard AID for DH");
 
-    // Commit the routing configuration
-    nfaStat = NFA_EeUpdateNow();
-    if (nfaStat != NFA_STATUS_OK)
-        ALOGE("Failed to commit routing configuration");
+    {
+        SyncEventGuard guard (mEeUpdateEvent);
+        // Commit the routing configuration
+        nfaStat = NFA_EeUpdateNow();
+        if (nfaStat == NFA_STATUS_OK)
+        {
+            mEeUpdateEvent.wait (); //wait for NFA_EE_UPDATED_EVT
+        }
+        else
+            ALOGE("Failed to commit routing configuration");
+    }
 }
 
 bool RoutingManager::addAidRouting(const UINT8* aid, UINT8 aidLen, int route)
@@ -148,7 +155,17 @@ bool RoutingManager::removeAidRouting(const UINT8* aid, UINT8 aidLen)
 
 bool RoutingManager::commitRouting()
 {
-    tNFA_STATUS nfaStat = NFA_EeUpdateNow();
+    static const char fn [] = "RoutingManager::commitRouting";
+    tNFA_STATUS nfaStat = 0;
+    ALOGD ("%s", fn);
+    {
+        SyncEventGuard guard (mEeUpdateEvent);
+        nfaStat = NFA_EeUpdateNow();
+        if (nfaStat == NFA_STATUS_OK)
+        {
+            mEeUpdateEvent.wait (); //wait for NFA_EE_UPDATED_EVT
+        }
+    }
     return (nfaStat == NFA_STATUS_OK);
 }
 
@@ -268,7 +285,6 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
         }
         break;
     }
-
 }
 /*******************************************************************************
 **
@@ -365,6 +381,14 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
         {
             ALOGD ("%s: NFA_EE_NEW_EE_EVT  h=0x%X; status=%u", fn,
                 eventData->new_ee.ee_handle, eventData->new_ee.ee_status);
+        }
+        break;
+
+    case NFA_EE_UPDATED_EVT:
+        {
+            ALOGD("%s: NFA_EE_UPDATED_EVT", fn);
+            SyncEventGuard guard(routingManager.mEeUpdateEvent);
+            routingManager.mEeUpdateEvent.notifyOne();
         }
         break;
 
