@@ -21,7 +21,6 @@
 #include "PowerSwitch.h"
 #include "NfcJniUtil.h"
 #include "config.h"
-#include "SecureElement.h"
 
 
 namespace android

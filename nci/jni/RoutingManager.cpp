@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2013 The Android Open Source Project
  *
@@ -24,6 +23,12 @@
 #include "config.h"
 #include "JavaClassConstants.h"
 #include "RoutingManager.h"
+
+extern "C"
+{
+    #include "nfa_ee_api.h"
+    #include "nfa_ce_api.h"
+}
 
 RoutingManager::RoutingManager ()
 {
@@ -167,8 +172,6 @@ void RoutingManager::notifyActivated ()
 
 void RoutingManager::notifyDeactivated ()
 {
-    SecureElement::getInstance().notifyListenModeState (false);
-
     JNIEnv* e = NULL;
     ScopedAttach attach(mNativeData->vm, &e);
     if (e == NULL)
@@ -282,7 +285,6 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
 {
     static const char fn [] = "RoutingManager::nfaEeCallback";
 
-    SecureElement& se = SecureElement::getInstance();
     RoutingManager& routingManager = RoutingManager::getInstance();
 
     switch (event)
@@ -297,9 +299,8 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
 
     case NFA_EE_MODE_SET_EVT:
         {
-            ALOGD ("%s: NFA_EE_MODE_SET_EVT; status: 0x%04X  handle: 0x%04X  mActiveEeHandle: 0x%04X", fn,
-                    eventData->mode_set.status, eventData->mode_set.ee_handle, se.mActiveEeHandle);
-            se.notifyModeSet(eventData->mode_set.ee_handle, eventData->mode_set.status);
+            ALOGD ("%s: NFA_EE_MODE_SET_EVT; status: 0x%04X  handle: 0x%04X  ", fn,
+                    eventData->mode_set.status, eventData->mode_set.ee_handle);
         }
         break;
 
@@ -329,17 +330,6 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
                 tNFC_APP_INIT& app_init = action.param.app_init;
                 ALOGD ("%s: NFA_EE_ACTION_EVT; h=0x%X; trigger=app-init (0x%X); aid len=%u; data len=%u", fn,
                         action.ee_handle, action.trigger, app_init.len_aid, app_init.len_data);
-                //if app-init operation is successful;
-                //app_init.data[] contains two bytes, which are the status codes of the event;
-                //app_init.data[] does not contain an APDU response;
-                //see EMV Contactless Specification for Payment Systems; Book B; Entry Point Specification;
-                //version 2.1; March 2011; section 3.3.3.5;
-                if ( (app_init.len_data > 1) &&
-                     (app_init.data[0] == 0x90) &&
-                     (app_init.data[1] == 0x00) )
-                {
-                    se.notifyTransactionListenersOfAid (app_init.aid, app_init.len_aid);
-                }
             }
             else if (action.trigger == NFC_EE_TRIG_RF_PROTOCOL)
                 ALOGD ("%s: NFA_EE_ACTION_EVT; h=0x%X; trigger=rf protocol (0x%X)", fn, action.ee_handle, action.trigger);

@@ -48,26 +48,9 @@ public class NativeNfcManager implements DeviceHost {
     static final int DEFAULT_LLCP_MIU = 128;
     static final int DEFAULT_LLCP_RWSIZE = 1;
 
-    //TODO: dont hardcode this
-    private static final byte[][] EE_WIPE_APDUS = {
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x20, (byte)0x10, (byte)0x00},
-        {(byte)0x80, (byte)0xe2, (byte)0x01, (byte)0x03, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x07, (byte)0xa0, (byte)0x00,
-                (byte)0x00, (byte)0x04, (byte)0x76, (byte)0x30, (byte)0x30, (byte)0x00},
-        {(byte)0x80, (byte)0xb4, (byte)0x00, (byte)0x00, (byte)0x00},
-        {(byte)0x00, (byte)0xa4, (byte)0x04, (byte)0x00, (byte)0x00},
-    };
-
-
     static {
         System.loadLibrary("nfc_jni");
     }
-
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String INTERNAL_TARGET_DESELECTED_ACTION = "com.android.nfc.action.INTERNAL_TARGET_DESELECTED";
 
     /* Native structure */
     private long mNative;
@@ -135,17 +118,6 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public boolean initialize(boolean enableScreenOffSuspendUnused) {
-        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-
-        if (prefs.getBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false)) {
-            try {
-                Thread.sleep (12000);
-                editor.putBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false);
-                editor.apply();
-            } catch (InterruptedException e) { }
-        }
-
         return doInitialize();
     }
 
@@ -153,12 +125,6 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public boolean deinitialize() {
-        SharedPreferences prefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-
-        editor.putBoolean(NativeNfcSecureElement.PREF_SE_WIRED, false);
-        editor.apply();
-
         return doDeinitialize();
     }
 
@@ -202,16 +168,6 @@ public class NativeNfcManager implements DeviceHost {
     {
 
     }
-
-    @Override
-    public native int[] doGetSecureElementList();
-
-    @Override
-    public native void doSelectSecureElement();
-
-    @Override
-    public native void doDeselectSecureElement();
-
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
             String sn);
@@ -397,11 +353,6 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
-    public byte[][] getWipeApdus() {
-        return EE_WIPE_APDUS;
-    }
-
-    @Override
     public int getDefaultLlcpMiu() {
         return DEFAULT_LLCP_MIU;
     }
@@ -425,20 +376,6 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     /**
-     * Notifies transaction
-     */
-    private void notifyTargetDeselected() {
-        mListener.onCardEmulationDeselected();
-    }
-
-    /**
-     * Notifies transaction
-     */
-    private void notifyTransactionListeners(byte[] aid) {
-        mListener.onCardEmulationAidSelected(aid);
-    }
-
-    /**
      * Notifies P2P Device detected, to activate LLCP link
      */
     private void notifyLlcpLinkActivation(NativeP2pDevice device) {
@@ -451,25 +388,4 @@ public class NativeNfcManager implements DeviceHost {
     private void notifyLlcpLinkDeactivated(NativeP2pDevice device) {
         mListener.onLlcpLinkDeactivated(device);
     }
-
-    private void notifySeFieldActivated() {
-        mListener.onRemoteFieldActivated();
-    }
-
-    private void notifySeFieldDeactivated() {
-        mListener.onRemoteFieldDeactivated();
-    }
-
-    private void notifySeApduReceived(byte[] apdu) {
-        mListener.onSeApduReceived(apdu);
-    }
-
-    private void notifySeEmvCardRemoval() {
-        mListener.onSeEmvCardRemoval();
-    }
-
-    private void notifySeMifareAccess(byte[] block) {
-        mListener.onSeMifareAccess(block);
-    }
-
 }

@@ -21,7 +21,6 @@
 #include "SyncEvent.h"
 #include "NfcJniUtil.h"
 #include "RouteDataSet.h"
-#include "SecureElement.h"
 #include <vector>
 extern "C"
 {

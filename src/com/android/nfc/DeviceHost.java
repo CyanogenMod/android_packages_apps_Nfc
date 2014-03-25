@@ -26,16 +26,6 @@ public interface DeviceHost {
         public void onRemoteEndpointDiscovered(TagEndpoint tag);
 
         /**
-         * Notifies transaction
-         */
-        public void onCardEmulationDeselected();
-
-        /**
-         * Notifies transaction
-         */
-        public void onCardEmulationAidSelected(byte[] aid);
-
-        /**
          */
         public void onHostCardEmulationActivated();
         public void onHostCardEmulationData(byte[] data);
@@ -52,26 +42,6 @@ public interface DeviceHost {
         public void onLlcpLinkDeactivated(NfcDepEndpoint device);
 
         public void onLlcpFirstPacketReceived(NfcDepEndpoint device);
-
-        public void onRemoteFieldActivated();
-
-        public void onRemoteFieldDeactivated();
-
-        /**
-         * Notifies that the SE has been activated in listen mode
-         */
-        public void onSeListenActivated();
-
-        /**
-         * Notifies that the SE has been deactivated
-         */
-        public void onSeListenDeactivated();
-
-        public void onSeApduReceived(byte[] apdu);
-
-        public void onSeEmvCardRemoval();
-
-        public void onSeMifareAccess(byte[] block);
     }
 
     public interface TagEndpoint {
@@ -203,12 +173,6 @@ public interface DeviceHost {
 
     public void disableRoutingToHost();
 
-    public int[] doGetSecureElementList();
-
-    public void doSelectSecureElement();
-
-    public void doDeselectSecureElement();
-
     public boolean sendRawFrame(byte[] data);
 
     public boolean routeAid(byte[] aid, int route);
@@ -247,8 +211,6 @@ public interface DeviceHost {
     boolean getExtendedLengthApdusSupported();
 
     boolean enablePN544Quirks();
-
-    byte[][] getWipeApdus();
 
     int getDefaultLlcpMiu();
 

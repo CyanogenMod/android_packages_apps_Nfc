@@ -73,7 +73,6 @@ import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.cardemulation.CardEmulationManager;
 import com.android.nfc.dhimpl.NativeNfcManager;
-import com.android.nfc.dhimpl.NativeNfcSecureElement;
 import com.android.nfc.handover.HandoverManager;
 
 import java.io.FileDescriptor;
@@ -87,8 +86,6 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 
 public class NfcService implements DeviceHostListener {
-    private static final String ACTION_MASTER_CLEAR_NOTIFICATION = "android.intent.action.MASTER_CLEAR_NOTIFICATION";
-
     static final boolean DBG = false;
     static final String TAG = "NfcService";
 
@@ -103,21 +100,11 @@ public class NfcService implements DeviceHostListener {
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
     static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
-    static final boolean SE_BROADCASTS_WITH_HCE = true;
 
     static final int MSG_NDEF_TAG = 0;
-    static final int MSG_CARD_EMULATION = 1;
     static final int MSG_LLCP_LINK_ACTIVATION = 2;
     static final int MSG_LLCP_LINK_DEACTIVATED = 3;
-    static final int MSG_TARGET_DESELECTED = 4;
     static final int MSG_MOCK_NDEF = 7;
-    static final int MSG_SE_FIELD_ACTIVATED = 8;
-    static final int MSG_SE_FIELD_DEACTIVATED = 9;
-    static final int MSG_SE_APDU_RECEIVED = 10;
-    static final int MSG_SE_EMV_CARD_REMOVAL = 11;
-    static final int MSG_SE_MIFARE_ACCESS = 12;
-    static final int MSG_SE_LISTEN_ACTIVATED = 13;
-    static final int MSG_SE_LISTEN_DEACTIVATED = 14;
     static final int MSG_LLCP_LINK_FIRST_PACKET = 15;
     static final int MSG_ROUTE_AID = 16;
     static final int MSG_UNROUTE_AID = 17;
@@ -127,21 +114,6 @@ public class NfcService implements DeviceHostListener {
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
     static final int TASK_BOOT = 3;
-    static final int TASK_EE_WIPE = 4;
-
-    // Copied from com.android.nfc_extras to avoid library dependency
-    // Must keep in sync with com.android.nfc_extras
-    static final int ROUTE_OFF = 1;
-    static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
-
-    // Return values from NfcEe.open() - these are 1:1 mapped
-    // to the thrown EE_EXCEPTION_ exceptions in nfc-extras.
-    static final int EE_ERROR_IO = -1;
-    static final int EE_ERROR_ALREADY_OPEN = -2;
-    static final int EE_ERROR_INIT = -3;
-    static final int EE_ERROR_LISTEN_MODE = -4;
-    static final int EE_ERROR_EXT_FIELD = -5;
-    static final int EE_ERROR_NFC_DISABLED = -6;
 
     // Polling technology masks
     static final int NFC_POLL_DEFAULT = 0;
@@ -161,12 +133,6 @@ public class NfcService implements DeviceHostListener {
     // goes off
     static final int ROUTING_WATCHDOG_MS = 10000;
 
-    // Amount of time to wait before closing the NFCEE connection
-    // in a disable/shutdown scenario.
-    static final int WAIT_FOR_NFCEE_OPERATIONS_MS = 5000;
-    // Polling interval for waiting on NFCEE operations
-    static final int WAIT_FOR_NFCEE_POLL_MS = 100;
-
     // Default delay used for presence checks
     static final int DEFAULT_PRESENCE_CHECK_DELAY = 125;
 
@@ -175,62 +141,28 @@ public class NfcService implements DeviceHostListener {
     public static final int SOUND_END = 1;
     public static final int SOUND_ERROR = 2;
 
-    public static final String ACTION_RF_FIELD_ON_DETECTED =
-            "com.android.nfc_extras.action.RF_FIELD_ON_DETECTED";
-    public static final String ACTION_RF_FIELD_OFF_DETECTED =
-            "com.android.nfc_extras.action.RF_FIELD_OFF_DETECTED";
-    public static final String ACTION_AID_SELECTED =
-            "com.android.nfc_extras.action.AID_SELECTED";
-    public static final String EXTRA_AID = "com.android.nfc_extras.extra.AID";
-
     public static final String ACTION_LLCP_UP =
             "com.android.nfc.action.LLCP_UP";
 
     public static final String ACTION_LLCP_DOWN =
             "com.android.nfc.action.LLCP_DOWN";
 
-    public static final String ACTION_APDU_RECEIVED =
-            "com.android.nfc_extras.action.APDU_RECEIVED";
-    public static final String EXTRA_APDU_BYTES =
-            "com.android.nfc_extras.extra.APDU_BYTES";
-
-    public static final String ACTION_EMV_CARD_REMOVAL =
-            "com.android.nfc_extras.action.EMV_CARD_REMOVAL";
-
-    public static final String ACTION_MIFARE_ACCESS_DETECTED =
-            "com.android.nfc_extras.action.MIFARE_ACCESS_DETECTED";
-    public static final String EXTRA_MIFARE_BLOCK =
-            "com.android.nfc_extras.extra.MIFARE_BLOCK";
-
-    public static final String ACTION_SE_LISTEN_ACTIVATED =
-            "com.android.nfc_extras.action.SE_LISTEN_ACTIVATED";
-    public static final String ACTION_SE_LISTEN_DEACTIVATED =
-            "com.android.nfc_extras.action.SE_LISTEN_DEACTIVATED";
-
     // NFC Execution Environment
     // fields below are protected by this
-    private NativeNfcSecureElement mSecureElement;
-    private OpenSecureElement mOpenEe;  // null when EE closed
     private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
             new ReaderModeDeathRecipient();
-    private int mEeRoutingState;  // contactless interface routing
 
     // fields below must be used only on the UI thread and therefore aren't synchronized
     boolean mP2pStarted = false;
-
 
     // minimum screen state that enables NFC polling (discovery)
     private int mPollingMode;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
-    // mSePackages holds packages that accessed the SE, but only for the owner user,
-    // as SE access is not granted for non-owner users.
-    HashSet<String> mSePackages = new HashSet<String>();
     int mScreenState;
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
-    boolean mNfceeRouteEnabled;  // current Device Host state of NFC-EE routing
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
     boolean mHostRouteEnabled;   // current Device Host state of host-based routing
     boolean mReaderModeEnabled;  // current Device Host state of reader mode
@@ -249,7 +181,6 @@ public class NfcService implements DeviceHostListener {
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private PowerManager.WakeLock mRoutingWakeLock;
-    private PowerManager.WakeLock mEeWakeLock;
 
     int mStartSound;
     int mEndSound;
@@ -258,12 +189,10 @@ public class NfcService implements DeviceHostListener {
     P2pLinkManager mP2pLinkManager;
     TagService mNfcTagService;
     NfcAdapterService mNfcAdapter;
-    NfcAdapterExtrasService mExtrasService;
     boolean mIsAirplaneSensitive;
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
-    NfceeAccessControl mNfceeAccessControl;
 
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
@@ -278,21 +207,6 @@ public class NfcService implements DeviceHostListener {
 
     private static NfcService sService;
 
-
-    public void enforceNfceeAdminPerm(String pkg) {
-        if (pkg == null) {
-            throw new SecurityException("caller must pass a package name");
-        }
-        NfcPermissions.enforceUserPermissions(mContext);
-        if (!mNfceeAccessControl.check(Binder.getCallingUid(), pkg)) {
-            throw new SecurityException(NfceeAccessControl.NFCEE_ACCESS_PATH +
-                    " denies NFCEE access to " + pkg);
-        }
-        if (UserHandle.getCallingUserId() != UserHandle.USER_OWNER) {
-            throw new SecurityException("only the owner is allowed to call SE APIs");
-        }
-    }
-
     public static NfcService getInstance() {
         return sService;
     }
@@ -300,26 +214,6 @@ public class NfcService implements DeviceHostListener {
     @Override
     public void onRemoteEndpointDiscovered(TagEndpoint tag) {
         sendMessage(NfcService.MSG_NDEF_TAG, tag);
-    }
-
-    /**
-     * Notifies transaction
-     */
-    @Override
-    public void onCardEmulationDeselected() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_TARGET_DESELECTED, null);
-        }
-    }
-
-    /**
-     * Notifies transaction
-     */
-    @Override
-    public void onCardEmulationAidSelected(byte[] aid) {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_CARD_EMULATION, aid);
-        }
     }
 
     /**
@@ -370,56 +264,6 @@ public class NfcService implements DeviceHostListener {
         sendMessage(NfcService.MSG_LLCP_LINK_FIRST_PACKET, device);
     }
 
-    @Override
-    public void onRemoteFieldActivated() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_FIELD_ACTIVATED, null);
-        }
-    }
-
-    @Override
-    public void onRemoteFieldDeactivated() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_FIELD_DEACTIVATED, null);
-        }
-    }
-
-    @Override
-    public void onSeListenActivated() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_LISTEN_ACTIVATED, null);
-        }
-    }
-
-    @Override
-    public void onSeListenDeactivated() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_LISTEN_DEACTIVATED, null);
-        }
-    }
-
-
-    @Override
-    public void onSeApduReceived(byte[] apdu) {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_APDU_RECEIVED, apdu);
-        }
-    }
-
-    @Override
-    public void onSeEmvCardRemoval() {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_EMV_CARD_REMOVAL, null);
-        }
-    }
-
-    @Override
-    public void onSeMifareAccess(byte[] block) {
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            sendMessage(NfcService.MSG_SE_MIFARE_ACCESS, block);
-        }
-    }
-
     final class ReaderModeParams {
         public int flags;
         public IAppCallback callback;
@@ -432,7 +276,6 @@ public class NfcService implements DeviceHostListener {
 
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
-        mExtrasService = new NfcAdapterExtrasService();
         Log.i(TAG, "Starting NFC service");
 
         sService = this;
@@ -474,11 +317,6 @@ public class NfcService implements DeviceHostListener {
         mP2pLinkManager = new P2pLinkManager(mContext, mHandoverManager,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
-        mSecureElement = new NativeNfcSecureElement(mContext);
-        mEeRoutingState = ROUTE_OFF;
-
-        mNfceeAccessControl = new NfceeAccessControl(mContext);
-
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
@@ -491,8 +329,6 @@ public class NfcService implements DeviceHostListener {
 
         mRoutingWakeLock = mPowerManager.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mRoutingWakeLock");
-        mEeWakeLock = mPowerManager.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mEeWakeLock");
 
         mKeyguard = (KeyguardManager) mContext.getSystemService(Context.KEYGUARD_SERVICE);
         mScreenState = mScreenStateHelper.checkScreenState();
@@ -500,8 +336,7 @@ public class NfcService implements DeviceHostListener {
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         // Intents for all users
-        IntentFilter filter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
-        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
@@ -512,23 +347,6 @@ public class NfcService implements DeviceHostListener {
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION);
         if (mIsHceCapable) {
             mCardEmulationManager = new CardEmulationManager(mContext);
-        }
-        if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
-            IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
-            ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
-            ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
-            ownerFilter.addAction(ACTION_MASTER_CLEAR_NOTIFICATION);
-
-            mContext.registerReceiver(mOwnerReceiver, ownerFilter);
-
-            ownerFilter = new IntentFilter();
-            ownerFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
-            ownerFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-            ownerFilter.addDataScheme("package");
-
-            mContext.registerReceiver(mOwnerReceiver, ownerFilter);
-
-            updatePackageCache();
         }
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
@@ -581,37 +399,6 @@ public class NfcService implements DeviceHostListener {
         List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_OWNER);
         synchronized (this) {
             mInstalledPackages = packages;
-        }
-    }
-
-    int doOpenSecureElementConnection() {
-        mEeWakeLock.acquire();
-        try {
-            return mSecureElement.doOpenSecureElementConnection();
-        } finally {
-            mEeWakeLock.release();
-        }
-    }
-
-    byte[] doTransceive(int handle, byte[] cmd) {
-        mEeWakeLock.acquire();
-        try {
-            return doTransceiveNoLock(handle, cmd);
-        } finally {
-            mEeWakeLock.release();
-        }
-    }
-
-    byte[] doTransceiveNoLock(int handle, byte[] cmd) {
-        return mSecureElement.doTransceive(handle, cmd);
-    }
-
-    void doDisconnect(int handle) {
-        mEeWakeLock.acquire();
-        try {
-            mSecureElement.doDisconnect(handle);
-        } finally {
-            mEeWakeLock.release();
         }
     }
 
@@ -687,11 +474,7 @@ public class NfcService implements DeviceHostListener {
                         Log.i(TAG, "First Boot");
                         mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
                         mPrefsEditor.apply();
-                        executeEeWipe();
                     }
-                    break;
-                case TASK_EE_WIPE:
-                    executeEeWipe();
                     break;
             }
 
@@ -774,33 +557,6 @@ public class NfcService implements DeviceHostListener {
 
             mP2pLinkManager.enableDisable(false, false);
 
-            /* The NFC-EE may still be opened by another process,
-             * and a transceive() could still be in progress on
-             * another Binder thread.
-             * Give it a while to finish existing operations
-             * before we close it.
-             */
-            Long startTime = SystemClock.elapsedRealtime();
-            do {
-                synchronized (NfcService.this) {
-                    if (mOpenEe == null)
-                        break;
-                }
-                try {
-                    Thread.sleep(WAIT_FOR_NFCEE_POLL_MS);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
-            } while (SystemClock.elapsedRealtime() - startTime < WAIT_FOR_NFCEE_OPERATIONS_MS);
-
-            synchronized (NfcService.this) {
-                if (mOpenEe != null) {
-                    try {
-                        _nfcEeClose(-1, mOpenEe.binder);
-                    } catch (IOException e) { }
-                }
-            }
-
             // Stop watchdog if tag present
             // A convenient way to stop the watchdog properly consists of
             // disconnecting the tag. The polling loop shall be stopped before
@@ -819,68 +575,6 @@ public class NfcService implements DeviceHostListener {
             releaseSoundPool();
 
             return result;
-        }
-
-        void executeEeWipe() {
-            // TODO: read SE reset list from /system/etc
-            byte[][] apdus = mDeviceHost.getWipeApdus();
-
-            if (apdus == null) {
-                Log.d(TAG, "No wipe APDUs found");
-                return;
-            }
-
-            boolean tempEnable = mState == NfcAdapter.STATE_OFF;
-            // Hold a wake-lock over the entire wipe procedure
-            mEeWakeLock.acquire();
-            try {
-                if (tempEnable && !enableInternal()) {
-                    Log.w(TAG, "Could not enable NFC to wipe NFC-EE");
-                    return;
-                }
-                try {
-                    // NFC enabled
-                    int handle = 0;
-                    try {
-                        Log.i(TAG, "Executing SE wipe");
-                        handle = doOpenSecureElementConnection();
-                        if (handle < 0) {
-                            Log.w(TAG, "Could not open the secure element");
-                            return;
-                        }
-                        // TODO: remove this hack
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            // Ignore
-                        }
-
-                        mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 10000);
-                        try {
-                            for (byte[] cmd : apdus) {
-                                byte[] resp = doTransceiveNoLock(handle, cmd);
-                                if (resp == null) {
-                                    Log.w(TAG, "Transceive failed, could not wipe NFC-EE");
-                                    break;
-                                }
-                            }
-                        } finally {
-                            mDeviceHost.resetTimeouts();
-                        }
-                    } finally {
-                        if (handle >= 0) {
-                            doDisconnect(handle);
-                        }
-                    }
-                } finally {
-                    if (tempEnable) {
-                        disableInternal();
-                    }
-                }
-            } finally {
-                mEeWakeLock.release();
-            }
-            Log.i(TAG, "SE wipe done");
         }
 
         void updateState(int newState) {
@@ -1087,12 +781,6 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
-        public INfcAdapterExtras getNfcAdapterExtrasInterface(String pkg) {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-            return mExtrasService;
-        }
-
-        @Override
         public INfcCardEmulation getNfcCardEmulationInterface() {
             if (mIsHceCapable) {
                 return mCardEmulationManager.getNfcCardEmulationInterface();
@@ -1162,6 +850,12 @@ public class NfcService implements DeviceHostListener {
                 }
                 applyRouting(false);
             }
+        }
+
+        @Override
+        public INfcAdapterExtras getNfcAdapterExtrasInterface(String pkg) throws RemoteException {
+            // nfc-extras implementation is no longer present in AOSP.
+            return null;
         }
     }
 
@@ -1527,242 +1221,6 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
-    void _nfcEeClose(int callingPid, IBinder binder) throws IOException {
-        // Blocks until a pending open() or transceive() times out.
-        //TODO: This is incorrect behavior - the close should interrupt pending
-        // operations. However this is not supported by current hardware.
-
-        synchronized (NfcService.this) {
-            if (!isNfcEnabledOrShuttingDown()) {
-                throw new IOException("NFC adapter is disabled");
-            }
-            if (mOpenEe == null) {
-                throw new IOException("NFC EE closed");
-            }
-            if (callingPid != -1 && callingPid != mOpenEe.pid) {
-                throw new SecurityException("Wrong PID");
-            }
-            if (mOpenEe.binder != binder) {
-                throw new SecurityException("Wrong binder handle");
-            }
-
-            binder.unlinkToDeath(mOpenEe, 0);
-            mDeviceHost.resetTimeouts();
-            doDisconnect(mOpenEe.handle);
-            mOpenEe = null;
-
-            applyRouting(true);
-        }
-    }
-
-    final class NfcAdapterExtrasService extends INfcAdapterExtras.Stub {
-        private Bundle writeNoException() {
-            Bundle p = new Bundle();
-            p.putInt("e", 0);
-            return p;
-        }
-
-        private Bundle writeEeException(int exceptionType, String message) {
-            Bundle p = new Bundle();
-            p.putInt("e", exceptionType);
-            p.putString("m", message);
-            return p;
-        }
-
-        @Override
-        public Bundle open(String pkg, IBinder b) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-
-            Bundle result;
-            int handle = _open(b);
-            if (handle < 0) {
-                result = writeEeException(handle, "NFCEE open exception.");
-            } else {
-                result = writeNoException();
-            }
-            return result;
-        }
-
-        /**
-         * Opens a connection to the secure element.
-         *
-         * @return A handle with a value >= 0 in case of success, or a
-         *         negative value in case of failure.
-         */
-        private int _open(IBinder b) {
-            synchronized (NfcService.this) {
-                if (!isNfcEnabled()) {
-                    return EE_ERROR_NFC_DISABLED;
-                }
-                if (mInProvisionMode) {
-                    // Deny access to the NFCEE as long as the device is being setup
-                    return EE_ERROR_IO;
-                }
-                if (mDeviceHost.enablePN544Quirks() && mP2pLinkManager.isLlcpActive()) {
-                    // Don't allow PN544-based devices to open the SE while the LLCP
-                    // link is still up or in a debounce state. This avoids race
-                    // conditions in the NXP stack around P2P/SMX switching.
-                    return EE_ERROR_EXT_FIELD;
-                }
-                if (mOpenEe != null) {
-                    return EE_ERROR_ALREADY_OPEN;
-                }
-
-                boolean restorePolling = false;
-                if (mDeviceHost.enablePN544Quirks() && mNfcPollingEnabled) {
-                    // Disable polling for tags/P2P when connecting to the SMX
-                    // on PN544-based devices. Whenever nfceeClose is called,
-                    // the polling configuration will be restored.
-                    mDeviceHost.disableDiscovery();
-                    mNfcPollingEnabled = false;
-                    restorePolling = true;
-                }
-
-                int handle = doOpenSecureElementConnection();
-                if (handle < 0) {
-
-                    if (restorePolling) {
-                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
-                        mNfcPollingEnabled = true;
-                    }
-                    return handle;
-                }
-                mDeviceHost.setTimeout(TagTechnology.ISO_DEP, 30000);
-
-                mOpenEe = new OpenSecureElement(getCallingPid(), handle, b);
-                try {
-                    b.linkToDeath(mOpenEe, 0);
-                } catch (RemoteException e) {
-                    mOpenEe.binderDied();
-                }
-
-                // Add the calling package to the list of packages that have accessed
-                // the secure element.
-                for (String packageName : mContext.getPackageManager().getPackagesForUid(getCallingUid())) {
-                    mSePackages.add(packageName);
-                }
-
-                return handle;
-            }
-        }
-
-        @Override
-        public Bundle close(String pkg, IBinder binder) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-
-            Bundle result;
-            try {
-                _nfcEeClose(getCallingPid(), binder);
-                result = writeNoException();
-            } catch (IOException e) {
-                result = writeEeException(EE_ERROR_IO, e.getMessage());
-            }
-            return result;
-        }
-
-        @Override
-        public Bundle transceive(String pkg, byte[] in) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-
-            Bundle result;
-            byte[] out;
-            try {
-                out = _transceive(in);
-                result = writeNoException();
-                result.putByteArray("out", out);
-            } catch (IOException e) {
-                result = writeEeException(EE_ERROR_IO, e.getMessage());
-            }
-            return result;
-        }
-
-        private byte[] _transceive(byte[] data) throws IOException {
-            synchronized (NfcService.this) {
-                if (!isNfcEnabled()) {
-                    throw new IOException("NFC is not enabled");
-                }
-                if (mOpenEe == null) {
-                    throw new IOException("NFC EE is not open");
-                }
-                if (getCallingPid() != mOpenEe.pid) {
-                    throw new SecurityException("Wrong PID");
-                }
-            }
-
-            return doTransceive(mOpenEe.handle, data);
-        }
-
-        @Override
-        public int getCardEmulationRoute(String pkg) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-            return mEeRoutingState;
-        }
-
-        @Override
-        public void setCardEmulationRoute(String pkg, int route) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-            mEeRoutingState = route;
-            ApplyRoutingTask applyRoutingTask = new ApplyRoutingTask();
-            applyRoutingTask.execute();
-            try {
-                // Block until route is set
-                applyRoutingTask.get();
-            } catch (ExecutionException e) {
-                Log.e(TAG, "failed to set card emulation mode");
-            } catch (InterruptedException e) {
-                Log.e(TAG, "failed to set card emulation mode");
-            }
-        }
-
-        @Override
-        public void authenticate(String pkg, byte[] token) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-        }
-
-        @Override
-        public String getDriverName(String pkg) throws RemoteException {
-            NfcService.this.enforceNfceeAdminPerm(pkg);
-            return mDeviceHost.getName();
-        }
-    }
-
-    /**
-     * resources kept while secure element is open
-     */
-    private class OpenSecureElement implements IBinder.DeathRecipient {
-        public int pid;  // pid that opened SE
-        // binder handle used for DeathReceipient. Must keep
-        // a reference to this, otherwise it can get GC'd and
-        // the binder stub code might create a different BinderProxy
-        // for the same remote IBinder, causing mismatched
-        // link()/unlink()
-        public IBinder binder;
-        public int handle; // low-level handle
-
-        public OpenSecureElement(int pid, int handle, IBinder binder) {
-            this.pid = pid;
-            this.handle = handle;
-            this.binder = binder;
-        }
-
-        @Override
-        public void binderDied() {
-            synchronized (NfcService.this) {
-                Log.i(TAG, "Tracked app " + pid + " died");
-                pid = -1;
-                try {
-                    _nfcEeClose(-1, binder);
-                } catch (IOException e) { /* already closed */ }
-            }
-        }
-
-        @Override
-        public String toString() {
-            return new StringBuilder('@').append(Integer.toHexString(hashCode())).append("[pid=")
-                    .append(pid).append(" handle=").append(handle).append("]").toString();
-        }
-    }
-
     boolean isNfcEnabledOrShuttingDown() {
         synchronized (this) {
             return (mState == NfcAdapter.STATE_ON || mState == NfcAdapter.STATE_TURNING_OFF);
@@ -1831,8 +1289,7 @@ public class NfcService implements DeviceHostListener {
      */
     void applyRouting(boolean force) {
         synchronized (this) {
-            if (!isNfcEnabledOrShuttingDown() || mOpenEe != null) {
-                // PN544 cannot be reconfigured while EE is open
+            if (!isNfcEnabledOrShuttingDown()) {
                 return;
             }
             WatchDogThread watchDog = new WatchDogThread("applyRouting", ROUTING_WATCHDOG_MS);
@@ -1866,13 +1323,6 @@ public class NfcService implements DeviceHostListener {
                             maybeDisconnectTarget();
                         }
                     }
-                    if (mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                        if (force || mNfceeRouteEnabled) {
-                            Log.d(TAG, "NFC-EE OFF");
-                            mNfceeRouteEnabled = false;
-                            mDeviceHost.doDeselectSecureElement();
-                        }
-                    }
                     return;
                 }
 
@@ -1886,22 +1336,6 @@ public class NfcService implements DeviceHostListener {
                     if (force || mHostRouteEnabled) {
                         mHostRouteEnabled = false;
                         mDeviceHost.disableRoutingToHost();
-                    }
-                }
-
-                // configure NFC-EE routing
-                if (mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                        mEeRoutingState == ROUTE_ON_WHEN_SCREEN_ON) {
-                    if (force || !mNfceeRouteEnabled) {
-                        Log.d(TAG, "NFC-EE ON");
-                        mNfceeRouteEnabled = true;
-                        mDeviceHost.doSelectSecureElement();
-                    }
-                } else {
-                    if (force || mNfceeRouteEnabled) {
-                        Log.d(TAG, "NFC-EE OFF");
-                        mNfceeRouteEnabled = false;
-                        mDeviceHost.doDeselectSecureElement();
                     }
                 }
 
@@ -2174,61 +1608,6 @@ public class NfcService implements DeviceHostListener {
                         }
                     }
                     break;
-
-                case MSG_CARD_EMULATION:
-                    if (DBG) Log.d(TAG, "Card Emulation message");
-                    /* Tell the host-emu manager an AID has been selected on
-                     * a secure element.
-                     */
-                    if (mCardEmulationManager != null) {
-                        mCardEmulationManager.onOffHostAidSelected();
-                    }
-                    byte[] aid = (byte[]) msg.obj;
-                    /* Send broadcast */
-                    Intent aidIntent = new Intent();
-                    aidIntent.setAction(ACTION_AID_SELECTED);
-                    aidIntent.putExtra(EXTRA_AID, aid);
-                    if (DBG) Log.d(TAG, "Broadcasting " + ACTION_AID_SELECTED);
-                    sendSeBroadcast(aidIntent);
-                    break;
-
-                case MSG_SE_EMV_CARD_REMOVAL:
-                    if (DBG) Log.d(TAG, "Card Removal message");
-                    /* Send broadcast */
-                    Intent cardRemovalIntent = new Intent();
-                    cardRemovalIntent.setAction(ACTION_EMV_CARD_REMOVAL);
-                    if (DBG) Log.d(TAG, "Broadcasting " + ACTION_EMV_CARD_REMOVAL);
-                    sendSeBroadcast(cardRemovalIntent);
-                    break;
-
-                case MSG_SE_APDU_RECEIVED:
-                    if (DBG) Log.d(TAG, "APDU Received message");
-                    byte[] apduBytes = (byte[]) msg.obj;
-                    /* Send broadcast */
-                    Intent apduReceivedIntent = new Intent();
-                    apduReceivedIntent.setAction(ACTION_APDU_RECEIVED);
-                    if (apduBytes != null && apduBytes.length > 0) {
-                        apduReceivedIntent.putExtra(EXTRA_APDU_BYTES, apduBytes);
-                    }
-                    if (DBG) Log.d(TAG, "Broadcasting " + ACTION_APDU_RECEIVED);
-                    sendSeBroadcast(apduReceivedIntent);
-                    break;
-
-                case MSG_SE_MIFARE_ACCESS:
-                    if (DBG) Log.d(TAG, "MIFARE access message");
-                    /* Send broadcast */
-                    byte[] mifareCmd = (byte[]) msg.obj;
-                    Intent mifareAccessIntent = new Intent();
-                    mifareAccessIntent.setAction(ACTION_MIFARE_ACCESS_DETECTED);
-                    if (mifareCmd != null && mifareCmd.length > 1) {
-                        int mifareBlock = mifareCmd[1] & 0xff;
-                        if (DBG) Log.d(TAG, "Mifare Block=" + mifareBlock);
-                        mifareAccessIntent.putExtra(EXTRA_MIFARE_BLOCK, mifareBlock);
-                    }
-                    if (DBG) Log.d(TAG, "Broadcasting " + ACTION_MIFARE_ACCESS_DETECTED);
-                    sendSeBroadcast(mifareAccessIntent);
-                    break;
-
                 case MSG_LLCP_LINK_ACTIVATION:
                     if (mIsDebugBuild) {
                         Intent actIntent = new Intent(ACTION_LLCP_UP);
@@ -2267,66 +1646,9 @@ public class NfcService implements DeviceHostListener {
                 case MSG_LLCP_LINK_FIRST_PACKET:
                     mP2pLinkManager.onLlcpFirstPacketReceived();
                     break;
-                case MSG_TARGET_DESELECTED:
-                    /* Broadcast Intent Target Deselected */
-                    if (DBG) Log.d(TAG, "Target Deselected");
-                    Intent intent = new Intent();
-                    intent.setAction(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
-                    if (DBG) Log.d(TAG, "Broadcasting Intent");
-                    mContext.sendOrderedBroadcast(intent, NfcPermissions.NFC_PERMISSION);
-                    break;
-
-                case MSG_SE_FIELD_ACTIVATED: {
-                    if (DBG) Log.d(TAG, "SE FIELD ACTIVATED");
-                    Intent eventFieldOnIntent = new Intent();
-                    eventFieldOnIntent.setAction(ACTION_RF_FIELD_ON_DETECTED);
-                    sendSeBroadcast(eventFieldOnIntent);
-                    break;
-                }
-
-                case MSG_SE_FIELD_DEACTIVATED: {
-                    if (DBG) Log.d(TAG, "SE FIELD DEACTIVATED");
-                    Intent eventFieldOffIntent = new Intent();
-                    eventFieldOffIntent.setAction(ACTION_RF_FIELD_OFF_DETECTED);
-                    sendSeBroadcast(eventFieldOffIntent);
-                    break;
-                }
-
-                case MSG_SE_LISTEN_ACTIVATED: {
-                    if (DBG) Log.d(TAG, "SE LISTEN MODE ACTIVATED");
-                    Intent listenModeActivated = new Intent();
-                    listenModeActivated.setAction(ACTION_SE_LISTEN_ACTIVATED);
-                    sendSeBroadcast(listenModeActivated);
-                    break;
-                }
-
-                case MSG_SE_LISTEN_DEACTIVATED: {
-                    if (DBG) Log.d(TAG, "SE LISTEN MODE DEACTIVATED");
-                    Intent listenModeDeactivated = new Intent();
-                    listenModeDeactivated.setAction(ACTION_SE_LISTEN_DEACTIVATED);
-                    sendSeBroadcast(listenModeDeactivated);
-                    break;
-                }
                 default:
                     Log.e(TAG, "Unknown message received");
                     break;
-            }
-        }
-
-        private void sendSeBroadcast(Intent intent) {
-            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-            // Resume app switches so the receivers can start activites without delay
-            mNfcDispatcher.resumeAppSwitches();
-
-            synchronized (this) {
-                for (PackageInfo pkg : mInstalledPackages) {
-                    if (pkg != null && pkg.applicationInfo != null) {
-                        if (mNfceeAccessControl.check(pkg.applicationInfo)) {
-                            intent.setPackage(pkg.packageName);
-                            mContext.sendBroadcast(intent);
-                        }
-                    }
-                }
             }
         }
 
@@ -2442,57 +1764,11 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
-    private final BroadcastReceiver mOwnerReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action.equals(Intent.ACTION_PACKAGE_REMOVED) ||
-                    action.equals(Intent.ACTION_PACKAGE_ADDED) ||
-                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE) ||
-                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE)) {
-                updatePackageCache();
-
-                if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
-                    // Clear the NFCEE access cache in case a UID gets recycled
-                    mNfceeAccessControl.invalidateCache();
-
-                    boolean dataRemoved = intent.getBooleanExtra(Intent.EXTRA_DATA_REMOVED, false);
-                    if (dataRemoved) {
-                        Uri data = intent.getData();
-                        if (data == null) return;
-                        String packageName = data.getSchemeSpecificPart();
-
-                        synchronized (NfcService.this) {
-                            if (mSePackages.contains(packageName)) {
-                                new EnableDisableTask().execute(TASK_EE_WIPE);
-                                mSePackages.remove(packageName);
-                            }
-                        }
-                    }
-                }
-            } else if (action.equals(ACTION_MASTER_CLEAR_NOTIFICATION)) {
-                EnableDisableTask eeWipeTask = new EnableDisableTask();
-                eeWipeTask.execute(TASK_EE_WIPE);
-                try {
-                    eeWipeTask.get();  // blocks until EE wipe is complete
-                } catch (ExecutionException e) {
-                    Log.w(TAG, "failed to wipe NFC-EE");
-                } catch (InterruptedException e) {
-                    Log.w(TAG, "failed to wipe NFC-EE");
-                }
-            }
-        }
-    };
-
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (action.equals(
-                    NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION)) {
-                // Perform applyRouting() in AsyncTask to serialize blocking calls
-                new ApplyRoutingTask().execute();
-            } else if (action.equals(Intent.ACTION_SCREEN_ON)
+            if (action.equals(Intent.ACTION_SCREEN_ON)
                     || action.equals(Intent.ACTION_SCREEN_OFF)
                     || action.equals(Intent.ACTION_USER_PRESENT)) {
                 // Perform applyRouting() in AsyncTask to serialize blocking calls
@@ -2577,24 +1853,18 @@ public class NfcService implements DeviceHostListener {
             pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
             pw.println("mNfcPollingEnabled=" + mNfcPollingEnabled);
-            pw.println("mNfceeRouteEnabled=" + mNfceeRouteEnabled);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
-            pw.println("mOpenEe=" + mOpenEe);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
                 mCardEmulationManager.dump(fd, pw, args);
             }
-            mNfceeAccessControl.dump(fd, pw, args);
             mNfcDispatcher.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
-
         }
     }
-
 
     private synchronized int getPollingMode() {
         return mPollingMode;
     }
-
 }

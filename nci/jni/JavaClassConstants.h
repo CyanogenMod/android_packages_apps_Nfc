@@ -23,10 +23,6 @@ namespace android
     extern jmethodID gCachedNfcManagerNotifyLlcpLinkActivation;
     extern jmethodID gCachedNfcManagerNotifyLlcpLinkDeactivated;
     extern jmethodID gCachedNfcManagerNotifyLlcpFirstPacketReceived;
-    extern jmethodID gCachedNfcManagerNotifySeFieldActivated;
-    extern jmethodID gCachedNfcManagerNotifySeFieldDeactivated;
-    extern jmethodID gCachedNfcManagerNotifySeListenActivated;
-    extern jmethodID gCachedNfcManagerNotifySeListenDeactivated;
 
     /*
      * host-based card emulation
@@ -41,5 +37,4 @@ namespace android
     extern const char* gNativeLlcpSocketClassName;
     extern const char* gNativeNfcTagClassName;
     extern const char* gNativeNfcManagerClassName;
-    extern const char* gNativeNfcSecureElementClassName;
 }
