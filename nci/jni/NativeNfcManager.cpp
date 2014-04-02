@@ -1084,6 +1084,10 @@ void enableDisableLptd (bool enable)
                     sCurrentConfigLen);
             return;
         }
+        if (sConfig[3] == 0) {
+            ALOGE("%s: LPTD is disabled, not enabling in current config", __FUNCTION__);
+            return;
+        }
         sHasLptd = true;
     }
     // Bail if we checked and didn't find any LPTD config before
