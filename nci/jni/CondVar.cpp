@@ -36,8 +36,11 @@
 *******************************************************************************/
 CondVar::CondVar ()
 {
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
     memset (&mCondition, 0, sizeof(mCondition));
-    int const res = pthread_cond_init (&mCondition, NULL);
+    int const res = pthread_cond_init (&mCondition, &attr);
     if (res)
     {
         ALOGE ("CondVar::CondVar: fail init; error=0x%X", res);
@@ -115,11 +118,7 @@ bool CondVar::wait (Mutex& mutex, long millisec)
             absoluteTime.tv_nsec = ns;
     }
 
-    //pthread_cond_timedwait_monotonic_np() is an Android-specific function
-    //declared in /development/ndk/platforms/android-9/include/pthread.h;
-    //it uses monotonic clock.
-    //the standard pthread_cond_timedwait() uses realtime clock.
-    int waitResult = pthread_cond_timedwait_monotonic_np (&mCondition, mutex.nativeHandle(), &absoluteTime);
+    int waitResult = pthread_cond_timedwait (&mCondition, mutex.nativeHandle(), &absoluteTime);
     if ((waitResult != 0) && (waitResult != ETIMEDOUT))
         ALOGE ("CondVar::wait: fail timed wait; error=0x%X", waitResult);
     retVal = (waitResult == 0); //waited successfully
