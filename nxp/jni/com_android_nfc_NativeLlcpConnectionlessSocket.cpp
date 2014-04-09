@@ -32,7 +32,7 @@ static void nfc_jni_receive_callback(void* pContext, uint8_t ssap, NFCSTATUS sta
 
    if(status == NFCSTATUS_SUCCESS)
    {
-      pCallbackData->pContext = (void*)ssap;
+      pCallbackData->pContext = (void*)(uintptr_t)ssap;
       TRACE("RECEIVE UI_FRAME FROM SAP %d OK \n", ssap);
    }
 
@@ -185,7 +185,7 @@ static jobject com_android_nfc_NativeLlcpConnectionlessSocket_doReceiveFrom(JNIE
        goto clean_and_return;
    }
 
-   ssap = (uint32_t)cb_data.pContext;
+   ssap = (uintptr_t)cb_data.pContext;
    TRACE("Data Received From SSAP = %d\n, length = %d", ssap, sReceiveBuffer.length);
 
    /* Set Llcp Packet remote SAP */
