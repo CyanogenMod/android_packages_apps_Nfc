@@ -22,7 +22,6 @@ import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -48,7 +47,6 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TechListParcel;
 import android.nfc.TransceiveResult;
-import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.TagTechnology;
 import android.os.AsyncTask;
@@ -73,9 +71,7 @@ import com.android.nfc.DeviceHost.LlcpServerSocket;
 import com.android.nfc.DeviceHost.LlcpSocket;
 import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
-import com.android.nfc.cardemulation.AidRoutingManager;
-import com.android.nfc.cardemulation.HostEmulationManager;
-import com.android.nfc.cardemulation.RegisteredAidCache;
+import com.android.nfc.cardemulation.CardEmulationManager;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.dhimpl.NativeNfcSecureElement;
 import com.android.nfc.handover.HandoverManager;
@@ -263,7 +259,6 @@ public class NfcService implements DeviceHostListener {
     TagService mNfcTagService;
     NfcAdapterService mNfcAdapter;
     NfcAdapterExtrasService mExtrasService;
-    CardEmulationService mCardEmulationService;
     boolean mIsAirplaneSensitive;
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
@@ -275,9 +270,7 @@ public class NfcService implements DeviceHostListener {
     private KeyguardManager mKeyguard;
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
-    private RegisteredAidCache mAidCache;
-    private HostEmulationManager mHostEmulationManager;
-    private AidRoutingManager mAidRoutingManager;
+    private CardEmulationManager mCardEmulationManager;
     private ScreenStateHelper mScreenStateHelper;
     private int mUserId;
 
@@ -334,22 +327,22 @@ public class NfcService implements DeviceHostListener {
      */
     @Override
     public void onHostCardEmulationActivated() {
-        if (mHostEmulationManager != null) {
-            mHostEmulationManager.notifyHostEmulationActivated();
+        if (mCardEmulationManager != null) {
+            mCardEmulationManager.onHostCardEmulationActivated();
         }
     }
 
     @Override
     public void onHostCardEmulationData(byte[] data) {
-        if (mHostEmulationManager != null) {
-            mHostEmulationManager.notifyHostEmulationData(data);
+        if (mCardEmulationManager != null) {
+            mCardEmulationManager.onHostCardEmulationData(data);
         }
     }
 
     @Override
     public void onHostCardEmulationDeactivated() {
-        if (mHostEmulationManager != null) {
-            mHostEmulationManager.notifyNostEmulationDeactivated();
+        if (mCardEmulationManager != null) {
+            mCardEmulationManager.onHostCardEmulationDeactivated();
         }
     }
 
@@ -440,8 +433,6 @@ public class NfcService implements DeviceHostListener {
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
         mExtrasService = new NfcAdapterExtrasService();
-        mCardEmulationService = new CardEmulationService();
-
         Log.i(TAG, "Starting NFC service");
 
         sService = this;
@@ -520,9 +511,7 @@ public class NfcService implements DeviceHostListener {
         PackageManager pm = mContext.getPackageManager();
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION);
         if (mIsHceCapable) {
-            mAidRoutingManager = new AidRoutingManager();
-            mAidCache = new RegisteredAidCache(mContext, mAidRoutingManager);
-            mHostEmulationManager = new HostEmulationManager(mContext, mAidCache);
+            mCardEmulationManager = new CardEmulationManager(mContext);
         }
         if (!mIsHceCapable || SE_BROADCASTS_WITH_HCE) {
             IntentFilter ownerFilter = new IntentFilter(NativeNfcManager.INTERNAL_TARGET_DESELECTED_ACTION);
@@ -693,10 +682,6 @@ public class NfcService implements DeviceHostListener {
                     } else {
                         Log.d(TAG, "NFC is off.  Checking firmware version");
                         mDeviceHost.checkFirmware();
-                        // Build initial AID cache even if NFC is off
-                        if (mIsHceCapable) {
-                            mAidCache.invalidateCache(getUserId());
-                        }
                     }
                     if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
                         Log.i(TAG, "First Boot");
@@ -748,7 +733,7 @@ public class NfcService implements DeviceHostListener {
 
             if (mIsHceCapable) {
                 // Generate the initial card emulation routing table
-                mAidCache.onNfcEnabled();
+                mCardEmulationManager.onNfcEnabled();
             }
 
             synchronized (NfcService.this) {
@@ -784,7 +769,7 @@ public class NfcService implements DeviceHostListener {
             watchDog.start();
 
             if (mIsHceCapable) {
-                mAidCache.onNfcDisabled();
+                mCardEmulationManager.onNfcDisabled();
             }
 
             mP2pLinkManager.enableDisable(false, false);
@@ -1109,7 +1094,7 @@ public class NfcService implements DeviceHostListener {
 
         @Override
         public INfcCardEmulation getNfcCardEmulationInterface() {
-            return mCardEmulationService;
+            return mCardEmulationManager.getNfcCardEmulationInterface();
         }
 
         @Override
@@ -1187,65 +1172,6 @@ public class NfcService implements DeviceHostListener {
             }
         }
     }
-
-    final class CardEmulationService extends INfcCardEmulation.Stub {
-        @Override
-        public boolean isDefaultServiceForCategory(int userId, ComponentName service,
-                String category) throws RemoteException {
-
-            if (!mIsHceCapable) {
-                return false;
-            }
-            NfcPermissions.enforceUserPermissions(mContext);
-            NfcPermissions.validateUserId(userId);
-            return mAidCache.isDefaultServiceForCategory(userId, category, service);
-        }
-
-        @Override
-        public boolean isDefaultServiceForAid(int userId, ComponentName service, String aid)
-                throws RemoteException {
-            if (!mIsHceCapable) {
-                return false;
-            }
-            NfcPermissions.validateUserId(userId);
-            NfcPermissions.enforceUserPermissions(mContext);
-            return mAidCache.isDefaultServiceForAid(userId, service, aid);
-        }
-
-        @Override
-        public boolean setDefaultServiceForCategory(int userId, ComponentName service,
-                String category) throws RemoteException {
-            if (!mIsHceCapable) {
-                return false;
-            }
-            NfcPermissions.validateUserId(userId);
-            NfcPermissions.enforceAdminPermissions(mContext);
-            return mAidCache.setDefaultServiceForCategory(userId, service, category);
-        }
-
-        @Override
-        public boolean setDefaultForNextTap(int userId, ComponentName service)
-                throws RemoteException {
-            if (!mIsHceCapable) {
-                return false;
-            }
-            NfcPermissions.validateUserId(userId);
-            NfcPermissions.enforceAdminPermissions(mContext);
-            mHostEmulationManager.setDefaultForNextTap(service);
-            return mAidCache.setDefaultForNextTap(userId, service);
-        }
-
-        @Override
-        public List<ApduServiceInfo> getServices(int userId, String category)
-                throws RemoteException {
-            if (!mIsHceCapable) {
-                return null;
-            }
-            NfcPermissions.validateUserId(userId);
-            NfcPermissions.enforceAdminPermissions(mContext);
-            return mAidCache.getServicesForCategory(userId, category);
-        }
-    };
 
     final class TagService extends INfcTag.Stub {
         @Override
@@ -1947,8 +1873,7 @@ public class NfcService implements DeviceHostListener {
                 }
 
                 if (mIsHceCapable && mScreenState
-                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                        mAidRoutingManager.aidsRoutedToHost()) {
+                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
                     if (!mHostRouteEnabled || force) {
                         mHostRouteEnabled = true;
                         mDeviceHost.enableRoutingToHost();
@@ -2251,8 +2176,8 @@ public class NfcService implements DeviceHostListener {
                     /* Tell the host-emu manager an AID has been selected on
                      * a secure element.
                      */
-                    if (mHostEmulationManager != null) {
-                        mHostEmulationManager.notifyOffHostAidSelected();
+                    if (mCardEmulationManager != null) {
+                        mCardEmulationManager.onOffHostAidSelected();
                     }
                     byte[] aid = (byte[]) msg.obj;
                     /* Send broadcast */
@@ -2602,7 +2527,7 @@ public class NfcService implements DeviceHostListener {
                 }
                 mP2pLinkManager.onUserSwitched(getUserId());
                 if (mIsHceCapable) {
-                    mAidCache.invalidateCache(getUserId());
+                    mCardEmulationManager.onUserSwitched(getUserId());
                 }
             }
         }
@@ -2654,7 +2579,7 @@ public class NfcService implements DeviceHostListener {
             pw.println("mOpenEe=" + mOpenEe);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
-                mAidCache.dump(fd, pw, args);
+                mCardEmulationManager.dump(fd, pw, args);
             }
             mNfceeAccessControl.dump(fd, pw, args);
             mNfcDispatcher.dump(fd, pw, args);

@@ -20,6 +20,8 @@ import android.util.SparseArray;
 
 import com.android.nfc.NfcService;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -150,5 +152,19 @@ public class AidRoutingManager {
     int getRouteForAidLocked(String aid) {
         Integer route = mRouteForAid.get(aid);
         return route == null ? -1 : route;
+    }
+
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Routing table:");
+        pw.println("    Default route: " + ((DEFAULT_ROUTE == 0x00) ? "host" : "secure element"));
+        synchronized (mLock) {
+            for (int i = 0; i < mAidRoutingTable.size(); i++) {
+                Set<String> aids = mAidRoutingTable.valueAt(i);
+                pw.println("    Routed to 0x" + Integer.toHexString(mAidRoutingTable.keyAt(i)) + ":");
+                for (String aid : aids) {
+                    pw.println("        \"" + aid + "\"");
+                }
+            }
+        }
     }
 }

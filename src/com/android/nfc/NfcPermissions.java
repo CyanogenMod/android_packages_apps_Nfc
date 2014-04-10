@@ -4,7 +4,7 @@ package com.android.nfc;
 import android.content.Context;
 import android.os.UserHandle;
 
-class NfcPermissions {
+public class NfcPermissions {
 
     /**
      * NFC ADMIN permission - only for system apps
@@ -19,7 +19,7 @@ class NfcPermissions {
     private static final String NFC_PERM_ERROR = "NFC permission required";
 
 
-    static void validateUserId(int userId) {
+    public static void validateUserId(int userId) {
         if (userId != UserHandle.getCallingUserId()) {
             throw new SecurityException("userId passed in it not the calling user.");
         }
@@ -30,7 +30,7 @@ class NfcPermissions {
     }
 
 
-    static void enforceUserPermissions(Context context) {
+    public static void enforceUserPermissions(Context context) {
         context.enforceCallingOrSelfPermission(NFC_PERMISSION, NFC_PERM_ERROR);
     }
 }
