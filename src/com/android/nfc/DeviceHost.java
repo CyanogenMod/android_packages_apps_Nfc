@@ -16,6 +16,7 @@
 
 package com.android.nfc;
 
+import android.annotation.Nullable;
 import android.nfc.NdefMessage;
 import android.os.Bundle;
 
@@ -51,7 +52,8 @@ public interface DeviceHost {
 
         boolean presenceCheck();
         boolean isPresent();
-        void startPresenceChecking(int presenceCheckDelay);
+        void startPresenceChecking(int presenceCheckDelay,
+                                   @Nullable TagDisconnectedCallback callback);
 
         int[] getTechList();
         void removeTechnology(int tech); // TODO remove this one
@@ -70,6 +72,10 @@ public interface DeviceHost {
         boolean makeReadOnly();
 
         int getConnectedTechnology();
+    }
+
+    public interface TagDisconnectedCallback {
+        void onTagDisconnected(long handle);
     }
 
     public interface NfceeEndpoint {

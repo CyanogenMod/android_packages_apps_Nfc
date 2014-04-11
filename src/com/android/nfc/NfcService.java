@@ -203,6 +203,7 @@ public class NfcService implements DeviceHostListener {
 
     private int mUserId;
     private static NfcService sService;
+    private int mCurrentTechMask;
 
     public static NfcService getInstance() {
         return sService;
@@ -779,8 +780,7 @@ public class NfcService implements DeviceHostListener {
 
             mDeviceHost.setP2pInitiatorModes(initiatorModes);
             mDeviceHost.setP2pTargetModes(targetModes);
-            mDeviceHost.disableDiscovery();
-            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, false);
+            reenableDiscovery(NFC_POLL_DEFAULT, false);
         }
 
         @Override
@@ -1359,7 +1359,6 @@ public class NfcService implements DeviceHostListener {
                 if (!mInProvisionMode && mScreenState >= getPollingMode()) {
                     if (force || !mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C ON");
-                        mNfcPollingEnabled = true;
 
                         if (force && mNfcPollingEnabled) {
                             // disable discovery so new tech mask takes effect
@@ -1369,12 +1368,14 @@ public class NfcService implements DeviceHostListener {
                         if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
                             mDeviceHost.enableDiscovery(mLockscreenPollMask, false);
                         } else {
-                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                            reenableDiscovery(NFC_POLL_DEFAULT, true);
                         }
+
+                        mNfcPollingEnabled = true;
                     } else if (mNfcPollingEnabled) {
-                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
-                            mDeviceHost.disableDiscovery();
-                            mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
+                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED
+                                && (!isTagPresent()) && mCurrentTechMask != NFC_POLL_DEFAULT) {
+                            reenableDiscovery(NFC_POLL_DEFAULT, true);
                         }
                     }
                     if (mReaderModeParams != null && !mReaderModeEnabled) {
@@ -1390,8 +1391,8 @@ public class NfcService implements DeviceHostListener {
                     // Special case for setup provisioning
                     if (!mNfcPollingEnabled) {
                         Log.d(TAG, "NFC-C ON");
+                        reenableDiscovery(NFC_POLL_DEFAULT, true);
                         mNfcPollingEnabled = true;
-                        mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
                     }
                 } else {
                     if (force || mNfcPollingEnabled) {
@@ -1408,6 +1409,25 @@ public class NfcService implements DeviceHostListener {
                 watchDog.cancel();
             }
         }
+    }
+
+    private void reenableDiscovery(int techMask, boolean enableLptd) {
+        mCurrentTechMask = techMask;
+
+        if (mNfcPollingEnabled) {
+            mDeviceHost.disableDiscovery();
+        }
+
+        mDeviceHost.enableDiscovery(techMask, enableLptd);
+    }
+
+    private boolean isTagPresent() {
+        for (Object object : mObjectMap.values()) {
+            if (object instanceof TagEndpoint) {
+                return ((TagEndpoint) object).isPresent();
+            }
+        }
+        return false;
     }
 
     /**
@@ -1586,6 +1606,13 @@ public class NfcService implements DeviceHostListener {
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     ReaderModeParams readerParams = null;
                     int presenceCheckDelay = DEFAULT_PRESENCE_CHECK_DELAY;
+                    DeviceHost.TagDisconnectedCallback callback =
+                            new DeviceHost.TagDisconnectedCallback() {
+                                @Override
+                                public void onTagDisconnected(long handle) {
+                                    applyRouting(false);
+                                }
+                            };
                     synchronized (NfcService.this) {
                         readerParams = mReaderModeParams;
                     }
@@ -1593,7 +1620,7 @@ public class NfcService implements DeviceHostListener {
                         presenceCheckDelay = readerParams.presenceCheckDelay;
                         if ((readerParams.flags & NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK) != 0) {
                             if (DBG) Log.d(TAG, "Skipping NDEF detection in reader mode");
-                            tag.startPresenceChecking(presenceCheckDelay);
+                            tag.startPresenceChecking(presenceCheckDelay, callback);
                             dispatchTagEndpoint(tag, readerParams);
                             break;
                         }
@@ -1608,18 +1635,18 @@ public class NfcService implements DeviceHostListener {
                         // they are activated only really shortly.
                         // For now, don't consider NDEF on these.
                         if (DBG) Log.d(TAG, "Skipping NDEF detection for NFC Barcode");
-                        tag.startPresenceChecking(presenceCheckDelay);
+                        tag.startPresenceChecking(presenceCheckDelay, callback);
                         dispatchTagEndpoint(tag, readerParams);
                         break;
                     }
                     NdefMessage ndefMsg = tag.findAndReadNdef();
 
                     if (ndefMsg != null) {
-                        tag.startPresenceChecking(presenceCheckDelay);
+                        tag.startPresenceChecking(presenceCheckDelay, callback);
                         dispatchTagEndpoint(tag, readerParams);
                     } else {
                         if (tag.reconnect()) {
-                            tag.startPresenceChecking(presenceCheckDelay);
+                            tag.startPresenceChecking(presenceCheckDelay, callback);
                             dispatchTagEndpoint(tag, readerParams);
                         } else {
                             tag.disconnect();
