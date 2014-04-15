@@ -1563,7 +1563,7 @@ static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
     CONCURRENCY_LOCK();
     if (timeout <= 0) {
         ALOGE("Timeout must be positive.");
-        return false;
+        success = false;
     } else {
         switch (tech) {
             case TARGET_TYPE_MIFARE_CLASSIC:
