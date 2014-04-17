@@ -37,4 +37,14 @@
     <string name="complete_with" msgid="6797459104103012992">"បំពេញ​ជាមួយ"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"សេវាកម្ម​ដែល​អ្នក​ពេញ​ចិត្ត​សម្រាប់​ប៉ះ &amp; បង់​ប្រាក់​ត្រូវ​បាន​យក​ចេញ។ ជ្រើស​សេវាកម្ម​ផ្សេង?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"ប៉ះ​ឧបករណ៍​ផ្សេងទៀត​ដើម្បី​បញ្ចប់"</string>
+    <!-- no translation found for wifi_connect (6250727951843550671) -->
+    <skip />
+    <!-- no translation found for status_unable_to_connect (9183908200295307657) -->
+    <skip />
+    <!-- no translation found for status_wifi_connected (5893022897732105739) -->
+    <skip />
+    <!-- no translation found for title_connect_to_network (2474034615817280146) -->
+    <skip />
+    <!-- no translation found for prompt_connect_to_network (8511683573657516114) -->
+    <skip />
 </resources>

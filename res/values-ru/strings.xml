@@ -37,4 +37,14 @@
     <string name="complete_with" msgid="6797459104103012992">"Использовать"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Вы удалили приложение для оплаты через NFC, используемое по умолчанию. Выбрать другое?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"Нажмите на экран другого устройства, чтобы передать данные"</string>
+    <!-- no translation found for wifi_connect (6250727951843550671) -->
+    <skip />
+    <!-- no translation found for status_unable_to_connect (9183908200295307657) -->
+    <skip />
+    <!-- no translation found for status_wifi_connected (5893022897732105739) -->
+    <skip />
+    <!-- no translation found for title_connect_to_network (2474034615817280146) -->
+    <skip />
+    <!-- no translation found for prompt_connect_to_network (8511683573657516114) -->
+    <skip />
 </resources>
