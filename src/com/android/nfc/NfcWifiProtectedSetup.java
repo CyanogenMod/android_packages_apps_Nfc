@@ -48,6 +48,10 @@ public final class NfcWifiProtectedSetup {
 
     public static boolean tryNfcWifiSetup(Ndef ndef, Context context) {
 
+        if (ndef == null || context == null) {
+            return false;
+        }
+
         NdefMessage cachedNdefMessage = ndef.getCachedNdefMessage();
         if (cachedNdefMessage == null) {
             return false;
