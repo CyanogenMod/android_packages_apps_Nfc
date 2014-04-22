@@ -37,14 +37,9 @@
     <string name="complete_with" msgid="6797459104103012992">"用於完成的應用程式"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"您首選的輕按付款服務已被移除，要選擇其他服務嗎？"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"輕按另一個裝置即可完成"</string>
-    <!-- no translation found for wifi_connect (6250727951843550671) -->
-    <skip />
-    <!-- no translation found for status_unable_to_connect (9183908200295307657) -->
-    <skip />
-    <!-- no translation found for status_wifi_connected (5893022897732105739) -->
-    <skip />
-    <!-- no translation found for title_connect_to_network (2474034615817280146) -->
-    <skip />
-    <!-- no translation found for prompt_connect_to_network (8511683573657516114) -->
-    <skip />
+    <string name="wifi_connect" msgid="6250727951843550671">"連接"</string>
+    <string name="status_unable_to_connect" msgid="9183908200295307657">"無法連接網絡"</string>
+    <string name="status_wifi_connected" msgid="5893022897732105739">"已連接"</string>
+    <string name="title_connect_to_network" msgid="2474034615817280146">"連接網絡"</string>
+    <string name="prompt_connect_to_network" msgid="8511683573657516114">"是否連接網絡「<xliff:g id="NETWORK_SSID">%1$s</xliff:g>」？"</string>
 </resources>

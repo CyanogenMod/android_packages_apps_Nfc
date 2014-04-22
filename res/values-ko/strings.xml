@@ -37,14 +37,9 @@
     <string name="complete_with" msgid="6797459104103012992">"사용 가능한 애플리케이션"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"탭앤페이에 사용하는 기본 서비스가 삭제되었습니다. 다른 앱을 선택하시겠습니까?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"다른 기기를 탭하여 완료"</string>
-    <!-- no translation found for wifi_connect (6250727951843550671) -->
-    <skip />
-    <!-- no translation found for status_unable_to_connect (9183908200295307657) -->
-    <skip />
-    <!-- no translation found for status_wifi_connected (5893022897732105739) -->
-    <skip />
-    <!-- no translation found for title_connect_to_network (2474034615817280146) -->
-    <skip />
-    <!-- no translation found for prompt_connect_to_network (8511683573657516114) -->
-    <skip />
+    <string name="wifi_connect" msgid="6250727951843550671">"연결"</string>
+    <string name="status_unable_to_connect" msgid="9183908200295307657">"네트워크에 연결할 수 없음"</string>
+    <string name="status_wifi_connected" msgid="5893022897732105739">"연결됨"</string>
+    <string name="title_connect_to_network" msgid="2474034615817280146">"네트워크 연결"</string>
+    <string name="prompt_connect_to_network" msgid="8511683573657516114">"네트워크 <xliff:g id="NETWORK_SSID">%1$s</xliff:g>에 연결하시겠습니까?"</string>
 </resources>

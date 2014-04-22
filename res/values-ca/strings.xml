@@ -37,14 +37,9 @@
     <string name="complete_with" msgid="6797459104103012992">"Completa amb"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"S\'ha suprimit el teu servei preferit per pagar i tocar. En vols triar un altre?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"Toca un altre dispositiu pe completar el procés."</string>
-    <!-- no translation found for wifi_connect (6250727951843550671) -->
-    <skip />
-    <!-- no translation found for status_unable_to_connect (9183908200295307657) -->
-    <skip />
-    <!-- no translation found for status_wifi_connected (5893022897732105739) -->
-    <skip />
-    <!-- no translation found for title_connect_to_network (2474034615817280146) -->
-    <skip />
-    <!-- no translation found for prompt_connect_to_network (8511683573657516114) -->
-    <skip />
+    <string name="wifi_connect" msgid="6250727951843550671">"Connecta"</string>
+    <string name="status_unable_to_connect" msgid="9183908200295307657">"No es pot connectar a la xarxa."</string>
+    <string name="status_wifi_connected" msgid="5893022897732105739">"Connexió correcta"</string>
+    <string name="title_connect_to_network" msgid="2474034615817280146">"Connexió a la xarxa"</string>
+    <string name="prompt_connect_to_network" msgid="8511683573657516114">"Vols connectar-te a la xarxa <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
 </resources>
