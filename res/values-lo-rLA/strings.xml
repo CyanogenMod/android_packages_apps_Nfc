@@ -38,7 +38,7 @@
     <string name="default_pay_app_removed" msgid="4108250545457437360">"ບໍລິການທີ່ທ່ານຕ້ອງການສຳລັບ ແຕະ​ &amp; ຈ່າຍ ຖືກລຶບອອກແລ້ວ. ເລືອກອັນໃໝ່ບໍ?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"ແຕະ​ກັບ​ອຸ​ປະ​ກອນ​ອື່ນ​ເພື່ອ​ສຳ​ເລັດ​ຂັ້ນ​ຕອນ"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"ເຊື່ອມຕໍ່"</string>
-    <string name="status_unable_to_connect" msgid="9183908200295307657">"ບໍ່ສາມາດເຊື່ອມຕໍ່ກັບເຄືອຂ່າຍ​ໄດ້"</string>
+    <string name="status_unable_to_connect" msgid="9183908200295307657">"ບໍ່​ສາ​ມາດ​ເຊື່ອມ​ຕໍ່ກັບ​ເຄືອຂ່າຍ​ໄດ້"</string>
     <string name="status_wifi_connected" msgid="5893022897732105739">"ເຊື່ອມຕໍ່ແລ້ວ"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"ເຊື່ອມຕໍ່ກັບເຄືອຂ່າຍ"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"​ເຊື່ອມ​ຕໍ່​ກັບ​ເຄືອ​ຂ່າຍ <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ບໍ?"</string>
