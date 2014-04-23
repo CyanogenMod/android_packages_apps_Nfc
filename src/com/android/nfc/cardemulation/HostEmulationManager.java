@@ -22,20 +22,16 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.database.ContentObserver;
-import android.net.Uri;
 import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.cardemulation.CardEmulation;
 import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.provider.Settings;
 import android.util.Log;
 import com.android.nfc.NfcService;
 import com.android.nfc.cardemulation.RegisteredAidCache.AidResolveInfo;
@@ -109,20 +105,6 @@ public class HostEmulationManager {
         mAidCache = aidCache;
         mState = STATE_IDLE;
         mKeyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
-        SettingsObserver observer = new SettingsObserver(mHandler);
-        context.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
-                true, observer, UserHandle.USER_ALL);
-
-        // Bind to payment default if existing
-        int userId = ActivityManager.getCurrentUser();
-        String name = Settings.Secure.getStringForUser(
-                mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
-                userId);
-        if (name != null) {
-            ComponentName serviceComponent = ComponentName.unflattenFromString(name);
-            bindPaymentServiceLocked(userId, serviceComponent);
-        }
     }
 
     public void setDefaultForNextTap(ComponentName service) {
@@ -135,7 +117,7 @@ public class HostEmulationManager {
         }
     }
 
-    public void notifyHostEmulationActivated() {
+    public void onHostEmulationActivated() {
         Log.d(TAG, "notifyHostEmulationActivated");
         synchronized (mLock) {
             mClearNextTapDefault = mAidCache.isNextTapOverriden();
@@ -151,7 +133,7 @@ public class HostEmulationManager {
         }
     }
 
-    public void notifyHostEmulationData(byte[] data) {
+    public void onHostEmulationData(byte[] data) {
         Log.d(TAG, "notifyHostEmulationData");
         String selectAid = findSelectAid(data);
         ComponentName resolvedService = null;
@@ -260,7 +242,7 @@ public class HostEmulationManager {
         }
     }
 
-    public void notifyNostEmulationDeactivated() {
+    public void onHostEmulationDeactivated() {
         Log.d(TAG, "notifyHostEmulationDeactivated");
         synchronized (mLock) {
             if (mState == STATE_IDLE) {
@@ -277,7 +259,7 @@ public class HostEmulationManager {
         }
     }
 
-    public void notifyOffHostAidSelected() {
+    public void onOffHostAidSelected() {
         Log.d(TAG, "notifyOffHostAidSelected");
         synchronized (mLock) {
             if (mState != STATE_XFER || mActiveService == null) {
@@ -346,33 +328,19 @@ public class HostEmulationManager {
         }
     }
 
-    final Handler mHandler = new Handler(Looper.getMainLooper());
-
-    private final class SettingsObserver extends ContentObserver {
-        public SettingsObserver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        public void onChange(boolean selfChange, Uri uri) {
-            super.onChange(selfChange, uri);
+    public void onDefaultChanged(String category, ComponentName defaultComponent) {
+        if (category.equalsIgnoreCase(CardEmulation.CATEGORY_PAYMENT)) {
             synchronized (mLock) {
-                // Do it just for the current user. If it was in fact
-                // a change made for another user, we'll sync it down
-                // on user switch.
-                int userId = ActivityManager.getCurrentUser();
-                ComponentName paymentApp = mAidCache.getDefaultServiceForCategory(userId,
-                        CardEmulation.CATEGORY_PAYMENT, true);
-                if (paymentApp != null) {
-                    bindPaymentServiceLocked(userId, paymentApp);
+                if (defaultComponent != null) {
+                    bindPaymentServiceLocked(ActivityManager.getCurrentUser(), defaultComponent);
                 } else {
-                    unbindPaymentServiceLocked(userId);
+                    unbindPaymentServiceLocked();
                 }
             }
         }
-    };
+    }
 
-    void unbindPaymentServiceLocked(int userId) {
+    void unbindPaymentServiceLocked() {
         if (mPaymentServiceBound) {
             mContext.unbindService(mPaymentConnection);
             mPaymentServiceBound = false;
@@ -382,7 +350,7 @@ public class HostEmulationManager {
     }
 
     void bindPaymentServiceLocked(int userId, ComponentName service) {
-        unbindPaymentServiceLocked(userId);
+        unbindPaymentServiceLocked();
 
         Intent intent = new Intent(HostApduService.SERVICE_INTERFACE);
         intent.setComponent(service);
