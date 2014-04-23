@@ -29,4 +29,11 @@
     <string name="confirm_pairing" msgid="4112568077038265363">"Подключить Bluetooth-устройство <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Да"</string>
     <string name="pair_no" msgid="5022308368904055020">"Нет"</string>
+    <string name="tap_again_to_pay" msgid="5754988005412859897">"Чтобы использовать для оплаты приложение \"<xliff:g id="APP">%1$s</xliff:g>\", снова приблизьте телефон"</string>
+    <string name="tap_again_to_complete" msgid="5423640945118279123">"Чтобы использовать приложение \"<xliff:g id="APP">%1$s</xliff:g>\", снова приблизьте телефон"</string>
+    <string name="transaction_failure" msgid="7828102078637936513">"Для этой операции нельзя использовать приложение \"<xliff:g id="APP">%1$s</xliff:g>\""</string>
+    <string name="could_not_use_app" msgid="8137587876138569083">"Невозможно использовать приложение \"<xliff:g id="APP">%1$s</xliff:g>\""</string>
+    <string name="pay_with" msgid="5531545488795798945">"Способ оплаты"</string>
+    <string name="complete_with" msgid="6797459104103012992">"Использовать"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Вы удалили приложение для оплаты через NFC, используемое по умолчанию. Выбрать другое?"</string>
 </resources>
