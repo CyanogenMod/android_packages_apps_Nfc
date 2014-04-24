@@ -1094,7 +1094,11 @@ public class NfcService implements DeviceHostListener {
 
         @Override
         public INfcCardEmulation getNfcCardEmulationInterface() {
-            return mCardEmulationManager.getNfcCardEmulationInterface();
+            if (mIsHceCapable) {
+                return mCardEmulationManager.getNfcCardEmulationInterface();
+            } else {
+                return null;
+            }
         }
 
         @Override
