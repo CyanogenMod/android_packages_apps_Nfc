@@ -18,10 +18,9 @@ public class NfcPermissions {
     static final String NFC_PERMISSION = android.Manifest.permission.NFC;
     private static final String NFC_PERM_ERROR = "NFC permission required";
 
-
     public static void validateUserId(int userId) {
         if (userId != UserHandle.getCallingUserId()) {
-            throw new SecurityException("userId passed in it not the calling user.");
+            throw new SecurityException("userId passed in is not the calling user.");
         }
     }
 
