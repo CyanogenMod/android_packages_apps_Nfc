@@ -49,7 +49,7 @@ static void com_android_nfc_jni_ioctl_callback ( void*            pContext,
 }
 
 static void com_android_nfc_jni_transceive_callback(void *pContext,
-   phLibNfc_Handle handle, phNfc_sData_t *pResBuffer, NFCSTATUS status)
+   phLibNfc_Handle /*handle*/, phNfc_sData_t *pResBuffer, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
 
@@ -62,8 +62,8 @@ static void com_android_nfc_jni_transceive_callback(void *pContext,
 
 
 static void com_android_nfc_jni_connect_callback(void *pContext,
-                                            phLibNfc_Handle hRemoteDev,
-                                            phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo, NFCSTATUS status)
+                                            phLibNfc_Handle /*hRemoteDev*/,
+                                            phLibNfc_sRemoteDevInformation_t* /*psRemoteDevInfo*/, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
 
@@ -74,7 +74,7 @@ static void com_android_nfc_jni_connect_callback(void *pContext,
 }
 
 static void com_android_nfc_jni_disconnect_callback(void *pContext,
-                                               phLibNfc_Handle hRemoteDev, 
+                                               phLibNfc_Handle /*hRemoteDev*/,
                                                NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
@@ -87,7 +87,7 @@ static void com_android_nfc_jni_disconnect_callback(void *pContext,
 
 /* Set Secure Element mode callback*/
 static void com_android_nfc_jni_smartMX_setModeCb (void*            pContext,
-							                                phLibNfc_Handle  hSecureElement,
+							                                phLibNfc_Handle  /*hSecureElement*/,
                                               NFCSTATUS        status)
 {      
     struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
@@ -175,7 +175,7 @@ clean_and_return:
 }
 
 
-static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection(JNIEnv *e, jobject o)
+static jint com_android_nfc_NativeNfcSecureElement_doOpenSecureElementConnection(JNIEnv*, jobject)
 {
    NFCSTATUS ret;
    int semResult;
@@ -471,7 +471,7 @@ clean_and_return:
 }
 
 
-static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv *e, jobject o, jint handle)
+static jboolean com_android_nfc_NativeNfcSecureElement_doDisconnect(JNIEnv*, jobject, jint handle)
 {
    jclass cls;
    jfieldID f;
@@ -606,7 +606,7 @@ clean_and_return:
 }
 
 static jbyteArray com_android_nfc_NativeNfcSecureElement_doTransceive(JNIEnv *e,
-   jobject o,jint handle, jbyteArray data)
+   jobject,jint handle, jbyteArray data)
 {
    uint8_t offset = 0;
    uint8_t *buf;
@@ -707,7 +707,7 @@ clean_and_return:
    return result;
 }
 
-static jbyteArray com_android_nfc_NativeNfcSecureElement_doGetUid(JNIEnv *e, jobject o, jint handle)
+static jbyteArray com_android_nfc_NativeNfcSecureElement_doGetUid(JNIEnv *e, jobject, jint handle)
 {
    TRACE("Get Secure element UID function ");
    jbyteArray SecureElementUid;
@@ -724,7 +724,7 @@ static jbyteArray com_android_nfc_NativeNfcSecureElement_doGetUid(JNIEnv *e, job
    }   
 }
 
-static jintArray com_android_nfc_NativeNfcSecureElement_doGetTechList(JNIEnv *e, jobject o, jint handle)
+static jintArray com_android_nfc_NativeNfcSecureElement_doGetTechList(JNIEnv *e, jobject, jint handle)
 {
    jintArray techList;
    TRACE("Get Secure element Type function ");

@@ -167,7 +167,7 @@ static jboolean com_android_nfc_NativeLlcpSocket_doConnectBy(JNIEnv *e, jobject 
 {
    NFCSTATUS ret;
    struct timespec ts;
-   phNfc_sData_t serviceName = {0};
+   phNfc_sData_t serviceName = {NULL, 0};
    phLibNfc_Handle hRemoteDevice;
    phLibNfc_Handle hLlcpSocket;
    struct nfc_jni_callback_data cb_data;

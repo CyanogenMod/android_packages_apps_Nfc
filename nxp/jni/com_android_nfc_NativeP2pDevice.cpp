@@ -41,7 +41,7 @@ static void nfc_jni_presence_check_callback(void* pContext, NFCSTATUS status)
 }
  
 static void nfc_jni_connect_callback(void *pContext,
-                                     phLibNfc_Handle hRemoteDev,
+                                     phLibNfc_Handle /*hRemoteDev*/,
                                      phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo, NFCSTATUS status)
 {   
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
@@ -60,7 +60,7 @@ static void nfc_jni_connect_callback(void *pContext,
    sem_post(&pCallbackData->sem);
 }
 
-static void nfc_jni_disconnect_callback(void *pContext, phLibNfc_Handle hRemoteDev, NFCSTATUS status)
+static void nfc_jni_disconnect_callback(void *pContext, phLibNfc_Handle /*hRemoteDev*/, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_disconnect_callback", status);
@@ -105,7 +105,7 @@ static void nfc_jni_send_callback(void *pContext, NFCSTATUS status)
  */
 
 static void nfc_jni_transceive_callback(void *pContext,
-  phLibNfc_Handle handle, phNfc_sData_t *pResBuffer, NFCSTATUS status)
+  phLibNfc_Handle /*handle*/, phNfc_sData_t *pResBuffer, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_transceive_callback", status);

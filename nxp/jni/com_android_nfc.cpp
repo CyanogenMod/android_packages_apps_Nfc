@@ -25,7 +25,7 @@
 /*
  * JNI Initialization
  */
-jint JNI_OnLoad(JavaVM *jvm, void *reserved)
+jint JNI_OnLoad(JavaVM *jvm, void* /*reserved*/)
 {
    JNIEnv *e;
 
@@ -160,7 +160,7 @@ struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o)
    return (struct nfc_jni_native_data*) e->GetLongField(o, f);
 }
 
-struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv *e)
+struct nfc_jni_native_data* nfc_jni_get_nat_ext(JNIEnv*)
 {
    return exported_nat;
 }
