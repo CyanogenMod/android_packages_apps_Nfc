@@ -47,7 +47,7 @@ static phLibNfc_Handle getIncomingSocket(nfc_jni_native_monitor_t * pMonitor,
                                                  phLibNfc_Handle hServerSocket)
 {
    nfc_jni_listen_data_t * pListenData;
-   phLibNfc_Handle pIncomingSocket = NULL;
+   phLibNfc_Handle pIncomingSocket = (phLibNfc_Handle)NULL;
 
    /* Look for a pending incoming connection on the current server */
    LIST_FOREACH(pListenData, &pMonitor->incoming_socket_head, entries)
@@ -80,6 +80,8 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    phLibNfc_Handle hIncomingSocket, hServerSocket;
    nfc_jni_native_monitor_t * pMonitor = nfc_jni_get_monitor();
 
+   hIncomingSocket = (phLibNfc_Handle)NULL;
+
    /* Create the local semaphore */
    if (!nfc_cb_data_init(&cb_data, NULL))
    {
@@ -101,7 +103,7 @@ static jobject com_NativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint m
    {
       /* Wait for tag Notification */
       pthread_mutex_lock(&pMonitor->incoming_socket_mutex);
-      while ((hIncomingSocket = getIncomingSocket(pMonitor, hServerSocket)) == NULL) {
+      while ((hIncomingSocket = getIncomingSocket(pMonitor, hServerSocket)) == (phLibNfc_Handle)NULL) {
          pthread_cond_wait(&pMonitor->incoming_socket_cond, &pMonitor->incoming_socket_mutex);
       }
       pthread_mutex_unlock(&pMonitor->incoming_socket_mutex);
