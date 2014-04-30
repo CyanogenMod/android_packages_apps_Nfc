@@ -116,7 +116,7 @@ static void kill_client(nfc_jni_native_data *nat)
    phDal4Nfc_msgsnd(gDrvCfg.nClientId, (struct msgbuf *)&wrapper, sizeof(phLibNfc_Message_t), 0);
 }
 
-static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t *pOutput, NFCSTATUS status) {
+static void nfc_jni_ioctl_callback(void *pContext, phNfc_sData_t* /*pOutput*/, NFCSTATUS status) {
    struct nfc_jni_callback_data * pCallbackData = (struct nfc_jni_callback_data *) pContext;
    LOG_CALLBACK("nfc_jni_ioctl_callback", status);
 
@@ -276,7 +276,7 @@ clean_and_return:
     return result;
 }
 
-static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data *nat)
+static int nfc_jni_unconfigure_driver(struct nfc_jni_native_data* /*nat*/)
 {
     int result = FALSE;
     NFCSTATUS status;
@@ -603,7 +603,7 @@ static int is_user_build() {
  * Last-chance fallback when there is no clean way to recover
  * Performs a software reset
   */
-void emergency_recovery(struct nfc_jni_native_data *nat) {
+void emergency_recovery(struct nfc_jni_native_data* /*nat*/) {
    if (is_user_build()) {
        ALOGE("emergency_recovery: force restart of NFC service");
    } else {
@@ -1119,7 +1119,7 @@ static void nfc_jni_deinit_callback(void *pContext, NFCSTATUS status)
 
 /* Set Secure Element mode callback*/
 static void nfc_jni_smartMX_setModeCb (void*            pContext,
-                                       phLibNfc_Handle  hSecureElement,
+                                       phLibNfc_Handle  /*hSecureElement*/,
                                        NFCSTATUS        status)
 {
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
@@ -1132,7 +1132,7 @@ static void nfc_jni_smartMX_setModeCb (void*            pContext,
 
 /* Card Emulation callback */
 static void nfc_jni_transaction_callback(void *context,
-   phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle handle,
+   phLibNfc_eSE_EvtType_t evt_type, phLibNfc_Handle /*handle*/,
    phLibNfc_uSeEvtInfo_t *evt_info, NFCSTATUS status)
 {
     JNIEnv *e;
@@ -1296,7 +1296,7 @@ static void nfc_jni_transaction_callback(void *context,
 }
 
 static void nfc_jni_se_set_mode_callback(void *pContext,
-   phLibNfc_Handle handle, NFCSTATUS status)
+   phLibNfc_Handle /*handle*/, NFCSTATUS status)
 {
    struct nfc_jni_callback_data * pContextData =  (struct nfc_jni_callback_data*)pContext;
 
@@ -1481,7 +1481,7 @@ clean_and_return:
     CONCURRENCY_UNLOCK();
 }
 
-static void com_android_nfc_NfcManager_doResetTimeouts( JNIEnv *e, jobject o) {
+static void com_android_nfc_NfcManager_doResetTimeouts(JNIEnv*, jobject) {
     CONCURRENCY_LOCK();
     nfc_jni_reset_timeout_values();
     CONCURRENCY_UNLOCK();
@@ -1557,7 +1557,7 @@ static void setNfcATimeout(jint timeout) {
    }
 }
 
-static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
+static bool com_android_nfc_NfcManager_doSetTimeout(JNIEnv*, jobject,
         jint tech, jint timeout) {
     bool success = false;
     CONCURRENCY_LOCK();
@@ -1591,7 +1591,7 @@ static bool com_android_nfc_NfcManager_doSetTimeout( JNIEnv *e, jobject o,
     return success;
 }
 
-static jint com_android_nfc_NfcManager_doGetTimeout( JNIEnv *e, jobject o,
+static jint com_android_nfc_NfcManager_doGetTimeout(JNIEnv*, jobject,
         jint tech) {
     int timeout = -1;
     CONCURRENCY_LOCK();
@@ -1847,7 +1847,7 @@ static jboolean com_android_nfc_NfcManager_deinitialize(JNIEnv *e, jobject o)
 }
 
 /* Secure Element methods */
-static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject o) {
+static jintArray com_android_nfc_NfcManager_doGetSecureElementList(JNIEnv *e, jobject) {
     NFCSTATUS ret;
     phLibNfc_SE_List_t se_list[PHLIBNFC_MAXNO_OF_SE];
     uint8_t i, se_count = PHLIBNFC_MAXNO_OF_SE;
@@ -2046,7 +2046,7 @@ clean_and_return:
    return result;
 }
 
-static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv *e, jobject o)
+static jboolean com_android_nfc_NfcManager_doActivateLlcp(JNIEnv*, jobject)
 {
    NFCSTATUS ret;
    TRACE("phLibNfc_Llcp_Activate(hRemoteDevice=0x%08x)", hLlcpHandle);
@@ -2405,7 +2405,7 @@ static jobject com_android_nfc_NfcManager_doCreateLlcpSocket(JNIEnv *e, jobject 
    return clientSocket;
 }
 
-static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
+static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv*, jobject)
 {
    TRACE("Last Error Status = 0x%02x",lastErrorStatus);
 
@@ -2423,7 +2423,7 @@ static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv *e, jobject o)
    }
 }
 
-static void com_android_nfc_NfcManager_doAbort(JNIEnv *e, jobject o)
+static void com_android_nfc_NfcManager_doAbort(JNIEnv*, jobject)
 {
     emergency_recovery(NULL);
 }
@@ -2591,7 +2591,7 @@ static jboolean com_android_nfc_NfcManager_doDownload(JNIEnv *e, jobject o)
     return performDownload(nat, true);
 }
 
-static jstring com_android_nfc_NfcManager_doDump(JNIEnv *e, jobject o)
+static jstring com_android_nfc_NfcManager_doDump(JNIEnv *e, jobject)
 {
     char buffer[100];
     snprintf(buffer, sizeof(buffer), "libnfc llc error_count=%u", libnfc_llc_error_count);
