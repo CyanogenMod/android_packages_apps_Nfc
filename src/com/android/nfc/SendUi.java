@@ -867,8 +867,4 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onActionModeFinished(ActionMode mode) {
     }
-
-    @Override
-    public void onWindowDismissed() {
-    }
 }
