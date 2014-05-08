@@ -91,7 +91,6 @@ public class AppChooserActivity extends AlertActivity
             return;
         }
 
-
         mCategory = category;
         boolean isPayment = CardEmulation.CATEGORY_PAYMENT.equals(mCategory);
 

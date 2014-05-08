@@ -1,31 +1,39 @@
+/*
+ * Copyright (C) 2014 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.android.nfc.cardemulation;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.List;
 
-import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.database.ContentObserver;
-import android.net.Uri;
 import android.nfc.INfcCardEmulation;
 import android.nfc.cardemulation.AidGroup;
 import android.nfc.cardemulation.ApduServiceInfo;
 import android.nfc.cardemulation.CardEmulation;
 import android.os.Binder;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 
 import com.android.nfc.NfcPermissions;
-import com.android.nfc.cardemulation.RegisteredServicesCache.Callback;
-import com.google.android.collect.Maps;
+import com.android.nfc.cardemulation.RegisteredServicesCache;
 
 /**
  * CardEmulationManager is the central entity
@@ -37,58 +45,17 @@ import com.google.android.collect.Maps;
  * - HostEmulationManager handles incoming APDUs for the host and forwards to HCE
  *   services as necessary.
  */
-public class CardEmulationManager implements Callback {
+public class CardEmulationManager implements RegisteredServicesCache.Callback,
+        PreferredServices.Callback {
     static final String TAG = "CardEmulationManager";
     static final boolean DBG = true;
 
     final RegisteredAidCache mAidCache;
     final RegisteredServicesCache mServiceCache;
     final HostEmulationManager mHostEmulationManager;
-    final SettingsObserver mSettingsObserver;
+    final PreferredServices mPreferredServices;
     final Context mContext;
     final CardEmulationInterface mCardEmulationInterface;
-    final Handler mHandler = new Handler(Looper.getMainLooper());
-
-    final Object mLock = new Object();
-    // Variables below protected by mLock
-    final HashMap<String, ComponentName> mCategoryDefaults =
-            Maps.newHashMap();
-
-
-    private final class SettingsObserver extends ContentObserver {
-        public SettingsObserver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        public void onChange(boolean selfChange, Uri uri) {
-            super.onChange(selfChange, uri);
-            // Do it just for the current user. If it was in fact
-            // a change made for another user, we'll sync it down
-            // on user switch.
-            int currentUser = ActivityManager.getCurrentUser();
-            loadDefaultsFromSettings(currentUser, false);
-        }
-    };
-
-    void loadDefaultsFromSettings(int userId, boolean alwaysNotify) {
-        // Load current payment default from settings
-        String name = Settings.Secure.getStringForUser(
-                mContext.getContentResolver(), Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
-                userId);
-        ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
-        ComponentName oldDefault;
-        synchronized (mLock) {
-            oldDefault = mCategoryDefaults.put(CardEmulation.CATEGORY_PAYMENT,
-                    newDefault);
-        }
-        Log.d(TAG, "Updating default component to: " + (name != null ?
-                ComponentName.unflattenFromString(name) : "null"));
-        if (newDefault != oldDefault || alwaysNotify) {
-            mAidCache.onDefaultChanged(CardEmulation.CATEGORY_PAYMENT, newDefault);
-            mHostEmulationManager.onDefaultChanged(CardEmulation.CATEGORY_PAYMENT, newDefault);
-        }
-    }
 
     public CardEmulationManager(Context context) {
         mContext = context;
@@ -96,14 +63,8 @@ public class CardEmulationManager implements Callback {
         mAidCache = new RegisteredAidCache(context);
         mHostEmulationManager = new HostEmulationManager(context, mAidCache);
         mServiceCache = new RegisteredServicesCache(context, this);
+        mPreferredServices = new PreferredServices(context, mServiceCache, this);
 
-        mSettingsObserver = new SettingsObserver(mHandler);
-        mContext.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT),
-                true, mSettingsObserver, UserHandle.USER_ALL);
-
-        // Load defaults
-        loadDefaultsFromSettings(ActivityManager.getCurrentUser(), true);
         mServiceCache.initialize();
     }
 
@@ -113,6 +74,7 @@ public class CardEmulationManager implements Callback {
 
     public void onHostCardEmulationActivated() {
         mHostEmulationManager.onHostEmulationActivated();
+        mPreferredServices.onHostEmulationActivated();
     }
 
     public void onHostCardEmulationData(byte[] data) {
@@ -121,6 +83,7 @@ public class CardEmulationManager implements Callback {
 
     public void onHostCardEmulationDeactivated() {
         mHostEmulationManager.onHostEmulationDeactivated();
+        mPreferredServices.onHostEmulationDeactivated();
     }
 
     public void onOffHostAidSelected() {
@@ -129,7 +92,7 @@ public class CardEmulationManager implements Callback {
 
     public void onUserSwitched(int userId) {
         mServiceCache.invalidateCache(userId);
-        loadDefaultsFromSettings(userId, true);
+        mPreferredServices.onUserSwitched(userId);
     }
 
     public void onNfcEnabled() {
@@ -142,7 +105,9 @@ public class CardEmulationManager implements Callback {
 
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         mServiceCache.dump(fd, pw, args);
+        mPreferredServices.dump(fd, pw, args);
         mAidCache.dump(fd, pw, args);
+        mHostEmulationManager.dump(fd, pw, args);
     }
 
     @Override
@@ -330,8 +295,7 @@ public class CardEmulationManager implements Callback {
             if (!isServiceRegistered(userId, service)) {
                 return false;
             }
-            mHostEmulationManager.setDefaultForNextTap(service);
-            return mAidCache.setDefaultForNextTap(userId, service);
+            return mPreferredServices.setDefaultForNextTap(service);
         }
 
         @Override
@@ -377,5 +341,36 @@ public class CardEmulationManager implements Callback {
             NfcPermissions.enforceAdminPermissions(mContext);
             return mServiceCache.getServicesForCategory(userId, category);
         }
+
+        @Override
+        public boolean setPreferredService(ComponentName service)
+                throws RemoteException {
+            NfcPermissions.enforceUserPermissions(mContext);
+            if (!isServiceRegistered(UserHandle.getCallingUserId(), service)) {
+                return false;
+            }
+            return mPreferredServices.registerPreferredForegroundService(service,
+                    Binder.getCallingUid());
+        }
+
+        @Override
+        public boolean unsetPreferredService() throws RemoteException {
+            NfcPermissions.enforceUserPermissions(mContext);
+            return mPreferredServices.unregisteredPreferredForegroundService(
+                    Binder.getCallingUid());
+
+        }
+    }
+
+    @Override
+    public void onPreferredPaymentServiceChanged(ComponentName service) {
+        mAidCache.onPreferredPaymentServiceChanged(service);
+        mHostEmulationManager.onPreferredPaymentServiceChanged(service);
+    }
+
+    @Override
+    public void onPreferredForegroundServiceChanged(ComponentName service) {
+        mAidCache.onPreferredForegroundServiceChanged(service);
+        mHostEmulationManager.onPreferredForegroundServiceChanged(service);
     };
 }

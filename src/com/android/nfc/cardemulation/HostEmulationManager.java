@@ -33,9 +33,12 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
+
 import com.android.nfc.NfcService;
 import com.android.nfc.cardemulation.RegisteredAidCache.AidResolveInfo;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 
 public class HostEmulationManager {
@@ -70,11 +73,6 @@ public class HostEmulationManager {
 
     // All variables below protected by mLock
 
-    /** Whether we need to clear the "next tap" service at the end
-     *  of this transaction.
-     */
-    boolean mClearNextTapDefault;
-
     // Variables below are for a non-payment service,
     // that is typically only bound in the STATE_XFER state.
     Messenger mService;
@@ -107,20 +105,29 @@ public class HostEmulationManager {
         mKeyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
     }
 
-    public void setDefaultForNextTap(ComponentName service) {
+    public void onPreferredPaymentServiceChanged(ComponentName service) {
         synchronized (mLock) {
             if (service != null) {
-                bindServiceIfNeededLocked(service);
+                bindPaymentServiceLocked(ActivityManager.getCurrentUser(), service);
             } else {
-                unbindServiceIfNeededLocked();
+                unbindPaymentServiceLocked();
             }
         }
-    }
+     }
+
+     public void onPreferredForegroundServiceChanged(ComponentName service) {
+         synchronized (mLock) {
+            if (service != null) {
+               bindServiceIfNeededLocked(service);
+            } else {
+               unbindServiceIfNeededLocked();
+            }
+         }
+     }
 
     public void onHostEmulationActivated() {
         Log.d(TAG, "notifyHostEmulationActivated");
         synchronized (mLock) {
-            mClearNextTapDefault = mAidCache.isNextTapOverriden();
             // Regardless of what happens, if we're having a tap again
             // activity up, close it
             Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
@@ -248,9 +255,6 @@ public class HostEmulationManager {
             if (mState == STATE_IDLE) {
                 Log.e(TAG, "Got deactivation event while in idle state");
             }
-            if (mClearNextTapDefault) {
-                mAidCache.setDefaultForNextTap(ActivityManager.getCurrentUser(), null);
-            }
             sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_LINK_LOSS);
             mActiveService = null;
             mActiveServiceName = null;
@@ -325,18 +329,6 @@ public class HostEmulationManager {
             mActiveService.send(msg);
         } catch (RemoteException e) {
             // Don't care
-        }
-    }
-
-    public void onDefaultChanged(String category, ComponentName defaultComponent) {
-        if (category.equalsIgnoreCase(CardEmulation.CATEGORY_PAYMENT)) {
-            synchronized (mLock) {
-                if (defaultComponent != null) {
-                    bindPaymentServiceLocked(ActivityManager.getCurrentUser(), defaultComponent);
-                } else {
-                    unbindPaymentServiceLocked();
-                }
-            }
         }
     }
 
@@ -521,5 +513,15 @@ public class HostEmulationManager {
             chars[j * 2 + 1] = hexChars[byteValue & 0x0F];
         }
         return new String(chars);
+    }
+
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Bound services: ");
+        if (mPaymentServiceBound) {
+            pw.println("    payment: " + mPaymentServiceName);
+        }
+        if (mServiceBound) {
+            pw.println("    other: " + mServiceName);
+        }
     }
 }
