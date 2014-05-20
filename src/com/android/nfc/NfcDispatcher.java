@@ -16,7 +16,6 @@
 
 package com.android.nfc;
 
-import android.nfc.NfcUnlock;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
 
@@ -67,8 +66,6 @@ class NfcDispatcher {
     final HandoverManager mHandoverManager;
     final String[] mProvisioningMimes;
     final ScreenStateHelper mScreenStateHelper;
-    final NfcUnlockSettingsService mNfcUnlockSettingsService;
-
 
     // Locked on this
     PendingIntent mOverrideIntent;
@@ -78,8 +75,7 @@ class NfcDispatcher {
 
     NfcDispatcher(Context context,
                   HandoverManager handoverManager,
-                  boolean provisionOnly,
-                  NfcUnlockSettingsService nfcUnlockSettingsService) {
+                  boolean provisionOnly) {
         mContext = context;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
@@ -87,7 +83,6 @@ class NfcDispatcher {
         mContentResolver = context.getContentResolver();
         mHandoverManager = handoverManager;
         mScreenStateHelper = new ScreenStateHelper(context);
-        mNfcUnlockSettingsService = nfcUnlockSettingsService;
 
         synchronized (this) {
             mProvisioningOnly = provisionOnly;
@@ -222,17 +217,6 @@ class NfcDispatcher {
             overrideIntent = mOverrideIntent;
             overrideTechLists = mOverrideTechLists;
             provisioningOnly = mProvisioningOnly;
-        }
-
-        if (!provisioningOnly &&
-                mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-            if (!NfcUnlock.getPropertyEnabled()) {
-                return false;
-            }
-
-            if(!mNfcUnlockSettingsService.tryUnlock(ActivityManager.getCurrentUser(), tag)) {
-                return false;
-            }
         }
 
         NdefMessage message = null;

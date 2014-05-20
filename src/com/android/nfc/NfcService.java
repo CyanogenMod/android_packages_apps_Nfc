@@ -41,7 +41,6 @@ import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcCardEmulation;
 import android.nfc.INfcTag;
-import android.nfc.INfcUnlockSettings;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
@@ -274,8 +273,6 @@ public class NfcService implements DeviceHostListener {
     private ScreenStateHelper mScreenStateHelper;
     private int mUserId;
 
-    private NfcUnlockSettingsService mNfcUnlockSettingsService;
-
     private static NfcService sService;
 
 
@@ -440,18 +437,6 @@ public class NfcService implements DeviceHostListener {
         mScreenStateHelper = new ScreenStateHelper(mContext);
         mContentResolver = mContext.getContentResolver();
         mDeviceHost = new NativeNfcManager(mContext, this);
-        mNfcUnlockSettingsService = new NfcUnlockSettingsService(mContext, mDeviceHost,
-                new NfcUnlockSettingsService.NfcUnlockSettingsEventCallback() {
-                    @Override
-                    public void onNfcUnlockEnabledChange(boolean enabled) {
-                        synchronized (NfcService.this) {
-                            mPollingMode = getPollingModeForNfcUnlockState(enabled);
-                        }
-                    }
-                });
-
-        mPollingMode = getPollingModeForNfcUnlockState(
-                mNfcUnlockSettingsService.getNfcUnlockEnabled(mUserId));
 
         mHandoverManager = new HandoverManager(mContext);
         boolean isNfcProvisioningEnabled = false;
@@ -469,8 +454,7 @@ public class NfcService implements DeviceHostListener {
         }
 
         mHandoverManager.setEnabled(!mInProvisionMode);
-        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverManager, mInProvisionMode,
-                mNfcUnlockSettingsService);
+        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverManager, mInProvisionMode);
         mP2pLinkManager = new P2pLinkManager(mContext, mHandoverManager,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
@@ -716,8 +700,7 @@ public class NfcService implements DeviceHostListener {
             try {
                 mRoutingWakeLock.acquire();
                 try {
-                    boolean enableScreenOffSuspendMode = mNfcUnlockSettingsService
-                            .getNfcUnlockEnabled(getUserId());
+                    boolean enableScreenOffSuspendMode = false; //TODO: add in TA based code here
 
                     if (!mDeviceHost.initialize(enableScreenOffSuspendMode)) {
                         Log.w(TAG, "Error enabling NFC");
@@ -1099,11 +1082,6 @@ public class NfcService implements DeviceHostListener {
             } else {
                 return null;
             }
-        }
-
-        @Override
-        public INfcUnlockSettings getNfcUnlockSettingsInterface() {
-            return mNfcUnlockSettingsService;
         }
 
         @Override
@@ -1912,9 +1890,7 @@ public class NfcService implements DeviceHostListener {
                         mNfcPollingEnabled = true;
 
                         if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                            mDeviceHost.enableDiscovery(
-                                    mNfcUnlockSettingsService.getRegisteredTechMask(getUserId()),
-                                    false);
+                            // TODO:enable discovery with TA based tech mask here
                         } else {
                             mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
                         }
