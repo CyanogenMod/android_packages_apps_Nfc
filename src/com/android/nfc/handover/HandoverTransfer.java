@@ -260,6 +260,9 @@ public class HandoverTransfer implements Handler.Callback,
                     android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_complete));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_complete));
+            Uri uri = Uri.parse("android.resource://" + mContext.getPackageName()
+                    + "/" + R.raw.end);
+            notBuilder.setSound(uri);
 
             if (mIncoming) {
                 notBuilder.setContentText(mContext.getString(R.string.beam_touch_to_view));

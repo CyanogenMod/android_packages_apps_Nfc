@@ -23,8 +23,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.AudioManager;
-import android.media.SoundPool;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -120,7 +118,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     final HashMap<Pair<String, Boolean>, HandoverTransfer> mTransfers;
     final Messenger mMessenger;
 
-    SoundPool mSoundPool;
     int mSuccessSound;
 
     BluetoothAdapter mBluetoothAdapter;
@@ -144,9 +141,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     public void onCreate() {
         super.onCreate();
 
-        mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
-        mSuccessSound = mSoundPool.load(this, R.raw.end, 1);
-
         IntentFilter filter = new IntentFilter(ACTION_BT_OPP_TRANSFER_DONE);
         filter.addAction(ACTION_BT_OPP_TRANSFER_PROGRESS);
         filter.addAction(ACTION_CANCEL_HANDOVER_TRANSFER);
@@ -158,9 +152,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mSoundPool != null) {
-            mSoundPool.release();
-        }
         unregisterReceiver(mReceiver);
     }
 
@@ -435,9 +426,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         notifyClientTransferComplete(transfer.getTransferId());
 
         // Play success sound
-        if (success) {
-            mSoundPool.play(mSuccessSound, 1.0f, 1.0f, 0, 0, 1.0f);
-        } else {
+        if (!success) {
             if (DBG) Log.d(TAG, "Transfer failed, final state: " +
                     Integer.toString(transfer.mState));
         }
