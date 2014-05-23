@@ -253,6 +253,9 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
                 success = true;
             } // else, other UID in foreground
         }
+        if (success) {
+            computePreferredForegroundService();
+        }
         return success;
     }
 
