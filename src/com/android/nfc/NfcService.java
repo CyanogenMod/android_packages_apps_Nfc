@@ -219,7 +219,7 @@ public class NfcService implements DeviceHostListener {
 
 
     // minimum screen state that enables NFC polling (discovery)
-    private int mPollingMode;
+    final private int mPollingMode = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -516,12 +516,6 @@ public class NfcService implements DeviceHostListener {
         }
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
-    }
-
-    private int getPollingModeForNfcUnlockState(boolean enabled) {
-        return enabled
-                ? ScreenStateHelper.SCREEN_STATE_ON_LOCKED
-                : ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
     }
 
     void initSoundPool() {
