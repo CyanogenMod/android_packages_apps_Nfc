@@ -40,7 +40,7 @@ import java.util.TreeMap;
 public class RegisteredAidCache {
     static final String TAG = "RegisteredAidCache";
 
-    static final boolean DBG = true;
+    static final boolean DBG = false;
 
     // mAidServices is a tree that maps an AID to a list of handling services
     // on Android. It is only valid for the current user.
