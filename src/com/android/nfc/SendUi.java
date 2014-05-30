@@ -768,9 +768,17 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // Any hardware key basically stops the animation
-        mCallback.onCanceled();
-        return false;
+        int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            mCallback.onCanceled();
+            return true;
+        } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+                keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            // Treat as if it's a touch event
+            return onTouch(mScreenshotView, null);
+        } else {
+            return false;
+        }
     }
 
     @Override
