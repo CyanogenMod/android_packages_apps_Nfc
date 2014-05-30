@@ -19,10 +19,20 @@ LOCAL_CERTIFICATE := platform
 LOCAL_STATIC_JAVA_LIBRARIES := NfcLogTags
 
 LOCAL_REQUIRED_MODULES  := libnfc_jni
+LOCAL_ADDITIONAL_DEPENDENCIES := com.nxp.mifare.xml
 
 LOCAL_PROGUARD_ENABLED := disabled
 
 include $(BUILD_PACKAGE)
+
+# Chipsets using NfcNxp are sure to support mifare classic
+include $(CLEAR_VARS)
+LOCAL_MODULE       := com.nxp.mifare.xml
+LOCAL_MODULE_TAGS  := optional
+LOCAL_MODULE_CLASS := ETC
+LOCAL_SRC_FILES    := frameworks/native/data/etc/com.nxp.mifare.xml
+LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/permissions
+include $(BUILD_PREBUILT)
 
 ########################################
 # NCI Configuration
