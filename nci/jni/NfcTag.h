@@ -222,6 +222,18 @@ public:
 
     /*******************************************************************************
     **
+    ** Function:        isFelicaLite
+    **
+    ** Description:     Whether the currently activated tag is Felica Lite.
+    **
+    ** Returns:         True if tag is Felica Lite.
+    **
+    *******************************************************************************/
+    bool isFelicaLite ();
+
+
+    /*******************************************************************************
+    **
     ** Function:        isT2tNackResponse
     **
     ** Description:     Whether the response is a T2T NACK response.
@@ -258,6 +270,17 @@ public:
     *******************************************************************************/
     void setActive(bool active);
 
+    /*******************************************************************************
+    **
+    ** Function:        isDynamicTagId
+    **
+    ** Description:     Whether a tag has a dynamic tag ID.
+    **
+    ** Returns:         True if ID is dynamic.
+    **
+    *******************************************************************************/
+    bool isDynamicTagId ();
+
 
     /*******************************************************************************
     **
@@ -269,6 +292,20 @@ public:
     **
     *******************************************************************************/
     void resetAllTransceiveTimeouts ();
+
+
+    /*******************************************************************************
+    **
+    ** Function:        isDefaultTransceiveTimeout
+    **
+    ** Description:     Is the timeout value for a technology the default value?
+    **                  techId: one of the values in TARGET_TYPE_* defined in NfcJniUtil.h.
+    **                  timeout: Check this value against the default value.
+    **
+    ** Returns:         True if timeout is equal to the default value.
+    **
+    *******************************************************************************/
+    bool isDefaultTransceiveTimeout (int techId, int timeout);
 
 
     /*******************************************************************************
@@ -298,8 +335,46 @@ public:
     void setTransceiveTimeout (int techId, int timeout);
 
 
+    /*******************************************************************************
+    **
+    ** Function:        getPresenceCheckAlgorithm
+    **
+    ** Description:     Get presence-check algorithm from .conf file.
+    **
+    ** Returns:         Presence-check algorithm.
+    **
+    *******************************************************************************/
+    tNFA_RW_PRES_CHK_OPTION getPresenceCheckAlgorithm ();
+
+
+    /*******************************************************************************
+    **
+    ** Function:        isInfineonMyDMove
+    **
+    ** Description:     Whether the currently activated tag is Infineon My-D Move.
+    **
+    ** Returns:         True if tag is Infineon My-D Move.
+    **
+    *******************************************************************************/
+    bool isInfineonMyDMove ();
+
+
+    /*******************************************************************************
+    **
+    ** Function:        isKovioType2Tag
+    **
+    ** Description:     Whether the currently activated tag is Kovio 2Kb RFID tag.
+    **                  It is a NFC Forum type-2 tag.
+    **
+    ** Returns:         True if tag is Kovio 2Kb RFID tag.
+    **
+    *******************************************************************************/
+    bool isKovioType2Tag ();
+
+
 private:
     std::vector<int> mTechnologyTimeoutsTable;
+    std::vector<int> mTechnologyDefaultTimeoutsTable;
     nfc_jni_native_data* mNativeData;
     bool mIsActivated;
     ActivationState mActivationState;
@@ -312,7 +387,9 @@ private:
     SyncEvent mReadCompleteEvent;
     struct timespec mLastKovioTime; // time of last Kovio tag activation
     UINT8 mLastKovioUid[NFC_KOVIO_MAX_LEN]; // uid of last Kovio tag activated
-
+    bool mIsDynamicTagId; // whether the tag has dynamic tag ID
+    tNFA_RW_PRES_CHK_OPTION mPresenceCheckAlgorithm;
+    bool mIsFelicaLite;
 
     /*******************************************************************************
     **

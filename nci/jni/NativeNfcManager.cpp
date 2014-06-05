@@ -41,7 +41,6 @@ extern "C"
     #include "ce_api.h"
 }
 
-extern UINT8 *p_nfa_dm_start_up_cfg;
 extern const UINT8 nfca_version_string [];
 extern const UINT8 nfa_version_string [];
 extern tNFA_DM_DISC_FREQ_CFG* p_nfa_dm_rf_disc_freq_cfg; //defined in stack
@@ -49,7 +48,7 @@ namespace android
 {
     extern bool gIsTagDeactivating;
     extern bool gIsSelectingRfInterface;
-    extern void nativeNfcTag_doTransceiveStatus (uint8_t * buf, uint32_t buflen);
+    extern void nativeNfcTag_doTransceiveStatus (tNFA_STATUS status, uint8_t * buf, uint32_t buflen);
     extern void nativeNfcTag_notifyRfTimeout ();
     extern void nativeNfcTag_doConnectStatus (jboolean is_connect_ok);
     extern void nativeNfcTag_doDeactivateStatus (int status);
@@ -419,12 +418,13 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         break;
 
     case NFA_DATA_EVT: // Data message received (for non-NDEF reads)
-        ALOGD("%s: NFA_DATA_EVT:  len = %d", __FUNCTION__, eventData->data.len);
-        nativeNfcTag_doTransceiveStatus(eventData->data.p_data,eventData->data.len);
+        ALOGD("%s: NFA_DATA_EVT: status = 0x%X, len = %d", __FUNCTION__, eventData->status, eventData->data.len);
+        nativeNfcTag_doTransceiveStatus(eventData->status, eventData->data.p_data, eventData->data.len);
         break;
     case NFA_RW_INTF_ERROR_EVT:
         ALOGD("%s: NFC_RW_INTF_ERROR_EVT", __FUNCTION__);
         nativeNfcTag_notifyRfTimeout();
+        nativeNfcTag_doReadCompleted (NFA_STATUS_TIMEOUT);
         break;
     case NFA_SELECT_CPLT_EVT: // Select completed
         status = eventData->status;
@@ -1054,38 +1054,6 @@ void enableDisableLptd (bool enable)
     return;
 }
 
-/*******************************************************************************
-**
-** Function         nfc_jni_cache_object_local
-**
-** Description      Allocates a java object and calls it's constructor
-**
-** Returns          -1 on failure, 0 on success
-**
-*******************************************************************************/
-static int nfc_jni_cache_object_local (JNIEnv *e, const char *className, jobject *cachedObj)
-{
-    ScopedLocalRef<jclass> cls(e, e->FindClass(className));
-    if(cls.get() == NULL) {
-        ALOGE ("%s: find class error", __FUNCTION__);
-        return -1;
-    }
-
-    jmethodID ctor = e->GetMethodID(cls.get(), "<init>", "()V");
-    jobject obj = e->NewObject(cls.get(), ctor);
-    if (obj == NULL) {
-       ALOGE ("%s: create object error", __FUNCTION__);
-       return -1;
-    }
-
-    *cachedObj = obj;
-    if (*cachedObj == NULL) {
-        ALOGE ("%s: global ref error", __FUNCTION__);
-        return -1;
-    }
-    return 0;
-}
-
 
 /*******************************************************************************
 **
@@ -1113,7 +1081,7 @@ static jobject nfcManager_doCreateLlcpServiceSocket (JNIEnv* e, jobject, jint nS
 
     /* Create new NativeLlcpServiceSocket object */
     jobject serviceSocket = NULL;
-    if (nfc_jni_cache_object(e, gNativeLlcpServiceSocketClassName, &(serviceSocket)) == -1)
+    if (nfc_jni_cache_object_local(e, gNativeLlcpServiceSocketClassName, &(serviceSocket)) == -1)
     {
         ALOGE ("%s: Llcp socket object creation error", __FUNCTION__);
         return NULL;

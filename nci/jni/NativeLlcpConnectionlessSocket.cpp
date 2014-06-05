@@ -206,7 +206,7 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom (JNIEnv* e, jobject,
     }
 
     // Create new LlcpPacket object
-    if (nfc_jni_cache_object (e, "com/android/nfc/LlcpPacket", &(llcpPacket)) == -1)
+    if (nfc_jni_cache_object_local (e, "com/android/nfc/LlcpPacket", &(llcpPacket)) == -1)
     {
         ALOGE ("%s: Find LlcpPacket class error", __FUNCTION__);
         return connectionlessCleanup ();

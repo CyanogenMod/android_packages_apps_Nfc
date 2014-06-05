@@ -197,7 +197,7 @@ public:
     **
     ** Function:        connectConnOriented
     **
-    ** Description:     Estabish a connection-oriented connection to a peer.
+    ** Description:     Establish a connection-oriented connection to a peer.
     **                  jniHandle: Connection handle.
     **                  serviceName: Peer's service name.
     **
@@ -211,7 +211,7 @@ public:
     **
     ** Function:        connectConnOriented
     **
-    ** Description:     Estabish a connection-oriented connection to a peer.
+    ** Description:     Establish a connection-oriented connection to a peer.
     **                  jniHandle: Connection handle.
     **                  destinationSap: Peer's service access point.
     **
@@ -302,6 +302,30 @@ public:
     **
     *******************************************************************************/
     void setP2pListenMask (tNFA_TECHNOLOGY_MASK p2pListenMask);
+
+
+    /*******************************************************************************
+    **
+    ** Function:        getP2pListenMask
+    **
+    ** Description:     Get the set of technologies that P2P is listening.
+    **
+    ** Returns:         Set of technologies.
+    **
+    *******************************************************************************/
+    tNFA_TECHNOLOGY_MASK getP2pListenMask ();
+
+
+    /*******************************************************************************
+    **
+    ** Function:        resetP2pListenMask
+    **
+    ** Description:     Reset the p2p listen technology mask to initial value.
+    **
+    ** Returns:         None.
+    **
+    *******************************************************************************/
+    void resetP2pListenMask ();
 
     /*******************************************************************************
     **

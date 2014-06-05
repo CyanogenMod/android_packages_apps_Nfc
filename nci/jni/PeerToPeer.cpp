@@ -1089,6 +1089,43 @@ void PeerToPeer::setP2pListenMask (tNFA_TECHNOLOGY_MASK p2pListenMask) {
     mP2pListenTechMask = p2pListenMask;
 }
 
+
+/*******************************************************************************
+**
+** Function:        getP2pListenMask
+**
+** Description:     Get the set of technologies that P2P is listening.
+**
+** Returns:         Set of technologies.
+**
+*******************************************************************************/
+tNFA_TECHNOLOGY_MASK PeerToPeer::getP2pListenMask ()
+{
+    return mP2pListenTechMask;
+}
+
+
+/*******************************************************************************
+**
+** Function:        resetP2pListenMask
+**
+** Description:     Reset the p2p listen technology mask to initial value.
+**
+** Returns:         None.
+**
+*******************************************************************************/
+void PeerToPeer::resetP2pListenMask ()
+{
+    unsigned long num = 0;
+    mP2pListenTechMask = NFA_TECHNOLOGY_MASK_A
+                        | NFA_TECHNOLOGY_MASK_F
+                        | NFA_TECHNOLOGY_MASK_A_ACTIVE
+                        | NFA_TECHNOLOGY_MASK_F_ACTIVE;
+    if (GetNumValue ("P2P_LISTEN_TECH_MASK", &num, sizeof (num)))
+        mP2pListenTechMask = num;
+}
+
+
 /*******************************************************************************
 **
 ** Function:        enableP2pListening

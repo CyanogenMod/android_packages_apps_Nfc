@@ -139,4 +139,40 @@ struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv *e, jobject o)
 }
 
 
+/*******************************************************************************
+**
+** Function         nfc_jni_cache_object_local
+**
+** Description      Allocates a java object and calls it's constructor
+**
+** Returns          -1 on failure, 0 on success
+**
+*******************************************************************************/
+int nfc_jni_cache_object_local (JNIEnv *e, const char *className, jobject *cachedObj)
+{
+    ScopedLocalRef<jclass> cls(e, e->FindClass(className));
+    if(cls.get() == NULL)
+    {
+        ALOGE ("%s: find class error", __FUNCTION__);
+        return -1;
+    }
+
+    jmethodID ctor = e->GetMethodID(cls.get(), "<init>", "()V");
+    jobject obj = e->NewObject(cls.get(), ctor);
+    if (obj == NULL)
+    {
+       ALOGE ("%s: create object error", __FUNCTION__);
+       return -1;
+    }
+
+    *cachedObj = obj;
+    if (*cachedObj == NULL)
+    {
+        ALOGE ("%s: global ref error", __FUNCTION__);
+        return -1;
+    }
+    return 0;
+}
+
+
 } // namespace android

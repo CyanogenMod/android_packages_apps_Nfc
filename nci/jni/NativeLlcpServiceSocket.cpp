@@ -69,7 +69,7 @@ static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu, 
     }
 
     /* Create new LlcpSocket object */
-    if (nfc_jni_cache_object(e, gNativeLlcpSocketClassName, &(clientSocket)) == -1)
+    if (nfc_jni_cache_object_local(e, gNativeLlcpSocketClassName, &(clientSocket)) == -1)
     {
         ALOGE ("%s: fail create NativeLlcpSocket", __FUNCTION__);
         goto TheEnd;

@@ -157,6 +157,7 @@ extern "C"
 namespace android
 {
     int nfc_jni_cache_object (JNIEnv *e, const char *clsname, jobject *cached_obj);
+    int nfc_jni_cache_object_local (JNIEnv *e, const char *className, jobject *cachedObj);
     int nfc_jni_get_nfc_socket_handle (JNIEnv *e, jobject o);
     struct nfc_jni_native_data* nfc_jni_get_nat (JNIEnv *e, jobject o);
     int register_com_android_nfc_NativeNfcManager (JNIEnv *e);

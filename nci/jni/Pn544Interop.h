@@ -16,8 +16,6 @@
 
 /*****************************************************************************
 **
-**  Name:           Pn544Interop.h
-**
 **  Description:    Implement operations that provide compatibility with NXP
 **                  PN544 controller.  Specifically facilitate peer-to-peer
 **                  operations with PN544 controller.
