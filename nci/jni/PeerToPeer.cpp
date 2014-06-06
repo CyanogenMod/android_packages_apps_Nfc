@@ -13,6 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/******************************************************************************
+ *
+ *  The original Work has been changed by NXP Semiconductors.
+ *
+ *  Copyright (C) 2013-2014 NXP Semiconductors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ ******************************************************************************/
 
 /*
  *  Communicate with a peer using NFC-DEP, LLCP, SNEP.
@@ -40,6 +59,8 @@ namespace android
 {
     extern void nativeNfcTag_registerNdefTypeHandler ();
     extern void nativeNfcTag_deregisterNdefTypeHandler ();
+    extern void startRfDiscovery(bool isStart);
+    extern bool isDiscoveryStarted();
 }
 
 
@@ -472,6 +493,7 @@ bool PeerToPeer::deregisterServer (tJNI_HANDLE jniHandle)
     ALOGD ("%s: enter; JNI handle: %u", fn, jniHandle);
     tNFA_STATUS     nfaStat = NFA_STATUS_FAILED;
     sp<P2pServer>   pSrv = NULL;
+    bool            rfEnabled = false;
 
     mMutex.lock();
     if ((pSrv = findServerLocked (jniHandle)) == NULL)
@@ -481,6 +503,13 @@ bool PeerToPeer::deregisterServer (tJNI_HANDLE jniHandle)
         return (false);
     }
     mMutex.unlock();
+
+    //Check if discovery has started
+    rfEnabled = android::isDiscoveryStarted();
+    if(rfEnabled)
+    {
+        android::startRfDiscovery(false);
+    }
 
     {
         // Server does not call NFA_P2pDisconnect(), so unblock the accept()
@@ -495,6 +524,11 @@ bool PeerToPeer::deregisterServer (tJNI_HANDLE jniHandle)
     }
 
     removeServer (jniHandle);
+
+    if(rfEnabled)
+    {
+        android::startRfDiscovery(true);
+    }
 
     ALOGD ("%s: exit", fn);
     return true;

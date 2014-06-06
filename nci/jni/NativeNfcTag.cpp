@@ -13,6 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+ /******************************************************************************
+ *
+ *  The original Work has been changed by NXP Semiconductors.
+ *
+ *  Copyright (C) 2013-2014 NXP Semiconductors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ ******************************************************************************/
 
 #include <semaphore.h>
 #include <errno.h>
@@ -75,7 +94,7 @@ namespace android
 #define NDEF_TYPE4_TAG             4
 #define NDEF_MIFARE_CLASSIC_TAG    101
 
-#define STATUS_CODE_TARGET_LOST    146	// this error code comes from the service
+#define STATUS_CODE_TARGET_LOST    146  // this error code comes from the service
 
 static uint32_t     sCheckNdefCurrentSize = 0;
 static tNFA_STATUS  sCheckNdefStatus = 0; //whether tag already contains a NDEF message
@@ -1344,8 +1363,8 @@ static jboolean nativeNfcTag_doPresenceCheck (JNIEnv*, jobject)
 ** Returns:         True if formattable.
 **
 *******************************************************************************/
-static jboolean nativeNfcTag_doIsNdefFormatable (JNIEnv*,
-        jobject, jint /*libNfcType*/, jbyteArray, jbyteArray,
+static jboolean nativeNfcTag_doIsNdefFormatable (JNIEnv* e,
+        jobject o, jint /*libNfcType*/, jbyteArray, jbyteArray,
         jbyteArray)
 {
     jboolean isFormattable = JNI_FALSE;
@@ -1359,6 +1378,43 @@ static jboolean nativeNfcTag_doIsNdefFormatable (JNIEnv*,
 
     case NFA_PROTOCOL_T2T:
         isFormattable = NfcTag::getInstance().isMifareUltralight() ? JNI_TRUE : JNI_FALSE;
+        break;
+    case NFA_PROTOCOL_ISO_DEP:
+        /**
+         * Determines whether this is a formatable IsoDep tag - currectly only NXP DESFire
+         * is supported.
+         */
+        uint8_t  cmd[] = {0x90, 0x60, 0x00, 0x00, 0x00};
+
+        if(NfcTag::getInstance().isMifareDESFire())
+        {
+            /* Identifies as DESfire, use get version cmd to be sure */
+            jbyteArray versionCmd = e->NewByteArray(5);
+            e->SetByteArrayRegion(versionCmd, 0, 5, (jbyte*)cmd);
+            jbyteArray respBytes = nativeNfcTag_doTransceive(e, o,
+                        versionCmd, JNI_TRUE, NULL);
+            if (respBytes != NULL)
+            {
+                // Check whether the response matches a typical DESfire
+                // response.
+                // libNFC even does more advanced checking than we do
+                // here, and will only format DESfire's with a certain
+                // major/minor sw version and NXP as a manufacturer.
+                // We don't want to do such checking here, to avoid
+                // having to change code in multiple places.
+                // A succesful (wrapped) DESFire getVersion command returns
+                // 9 bytes, with byte 7 0x91 and byte 8 having status
+                // code 0xAF (these values are fixed and well-known).
+                int respLength = e->GetArrayLength(respBytes);
+                uint8_t* resp = (uint8_t*)e->GetByteArrayElements(respBytes, NULL);
+                if (respLength == 9 && resp[7] == 0x91 && resp[8] == 0xAF)
+                {
+                    isFormattable = JNI_TRUE;
+                }
+                e->ReleaseByteArrayElements(respBytes, (jbyte *)resp, JNI_ABORT);
+            }
+        }
+        break;
     }
     ALOGD("%s: is formattable=%u", __FUNCTION__, isFormattable);
     return isFormattable;
@@ -1400,7 +1456,7 @@ static jboolean nativeNfcTag_doIsIsoDepNdefFormatable (JNIEnv *e, jobject o, jby
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeNfcTag_doNdefFormat (JNIEnv*, jobject, jbyteArray)
+static jboolean nativeNfcTag_doNdefFormat (JNIEnv *e, jobject o, jbyteArray)
 {
     ALOGD ("%s: enter", __FUNCTION__);
     tNFA_STATUS status = NFA_STATUS_OK;
@@ -1425,6 +1481,10 @@ static jboolean nativeNfcTag_doNdefFormat (JNIEnv*, jobject, jbyteArray)
         ALOGE ("%s: error status=%u", __FUNCTION__, status);
     sem_destroy (&sFormatSem);
 
+    if (NfcTag::getInstance ().mTechLibNfcTypes[0] == NFA_PROTOCOL_ISO_DEP)
+    {
+        nativeNfcTag_doReconnect (e, o);
+    }
     ALOGD ("%s: exit", __FUNCTION__);
     return (status == NFA_STATUS_OK) ? JNI_TRUE : JNI_FALSE;
 }
