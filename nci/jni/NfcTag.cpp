@@ -42,7 +42,6 @@ extern "C"
 NfcTag::NfcTag ()
 :   mNumTechList (0),
     mTechnologyTimeoutsTable (MAX_NUM_TECHNOLOGY),
-    mTechnologyDefaultTimeoutsTable (MAX_NUM_TECHNOLOGY),
     mNativeData (NULL),
     mIsActivated (false),
     mActivationState (Idle),
@@ -60,19 +59,6 @@ NfcTag::NfcTag ()
     memset (mTechLibNfcTypes, 0, sizeof(mTechLibNfcTypes));
     memset (mTechParams, 0, sizeof(mTechParams));
     memset(mLastKovioUid, 0, NFC_KOVIO_MAX_LEN);
-
-    //default timeout values for transceive operations for each technology.
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_ISO14443_3A] = 618; //NfcA
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_ISO14443_3B] = 1000; //NfcB
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_ISO14443_4] = 309; //ISO-DEP
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_FELICA] = 255; //Felica
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_ISO15693] = 1000;//NfcV
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_NDEF] = 1000;
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_NDEF_FORMATABLE] = 1000;
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_MIFARE_CLASSIC] = 618; //MifareClassic
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_MIFARE_UL] = 618; //MifareUltralight
-    mTechnologyDefaultTimeoutsTable [TARGET_TYPE_KOVIO_BARCODE] = 1000; //NfcBarcode
-    mTechnologyTimeoutsTable = mTechnologyDefaultTimeoutsTable;
 }
 
 
@@ -1441,29 +1427,16 @@ bool NfcTag::isDynamicTagId ()
 *******************************************************************************/
 void NfcTag::resetAllTransceiveTimeouts ()
 {
-    mTechnologyTimeoutsTable = mTechnologyDefaultTimeoutsTable;
-}
-
-
-/*******************************************************************************
-**
-** Function:        isDefaultTransceiveTimeout
-**
-** Description:     Is the timeout value for a technology the default value?
-**                  techId: one of the values in TARGET_TYPE_* defined in NfcJniUtil.h.
-**                  timeout: Check this value against the default value.
-**
-** Returns:         True if timeout is equal to the default value.
-**
-*******************************************************************************/
-bool NfcTag::isDefaultTransceiveTimeout (int techId, int timeout)
-{
-    static const char fn [] = "NfcTag::isDefaultTransceiveTimeout";
-    if ((techId > 0) && (techId < (int) mTechnologyDefaultTimeoutsTable.size()))
-        return mTechnologyDefaultTimeoutsTable [techId] == timeout;
-    else
-        ALOGE ("%s: invalid tech=%d", fn, techId);
-    return false;
+    mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_3A] = 618; //NfcA
+    mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_3B] = 1000; //NfcB
+    mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_4] = 309; //ISO-DEP
+    mTechnologyTimeoutsTable [TARGET_TYPE_FELICA] = 255; //Felica
+    mTechnologyTimeoutsTable [TARGET_TYPE_ISO15693] = 1000;//NfcV
+    mTechnologyTimeoutsTable [TARGET_TYPE_NDEF] = 1000;
+    mTechnologyTimeoutsTable [TARGET_TYPE_NDEF_FORMATABLE] = 1000;
+    mTechnologyTimeoutsTable [TARGET_TYPE_MIFARE_CLASSIC] = 618; //MifareClassic
+    mTechnologyTimeoutsTable [TARGET_TYPE_MIFARE_UL] = 618; //MifareUltralight
+    mTechnologyTimeoutsTable [TARGET_TYPE_KOVIO_BARCODE] = 1000; //NfcBarcode
 }
 
 /*******************************************************************************
