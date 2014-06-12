@@ -32,7 +32,7 @@ public final class SnepMessage {
     public static final byte REQUEST_CONTINUE = (byte) 0x00;
     public static final byte REQUEST_GET = (byte) 0x01;
     public static final byte REQUEST_PUT = (byte) 0x02;
-    public static final byte REQUEST_REJECT = (byte) 0x07;
+    public static final byte REQUEST_REJECT = (byte) 0x7F;
 
     public static final byte RESPONSE_CONTINUE = (byte) 0x80;
     public static final byte RESPONSE_SUCCESS = (byte) 0x81;
