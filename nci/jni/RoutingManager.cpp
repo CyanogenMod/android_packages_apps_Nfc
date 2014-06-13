@@ -66,6 +66,7 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
 
     ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
     setDefaultRouting();
+    mRxDataBuffer.clear ();
     return true;
 }
 
@@ -189,6 +190,7 @@ void RoutingManager::notifyActivated ()
 
 void RoutingManager::notifyDeactivated ()
 {
+    mRxDataBuffer.clear();
     JNIEnv* e = NULL;
     ScopedAttach attach(mNativeData->vm, &e);
     if (e == NULL)
@@ -205,43 +207,64 @@ void RoutingManager::notifyDeactivated ()
     }
 }
 
-void RoutingManager::handleData (const UINT8* data, UINT8 dataLen)
+void RoutingManager::handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS status)
 {
     if (dataLen <= 0)
     {
         ALOGE("no data");
-        return;
+        goto TheEnd;
     }
 
-    JNIEnv* e = NULL;
-    ScopedAttach attach(mNativeData->vm, &e);
-    if (e == NULL)
+    if (status == NFA_STATUS_CONTINUE)
     {
-        ALOGE ("jni env is null");
-        return;
+        mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data; more to come
+        return; //expect another NFA_CE_DATA_EVT to come
+    }
+    else if (status == NFA_STATUS_OK)
+    {
+        mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data
+        //entire data packet has been received; no more NFA_CE_DATA_EVT
+    }
+    else if (status == NFA_STATUS_FAILED)
+    {
+        ALOGE("RoutingManager::handleData: read data fail");
+        goto TheEnd;
     }
 
-    ScopedLocalRef<jobject> dataJavaArray(e, e->NewByteArray(dataLen));
-    if (dataJavaArray.get() == NULL)
     {
-        ALOGE ("fail allocate array");
-        return;
-    }
+        JNIEnv* e = NULL;
+        ScopedAttach attach(mNativeData->vm, &e);
+        if (e == NULL)
+        {
+            ALOGE ("jni env is null");
+            goto TheEnd;
+        }
 
-    e->SetByteArrayRegion ((jbyteArray)dataJavaArray.get(), 0, dataLen, (jbyte *)data);
-    if (e->ExceptionCheck())
-    {
-        e->ExceptionClear();
-        ALOGE ("fail fill array");
-        return;
-    }
+        ScopedLocalRef<jobject> dataJavaArray(e, e->NewByteArray(mRxDataBuffer.size()));
+        if (dataJavaArray.get() == NULL)
+        {
+            ALOGE ("fail allocate array");
+            goto TheEnd;
+        }
 
-    e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuData, dataJavaArray.get());
-    if (e->ExceptionCheck())
-    {
-        e->ExceptionClear();
-        ALOGE ("fail notify");
+        e->SetByteArrayRegion ((jbyteArray)dataJavaArray.get(), 0, mRxDataBuffer.size(),
+                (jbyte *)(&mRxDataBuffer[0]));
+        if (e->ExceptionCheck())
+        {
+            e->ExceptionClear();
+            ALOGE ("fail fill array");
+            goto TheEnd;
+        }
+
+        e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuData, dataJavaArray.get());
+        if (e->ExceptionCheck())
+        {
+            e->ExceptionClear();
+            ALOGE ("fail notify");
+        }
     }
+TheEnd:
+    mRxDataBuffer.clear();
 }
 
 void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
@@ -280,8 +303,8 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
     case NFA_CE_DATA_EVT:
         {
             tNFA_CE_DATA& ce_data = eventData->ce_data;
-            ALOGD("%s: NFA_CE_DATA_EVT; h=0x%X; data len=%u", fn, ce_data.handle, ce_data.len);
-            getInstance().handleData(ce_data.p_data, ce_data.len);
+            ALOGD("%s: NFA_CE_DATA_EVT; stat=0x%X; h=0x%X; data len=%u", fn, ce_data.status, ce_data.handle, ce_data.len);
+            getInstance().handleData(ce_data.p_data, ce_data.len, ce_data.status);
         }
         break;
     }

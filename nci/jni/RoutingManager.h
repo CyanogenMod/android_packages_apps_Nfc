@@ -46,11 +46,13 @@ private:
     RoutingManager& operator=(const RoutingManager&);
 
     void setDefaultRouting();
-    void handleData (const UINT8* data, UINT8 dataLen);
+    void handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS status);
     void notifyActivated ();
     void notifyDeactivated ();
     static void nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventData);
     static void stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
+
+    std::vector<UINT8> mRxDataBuffer;
 
     // Fields below are final after initialize()
     nfc_jni_native_data* mNativeData;
