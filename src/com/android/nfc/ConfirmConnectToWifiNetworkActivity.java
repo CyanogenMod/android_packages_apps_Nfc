@@ -119,9 +119,9 @@ public class ConfirmConnectToWifiNetworkActivity extends Activity
 
 
     @Override
-    protected void onStop() {
+    protected void onDestroy() {
         ConfirmConnectToWifiNetworkActivity.this.unregisterReceiver(mBroadcastReceiver);
-        super.onStop();
+        super.onDestroy();
     }
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
