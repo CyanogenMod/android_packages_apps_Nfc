@@ -886,7 +886,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv* e, jobject, jbyteArray data
         ALOGD ("%s: response %d bytes", __FUNCTION__, sRxDataBuffer.size());
 
         if ((natTag.getProtocol () == NFA_PROTOCOL_T2T) &&
-            natTag.isT2tNackResponse (sRxDataBuffer.c_str(), sRxDataBuffer.size()))
+            natTag.isT2tNackResponse (sRxDataBuffer.data(), sRxDataBuffer.size()))
         {
             isNack = true;
         }
@@ -908,7 +908,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv* e, jobject, jbyteArray data
                 result.reset(e->NewByteArray(sRxDataBuffer.size()));
                 if (result.get() != NULL)
                 {
-                    e->SetByteArrayRegion(result.get(), 0, sRxDataBuffer.size(), (const jbyte *) sRxDataBuffer.c_str());
+                    e->SetByteArrayRegion(result.get(), 0, sRxDataBuffer.size(), (const jbyte *) sRxDataBuffer.data());
                 }
                 else
                     ALOGE ("%s: Failed to allocate java byte array", __FUNCTION__);
