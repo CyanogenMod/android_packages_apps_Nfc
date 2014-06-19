@@ -26,6 +26,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.IAudioService;
+import android.media.session.MediaSessionLegacyHelper;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -362,19 +363,14 @@ public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListene
     }
 
     void startTheMusic() {
-        IAudioService audioService = IAudioService.Stub.asInterface(
-                ServiceManager.checkService(Context.AUDIO_SERVICE));
-        if (audioService != null) {
-            try {
-                KeyEvent keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
-                audioService.dispatchMediaKeyEvent(keyEvent);
-                keyEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
-                audioService.dispatchMediaKeyEvent(keyEvent);
-            } catch (RemoteException e) {
-                Log.e(TAG, "dispatchMediaKeyEvent threw exception " + e);
-            }
+        MediaSessionLegacyHelper helper = MediaSessionLegacyHelper.getHelper(mContext);
+        if (helper != null) {
+            KeyEvent keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY);
+            helper.sendMediaButtonEvent(keyEvent, false);
+            keyEvent = new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY);
+            helper.sendMediaButtonEvent(keyEvent, false);
         } else {
-            Log.w(TAG, "Unable to find IAudioService for media key event");
+            Log.w(TAG, "Unable to send media key event");
         }
     }
 
