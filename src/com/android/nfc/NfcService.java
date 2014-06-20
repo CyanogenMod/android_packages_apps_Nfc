@@ -32,7 +32,6 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
 import android.media.SoundPool;
-import android.net.Uri;
 import android.nfc.BeamShareData;
 import android.nfc.ErrorCodes;
 import android.nfc.FormatException;
@@ -40,6 +39,7 @@ import android.nfc.IAppCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcCardEmulation;
+import android.nfc.INfcLockscreenDispatch;
 import android.nfc.INfcTag;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
@@ -59,7 +59,6 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
@@ -75,14 +74,12 @@ import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.handover.HandoverManager;
 
 import java.io.FileDescriptor;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutionException;
 
 public class NfcService implements DeviceHostListener {
     static final boolean DBG = false;
@@ -155,7 +152,9 @@ public class NfcService implements DeviceHostListener {
     boolean mP2pStarted = false;
 
     // minimum screen state that enables NFC polling (discovery)
-    final private int mPollingMode = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
+    private int mPollingMode = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
+    private int mLockscreenPollMask;
+    private boolean mLockscreenDispatchEnabled;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -165,6 +164,7 @@ public class NfcService implements DeviceHostListener {
     boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
     boolean mHostRouteEnabled;   // current Device Host state of host-based routing
     boolean mReaderModeEnabled;  // current Device Host state of reader mode
+
     ReaderModeParams mReaderModeParams;
 
     List<PackageInfo> mInstalledPackages; // cached version of installed packages
@@ -173,7 +173,6 @@ public class NfcService implements DeviceHostListener {
     // and the default AsyncTask thread so it is read unprotected from that
     // thread
     int mState;  // one of NfcAdapter.STATE_ON, STATE_TURNING_ON, etc
-
     // fields below are final after onCreate()
     Context mContext;
     private DeviceHost mDeviceHost;
@@ -199,9 +198,10 @@ public class NfcService implements DeviceHostListener {
     private HandoverManager mHandoverManager;
     private ContentResolver mContentResolver;
     private CardEmulationManager mCardEmulationManager;
-    private ScreenStateHelper mScreenStateHelper;
-    private int mUserId;
 
+    private ScreenStateHelper mScreenStateHelper;
+
+    private int mUserId;
     private static NfcService sService;
 
     public static NfcService getInstance() {
@@ -406,8 +406,6 @@ public class NfcService implements DeviceHostListener {
      * <p>{@link #TASK_DISABLE} disables the NFC adapter, without changing
      * preferences
      * <p>{@link #TASK_BOOT} does first boot work and may enable NFC
-     * <p>{@link #TASK_EE_WIPE} wipes the Execution Environment, and in the
-     * process may temporarily enable the NFC adapter
      */
     class EnableDisableTask extends AsyncTask<Integer, Void, Void> {
         @Override
@@ -477,9 +475,7 @@ public class NfcService implements DeviceHostListener {
             try {
                 mRoutingWakeLock.acquire();
                 try {
-                    boolean enableScreenOffSuspendMode = false; //TODO: add in TA based code here
-
-                    if (!mDeviceHost.initialize(enableScreenOffSuspendMode)) {
+                    if (!mDeviceHost.initialize(mLockscreenDispatchEnabled)) {
                         Log.w(TAG, "Error enabling NFC");
                         updateState(NfcAdapter.STATE_OFF);
                         return false;
@@ -576,13 +572,6 @@ public class NfcService implements DeviceHostListener {
     }
 
     public void playSound(int sound) {
-        if (mScreenStateHelper.checkScreenState()
-                == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-            // Don't play a sound if the screen is locked: the only tags we process when the screen
-            // is locked are for unlocking and that should be silent.
-            return;
-        }
-
         synchronized (this) {
             if (mSoundPool == null) {
                 Log.w(TAG, "Not playing sound when NFC is disabled");
@@ -828,6 +817,61 @@ public class NfcService implements DeviceHostListener {
         public INfcAdapterExtras getNfcAdapterExtrasInterface(String pkg) throws RemoteException {
             // nfc-extras implementation is no longer present in AOSP.
             return null;
+        }
+
+        @Override
+        public void registerLockscreenDispatch(INfcLockscreenDispatch lockscreenDispatch,
+                                               int[] techList)
+                throws RemoteException {
+
+            NfcPermissions.enforceAdminPermissions(mContext);
+
+            boolean enableLockscreenDispatch = lockscreenDispatch != null;
+            int lockscreenPollMask;
+            int pollingMode;
+
+            if (enableLockscreenDispatch) {
+                lockscreenPollMask = computeLockscreenPollMask(techList);
+                mDeviceHost.enableScreenOffSuspend();
+            } else {
+                lockscreenPollMask = 0;
+                mDeviceHost.disableScreenOffSuspend();
+            }
+
+            pollingMode = enableLockscreenDispatch
+                    ? ScreenStateHelper.SCREEN_STATE_ON_LOCKED
+                    : ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
+
+            synchronized (NfcService.this) {
+                mPollingMode = pollingMode;
+                mLockscreenPollMask = lockscreenPollMask;
+                mLockscreenDispatchEnabled = enableLockscreenDispatch;
+                mNfcDispatcher.registerLockscreenDispatch(lockscreenDispatch);
+            }
+
+            applyRouting(true);
+        }
+
+        private int computeLockscreenPollMask(int[] techList) {
+
+            Map<Integer, Integer> techCodeToMask = new HashMap<Integer, Integer>();
+
+            techCodeToMask.put(TagTechnology.NFC_A, NfcService.NFC_POLL_A);
+            techCodeToMask.put(TagTechnology.NFC_B,
+                    NfcService.NFC_POLL_B | NfcService.NFC_POLL_B_PRIME);
+            techCodeToMask.put(TagTechnology.NFC_V, NfcService.NFC_POLL_ISO15693);
+            techCodeToMask.put(TagTechnology.NFC_F, NfcService.NFC_POLL_F);
+            techCodeToMask.put(TagTechnology.NFC_BARCODE, NfcService.NFC_POLL_KOVIO);
+
+            int mask = 0;
+
+            for (int i = 0; i < techList.length; i++) {
+                if (techCodeToMask.containsKey(techList[i])) {
+                    mask |= techCodeToMask.get(techList[i]).intValue();
+                }
+            }
+
+            return mask;
         }
     }
 
@@ -1317,8 +1361,13 @@ public class NfcService implements DeviceHostListener {
                         Log.d(TAG, "NFC-C ON");
                         mNfcPollingEnabled = true;
 
+                        if (force && mNfcPollingEnabled) {
+                            // disable discovery so new tech mask takes effect
+                            mDeviceHost.disableDiscovery();
+                        }
+
                         if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                            // TODO:enable discovery with TA based tech mask here
+                            mDeviceHost.enableDiscovery(mLockscreenPollMask, false);
                         } else {
                             mDeviceHost.enableDiscovery(NFC_POLL_DEFAULT, true);
                         }

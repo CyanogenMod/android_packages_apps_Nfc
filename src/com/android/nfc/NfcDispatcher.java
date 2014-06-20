@@ -16,6 +16,7 @@
 
 package com.android.nfc;
 
+import android.nfc.INfcLockscreenDispatch;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
 
@@ -72,6 +73,7 @@ class NfcDispatcher {
     IntentFilter[] mOverrideFilters;
     String[][] mOverrideTechLists;
     boolean mProvisioningOnly;
+    private INfcLockscreenDispatch mLockscreenDispatch;
 
     NfcDispatcher(Context context,
                   HandoverManager handoverManager,
@@ -219,6 +221,14 @@ class NfcDispatcher {
             provisioningOnly = mProvisioningOnly;
         }
 
+        if (!provisioningOnly &&
+                mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+            if (!handleLockscreenDispatch(tag)) {
+                return false;
+            }
+
+        }
+
         NdefMessage message = null;
         Ndef ndef = Ndef.get(tag);
         if (ndef != null) {
@@ -266,6 +276,28 @@ class NfcDispatcher {
 
         if (DBG) Log.i(TAG, "no match");
         return false;
+    }
+
+    /**
+     * Returns true if the tag should be dispatched into the system after the lockscreen
+     * dispatch.
+     */
+    private boolean handleLockscreenDispatch(Tag tag) {
+        INfcLockscreenDispatch lockscreenDispatch;
+        synchronized (this) {
+            lockscreenDispatch = mLockscreenDispatch;
+        }
+
+        try {
+            if (lockscreenDispatch == null || !lockscreenDispatch.onTagDetected(tag)) {
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to dispatch tag to lockscreen dispatch", e);
+            return false;
+        }
+
+        return true;
     }
 
     boolean tryOverrides(DispatchInfo dispatch, Tag tag, NdefMessage message, PendingIntent overrideIntent,
@@ -495,6 +527,10 @@ class NfcDispatcher {
             }
         }
         return true;
+    }
+
+    synchronized void registerLockscreenDispatch(INfcLockscreenDispatch lockscreenDispatch) {
+        mLockscreenDispatch = lockscreenDispatch;
     }
 
     static String checkForAar(NdefRecord record) {
