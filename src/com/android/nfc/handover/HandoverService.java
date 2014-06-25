@@ -185,11 +185,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     final BroadcastReceiver mWifiP2pStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-
-
             HandoverTransfer transfer;
-            Log.i("anmorales", intent.getAction()) ;
-            Log.i("anmorales", intent.getAction()) ;
             synchronized (this) {
                 if (mWifiTransfer == null) {
                     return;
@@ -203,7 +199,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                         intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
                 WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
 
-                Log.i("anmorales", p2pInfo.toString());
 
                 if (p2pInfo.groupFormed) {
 
@@ -211,10 +206,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
                     if (macAddress != null) {
                         macAddress = normalizeMac(macAddress);
-
-                        Log.i("anmorales", macAddress);
-
-                        Log.i("anmorales", "transfer:" + transfer.mRemoteMac);
 
                         if (macAddress.equals(transfer.mRemoteMac))  {
                             if (transfer.mIncoming) {
