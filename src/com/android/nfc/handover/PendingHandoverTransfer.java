@@ -22,19 +22,46 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 public class PendingHandoverTransfer implements Parcelable {
+
+    public String remoteMacAddress; // For type WIFI only
+    public BluetoothDevice remoteDevice; // For type BLUETOOTH only
     public int id;
     public boolean incoming;
-    public BluetoothDevice remoteDevice;
     public boolean remoteActivating;
     public Uri[] uris;
+    public int deviceType;
 
-    PendingHandoverTransfer(int id, boolean incoming, BluetoothDevice remoteDevice,
-            boolean remoteActivating, Uri[] uris) {
+    private PendingHandoverTransfer(int id, boolean incoming, BluetoothDevice remoteDevice,
+                            boolean remoteActivating, Uri[] uris) {
         this.id = id;
         this.incoming = incoming;
         this.remoteDevice = remoteDevice;
         this.remoteActivating = remoteActivating;
         this.uris = uris;
+
+        this.deviceType = HandoverTransfer.DEVICE_TYPE_BLUETOOTH;
+    }
+
+    private PendingHandoverTransfer(int id, boolean incoming, String remoteMacAddress,
+                            boolean remoteActivating, Uri[] uris) {
+        this.id = id;
+        this.incoming = incoming;
+        this.remoteMacAddress = remoteMacAddress;
+        this.remoteActivating = remoteActivating;
+        this.uris = uris;
+
+        this.deviceType = HandoverTransfer.DEVICE_TYPE_WIFI;
+    }
+
+    public static final PendingHandoverTransfer forBluetoothDevice(
+            int id, boolean incoming, BluetoothDevice remoteDevice, boolean remoteActivating,
+            Uri[] uris) {
+       return new PendingHandoverTransfer(id, incoming, remoteDevice, remoteActivating, uris);
+    }
+
+    public static final PendingHandoverTransfer forWifiDevice(
+            int id, boolean incoming, String macAddress, boolean remoteActivating, Uri[] uris) {
+        return new PendingHandoverTransfer(id, incoming, macAddress, remoteActivating, uris);
     }
 
     public static final Parcelable.Creator<PendingHandoverTransfer> CREATOR
@@ -42,7 +69,14 @@ public class PendingHandoverTransfer implements Parcelable {
         public PendingHandoverTransfer createFromParcel(Parcel in) {
             int id = in.readInt();
             boolean incoming = (in.readInt() == 1) ? true : false;
-            BluetoothDevice remoteDevice = in.readParcelable(getClass().getClassLoader());
+            int deviceType = in.readInt();
+            BluetoothDevice remoteDevice = null;
+            String remoteMac = null;
+            if (deviceType == HandoverTransfer.DEVICE_TYPE_BLUETOOTH) {
+                remoteDevice = in.readParcelable(getClass().getClassLoader());
+            } else {
+                remoteMac = in.readString();
+            }
             boolean remoteActivating = (in.readInt() == 1) ? true : false;
             int numUris = in.readInt();
             Uri[] uris = null;
@@ -50,8 +84,12 @@ public class PendingHandoverTransfer implements Parcelable {
                 uris = new Uri[numUris];
                 in.readTypedArray(uris, Uri.CREATOR);
             }
-            return new PendingHandoverTransfer(id, incoming, remoteDevice,
-                    remoteActivating, uris);
+            if (deviceType == HandoverTransfer.DEVICE_TYPE_BLUETOOTH) {
+                return new PendingHandoverTransfer(id, incoming, remoteDevice,
+                        remoteActivating, uris);
+            } else {
+                return new PendingHandoverTransfer(id, incoming, remoteMac, remoteActivating, uris);
+            }
         }
 
         @Override
@@ -69,7 +107,12 @@ public class PendingHandoverTransfer implements Parcelable {
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(id);
         dest.writeInt(incoming ? 1 : 0);
-        dest.writeParcelable(remoteDevice, 0);
+        dest.writeInt(deviceType);
+        if (deviceType == HandoverTransfer.DEVICE_TYPE_BLUETOOTH) {
+            dest.writeParcelable(remoteDevice, 0);
+        } else {
+            dest.writeString(remoteMacAddress);
+        }
         dest.writeInt(remoteActivating ? 1 : 0);
         dest.writeInt(uris != null ? uris.length : 0);
         if (uris != null && uris.length > 0) {

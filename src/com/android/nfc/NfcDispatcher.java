@@ -57,7 +57,7 @@ import java.util.List;
  * Dispatch of NFC events to start activities
  */
 class NfcDispatcher {
-    static final boolean DBG = true;
+    static final boolean DBG = false;
     static final String TAG = "NfcDispatcher";
 
     final Context mContext;
