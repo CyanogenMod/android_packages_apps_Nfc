@@ -20,6 +20,7 @@
 
 #include <cutils/log.h>
 #include <ScopedLocalRef.h>
+#include <JNIHelp.h>
 #include "config.h"
 #include "JavaClassConstants.h"
 #include "RoutingManager.h"
@@ -30,8 +31,32 @@ extern "C"
     #include "nfa_ce_api.h"
 }
 
+const JNINativeMethod RoutingManager::sMethods [] =
+{
+    {"doGetDefaultRouteDestination", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination},
+    {"doGetDefaultOffHostRouteDestination", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination}
+};
+
 RoutingManager::RoutingManager ()
 {
+    static const char fn [] = "RoutingManager::RoutingManager()";
+    unsigned long num = 0;
+
+    // Get the "default" route
+    if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
+        mDefaultEe = num;
+    else
+        mDefaultEe = 0x00;
+
+    ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
+    // Get the default "off-host" route.  This is hard-coded at the Java layer
+    // but we can override it here to avoid forcing Java changes.
+    if (GetNumValue("DEFAULT_OFFHOST_ROUTE", &num, sizeof(num)))
+        mOffHostEe = num;
+    else
+        mOffHostEe = 0xf4;
+
+    ALOGD("%s: mOffHostEe=0x%02X", fn, mOffHostEe);
 }
 
 RoutingManager::~RoutingManager ()
@@ -42,7 +67,6 @@ RoutingManager::~RoutingManager ()
 bool RoutingManager::initialize (nfc_jni_native_data* native)
 {
     static const char fn [] = "RoutingManager::initialize()";
-    unsigned long num = 0;
     mNativeData = native;
 
     tNFA_STATUS nfaStat;
@@ -58,13 +82,6 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
         mEeRegisterEvent.wait ();
     }
 
-    // Get the "default" route
-    if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
-        mDefaultEe = num;
-    else
-        mDefaultEe = 0x00;
-
-    ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
     mRxDataBuffer.clear ();
 
     // Tell the host-routing to only listen on Nfc-A
@@ -426,4 +443,21 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
         ALOGE ("%s: unknown event=%u ????", fn, event);
         break;
     }
+}
+
+int RoutingManager::registerJniFunctions (JNIEnv* e)
+{
+    static const char fn [] = "RoutingManager::registerJniFunctions";
+    ALOGD ("%s", fn);
+    return jniRegisterNativeMethods (e, "com/android/nfc/cardemulation/AidRoutingManager", sMethods, NELEM(sMethods));
+}
+
+int RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv*, jobject)
+{
+    return getInstance().mDefaultEe;
+}
+
+int RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv*, jobject)
+{
+    return getInstance().mOffHostEe;
 }

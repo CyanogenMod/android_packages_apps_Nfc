@@ -38,12 +38,12 @@ public class AidRoutingManager {
     // table, because this destination is already the default route.
     //
     // For Nexus devices, the default route is always 0x00.
-    static final int DEFAULT_ROUTE = 0x00;
+    final int mDefaultRoute;
 
     // For Nexus devices, just a static route to the eSE
     // OEMs/Carriers could manually map off-host AIDs
     // to the correct eSE/UICC based on state they keep.
-    static final int DEFAULT_OFFHOST_ROUTE = 0xF4;
+    final int mDefaultOffHostRoute;
 
     final Object mLock = new Object();
 
@@ -57,8 +57,13 @@ public class AidRoutingManager {
     // Whether the routing table is dirty
     boolean mDirty;
 
+    private native int doGetDefaultRouteDestination();
+    private native int doGetDefaultOffHostRouteDestination();
     public AidRoutingManager() {
-
+        mDefaultRoute = doGetDefaultRouteDestination();
+        if (DBG) Log.d(TAG, "mDefaultRoute=0x" + Integer.toHexString(mDefaultRoute));
+        mDefaultOffHostRoute = doGetDefaultOffHostRouteDestination();
+        if (DBG) Log.d(TAG, "mDefaultOffHostRoute=0x" + Integer.toHexString(mDefaultOffHostRoute));
     }
 
     public boolean aidsRoutedToHost() {
@@ -84,7 +89,7 @@ public class AidRoutingManager {
             int currentRoute = getRouteForAidLocked(aid);
             if (DBG) Log.d(TAG, "Set route for AID: " + aid + ", host: " + onHost + " , current: 0x" +
                     Integer.toHexString(currentRoute));
-            route = onHost ? 0 : DEFAULT_OFFHOST_ROUTE;
+            route = onHost ? 0 : mDefaultOffHostRoute;
             if (route == currentRoute) return true;
 
             if (currentRoute != -1) {
@@ -98,7 +103,7 @@ public class AidRoutingManager {
             }
             aids.add(aid);
             mRouteForAid.put(aid, route);
-            if (route != DEFAULT_ROUTE) {
+            if (route != mDefaultRoute) {
                 NfcService.getInstance().routeAids(aid, route);
                 mDirty = true;
             }
@@ -130,7 +135,7 @@ public class AidRoutingManager {
             if (aids == null) return false;
             aids.remove(aid);
             mRouteForAid.remove(aid);
-            if (route.intValue() != DEFAULT_ROUTE) {
+            if (route.intValue() != mDefaultRoute) {
                 NfcService.getInstance().unrouteAids(aid);
                 mDirty = true;
             }
@@ -156,7 +161,7 @@ public class AidRoutingManager {
 
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Routing table:");
-        pw.println("    Default route: " + ((DEFAULT_ROUTE == 0x00) ? "host" : "secure element"));
+        pw.println("    Default route: " + ((mDefaultRoute == 0x00) ? "host" : "secure element"));
         synchronized (mLock) {
             for (int i = 0; i < mAidRoutingTable.size(); i++) {
                 Set<String> aids = mAidRoutingTable.valueAt(i);
