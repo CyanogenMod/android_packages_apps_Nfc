@@ -27,7 +27,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
@@ -112,13 +111,15 @@ public class NfcService implements DeviceHostListener {
     static final int TASK_BOOT = 3;
 
     // Polling technology masks
-    static final int NFC_POLL_DEFAULT = 0;
     static final int NFC_POLL_A = 0x01;
     static final int NFC_POLL_B = 0x02;
     static final int NFC_POLL_F = 0x04;
     static final int NFC_POLL_ISO15693 = 0x08;
     static final int NFC_POLL_B_PRIME = 0x10;
     static final int NFC_POLL_KOVIO = 0x20;
+
+    // minimum screen state that enables NFC polling
+    static final int NFC_POLLING_MODE = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
 
     // Time to wait for NFC controller to initialize before watchdog
     // goes off. This time is chosen large, because firmware download
@@ -148,11 +149,7 @@ public class NfcService implements DeviceHostListener {
     private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
             new ReaderModeDeathRecipient();
 
-    // fields below must be used only on the UI thread and therefore aren't synchronized
-    boolean mP2pStarted = false;
-
-    // minimum screen state that enables NFC polling (discovery)
-    private int mPollingMode = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
+    private boolean mDiscoveryEnabled = false;
     private int mLockscreenPollMask;
     private boolean mLockscreenDispatchEnabled;
 
@@ -161,13 +158,9 @@ public class NfcService implements DeviceHostListener {
     int mScreenState;
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
-    boolean mNfcPollingEnabled;  // current Device Host state of NFC-C polling
-    boolean mHostRouteEnabled;   // current Device Host state of host-based routing
-    boolean mReaderModeEnabled;  // current Device Host state of reader mode
+    NfcDiscoveryParameters mCurrentDiscoveryParameters;
 
     ReaderModeParams mReaderModeParams;
-
-    List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
@@ -203,7 +196,6 @@ public class NfcService implements DeviceHostListener {
 
     private int mUserId;
     private static NfcService sService;
-    private int mCurrentTechMask;
 
     public static NfcService getInstance() {
         return sService;
@@ -370,14 +362,6 @@ public class NfcService implements DeviceHostListener {
 
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
-        }
-    }
-
-    void updatePackageCache() {
-        PackageManager pm = mContext.getPackageManager();
-        List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_OWNER);
-        synchronized (this) {
-            mInstalledPackages = packages;
         }
     }
 
@@ -777,10 +761,9 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void setP2pModes(int initiatorModes, int targetModes) throws RemoteException {
             NfcPermissions.enforceAdminPermissions(mContext);
-
             mDeviceHost.setP2pInitiatorModes(initiatorModes);
             mDeviceHost.setP2pTargetModes(targetModes);
-            reenableDiscovery(NFC_POLL_DEFAULT, false);
+            applyRouting(true);
         }
 
         @Override
@@ -828,7 +811,6 @@ public class NfcService implements DeviceHostListener {
 
             boolean enableLockscreenDispatch = lockscreenDispatch != null;
             int lockscreenPollMask;
-            int pollingMode;
 
             if (enableLockscreenDispatch) {
                 lockscreenPollMask = computeLockscreenPollMask(techList);
@@ -838,18 +820,13 @@ public class NfcService implements DeviceHostListener {
                 mDeviceHost.disableScreenOffSuspend();
             }
 
-            pollingMode = enableLockscreenDispatch
-                    ? ScreenStateHelper.SCREEN_STATE_ON_LOCKED
-                    : ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
-
             synchronized (NfcService.this) {
-                mPollingMode = pollingMode;
                 mLockscreenPollMask = lockscreenPollMask;
                 mLockscreenDispatchEnabled = enableLockscreenDispatch;
                 mNfcDispatcher.registerLockscreenDispatch(lockscreenDispatch);
             }
 
-            applyRouting(true);
+            applyRouting(false);
         }
 
         private int computeLockscreenPollMask(int[] techList) {
@@ -1319,91 +1296,29 @@ public class NfcService implements DeviceHostListener {
                     mHandoverManager.setEnabled(true);
                 }
             }
+            // Special case: if we're transitioning to unlocked state while
+            // still talking to a tag, postpone re-configuration.
+            if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && isTagPresent()) {
+                Log.d(TAG, "Not updating discovery parameters, tag connected.");
+                return;
+            }
+
             try {
                 watchDog.start();
-
-                if (mDeviceHost.enablePN544Quirks() &&
-                        mScreenState == ScreenStateHelper.SCREEN_STATE_OFF) {
-                    /* TODO undo this after the LLCP stack is fixed.
-                     * Use a different sequence when turning the screen off to
-                     * workaround race conditions in pn544 libnfc. The race occurs
-                     * when we change routing while there is a P2P target connect.
-                     * The async LLCP callback will crash since the routing code
-                     * is overwriting globals it relies on.
-                     */
-                    if (getPollingMode() > ScreenStateHelper.SCREEN_STATE_OFF) {
-                        if (force || mNfcPollingEnabled) {
-                            Log.d(TAG, "NFC-C OFF, disconnect");
-                            mNfcPollingEnabled = false;
-                            mDeviceHost.disableDiscovery();
-                            maybeDisconnectTarget();
-                        }
-                    }
-                    return;
-                }
-
-                if (mIsHceCapable && mScreenState
-                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                    if (!mHostRouteEnabled || force) {
-                        mHostRouteEnabled = true;
-                        mDeviceHost.enableRoutingToHost();
-                    }
-                } else {
-                    if (force || mHostRouteEnabled) {
-                        mHostRouteEnabled = false;
-                        mDeviceHost.disableRoutingToHost();
-                    }
-                }
-
-                // configure NFC-C polling
-                if (!mInProvisionMode && mScreenState >= getPollingMode()) {
-                    if (force || !mNfcPollingEnabled) {
-                        Log.d(TAG, "NFC-C ON");
-
-                        if (force && mNfcPollingEnabled) {
-                            // disable discovery so new tech mask takes effect
-                            mDeviceHost.disableDiscovery();
-                        }
-
-                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                            mDeviceHost.enableDiscovery(mLockscreenPollMask, false);
-                        } else {
-                            reenableDiscovery(NFC_POLL_DEFAULT, true);
-                        }
-
-                        mNfcPollingEnabled = true;
-                    } else if (mNfcPollingEnabled) {
-                        if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED
-                                && (!isTagPresent()) && mCurrentTechMask != NFC_POLL_DEFAULT) {
-                            reenableDiscovery(NFC_POLL_DEFAULT, true);
-                        }
-                    }
-                    if (mReaderModeParams != null && !mReaderModeEnabled) {
-                        mReaderModeEnabled = true;
-                        mDeviceHost.enableReaderMode(mReaderModeParams.flags);
-                    }
-                    if (mReaderModeParams == null && mReaderModeEnabled) {
-                        mReaderModeEnabled = false;
-                        mDeviceHost.disableReaderMode();
-                    }
-                } else if (mInProvisionMode && mScreenState
-                        >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-                    // Special case for setup provisioning
-                    if (!mNfcPollingEnabled) {
-                        Log.d(TAG, "NFC-C ON");
-                        reenableDiscovery(NFC_POLL_DEFAULT, true);
-                        mNfcPollingEnabled = true;
-                    }
-                } else {
-                    if (force || mNfcPollingEnabled) {
-                        Log.d(TAG, "NFC-C OFF");
-                        if (mReaderModeEnabled) {
-                            mReaderModeEnabled = false;
-                            mDeviceHost.disableReaderMode();
-                        }
-                        mNfcPollingEnabled = false;
+                // Compute new polling parameters
+                NfcDiscoveryParameters newParams = computeDiscoveryParameters(mScreenState);
+                if (force || !newParams.equals(mCurrentDiscoveryParameters)) {
+                    if (newParams.shouldEnableDiscovery()) {
+                        boolean shouldRestart = mDiscoveryEnabled;
+                        mDeviceHost.enableDiscovery(newParams, shouldRestart);
+                        mDiscoveryEnabled = true;
+                    } else {
                         mDeviceHost.disableDiscovery();
+                        mDiscoveryEnabled = false;
                     }
+                    mCurrentDiscoveryParameters = newParams;
+                } else {
+                    Log.d(TAG, "Discovery configuration equal, not updating.");
                 }
             } finally {
                 watchDog.cancel();
@@ -1411,14 +1326,44 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
-    private void reenableDiscovery(int techMask, boolean enableLptd) {
-        mCurrentTechMask = techMask;
+    private NfcDiscoveryParameters computeDiscoveryParameters(int screenState) {
+        // Recompute discovery parameters based on screen state
+        NfcDiscoveryParameters.Builder paramsBuilder = NfcDiscoveryParameters.newBuilder();
+        // Polling
+        if (screenState >= NFC_POLLING_MODE) {
+            // Check if reader-mode is enabled
+            if (mReaderModeParams != null) {
+                int techMask = 0;
+                if ((mReaderModeParams.flags & NfcAdapter.FLAG_READER_NFC_A) != 0)
+                    techMask |= NFC_POLL_A;
+                if ((mReaderModeParams.flags & NfcAdapter.FLAG_READER_NFC_B) != 0)
+                    techMask |= NFC_POLL_B;
+                if ((mReaderModeParams.flags & NfcAdapter.FLAG_READER_NFC_F) != 0)
+                    techMask |= NFC_POLL_F;
+                if ((mReaderModeParams.flags & NfcAdapter.FLAG_READER_NFC_V) != 0)
+                    techMask |= NFC_POLL_ISO15693;
+                if ((mReaderModeParams.flags & NfcAdapter.FLAG_READER_NFC_BARCODE) != 0)
+                    techMask |= NFC_POLL_KOVIO;
 
-        if (mNfcPollingEnabled) {
-            mDeviceHost.disableDiscovery();
+                paramsBuilder.setTechMask(techMask);
+                paramsBuilder.setEnableReaderMode(true);
+            } else {
+                paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+            }
+        } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED && mInProvisionMode) {
+            paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+        } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
+                mLockscreenDispatchEnabled) {
+            // For lock-screen tags, no low-power polling
+            paramsBuilder.setTechMask(mLockscreenPollMask);
+            paramsBuilder.setEnableLowPowerDiscovery(false);
         }
 
-        mDeviceHost.enableDiscovery(techMask, enableLptd);
+        if (mIsHceCapable && mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
+            // Host routing is always enabled at lock screen or later
+            paramsBuilder.setEnableHostRouting(true);
+        }
+        return paramsBuilder.build();
     }
 
     private boolean isTagPresent() {
@@ -1429,7 +1374,6 @@ public class NfcService implements DeviceHostListener {
         }
         return false;
     }
-
     /**
      * Disconnect any target if present
      */
@@ -1769,11 +1713,11 @@ public class NfcService implements DeviceHostListener {
                         // Follow normal dispatch below
                     }
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Reader mode remote has died, falling back.");
+                    Log.e(TAG, "Reader mode remote has died, falling back.", e);
                     // Intentional fall-through
                 } catch (Exception e) {
                     // Catch any other exception
-                    Log.e(TAG, "App exception, not dispatching.");
+                    Log.e(TAG, "App exception, not dispatching.", e);
                     return;
                 }
             }
@@ -1898,9 +1842,9 @@ public class NfcService implements DeviceHostListener {
             pw.println("mState=" + stateToString(mState));
             pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
-            pw.println("mNfcPollingEnabled=" + mNfcPollingEnabled);
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
+            pw.println(mCurrentDiscoveryParameters);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
                 mCardEmulationManager.dump(fd, pw, args);
@@ -1908,9 +1852,5 @@ public class NfcService implements DeviceHostListener {
             mNfcDispatcher.dump(fd, pw, args);
             pw.println(mDeviceHost.dump());
         }
-    }
-
-    private synchronized int getPollingMode() {
-        return mPollingMode;
     }
 }

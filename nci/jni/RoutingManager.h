@@ -36,6 +36,8 @@ public:
 
     static RoutingManager& getInstance ();
     bool initialize(nfc_jni_native_data* native);
+    void enableRoutingToHost();
+    void disableRoutingToHost();
     bool addAidRouting(const UINT8* aid, UINT8 aidLen, int route);
     bool removeAidRouting(const UINT8* aid, UINT8 aidLen);
     bool commitRouting();
@@ -45,7 +47,6 @@ private:
     RoutingManager(const RoutingManager&);
     RoutingManager& operator=(const RoutingManager&);
 
-    void setDefaultRouting();
     void handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS status);
     void notifyActivated ();
     void notifyDeactivated ();

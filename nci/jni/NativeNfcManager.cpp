@@ -93,7 +93,6 @@ namespace android
     void                    doStartupConfig ();
     void                    startStopPolling (bool isStartPolling);
     void                    startRfDiscovery (bool isStart);
-    void                    restartPollingWithTechMask(int mask);
 }
 
 
@@ -115,14 +114,14 @@ static SyncEvent            sNfaEnableDisablePollingEvent;  //event for NFA_Enab
 static SyncEvent            sNfaSetConfigEvent;  // event for Set_Config....
 static SyncEvent            sNfaGetConfigEvent;  // event for Get_Config....
 static bool                 sIsNfaEnabled = false;
-static bool                 sDiscoveryEnabled = false;  //is polling for tag?
+static bool                 sDiscoveryEnabled = false;  //is polling or listening
+static bool                 sPollingEnabled = false;  //is polling for tag?
 static bool                 sIsDisabling = false;
 static bool                 sRfEnabled = false; // whether RF discovery is enabled
 static bool                 sSeRfActive = false;  // whether RF with SE is likely active
 static bool                 sReaderModeEnabled = false; // whether we're only reading tags, not allowing P2p/card emu
 static bool                 sP2pActive = false; // whether p2p was last active
 static bool                 sAbortConnlessWait = false;
-static bool                 sIsSecElemSelected = false;  //has NFC service selected a sec elem
 #define CONFIG_UPDATE_TECH_MASK     (1 << 1)
 #define DEFAULT_TECH_MASK           (NFA_TECHNOLOGY_MASK_A \
                                      | NFA_TECHNOLOGY_MASK_B \
@@ -140,6 +139,8 @@ static void nfaDeviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA *eventD
 static bool isPeerToPeer (tNFA_ACTIVATED& activated);
 static bool isListenMode(tNFA_ACTIVATED& activated);
 static void enableDisableLptd (bool enable);
+static tNFA_STATUS stopPolling_rfDiscoveryDisabled();
+static tNFA_STATUS startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_mask);
 
 static UINT16 sCurrentConfigLen;
 static UINT8 sConfig[256];
@@ -676,6 +677,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
                 sNfaDisableEvent.notifyOne();
             }
             sDiscoveryEnabled = false;
+            sPollingEnabled = false;
             PowerSwitch::getInstance ().abort ();
 
             if (!sIsDisabling && sIsNfaEnabled)
@@ -896,27 +898,25 @@ TheEnd:
 **
 *******************************************************************************/
 static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_mask, \
-    jboolean enable_lptd)
+    jboolean enable_lptd, jboolean reader_mode, jboolean enable_host_routing,
+    jboolean restart)
 {
     tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
     struct nfc_jni_native_data *nat = getNative(e, o);
 
-    if (technologies_mask == 0 && nat)
+    if (technologies_mask == -1 && nat)
         tech_mask = (tNFA_TECHNOLOGY_MASK)nat->tech_mask;
-    else if (technologies_mask != 0)
+    else if (technologies_mask != -1)
         tech_mask = (tNFA_TECHNOLOGY_MASK) technologies_mask;
-
     ALOGD ("%s: enter; tech_mask = %02x", __FUNCTION__, tech_mask);
 
-    if (sDiscoveryEnabled)
+    if (sDiscoveryEnabled && !restart)
     {
-        ALOGE ("%s: already polling", __FUNCTION__);
+        ALOGE ("%s: already discovering", __FUNCTION__);
         return;
     }
 
     tNFA_STATUS stat = NFA_STATUS_OK;
-
-    ALOGD ("%s: sIsSecElemSelected=%u", __FUNCTION__, sIsSecElemSelected);
 
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 
@@ -925,34 +925,56 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_
         startRfDiscovery(false);
     }
 
-
-    enableDisableLptd(enable_lptd);
-
+    // Check polling configuration
+    if (tech_mask != 0)
     {
-        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
-        stat = NFA_EnablePolling (tech_mask);
-        if (stat == NFA_STATUS_OK)
+        stopPolling_rfDiscoveryDisabled();
+        enableDisableLptd(enable_lptd);
+        startPolling_rfDiscoveryDisabled(tech_mask);
+
+        // Start P2P listening if tag polling was enabled
+        if (sPollingEnabled)
         {
-            ALOGD ("%s: wait for enable event", __FUNCTION__);
-            sDiscoveryEnabled = true;
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
-            ALOGD ("%s: got enabled event", __FUNCTION__);
-        }
-        else
-        {
-            ALOGE ("%s: fail enable discovery; error=0x%X", __FUNCTION__, stat);
+            ALOGD ("%s: Enable p2pListening", __FUNCTION__);
+            PeerToPeer::getInstance().enableP2pListening (!reader_mode);
+
+            if (reader_mode && !sReaderModeEnabled)
+            {
+                sReaderModeEnabled = true;
+                NFA_PauseP2p();
+                NFA_DisableListening();
+                NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
+            }
+            else if (sReaderModeEnabled)
+            {
+                struct nfc_jni_native_data *nat = getNative(e, o);
+                sReaderModeEnabled = false;
+                NFA_ResumeP2p();
+                NFA_EnableListening();
+                NFA_SetRfDiscoveryDuration(nat->discovery_duration);
+            }
         }
     }
-
-    // Start P2P listening if tag polling was enabled or the mask was 0.
-    if (sDiscoveryEnabled || (tech_mask == 0))
+    else
     {
-        ALOGD ("%s: Enable p2pListening", __FUNCTION__);
-        PeerToPeer::getInstance().enableP2pListening (true);
+        // No technologies configured, stop polling
+        stopPolling_rfDiscoveryDisabled();
     }
 
+    // Check listen configuration
+    if (enable_host_routing)
+    {
+        RoutingManager::getInstance().enableRoutingToHost();
+        RoutingManager::getInstance().commitRouting();
+    }
+    else
+    {
+        RoutingManager::getInstance().disableRoutingToHost();
+        RoutingManager::getInstance().commitRouting();
+    }
     // Actually start discovery.
     startRfDiscovery (true);
+    sDiscoveryEnabled = true;
 
     PowerSwitch::getInstance ().setModeOn (PowerSwitch::DISCOVERY);
 
@@ -971,7 +993,7 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_
 ** Returns:         None
 **
 *******************************************************************************/
-void nfcManager_disableDiscovery (JNIEnv*, jobject)
+void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
 {
     tNFA_STATUS status = NFA_STATUS_OK;
     ALOGD ("%s: enter;", __FUNCTION__);
@@ -986,21 +1008,12 @@ void nfcManager_disableDiscovery (JNIEnv*, jobject)
     // Stop RF Discovery.
     startRfDiscovery (false);
 
-    if (sDiscoveryEnabled)
-    {
-        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
-        status = NFA_DisablePolling ();
-        if (status == NFA_STATUS_OK)
-        {
-            sDiscoveryEnabled = false;
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
-        }
-        else
-            ALOGE ("%s: Failed to disable polling; error=0x%X", __FUNCTION__, status);
-    }
+    if (sPollingEnabled)
+        status = stopPolling_rfDiscoveryDisabled();
 
     PeerToPeer::getInstance().enableP2pListening (false);
 
+    sDiscoveryEnabled = false;
     //if nothing is active after this, then tell the controller to power down
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::DISCOVERY))
         PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
@@ -1188,8 +1201,8 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     nativeLlcpConnectionlessSocket_abortWait();
     sIsNfaEnabled = false;
     sDiscoveryEnabled = false;
+    sPollingEnabled = false;
     sIsDisabling = false;
-    sIsSecElemSelected = false;
     gActivated = false;
 
     {
@@ -1285,70 +1298,6 @@ static jobject nfcManager_doCreateLlcpConnectionlessSocket (JNIEnv *, jobject, j
 {
     ALOGD ("%s: nSap=0x%X", __FUNCTION__, nSap);
     return NULL;
-}
-
-
-/*******************************************************************************
-**
-** Function:        nfcManager_enableRoutingToHost
-**
-** Description:     NFC controller starts routing data to host.
-**                  e: JVM environment.
-**                  o: Java object.
-**
-** Returns:         None
-**
-*******************************************************************************/
-static void nfcManager_enableRoutingToHost(JNIEnv*, jobject)
-{
-    ALOGD ("%s: enter", __FUNCTION__);
-    PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
-    PowerSwitch::getInstance ().setModeOn (PowerSwitch::HOST_ROUTING);
-    if (sRfEnabled) {
-        // Stop RF discovery to reconfigure
-        startRfDiscovery(false);
-    }
-    RoutingManager::getInstance().commitRouting();
-    startRfDiscovery(true);
-    ALOGD ("%s: exit", __FUNCTION__);
-}
-
-/*******************************************************************************
-**
-** Function:        nfcManager_disableRoutingToHost
-**
-** Description:     NFC controller stops routing data to host.
-**                  e: JVM environment.
-**                  o: Java object.
-**
-** Returns:         None
-**
-*******************************************************************************/
-static void nfcManager_disableRoutingToHost(JNIEnv*, jobject)
-{
-    ALOGD ("%s: enter", __FUNCTION__);
-    bool rfWasEnabled = false;
-
-    if (PowerSwitch::getInstance ().getLevel() == PowerSwitch::LOW_POWER)
-    {
-        ALOGD ("%s: no need to disable routing while power is OFF", __FUNCTION__);
-        goto TheEnd;
-    }
-
-    if (sRfEnabled) {
-        rfWasEnabled = true;
-        // Stop RF discovery to reconfigure
-        startRfDiscovery(false);
-    }
-    RoutingManager::getInstance().commitRouting();
-    if (rfWasEnabled)
-    {
-        startRfDiscovery(true);
-    }
-    if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::HOST_ROUTING))
-        PowerSwitch::getInstance ().setLevel (PowerSwitch::LOW_POWER);
-TheEnd:
-    ALOGD ("%s: exit", __FUNCTION__);
 }
 
 /*******************************************************************************
@@ -1593,47 +1542,6 @@ static void nfcManager_doSetP2pTargetModes (JNIEnv*, jobject, jint modes)
     PeerToPeer::getInstance().setP2pListenMask(mask);
 }
 
-static void nfcManager_doEnableReaderMode (JNIEnv*, jobject, jint technologies)
-{
-    if (sDiscoveryEnabled) {
-        sReaderModeEnabled = true;
-        PeerToPeer::getInstance().enableP2pListening(false);
-        NFA_PauseP2p();
-        NFA_DisableListening();
-        // Limit polling to these technologies
-        int tech_mask = 0;
-        if (technologies & 0x01)
-           tech_mask |= NFA_TECHNOLOGY_MASK_A;
-        if (technologies & 0x02)
-           tech_mask |= NFA_TECHNOLOGY_MASK_B;
-        if (technologies & 0x04)
-           tech_mask |= NFA_TECHNOLOGY_MASK_F;
-        if (technologies & 0x08)
-           tech_mask |= NFA_TECHNOLOGY_MASK_ISO15693;
-        if (technologies & 0x10)
-           tech_mask |= NFA_TECHNOLOGY_MASK_KOVIO;
-
-        enableDisableLptd(false);
-        NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
-        restartPollingWithTechMask(tech_mask);
-    }
-}
-
-static void nfcManager_doDisableReaderMode (JNIEnv* e, jobject o)
-{
-    struct nfc_jni_native_data *nat = getNative(e, o);
-    if (sDiscoveryEnabled) {
-        sReaderModeEnabled = false;
-        NFA_ResumeP2p();
-        PeerToPeer::getInstance().enableP2pListening(true);
-        NFA_EnableListening();
-
-        enableDisableLptd(true);
-        NFA_SetRfDiscoveryDuration(nat->discovery_duration);
-        restartPollingWithTechMask(nat->tech_mask);
-    }
-}
-
 static void nfcManager_doEnableScreenOffSuspend(JNIEnv* e, jobject o)
 {
     PowerSwitch::getInstance().setScreenOffPowerState(PowerSwitch::POWER_STATE_FULL);
@@ -1672,14 +1580,8 @@ static JNINativeMethod gMethods[] =
     {"unrouteAid", "([B)Z",
             (void*) nfcManager_unrouteAid},
 
-    {"enableDiscovery", "(IZ)V",
+    {"doEnableDiscovery", "(IZZZZ)V",
             (void*) nfcManager_enableDiscovery},
-
-    {"enableRoutingToHost", "()V",
-            (void*) nfcManager_enableRoutingToHost},
-
-    {"disableRoutingToHost", "()V",
-            (void*) nfcManager_disableRoutingToHost},
 
     {"doCheckLlcp", "()Z",
             (void *)nfcManager_doCheckLlcp},
@@ -1719,12 +1621,6 @@ static JNINativeMethod gMethods[] =
 
     {"doSetP2pTargetModes", "(I)V",
             (void *)nfcManager_doSetP2pTargetModes},
-
-    {"doEnableReaderMode", "(I)V",
-            (void *)nfcManager_doEnableReaderMode},
-
-    {"doDisableReaderMode", "()V",
-            (void *)nfcManager_doDisableReaderMode},
 
     {"doEnableScreenOffSuspend", "()V",
             (void *)nfcManager_doEnableScreenOffSuspend},
@@ -1846,36 +1742,6 @@ bool nfcManager_isNfcActive()
     return sIsNfaEnabled;
 }
 
-void restartPollingWithTechMask (int tech_mask)
-{
-    tNFA_STATUS stat = NFA_STATUS_FAILED;
-    startRfDiscovery (false);
-    {
-        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
-        stat = NFA_DisablePolling ();
-        if (stat == NFA_STATUS_OK)
-        {
-            ALOGD ("%s: wait for enable event", __FUNCTION__);
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
-        }
-        else
-        {
-            ALOGE ("%s: failed to disable polling; error=0x%X", __FUNCTION__, stat);
-            goto TheEnd;
-        }
-        stat = NFA_EnablePolling (tech_mask);
-        if (stat == NFA_STATUS_OK)
-        {
-            ALOGD ("%s: wait for enable event", __FUNCTION__);
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
-        }
-        else
-            ALOGE ("%s: fail enable polling; error=0x%X", __FUNCTION__, stat);
-    }
-TheEnd:
-    startRfDiscovery(true);
-}
-
 /*******************************************************************************
 **
 ** Function:        startStopPolling
@@ -1889,41 +1755,56 @@ TheEnd:
 void startStopPolling (bool isStartPolling)
 {
     ALOGD ("%s: enter; isStart=%u", __FUNCTION__, isStartPolling);
+    startRfDiscovery (false);
+
+    if (isStartPolling) startPolling_rfDiscoveryDisabled(0);
+    else stopPolling_rfDiscoveryDisabled();
+
+    startRfDiscovery (true);
+    ALOGD ("%s: exit", __FUNCTION__);
+}
+
+
+static tNFA_STATUS startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_mask) {
     tNFA_STATUS stat = NFA_STATUS_FAILED;
 
-    startRfDiscovery (false);
-    if (isStartPolling)
-    {
-        tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
-        unsigned long num = 0;
-        if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
-            tech_mask = num;
+    unsigned long num = 0;
 
-        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
-        ALOGD ("%s: enable polling", __FUNCTION__);
-        stat = NFA_EnablePolling (tech_mask);
-        if (stat == NFA_STATUS_OK)
-        {
-            ALOGD ("%s: wait for enable event", __FUNCTION__);
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
-        }
-        else
-            ALOGE ("%s: fail enable polling; error=0x%X", __FUNCTION__, stat);
+    if (tech_mask == 0 && GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
+        tech_mask = num;
+    else if (tech_mask == 0) tech_mask = DEFAULT_TECH_MASK;
+
+    SyncEventGuard guard (sNfaEnableDisablePollingEvent);
+    ALOGD ("%s: enable polling", __FUNCTION__);
+    stat = NFA_EnablePolling (tech_mask);
+    if (stat == NFA_STATUS_OK)
+    {
+        ALOGD ("%s: wait for enable event", __FUNCTION__);
+        sPollingEnabled = true;
+        sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_ENABLED_EVT
     }
     else
     {
-        SyncEventGuard guard (sNfaEnableDisablePollingEvent);
-        ALOGD ("%s: disable polling", __FUNCTION__);
-        stat = NFA_DisablePolling ();
-        if (stat == NFA_STATUS_OK)
-        {
-            sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
-        }
-        else
-            ALOGE ("%s: fail disable polling; error=0x%X", __FUNCTION__, stat);
+        ALOGE ("%s: fail enable polling; error=0x%X", __FUNCTION__, stat);
     }
-    startRfDiscovery (true);
-    ALOGD ("%s: exit", __FUNCTION__);
+
+    return stat;
+}
+
+static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
+    tNFA_STATUS stat = NFA_STATUS_FAILED;
+
+    SyncEventGuard guard (sNfaEnableDisablePollingEvent);
+    ALOGD ("%s: disable polling", __FUNCTION__);
+    stat = NFA_DisablePolling ();
+    if (stat == NFA_STATUS_OK) {
+        sPollingEnabled = false;
+        sNfaEnableDisablePollingEvent.wait (); //wait for NFA_POLL_DISABLED_EVT
+    } else {
+        ALOGE ("%s: fail disable polling; error=0x%X", __FUNCTION__, stat);
+    }
+
+    return stat;
 }
 
 

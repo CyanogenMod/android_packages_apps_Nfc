@@ -24,6 +24,7 @@ import android.util.Log;
 
 import com.android.nfc.DeviceHost;
 import com.android.nfc.LlcpException;
+import com.android.nfc.NfcDiscoveryParameters;
 
 /**
  * Native interface to the NFC Manager functions
@@ -94,17 +95,20 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native boolean unrouteAid(byte[] aid);
 
+
+    private native void doEnableDiscovery(int techMask,
+                                          boolean enableLowPowerPolling,
+                                          boolean enableReaderMode,
+                                          boolean enableHostRouting,
+                                          boolean restart);
     @Override
-    public native void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
+    public void enableDiscovery(NfcDiscoveryParameters params, boolean restart) {
+        doEnableDiscovery(params.getTechMask(), params.shouldEnableLowPowerDiscovery(),
+                params.shouldEnableReaderMode(), params.shouldEnableHostRouting(), restart);
+    }
 
     @Override
     public native void disableDiscovery();
-
-    @Override
-    public native void enableRoutingToHost();
-
-    @Override
-    public native void disableRoutingToHost();
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
             String sn);
@@ -261,11 +265,6 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
-    public boolean enablePN544Quirks() {
-        return false;
-    }
-
-    @Override
     public int getDefaultLlcpMiu() {
         return DEFAULT_LLCP_MIU;
     }
@@ -279,20 +278,6 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public String dump() {
         return doDump();
-    }
-
-    private native void doEnableReaderMode(int technologies);
-    @Override
-    public boolean enableReaderMode(int technologies) {
-        doEnableReaderMode(technologies);
-        return true;
-    }
-
-    private native void doDisableReaderMode();
-    @Override
-    public boolean disableReaderMode() {
-        doDisableReaderMode();
-        return true;
     }
 
     private native void doEnableScreenOffSuspend();

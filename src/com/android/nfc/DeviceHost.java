@@ -171,13 +171,9 @@ public interface DeviceHost {
 
     public String getName();
 
-    public void enableDiscovery(int techMask, boolean enableLowPowerDiscovery);
+    public void enableDiscovery(NfcDiscoveryParameters params, boolean restart);
 
     public void disableDiscovery();
-
-    public void enableRoutingToHost();
-
-    public void disableRoutingToHost();
 
     public boolean sendRawFrame(byte[] data);
 
@@ -216,17 +212,11 @@ public interface DeviceHost {
 
     boolean getExtendedLengthApdusSupported();
 
-    boolean enablePN544Quirks();
-
     int getDefaultLlcpMiu();
 
     int getDefaultLlcpRwSize();
 
     String dump();
-
-    boolean enableReaderMode(int technologies);
-
-    boolean disableReaderMode();
 
     boolean enableScreenOffSuspend();
 
