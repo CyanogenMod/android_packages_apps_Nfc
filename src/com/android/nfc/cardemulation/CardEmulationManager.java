@@ -116,6 +116,8 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         verifyDefaults(userId, services);
         // Update the AID cache
         mAidCache.onServicesUpdated(userId, services);
+        // Update the preferred services list
+        mPreferredServices.onServicesUpdated();
     }
 
     void verifyDefaults(int userId, List<ApduServiceInfo> services) {
