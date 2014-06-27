@@ -165,7 +165,7 @@ public interface DeviceHost {
      */
     public void checkFirmware();
 
-    public boolean initialize(boolean enableSnoozeMode);
+    public boolean initialize();
 
     public boolean deinitialize();
 
