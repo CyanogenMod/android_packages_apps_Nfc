@@ -26,8 +26,6 @@ import com.android.nfc.snep.SnepClient;
 import com.android.nfc.snep.SnepMessage;
 import com.android.nfc.snep.SnepServer;
 
-import android.app.ActivityManager;
-import android.app.ActivityManager.RunningTaskInfo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
@@ -50,7 +48,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Interface to listen for P2P events.
@@ -201,11 +198,11 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     final SnepServer mDefaultSnepServer;
     final HandoverServer mHandoverServer;
     final EchoServer mEchoServer;
-    final ActivityManager mActivityManager;
     final Context mContext;
     final P2pEventListener mEventListener;
     final Handler mHandler;
     final HandoverManager mHandoverManager;
+    final ForegroundUtils mForegroundUtils;
 
     final int mDefaultMiu;
     final int mDefaultRwSize;
@@ -220,7 +217,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     Uri[] mUrisToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     int mSendFlags; // not valid in SEND_STATE_NOTHING_TO_SEND
     IAppCallback mCallbackNdef;
-    String[] mValidCallbackPackages;
+    int mNdefCallbackUid;
     SendTask mSendTask;
     SharedPreferences mPrefs;
     boolean mFirstBeam;
@@ -243,7 +240,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         } else {
             mEchoServer = null;
         }
-        mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mPackageManager = context.getPackageManager();
         mContext = context;
         mEventListener = new P2pEventManager(context, this);
@@ -258,6 +254,8 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         mDefaultMiu = defaultMiu;
         mDefaultRwSize = defaultRwSize;
         mLlcpServicesConnected = false;
+        mNdefCallbackUid = -1;
+        mForegroundUtils = ForegroundUtils.getInstance();
      }
 
     /**
@@ -308,7 +306,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     public void setNdefCallback(IAppCallback callbackNdef, int callingUid) {
         synchronized (this) {
             mCallbackNdef = callbackNdef;
-            mValidCallbackPackages = mPackageManager.getPackagesForUid(callingUid);
+            mNdefCallbackUid = callingUid;
         }
     }
 
@@ -318,12 +316,12 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             if (mLinkState != LINK_STATE_DOWN) {
                 return;
             }
-            // If we were launched through ACTION_SEND, still
-            // prefer the payload that the app set explicitly
-            // (if any).
-            prepareMessageToSend(false);
+            if (mNdefCallbackUid == mForegroundUtils.getForegroundUid()) {
+                // Try to get data from the registered NDEF callback
+                prepareMessageToSend(false);
+            }
             if (mMessageToSend == null && mUrisToSend == null && shareData != null) {
-                // Try getting data from shareData
+                // No data from the NDEF callback, get data from ShareData
                 if (shareData.uris != null) {
                     mUrisToSend = shareData.uris;
                 } else if (shareData.ndefMessage != null) {
@@ -449,41 +447,20 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
 
     void prepareMessageToSend(boolean generatePlayLink) {
         synchronized (P2pLinkManager.this) {
+            mMessageToSend = null;
+            mUrisToSend = null;
             if (!mIsSendEnabled) {
-                mMessageToSend = null;
-                mUrisToSend = null;
                 return;
             }
 
-            String runningPackage = null;
-            List<RunningTaskInfo> tasks = mActivityManager.getRunningTasks(1);
-            if (tasks.size() > 0) {
-                runningPackage = tasks.get(0).topActivity.getPackageName();
-            }
-
-            if (runningPackage == null) {
-                Log.e(TAG, "Could not determine running package.");
-                mMessageToSend = null;
-                mUrisToSend = null;
+            int foregroundUid = mForegroundUtils.getForegroundUid();
+            if (foregroundUid == -1) {
+                Log.e(TAG, "Could not determine foreground UID.");
                 return;
             }
 
-            // Try application callback first
             if (mCallbackNdef != null) {
-                // Check to see if the package currently running
-                // is the one that registered any callbacks
-                boolean callbackValid = false;
-
-                if (mValidCallbackPackages != null) {
-                    for (String pkg : mValidCallbackPackages) {
-                        if (pkg.equals(runningPackage)) {
-                            callbackValid = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (callbackValid) {
+                if (foregroundUid == mNdefCallbackUid) {
                     try {
                         BeamShareData shareData = mCallbackNdef.createBeamShareData();
                         mMessageToSend = shareData.ndefMessage;
@@ -503,13 +480,16 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
 
             // fall back to default NDEF for the foreground activity, unless the
             // application disabled this explicitly in their manifest.
-            if (!generatePlayLink || beamDefaultDisabled(runningPackage)) {
-                if (DBG) Log.d(TAG, "Disabling default Beam behavior");
-                mMessageToSend = null;
-                mUrisToSend = null;
-            } else {
-                mMessageToSend = createDefaultNdef(runningPackage);
-                mUrisToSend = null;
+            String[] pkgs = mPackageManager.getPackagesForUid(foregroundUid);
+            if (pkgs != null && pkgs.length >= 1) {
+                if (!generatePlayLink || beamDefaultDisabled(pkgs[0])) {
+                    if (DBG) Log.d(TAG, "Disabling default Beam behavior");
+                    mMessageToSend = null;
+                    mUrisToSend = null;
+                } else {
+                    mMessageToSend = createDefaultNdef(pkgs[0]);
+                    mUrisToSend = null;
+                }
             }
 
             if (DBG) Log.d(TAG, "mMessageToSend = " + mMessageToSend);
