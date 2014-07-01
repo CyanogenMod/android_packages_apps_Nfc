@@ -23,6 +23,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.tech.Ndef;
 import android.os.UserHandle;
+import android.os.UserManager;
 
 import java.util.Arrays;
 
@@ -59,7 +60,8 @@ public final class NfcWifiProtectedSetup {
 
         final WifiConfiguration wifiConfiguration = parse(cachedNdefMessage);
 
-        if (wifiConfiguration != null) {
+        if (wifiConfiguration != null &&!UserManager.get(context).hasUserRestriction(
+                UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT)) {
             Intent configureNetworkIntent = new Intent()
                     .putExtra(EXTRA_WIFI_CONFIG, wifiConfiguration)
                     .setClass(context, ConfirmConnectToWifiNetworkActivity.class)
