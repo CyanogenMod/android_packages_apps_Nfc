@@ -26,6 +26,7 @@ import android.util.Log;
 import android.util.SparseArray;
 
 public class ForegroundUtils extends IProcessObserver.Stub {
+    static final boolean DBG = false;
     private final String TAG = "ForegroundUtils";
     private final IActivityManager mIActivityManager;
 
@@ -94,12 +95,27 @@ public class ForegroundUtils extends IProcessObserver.Stub {
         }
     }
 
-    boolean isInForegroundLocked(int uid) {
+    /**
+     * @return the UID of the package currently in the foreground, or -1
+     *         if it can't be determined.
+     */
+    public int getForegroundUid() {
+        synchronized (mLock) {
+            for (int i = 0; i < mForegroundUids.size(); i++) {
+                if (mForegroundUids.valueAt(i).booleanValue()) {
+                    return mForegroundUids.keyAt(i);
+                }
+            }
+        }
+        return -1;
+    }
+
+    private boolean isInForegroundLocked(int uid) {
         Boolean inForeground = mForegroundUids.get(uid);
         return inForeground != null ? inForeground.booleanValue() : false;
     }
 
-    void handleUidToBackground(int uid) {
+    private void handleUidToBackground(int uid) {
         ArrayList<Callback> pendingCallbacks = null;
         synchronized (mLock) {
             List<Callback> callbacks = mBackgroundCallbacks.get(uid);
@@ -123,6 +139,8 @@ public class ForegroundUtils extends IProcessObserver.Stub {
         synchronized (mLock) {
             mForegroundUids.put(uid, foregroundActivities);
         }
+        if (DBG) Log.d(TAG, "Foreground changed, PID: " + Integer.toString(pid) + " UID: " +
+                Integer.toString(uid) + " foreground: " + foregroundActivities);
         if (!foregroundActivities) {
             handleUidToBackground(uid);
         }

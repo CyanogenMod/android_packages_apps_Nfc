@@ -75,4 +75,8 @@
     <!-- Message prompt asking the user if they wish to connect to the given network. Contains the network name (ssid).-->
     <string name="prompt_connect_to_network">Connect to network <xliff:g id="network_ssid">%1$s</xliff:g>?</string>
 
+    <!-- Message shown in a dialog when user wants to use Android Beam, but NFC is not enabled -->
+    <string name="beam_requires_nfc_enabled">Android Beam requires NFC to be enabled. Do you want to enable it?</string>
+    <!-- Message shown in a dialog when user wants to use Android Beam, but Android Beam sharing is not enabled -->
+    <string name="beam_requires_beam_enabled">Android Beam is not enabled in Settings. Do you want to enable it?</string>
 </resources>

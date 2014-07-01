@@ -133,6 +133,10 @@ public class NfcService implements DeviceHostListener {
     // Default delay used for presence checks
     static final int DEFAULT_PRESENCE_CHECK_DELAY = 125;
 
+    // The amount of time we wait before manually launching
+    // the Beam animation when called through the share menu.
+    static final int INVOKE_BEAM_DELAY_MS = 1000;
+
     // for use with playSound()
     public static final int SOUND_START = 0;
     public static final int SOUND_END = 1;
@@ -193,6 +197,7 @@ public class NfcService implements DeviceHostListener {
     private CardEmulationManager mCardEmulationManager;
 
     private ScreenStateHelper mScreenStateHelper;
+    private ForegroundUtils mForegroundUtils;
 
     private int mUserId;
     private static NfcService sService;
@@ -325,7 +330,7 @@ public class NfcService implements DeviceHostListener {
         if (mIsHceCapable) {
             mCardEmulationManager = new CardEmulationManager(mContext);
         }
-
+        mForegroundUtils = ForegroundUtils.getInstance();
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
     }
 
@@ -702,28 +707,38 @@ public class NfcService implements DeviceHostListener {
         public void invokeBeam() {
             NfcPermissions.enforceUserPermissions(mContext);
 
-            // Check whether caller is in the foreground
-            int callingUid = Binder.getCallingUid();
-            String[] pkgs = mContext.getPackageManager().getPackagesForUid(callingUid);
-            ActivityManager am = (ActivityManager) mContext.getSystemService(
-                    Context.ACTIVITY_SERVICE);
-            List<RunningTaskInfo> tasks = am.getRunningTasks(1);
-            boolean found = false;
-            if (pkgs != null && tasks.size() > 0) {
-                String runningPackage = tasks.get(0).topActivity.getPackageName();
-                for (String pkg : pkgs) {
-                    if (pkg.equals(runningPackage)) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-
-            if (found) {
+            if (mForegroundUtils.isInForeground(Binder.getCallingUid())) {
                 mP2pLinkManager.onManualBeamInvoke(null);
             } else {
                 Log.e(TAG, "Calling activity not in foreground.");
             }
+        }
+
+        @Override
+        public void invokeBeamInternal(BeamShareData shareData) {
+            NfcPermissions.enforceAdminPermissions(mContext);
+            Message msg = Message.obtain();
+            msg.what = MSG_INVOKE_BEAM;
+            msg.obj = shareData;
+            // We have to send this message delayed for two reasons:
+            // 1) This is an IPC call from BeamShareActivity, which is
+            //    running when the user has invoked Beam through the
+            //    share menu. As soon as BeamShareActivity closes, the UI
+            //    will need some time to rebuild the original Activity.
+            //    Waiting here for a while gives a better chance of the UI
+            //    having been rebuilt, which means the screenshot that the
+            //    Beam animation is using will be more accurate.
+            // 2) Similarly, because the Activity that launched BeamShareActivity
+            //    with an ACTION_SEND intent is now in paused state, the NDEF
+            //    callbacks that it has registered may no longer be valid.
+            //    Allowing the original Activity to resume will make sure we
+            //    it has a chance to re-register the NDEF message / callback,
+            //    so we share the right data.
+            //
+            //    Note that this is somewhat of a hack because the delay may not actually
+            //    be long enough for 2) on very slow devices, but there's no better
+            //    way to do this right now without additional framework changes.
+            mHandler.sendMessageDelayed(msg, INVOKE_BEAM_DELAY_MS);
         }
 
         @Override
@@ -1473,20 +1488,6 @@ public class NfcService implements DeviceHostListener {
 
     public void commitRouting() {
         mHandler.sendEmptyMessage(MSG_COMMIT_ROUTING);
-    }
-
-    public void invokeBeam(BeamShareData shareData) {
-        Message msg = Message.obtain();
-        msg.what = MSG_INVOKE_BEAM;
-        msg.obj = shareData;
-        // TODO: the delay hack exists for 2 reasons:
-        // 1) The BeamShareActivity is just finish()'d and we need the calling activity to redraw,
-        //    before taking the screenshot that we use for the Beam animation.
-        // 2) The Beam P2P logic looks at the top activity of the stack to see if the currently
-        //    registered activity is still allowed to share data. If BeamShareActivity is on top,
-        //    that logic fails.
-        // Must be a more elegant way to do this...
-        mHandler.sendMessageDelayed(msg, 250);
     }
 
     public boolean sendData(byte[] data) {

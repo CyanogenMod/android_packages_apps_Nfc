@@ -19,15 +19,23 @@ package com.android.nfc;
 import java.util.ArrayList;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.nfc.BeamShareData;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
+import android.nfc.NfcAdapter;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.URLUtil;
+
+import com.android.internal.R;
 
 /**
  * This class is registered by NfcService to handle
@@ -41,19 +49,69 @@ import android.webkit.URLUtil;
  */
 public class BeamShareActivity extends Activity {
     static final String TAG ="BeamShareActivity";
-    static final boolean DBG = true; // STOPSHIP set to false
+    static final boolean DBG = false;
 
     ArrayList<Uri> mUris;
     NdefMessage mNdefMessage;
+    NfcAdapter mNfcAdapter;
+    Intent mLaunchIntent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mUris = new ArrayList<Uri>();
         mNdefMessage = null;
-        parseShareIntent(getIntent());
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+        mLaunchIntent = getIntent();
+        if (mNfcAdapter == null) {
+            Log.e(TAG, "NFC adapter not present.");
+            finish();
+        } else {
+            if (!mNfcAdapter.isEnabled()) {
+                showNfcDialogAndExit(com.android.nfc.R.string.beam_requires_nfc_enabled);
+            } else if (mNfcAdapter.isEnabled() && !mNfcAdapter.isNdefPushEnabled()) {
+                showNfcDialogAndExit(com.android.nfc.R.string.beam_requires_beam_enabled);
+            } else {
+                parseShareIntentAndFinish(mLaunchIntent);
+            }
+        }
+    }
 
-        finish();
+
+    private void showNfcDialogAndExit(int msgId) {
+        IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
+        registerReceiver(mReceiver, filter);
+
+        AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this,
+                AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);
+        dialogBuilder.setMessage(msgId);
+        dialogBuilder.setOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialogInterface) {
+                finish();
+            }
+        });
+        dialogBuilder.setPositiveButton(R.string.yes,
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int id) {
+                        if (!mNfcAdapter.isEnabled()) {
+                            mNfcAdapter.enable();
+                            // Wait for enable broadcast
+                        } else {
+                            mNfcAdapter.enableNdefPush();
+                            parseShareIntentAndFinish(mLaunchIntent);
+                        }
+                    }
+                });
+        dialogBuilder.setNegativeButton(R.string.no,
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        finish();
+                    }
+                });
+        dialogBuilder.show();
     }
 
     void tryUri(Uri uri) {
@@ -76,7 +134,7 @@ public class BeamShareActivity extends Activity {
         }
     }
 
-    public void parseShareIntent(Intent intent) {
+    public void parseShareIntentAndFinish(Intent intent) {
         if (intent == null || (!intent.getAction().equalsIgnoreCase(Intent.ACTION_SEND) &&
                 !intent.getAction().equalsIgnoreCase(Intent.ACTION_SEND_MULTIPLE))) return;
 
@@ -162,7 +220,22 @@ public class BeamShareActivity extends Activity {
             // Activity may have set something to share over NFC, so pass on anyway
             shareData = new BeamShareData(null, null, 0);
         }
-
-        NfcService.getInstance().invokeBeam(shareData);
+        mNfcAdapter.invokeBeam(shareData);
+        finish();
     }
+
+    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (NfcAdapter.ACTION_ADAPTER_STATE_CHANGED.equals(intent.getAction())) {
+                int state = intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE,
+                        NfcAdapter.STATE_OFF);
+                if (state == NfcAdapter.STATE_ON) {
+                    mNfcAdapter.enableNdefPush();
+                    parseShareIntentAndFinish(mLaunchIntent);
+                }
+            }
+        }
+    };
 }
