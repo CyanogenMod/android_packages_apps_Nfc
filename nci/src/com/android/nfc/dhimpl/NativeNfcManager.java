@@ -67,11 +67,11 @@ public class NativeNfcManager implements DeviceHost {
         doDownload();
     }
 
-    private native boolean doInitialize(boolean enableScreenOffSuspend);
+    private native boolean doInitialize();
 
     @Override
-    public boolean initialize(boolean enableScreenOffSuspend) {
-        return doInitialize(enableScreenOffSuspend);
+    public boolean initialize() {
+        return doInitialize();
     }
 
     private native boolean doDeinitialize();

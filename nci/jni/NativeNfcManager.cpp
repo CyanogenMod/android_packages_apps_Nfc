@@ -781,7 +781,7 @@ static jboolean nfcManager_unrouteAid (JNIEnv* e, jobject, jbyteArray aid)
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o, jboolean snooze_mode)
+static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
 {
     ALOGD ("%s: enter; ver=%s nfa=%s NCI_VERSION=0x%02X",
         __FUNCTION__, nfca_version_string, nfa_version_string, NCI_VERSION);
@@ -806,12 +806,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o, jboolean snooze_m
         {
             SyncEventGuard guard (sNfaEnableEvent);
             tHAL_NFC_ENTRY* halFuncEntries = theInstance.GetHalEntryFuncs ();
-
-            if (snooze_mode)
-            {
-                powerSwitch.setScreenOffPowerState (
-                    PowerSwitch::POWER_STATE_FULL);
-            }
 
             NFA_Init (halFuncEntries);
 
@@ -1565,7 +1559,7 @@ static JNINativeMethod gMethods[] =
     {"initializeNativeStructure", "()Z",
             (void*) nfcManager_initNativeStruc},
 
-    {"doInitialize", "(Z)Z",
+    {"doInitialize", "()Z",
             (void*) nfcManager_doInitialize},
 
     {"doDeinitialize", "()Z",

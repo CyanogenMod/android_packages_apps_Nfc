@@ -460,7 +460,7 @@ public class NfcService implements DeviceHostListener {
             try {
                 mRoutingWakeLock.acquire();
                 try {
-                    if (!mDeviceHost.initialize(mLockscreenDispatchEnabled)) {
+                    if (!mDeviceHost.initialize()) {
                         Log.w(TAG, "Error enabling NFC");
                         updateState(NfcAdapter.STATE_OFF);
                         return false;
