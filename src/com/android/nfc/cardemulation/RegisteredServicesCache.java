@@ -445,6 +445,8 @@ public class RegisteredServicesCache {
 
     public boolean registerAidGroupForService(int userId, int uid,
             ComponentName componentName, AidGroup aidGroup) {
+        ArrayList<ApduServiceInfo> newServices = null;
+        boolean success;
         synchronized (mLock) {
             UserServices services = findOrCreateUserLocked(userId);
             // Check if we can find this service
@@ -468,17 +470,20 @@ public class RegisteredServicesCache {
                 services.dynamicAids.put(componentName, dynAids);
             }
             dynAids.aidGroups.put(aidGroup.getCategory(), aidGroup);
-            if (writeDynamicAidsLocked()) {
-                mCallback.onServicesUpdated(userId, new ArrayList<ApduServiceInfo>(
-                        services.services.values()));
-                return true;
+            success = writeDynamicAidsLocked();
+            if (success) {
+                newServices = new ArrayList<ApduServiceInfo>(services.services.values());
             } else {
                 Log.e(TAG, "Failed to persist AID group.");
                 // Undo registration
                 dynAids.aidGroups.remove(aidGroup.getCategory());
-                return false;
             }
         }
+        if (success) {
+            // Make callback without the lock held
+            mCallback.onServicesUpdated(userId, newServices);
+        }
+        return success;
     }
 
     public AidGroup getAidGroupForService(int userId, int uid, ComponentName componentName,
@@ -498,6 +503,8 @@ public class RegisteredServicesCache {
 
     public boolean removeAidGroupForService(int userId, int uid, ComponentName componentName,
             String category) {
+        boolean success = false;
+        ArrayList<ApduServiceInfo> newServices = null;
         synchronized (mLock) {
             UserServices services = findOrCreateUserLocked(userId);
             ApduServiceInfo serviceInfo = getService(userId, componentName);
@@ -507,26 +514,33 @@ public class RegisteredServicesCache {
                     Log.e(TAG, "UID mismatch");
                     return false;
                 }
-                boolean found = serviceInfo.removeDynamicAidGroupForCategory(category);
+                if (!serviceInfo.removeDynamicAidGroupForCategory(category)) {
+                    Log.e(TAG," Could not find dynamic AIDs for category " + category);
+                    return false;
+                }
                 // Remove from local cache
                 DynamicAids dynAids = services.dynamicAids.get(componentName);
                 if (dynAids != null) {
-                    dynAids.aidGroups.remove(category);
-                } else {
-                    // This shouldn't happen if it was in the service info
-                    if (found) {
-                        Log.e(TAG, "Could not find aid group in local cache.");
+                    AidGroup deletedGroup = dynAids.aidGroups.remove(category);
+                    success = writeDynamicAidsLocked();
+                    if (success) {
+                        newServices = new ArrayList<ApduServiceInfo>(services.services.values());
+                    } else {
+                        Log.e(TAG, "Could not persist deleted AID group.");
+                        dynAids.aidGroups.put(category, deletedGroup);
+                        return false;
                     }
+                } else {
+                    Log.e(TAG, "Could not find aid group in local cache.");
                 }
-                writeDynamicAidsLocked();
-                mCallback.onServicesUpdated(userId, new ArrayList<ApduServiceInfo>(
-                        services.services.values()));
-                return found;
             } else {
-                Log.e(TAG, "Could not find service " + componentName);
-                return false;
+                Log.e(TAG, "Service " + componentName + " does not exist.");
             }
         }
+        if (success) {
+            mCallback.onServicesUpdated(userId, newServices);
+        }
+        return success;
     }
 
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {

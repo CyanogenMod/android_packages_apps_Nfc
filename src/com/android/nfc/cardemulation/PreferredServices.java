@@ -193,49 +193,84 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
         return true;
     }
 
-    public boolean registerPreferredForegroundService(ComponentName service, int callingUid) {
-        boolean success = false;
+    public void onServicesUpdated() {
+        // If this service is the current foreground service, verify
+        // there are no conflicts
+        boolean changed = false;
+        synchronized (mLock) {
+            // Check if the current foreground service is still allowed to override;
+            // it could have registered new AIDs that make it conflict with user
+            // preferences.
+            if (mForegroundCurrent != null) {
+                if (!isForegroundAllowedLocked(mForegroundCurrent))  {
+                    Log.d(TAG, "Removing foreground preferred service because of conflict.");
+                    mForegroundRequested = null;
+                    mForegroundUid = -1;
+                    changed = true;
+                }
+            } else {
+                // Don't care about this service
+            }
+        }
+        if (changed) {
+            computePreferredForegroundService();
+        }
+    }
+
+    // Verifies whether a service is allowed to register as preferred
+    boolean isForegroundAllowedLocked(ComponentName service) {
         ApduServiceInfo serviceInfo = mServiceCache.getService(ActivityManager.getCurrentUser(),
                 service);
-        synchronized (mLock) {
-            // Do some sanity checking
-            if (!mPaymentDefaults.preferForeground) {
-                // Foreground apps are not allowed to override payment default
-                // Check if this app registers payment AIDs, in which case we'll fail anyway
-                if (serviceInfo.hasCategory(CardEmulation.CATEGORY_PAYMENT)) {
-                    Log.d(TAG, "User doesn't allow payment services to be overridden.");
-                    return false;
-                }
-                // If no payment AIDs, get AIDs of category other, and see if there's any
-                // conflict with payment AIDs of current default payment app. That means
-                // the current default payment app said this was a payment AID, and the
-                // foreground app says it was not. In this case we'll still prefer the payment
-                // app, since that is the one that the user has explicitly selected (and said
-                // it's not allowed to be overridden).
-                final ArrayList<String> otherAids = serviceInfo.getAids();
-                ApduServiceInfo paymentServiceInfo = mServiceCache.getService(
-                        ActivityManager.getCurrentUser(), mPaymentDefaults.currentPreferred);
-                if (paymentServiceInfo != null && otherAids != null && otherAids.size() > 0) {
-                    for (String aid : otherAids) {
-                        if (CardEmulation.CATEGORY_PAYMENT.equals(
-                                paymentServiceInfo.getCategoryForAid(aid))) {
-                            Log.e(TAG, "AID " + aid + " is registered by the default payment app, " +
-                                    "and the user has not allowed payments to be overridden.");
-                            return false;
-                        }
-                    }
-                } else {
-                    // Could not find payment service or fg app doesn't register other AIDs;
-                    // okay to proceed.
-                }
+        boolean allowed = false;
+        // Do some sanity checking
+        if (!mPaymentDefaults.preferForeground) {
+            // Foreground apps are not allowed to override payment default
+            // Check if this app registers payment AIDs, in which case we'll fail anyway
+            if (serviceInfo.hasCategory(CardEmulation.CATEGORY_PAYMENT)) {
+                Log.d(TAG, "User doesn't allow payment services to be overridden.");
+                return false;
             }
-            if (mForegroundUtils.registerUidToBackgroundCallback(this, callingUid)) {
-                mForegroundRequested = service;
-                mForegroundUid = callingUid;
-                success = true;
+            // If no payment AIDs, get AIDs of category other, and see if there's any
+            // conflict with payment AIDs of current default payment app. That means
+            // the current default payment app said this was a payment AID, and the
+            // foreground app says it was not. In this case we'll still prefer the payment
+            // app, since that is the one that the user has explicitly selected (and said
+            // it's not allowed to be overridden).
+            final ArrayList<String> otherAids = serviceInfo.getAids();
+            ApduServiceInfo paymentServiceInfo = mServiceCache.getService(
+                    ActivityManager.getCurrentUser(), mPaymentDefaults.currentPreferred);
+            if (paymentServiceInfo != null && otherAids != null && otherAids.size() > 0) {
+                for (String aid : otherAids) {
+                    if (CardEmulation.CATEGORY_PAYMENT.equals(
+                            paymentServiceInfo.getCategoryForAid(aid))) {
+                        Log.e(TAG, "AID " + aid + " is registered by the default payment app, " +
+                                "and the user has not allowed payments to be overridden.");
+                        return false;
+                    }
+                }
+                allowed = true;
             } else {
-                Log.e(TAG, "Calling UID is not in the foreground, ignorning!");
-                success = false;
+                // Could not find payment service or fg app doesn't register other AIDs;
+                // okay to proceed.
+                allowed = true;
+            }
+        }
+
+        return allowed;
+    }
+
+    public boolean registerPreferredForegroundService(ComponentName service, int callingUid) {
+        boolean success = false;
+        synchronized (mLock) {
+            if (isForegroundAllowedLocked(service)) {
+                if (mForegroundUtils.registerUidToBackgroundCallback(this, callingUid)) {
+                    mForegroundRequested = service;
+                    mForegroundUid = callingUid;
+                    success = true;
+                } else {
+                    Log.e(TAG, "Calling UID is not in the foreground, ignorning!");
+                    success = false;
+                }
             }
         }
         if (success) {
