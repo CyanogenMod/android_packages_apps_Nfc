@@ -347,8 +347,8 @@ public class RegisteredServicesCache {
                 int currentUid = -1;
                 ArrayList<AidGroup> currentGroups = new ArrayList<AidGroup>();
                 while (eventType != XmlPullParser.END_DOCUMENT) {
+                    tagName = parser.getName();
                     if (eventType == XmlPullParser.START_TAG) {
-                        tagName = parser.getName();
                         if ("service".equals(tagName) && parser.getDepth() == 2) {
                             String compString = parser.getAttributeValue(null, "component");
                             String uidString = parser.getAttributeValue(null, "uid");
@@ -373,7 +373,6 @@ public class RegisteredServicesCache {
                             }
                         }
                     } else if (eventType == XmlPullParser.END_TAG) {
-                        tagName = parser.getName();
                         if ("service".equals(tagName)) {
                             // See if we have a valid service
                             if (currentComponent != null && currentUid >= 0 &&
@@ -424,9 +423,7 @@ public class RegisteredServicesCache {
                     out.attribute(null, "component", service.getKey().flattenToString());
                     out.attribute(null, "uid", Integer.toString(service.getValue().uid));
                     for (AidGroup group : service.getValue().aidGroups.values()) {
-                        out.startTag(null, "aid-group");
                         group.writeAsXml(out);
-                        out.endTag(null, "aid-group");
                     }
                     out.endTag(null, "service");
                 }
