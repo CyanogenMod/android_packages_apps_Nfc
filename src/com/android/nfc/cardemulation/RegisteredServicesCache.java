@@ -32,6 +32,7 @@ import android.content.pm.ServiceInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.nfc.cardemulation.AidGroup;
 import android.nfc.cardemulation.ApduServiceInfo;
+import android.nfc.cardemulation.CardEmulation;
 import android.nfc.cardemulation.HostApduService;
 import android.nfc.cardemulation.OffHostApduService;
 import android.os.UserHandle;
@@ -462,6 +463,15 @@ public class RegisteredServicesCache {
                 // a different uid.
                 Log.e(TAG, "UID mismatch.");
                 return false;
+            }
+            // Do another AID validation, since a caller could have thrown in a modified
+            // AidGroup object with invalid AIDs over Binder.
+            List<String> aids = aidGroup.getAids();
+            for (String aid : aids) {
+                if (!CardEmulation.isValidAid(aid)) {
+                    Log.e(TAG, "AID " + aid + " is not a valid AID");
+                    return false;
+                }
             }
             serviceInfo.setOrReplaceDynamicAidGroup(aidGroup);
             DynamicAids dynAids = services.dynamicAids.get(componentName);
