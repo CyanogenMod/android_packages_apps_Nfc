@@ -41,6 +41,7 @@ public:
     bool addAidRouting(const UINT8* aid, UINT8 aidLen, int route);
     bool removeAidRouting(const UINT8* aid, UINT8 aidLen);
     bool commitRouting();
+    int registerJniFunctions (JNIEnv* e);
 private:
     RoutingManager();
     ~RoutingManager();
@@ -52,12 +53,16 @@ private:
     void notifyDeactivated ();
     static void nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventData);
     static void stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
+    static int com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv* e, jobject jo);
+    static int com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv* e, jobject jo);
 
     std::vector<UINT8> mRxDataBuffer;
 
     // Fields below are final after initialize()
     nfc_jni_native_data* mNativeData;
     int mDefaultEe;
+    int mOffHostEe;
+    static const JNINativeMethod sMethods [];
     SyncEvent mEeRegisterEvent;
     SyncEvent mRoutingEvent;
     SyncEvent mEeUpdateEvent;
