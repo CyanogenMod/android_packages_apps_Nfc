@@ -42,4 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"जोडिएको"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"सञ्जालमा जडान गर्नुहोस्"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"सञ्जाल <xliff:g id="NETWORK_SSID">%1$s</xliff:g>मा जडान गर्ने?"</string>
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android बीम सक्षम गर्नको लागि NFC आवश्यक छ। के तपाईँ यसलाई सक्षम गर्न चाहनुहुन्छ?"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android बीम सेटिङ्हरूमा सक्षम गरिएको छैन। के तपाईँ यसलाई सक्षम गर्न चाहनुहुन्छ?"</string>
 </resources>

@@ -42,4 +42,8 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"مربوط"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"نیٹ ورک سے مربوط ہوں"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"نیٹ ورک <xliff:g id="NETWORK_SSID">%1$s</xliff:g> سے مربوط کریں؟"</string>
+    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
+    <skip />
+    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
+    <skip />
 </resources>

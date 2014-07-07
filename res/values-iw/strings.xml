@@ -42,4 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"מחובר"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"התחבר לרשת"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"להתחבר לרשת <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"‏כדי להשתמש ב-Android Beam נדרשת הפעלה של NFC. האם ברצונך להפעיל אותו?"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"‏Android Beam אינו מופעל בהגדרות. האם ברצונך להפעיל אותו?"</string>
 </resources>
