@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"አመልማሎ ተጠናቅቋል"</string>
     <string name="beam_failed" msgid="5116241718189888630">"ሞገድ አልተጠናቀቀም"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"ሞገድ ተሰርዧል"</string>
-    <string name="cancel" msgid="61873902552555096">"ሰርዝ"</string>
+    <string name="cancel" msgid="61873902552555096">"ይቅር"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ለማየት ንካ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"የተቀባዩ መሣሪያ ትልቅ ፋይል በሞገድ በኩል ማስተላለፍ አይደግፍም።"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"መሣሪያዎችን ዳግም አንድ ላይ አሰባስብ"</string>
