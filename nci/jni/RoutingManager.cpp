@@ -452,12 +452,12 @@ int RoutingManager::registerJniFunctions (JNIEnv* e)
     return jniRegisterNativeMethods (e, "com/android/nfc/cardemulation/AidRoutingManager", sMethods, NELEM(sMethods));
 }
 
-int RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv*, jobject)
+int RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv*)
 {
     return getInstance().mDefaultEe;
 }
 
-int RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv*, jobject)
+int RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv*)
 {
     return getInstance().mOffHostEe;
 }

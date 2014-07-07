@@ -53,8 +53,8 @@ private:
     void notifyDeactivated ();
     static void nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventData);
     static void stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
-    static int com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv* e, jobject jo);
-    static int com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv* e, jobject jo);
+    static int com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv* e);
+    static int com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv* e);
 
     std::vector<UINT8> mRxDataBuffer;
 
