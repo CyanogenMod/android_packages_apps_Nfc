@@ -24,9 +24,9 @@ LOCAL_SRC_FILES:= $(call all-cpp-files-under, .)
 LOCAL_C_INCLUDES += \
     bionic \
     bionic/libstdc++ \
-    external/stlport/stlport \
+    external/icu/icu4c/source/common \
     external/libxml2/include \
-    external/icu4c/common \
+    external/stlport/stlport \
     frameworks/native/include \
     libcore/include \
     $(NFA)/include \
