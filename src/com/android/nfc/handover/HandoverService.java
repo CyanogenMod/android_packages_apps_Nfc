@@ -365,7 +365,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             transfer = maybeCreateHandoverTransfer(macAddress,
                     pendingTransfer.incoming, pendingTransfer);
         } else if (pendingTransfer.deviceType == HandoverTransfer.DEVICE_TYPE_WIFI) {
-            Log.i("anmorales", "created wifi transfer");
             transfer = new HandoverTransfer(this, this, pendingTransfer);
             synchronized (this) {
                 mWifiTransfer = transfer;
