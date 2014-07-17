@@ -102,7 +102,7 @@
         <activity android:name=".BeamShareActivity"
             android:finishOnCloseSystemDialogs="true"
             android:theme="@android:style/Theme.NoDisplay"
-            android:label="Android Beam"
+            android:label="@string/android_beam"
             android:noHistory="true"
             android:excludeFromRecents="true">
             <intent-filter>
