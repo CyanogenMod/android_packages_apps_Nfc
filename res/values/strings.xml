@@ -79,4 +79,7 @@
     <string name="beam_requires_nfc_enabled">Android Beam requires NFC to be enabled. Do you want to enable it?</string>
     <!-- Message shown in a dialog when user wants to use Android Beam, but Android Beam sharing is not enabled -->
     <string name="beam_requires_beam_enabled">Android Beam is not enabled in Settings. Do you want to enable it?</string>
+
+    <!-- Used to refer to in the Share Menu Android Beam . This phrase is a trademark. [CHAR LIMIT=32] -->
+    <string name="android_beam">Android Beam</string>
 </resources>
