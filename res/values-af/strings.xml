@@ -44,4 +44,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Koppel aan die netwerk <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Straal vereis dat NFC geaktiveer moet wees. Wil jy dit aktiveer?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android Straal is nie in Instellings geaktiveer nie. Wil jy dit aktiveer?"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
+    <skip />
 </resources>

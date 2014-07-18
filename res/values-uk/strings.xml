@@ -44,4 +44,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Під’єднатися до мережі \"<xliff:g id="NETWORK_SSID">%1$s</xliff:g>\"?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Для роботи функції передавання даних Android потрібно ввімкнути NFC. Увімкнути?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Функцію передавання даних Android не ввімкнено в Налаштуваннях. Увімкнути?"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
+    <skip />
 </resources>

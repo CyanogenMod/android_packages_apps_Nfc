@@ -44,4 +44,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Ungependa kuunganisha kwenye mtandao wa <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Boriti ya Android inahitaji NFC iwe imewashwa. Je, unataka kuiwasha?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Boriti ya Android haijawashwa katika Mipangilio. Je, unataka kuiwasha?"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
+    <skip />
 </resources>

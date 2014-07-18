@@ -44,4 +44,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Verbindung zum Netzwerk <xliff:g id="NETWORK_SSID">%1$s</xliff:g> herstellen?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam erfordert zur Aktivierung die Nahfeldkommunikation (NFC). Möchten Sie sie aktivieren?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android Beam ist in den Einstellungen nicht aktiviert. Möchten Sie es aktivieren?"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
+    <skip />
 </resources>

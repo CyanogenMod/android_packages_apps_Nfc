@@ -42,8 +42,8 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"కనెక్ట్ చేయబడింది"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"నెట్‌‍వర్క్‌కు కనెక్ట్ చేయి"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> నెట్‌వర్క్‌కు కనెక్ట్ చేయాలా?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam కోసం NFC ప్రారంభించబడటం అవసరం. మీరు దాన్ని ప్రారంభించాలనుకుంటున్నారా?"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"సెట్టింగ్‌ల్లో Android Beam ప్రారంభించబడలేదు. మీరు దాన్ని ప్రారంభించాలనుకుంటున్నారా?"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
     <skip />
 </resources>

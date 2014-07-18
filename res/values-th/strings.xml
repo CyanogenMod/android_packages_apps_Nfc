@@ -44,4 +44,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"เชื่อมต่อกับเครือข่าย <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ไหม"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ต้องการให้เปิดใช้ NFC คุณต้องการเปิดใช้ไหม"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"ไม่ได้เปิดใช้ Android Beam ในการตั้งค่า คุณต้องการเปิดใช้ไหม"</string>
+    <!-- no translation found for android_beam (1666446406999492763) -->
+    <skip />
 </resources>
