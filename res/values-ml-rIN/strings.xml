@@ -44,6 +44,5 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> എന്ന നെറ്റ്‌വർക്കിലേക്ക് കണക്‌റ്റുചെയ്യണോ?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android ബീമിന്, NFC പ്രവർത്തനക്ഷമമാക്കേണ്ടതുണ്ട്. നിങ്ങൾക്കത് പ്രവർത്തനക്ഷമമാക്കണോ?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"ക്രമീകരണങ്ങളിൽ Android ബീം പ്രവർത്തനക്ഷമമാക്കിയിട്ടില്ല. നിങ്ങൾക്കത് പ്രവർത്തനക്ഷമമാക്കണോ?"</string>
-    <!-- no translation found for android_beam (1666446406999492763) -->
-    <skip />
+    <string name="android_beam" msgid="1666446406999492763">"Android ബീം"</string>
 </resources>
