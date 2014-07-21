@@ -136,4 +136,8 @@ public final class NfcDiscoveryParameters {
     public static NfcDiscoveryParameters getDefaultInstance() {
         return new NfcDiscoveryParameters();
     }
+
+    public static NfcDiscoveryParameters getNfcOffParameters() {
+        return new NfcDiscoveryParameters();
+    }
 }
