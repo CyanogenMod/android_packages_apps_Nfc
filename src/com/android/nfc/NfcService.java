@@ -22,6 +22,7 @@ import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -304,6 +305,7 @@ public class NfcService implements DeviceHostListener {
 
         mState = NfcAdapter.STATE_OFF;
         mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
+        setBeamShareActivityState(mIsNdefPushEnabled);
 
         mIsDebugBuild = "userdebug".equals(Build.TYPE) || "eng".equals(Build.TYPE);
 
@@ -585,6 +587,13 @@ public class NfcService implements DeviceHostListener {
         return mUserId;
     }
 
+    void setBeamShareActivityState(boolean enabled) {
+        mContext.getPackageManager().setComponentEnabledSetting(
+                new ComponentName("com.android.nfc","com.android.nfc.BeamShareActivity"),
+                enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
+                          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP);
+    }
 
     final class NfcAdapterService extends INfcAdapter.Stub {
         @Override
@@ -638,6 +647,7 @@ public class NfcService implements DeviceHostListener {
                 mPrefsEditor.putBoolean(PREF_NDEF_PUSH_ON, true);
                 mPrefsEditor.apply();
                 mIsNdefPushEnabled = true;
+                setBeamShareActivityState(true);
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(true, true);
                 }
@@ -656,6 +666,7 @@ public class NfcService implements DeviceHostListener {
                 mPrefsEditor.putBoolean(PREF_NDEF_PUSH_ON, false);
                 mPrefsEditor.apply();
                 mIsNdefPushEnabled = false;
+                setBeamShareActivityState(false);
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(false, true);
                 }
