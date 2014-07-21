@@ -153,7 +153,6 @@ public class NfcService implements DeviceHostListener {
     private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
             new ReaderModeDeathRecipient();
 
-    private boolean mDiscoveryEnabled = false;
     private int mLockscreenPollMask;
     private boolean mLockscreenDispatchEnabled;
 
@@ -162,7 +161,8 @@ public class NfcService implements DeviceHostListener {
     int mScreenState;
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
-    NfcDiscoveryParameters mCurrentDiscoveryParameters;
+    NfcDiscoveryParameters mCurrentDiscoveryParameters =
+            NfcDiscoveryParameters.getNfcOffParameters();
 
     ReaderModeParams mReaderModeParams;
 
@@ -528,12 +528,16 @@ public class NfcService implements DeviceHostListener {
 
             mNfcDispatcher.setForegroundDispatch(null, null, null);
 
+
             boolean result = mDeviceHost.deinitialize();
             if (DBG) Log.d(TAG, "mDeviceHost.deinitialize() = " + result);
 
             watchDog.cancel();
 
-            updateState(NfcAdapter.STATE_OFF);
+            synchronized (NfcService.this) {
+                mCurrentDiscoveryParameters = NfcDiscoveryParameters.getNfcOffParameters();
+                updateState(NfcAdapter.STATE_OFF);
+            }
 
             releaseSoundPool();
 
@@ -1324,12 +1328,10 @@ public class NfcService implements DeviceHostListener {
                 NfcDiscoveryParameters newParams = computeDiscoveryParameters(mScreenState);
                 if (force || !newParams.equals(mCurrentDiscoveryParameters)) {
                     if (newParams.shouldEnableDiscovery()) {
-                        boolean shouldRestart = mDiscoveryEnabled;
+                        boolean shouldRestart = mCurrentDiscoveryParameters.shouldEnableDiscovery();
                         mDeviceHost.enableDiscovery(newParams, shouldRestart);
-                        mDiscoveryEnabled = true;
                     } else {
                         mDeviceHost.disableDiscovery();
-                        mDiscoveryEnabled = false;
                     }
                     mCurrentDiscoveryParameters = newParams;
                 } else {
