@@ -44,4 +44,5 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"ភ្ជាប់​បណ្ដាញ <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ទាមទារ​ឲ្យ​បើក NFC ។ តើ​អ្នក​ចង់​បើក​វា​ឬ?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"មិន​បាន​បើក Android Beam ក្នុង​ការ​កំណត់។ តើ​អ្នក​ចង់​បើ​វា​ឬ?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>

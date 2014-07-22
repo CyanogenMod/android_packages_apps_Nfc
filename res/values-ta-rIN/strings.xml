@@ -25,8 +25,8 @@
     <string name="disconnected_headset" msgid="4066109452701733916">"தொடர்பு துண்டிக்கப்பட்டது"</string>
     <string name="pairing_headset" msgid="6443461444755646137">"இணைக்கிறது"</string>
     <string name="pairing_headset_failed" msgid="6509629663883514688">"இணைக்க முடியவில்லை"</string>
-    <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth ஐச் செயல்படுத்த முடியவில்லை"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"Bluetooth சாதனம் <xliff:g id="DEVICE_NAME">%1$s</xliff:g> உடன் இணைக்க வேண்டும் என்று விரும்புகிறீர்களா?"</string>
+    <string name="failed_to_enable_bt" msgid="7229153323594758077">"புளூடூத்தைச் செயல்படுத்த முடியவில்லை"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"புளூடூத் சாதனம் <xliff:g id="DEVICE_NAME">%1$s</xliff:g> உடன் இணைக்க வேண்டும் என்று விரும்புகிறீர்களா?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"ஆம்"</string>
     <string name="pair_no" msgid="5022308368904055020">"இல்லை"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"<xliff:g id="APP">%1$s</xliff:g> உடன் கட்டணம் செலுத்த மீண்டும் தட்டவும்"</string>
@@ -42,8 +42,7 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"இணைக்கப்பட்டது"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"நெட்வொர்க்குடன் இணை"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> நெட்வொர்க்குடன் இணைக்கவா?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android பீம்மிற்கு NFC இயக்கப்பட்டிருக்க வேண்டும். இயக்கவா?"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"அமைப்புகளில் Android பீம் இயக்கப்படவில்லை. இயக்க விருப்பமா?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android பீம்"</string>
 </resources>

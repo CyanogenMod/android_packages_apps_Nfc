@@ -42,8 +42,7 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"Συνδέθηκε"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Σύνδεση στο δίκτυο"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Σύνδεση στο δίκτυο <xliff:g id="NETWORK_SSID">%1$s</xliff:g>;"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Το Android Beam απαιτεί την ενεργοποίηση της ΕΚΠ (Επικοινωνία κοντινού πεδίου). Θέλετε να την ενεργοποιήσετε;"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Το Android Beam δεν είναι ενεργοποιημένο στις Ρυθμίσεις. Θέλετε να το ενεργοποιήσετε;"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
