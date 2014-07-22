@@ -44,6 +44,5 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"네트워크 <xliff:g id="NETWORK_SSID">%1$s</xliff:g>에 연결하시겠습니까?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam을 사용하려면 NFC를 사용 설정해야 합니다. NFC를 사용 설정하시겠습니까?"</string>
     <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"설정에 Android Beam이 사용 설정되어 있지 않습니다. Android Beam을 사용 설정하시겠습니까?"</string>
-    <!-- no translation found for android_beam (1666446406999492763) -->
-    <skip />
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
