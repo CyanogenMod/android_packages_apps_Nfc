@@ -35,15 +35,14 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"ไม่สามารถใช้ <xliff:g id="APP">%1$s</xliff:g>"</string>
     <string name="pay_with" msgid="5531545488795798945">"ชำระเงินด้วย"</string>
     <string name="complete_with" msgid="6797459104103012992">"ดำเนินการให้เสร็จสมบูรณ์ด้วย"</string>
-    <string name="default_pay_app_removed" msgid="4108250545457437360">"บริการที่คุณต้องการสำหรับแตะและจ่ายถูกนำออก เลือกบริการอื่นไหม"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"บริการที่คุณต้องการสำหรับแตะและจ่ายถูกลบ เลือกบริการอื่นไหม"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"แตะอุปกรณ์อื่นเพื่อทำให้เสร็จสมบูรณ์"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"เชื่อมต่อ"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"ไม่สามารถเชื่อมต่อกับเครือข่าย"</string>
     <string name="status_wifi_connected" msgid="5893022897732105739">"เชื่อมต่อแล้ว"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"เชื่อมต่อกับเครือข่าย"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"เชื่อมต่อกับเครือข่าย <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ไหม"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ต้องการให้เปิดใช้ NFC คุณต้องการเปิดใช้ไหม"</string>
+    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"ไม่ได้เปิดใช้ Android Beam ในการตั้งค่า คุณต้องการเปิดใช้ไหม"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
