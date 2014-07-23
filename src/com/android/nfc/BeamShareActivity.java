@@ -69,8 +69,6 @@ public class BeamShareActivity extends Activity {
         } else {
             if (!mNfcAdapter.isEnabled()) {
                 showNfcDialogAndExit(com.android.nfc.R.string.beam_requires_nfc_enabled);
-            } else if (mNfcAdapter.isEnabled() && !mNfcAdapter.isNdefPushEnabled()) {
-                showNfcDialogAndExit(com.android.nfc.R.string.beam_requires_beam_enabled);
             } else {
                 parseShareIntentAndFinish(mLaunchIntent);
             }
@@ -99,7 +97,6 @@ public class BeamShareActivity extends Activity {
                             mNfcAdapter.enable();
                             // Wait for enable broadcast
                         } else {
-                            mNfcAdapter.enableNdefPush();
                             parseShareIntentAndFinish(mLaunchIntent);
                         }
                     }
@@ -232,7 +229,6 @@ public class BeamShareActivity extends Activity {
                 int state = intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE,
                         NfcAdapter.STATE_OFF);
                 if (state == NfcAdapter.STATE_ON) {
-                    mNfcAdapter.enableNdefPush();
                     parseShareIntentAndFinish(mLaunchIntent);
                 }
             }
