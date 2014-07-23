@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Interface to listen for P2P events.
@@ -316,7 +317,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             if (mLinkState != LINK_STATE_DOWN) {
                 return;
             }
-            if (mNdefCallbackUid == mForegroundUtils.getForegroundUid()) {
+            if (mForegroundUtils.getForegroundUids().contains(mNdefCallbackUid)) {
                 // Try to get data from the registered NDEF callback
                 prepareMessageToSend(false);
             }
@@ -453,14 +454,14 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 return;
             }
 
-            int foregroundUid = mForegroundUtils.getForegroundUid();
-            if (foregroundUid == -1) {
+            List<Integer> foregroundUids = mForegroundUtils.getForegroundUids();
+            if (foregroundUids.isEmpty()) {
                 Log.e(TAG, "Could not determine foreground UID.");
                 return;
             }
 
             if (mCallbackNdef != null) {
-                if (foregroundUid == mNdefCallbackUid) {
+                if (foregroundUids.contains(mNdefCallbackUid)) {
                     try {
                         BeamShareData shareData = mCallbackNdef.createBeamShareData();
                         mMessageToSend = shareData.ndefMessage;
@@ -480,7 +481,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
 
             // fall back to default NDEF for the foreground activity, unless the
             // application disabled this explicitly in their manifest.
-            String[] pkgs = mPackageManager.getPackagesForUid(foregroundUid);
+            String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
             if (pkgs != null && pkgs.length >= 1) {
                 if (!generatePlayLink || beamDefaultDisabled(pkgs[0])) {
                     if (DBG) Log.d(TAG, "Disabling default Beam behavior");
