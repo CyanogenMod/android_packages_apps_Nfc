@@ -221,12 +221,13 @@ class NfcDispatcher {
             provisioningOnly = mProvisioningOnly;
         }
 
+        boolean screenUnlocked = false;
         if (!provisioningOnly &&
                 mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-            if (!handleLockscreenDispatch(tag)) {
+            screenUnlocked = handleLockscreenDispatch(tag);
+            if (!screenUnlocked) {
                 return false;
             }
-
         }
 
         NdefMessage message = null;
@@ -275,7 +276,7 @@ class NfcDispatcher {
         }
 
         if (DBG) Log.i(TAG, "no match");
-        return false;
+        return screenUnlocked;
     }
 
     /**
