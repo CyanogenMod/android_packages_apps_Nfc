@@ -43,6 +43,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"ජාලයට සම්බන්ධ කරන්න"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> ජාලයට සම්බන්ධ වන්න ද?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam වලට NFC සබල කර තිබීමට අවශ්‍යය. ඔබට එය සබල කිරීමට අවශ්‍යයද?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"සැකසීම් තුළ Android Beam සබල කරන ලදි. ඔබට එය සබල කිරීමට අවශ්‍යද?"</string>
     <string name="android_beam" msgid="1666446406999492763">"Android බීම්"</string>
 </resources>
