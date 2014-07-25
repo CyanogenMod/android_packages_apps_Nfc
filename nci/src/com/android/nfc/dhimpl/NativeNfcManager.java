@@ -95,6 +95,8 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native boolean unrouteAid(byte[] aid);
 
+    @Override
+    public native boolean commitRouting();
 
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,

@@ -152,6 +152,12 @@ public class NativeNfcManager implements DeviceHost {
        return false;
     }
 
+    @Override
+    public boolean commitRouting()
+    {
+        return false;
+    }
+
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,
                                           boolean enableReaderMode,

@@ -772,6 +772,22 @@ static jboolean nfcManager_unrouteAid (JNIEnv* e, jobject, jbyteArray aid)
 
 /*******************************************************************************
 **
+** Function:        nfcManager_commitRouting
+**
+** Description:     Sends the AID routing table to the controller
+**                  e: JVM environment.
+**                  o: Java object.
+**
+** Returns:         True if ok.
+**
+*******************************************************************************/
+static jboolean nfcManager_commitRouting (JNIEnv* e, jobject)
+{
+    return RoutingManager::getInstance().commitRouting();
+}
+
+/*******************************************************************************
+**
 ** Function:        nfcManager_doInitialize
 **
 ** Description:     Turn on NFC.
@@ -1573,6 +1589,9 @@ static JNINativeMethod gMethods[] =
 
     {"unrouteAid", "([B)Z",
             (void*) nfcManager_unrouteAid},
+
+    {"commitRouting", "()Z",
+            (void*) nfcManager_commitRouting},
 
     {"doEnableDiscovery", "(IZZZZ)V",
             (void*) nfcManager_enableDiscovery},
