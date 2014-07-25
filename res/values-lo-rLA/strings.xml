@@ -43,6 +43,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"ເຊື່ອມຕໍ່ກັບເຄືອຂ່າຍ"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"​ເຊື່ອມ​ຕໍ່​ກັບ​ເຄືອ​ຂ່າຍ <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ບໍ?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ຕ້ອງ​ໃຊ້ NFC. ທ່ານ​ຕ້ອງ​ການ​ເປີດ​ໃຊ້ NFC ບໍ່?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android Beam ບໍ່​ໄດ້​ຖືກ​ເປີດ​ນຳ​ໃຊ້​ໃນ​ການ​ຕັ້ງ​ຄ່າ. ທ່ານ​ຕ້ອງ​ການ​ເປີດ​ໃຊ້​ມັນ​ບໍ່?"</string>
     <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
