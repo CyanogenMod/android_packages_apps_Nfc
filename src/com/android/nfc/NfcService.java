@@ -1535,7 +1535,17 @@ public class NfcService implements DeviceHostListener {
                     break;
                 }
                 case MSG_COMMIT_ROUTING: {
-                    applyRouting(true);
+                    boolean commit = false;
+                    synchronized (NfcService.this) {
+                        if (mCurrentDiscoveryParameters.shouldEnableDiscovery()) {
+                            commit = true;
+                        } else {
+                            Log.d(TAG, "Not committing routing because discovery is disabled.");
+                        }
+                    }
+                    if (commit) {
+                        mDeviceHost.commitRouting();
+                    }
                     break;
                 }
                 case MSG_MOCK_NDEF: {

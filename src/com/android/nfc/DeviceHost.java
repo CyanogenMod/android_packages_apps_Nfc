@@ -181,6 +181,8 @@ public interface DeviceHost {
 
     public boolean unrouteAid(byte[] aid);
 
+    public boolean commitRouting();
+
     public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap, String sn)
             throws LlcpException;
 

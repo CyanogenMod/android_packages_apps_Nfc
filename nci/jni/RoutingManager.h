@@ -62,9 +62,13 @@ private:
     nfc_jni_native_data* mNativeData;
     int mDefaultEe;
     int mOffHostEe;
+    int mActiveSe;
+    bool mReceivedEeInfo;
+    tNFA_EE_DISCOVER_REQ mEeInfo;
     static const JNINativeMethod sMethods [];
     SyncEvent mEeRegisterEvent;
     SyncEvent mRoutingEvent;
     SyncEvent mEeUpdateEvent;
+    SyncEvent mEeInfoEvent;
 };
 
