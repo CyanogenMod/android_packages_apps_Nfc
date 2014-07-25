@@ -42,13 +42,19 @@ RoutingManager::RoutingManager ()
     static const char fn [] = "RoutingManager::RoutingManager()";
     unsigned long num = 0;
 
+    // Get the active SE
+    if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
+        mActiveSe = num;
+    else
+        mActiveSe = 0x00;
+
     // Get the "default" route
     if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
         mDefaultEe = num;
     else
         mDefaultEe = 0x00;
-
     ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
+
     // Get the default "off-host" route.  This is hard-coded at the Java layer
     // but we can override it here to avoid forcing Java changes.
     if (GetNumValue("DEFAULT_OFFHOST_ROUTE", &num, sizeof(num)))
@@ -57,6 +63,9 @@ RoutingManager::RoutingManager ()
         mOffHostEe = 0xf4;
 
     ALOGD("%s: mOffHostEe=0x%02X", fn, mOffHostEe);
+
+    memset (&mEeInfo, 0, sizeof(mEeInfo));
+    mReceivedEeInfo = false;
 }
 
 RoutingManager::~RoutingManager ()
@@ -84,8 +93,39 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
 
     mRxDataBuffer.clear ();
 
+    if (mActiveSe != 0) {
+        {
+            // Wait for EE info if needed
+            SyncEventGuard guard (mEeInfoEvent);
+            if (!mReceivedEeInfo)
+            {
+                ALOGE("Waiting for EE info");
+                mEeInfoEvent.wait();
+            }
+        }
+        for (UINT8 i = 0; i < mEeInfo.num_ee; i++)
+        {
+             ALOGD ("%s   EE[%u] Handle: 0x%04x  techA: 0x%02x  techB: 0x%02x  techF: 0x%02x  techBprime: 0x%02x",
+                fn, i, mEeInfo.ee_disc_info[i].ee_handle,
+                mEeInfo.ee_disc_info[i].la_protocol,
+                mEeInfo.ee_disc_info[i].lb_protocol,
+                mEeInfo.ee_disc_info[i].lf_protocol,
+                mEeInfo.ee_disc_info[i].lbp_protocol);
+             if (mEeInfo.ee_disc_info[i].ee_handle == (mActiveSe | NFA_HANDLE_GROUP_EE))
+             {
+                int tech_mask = 0x00;
+                if (mEeInfo.ee_disc_info[i].la_protocol != 0) tech_mask |= NFA_TECHNOLOGY_MASK_A;
+                if (mEeInfo.ee_disc_info[i].lb_protocol != 0) tech_mask |= NFA_TECHNOLOGY_MASK_B;
+                ALOGD("Configuring tech mask 0x%02x on EE 0x%04x", tech_mask, mEeInfo.ee_disc_info[i].ee_handle);
+                nfaStat = NFA_CeConfigureUiccListenTech(mEeInfo.ee_disc_info[i].ee_handle, tech_mask);
+                if (nfaStat != NFA_STATUS_OK)
+                    ALOGE ("Failed to configure UICC listen technologies.");
+             }
+        }
+    }
+
     // Tell the host-routing to only listen on Nfc-A
-    nfaStat = NFA_CeSetIsoDepListenTech(0x01);
+    nfaStat = NFA_CeSetIsoDepListenTech(NFA_TECHNOLOGY_MASK_A);
     if (nfaStat != NFA_STATUS_OK)
         ALOGE ("Failed to configure CE IsoDep technologies");
 
@@ -93,6 +133,7 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
     nfaStat = NFA_CeRegisterAidOnDH (NULL, 0, stackCallback);
     if (nfaStat != NFA_STATUS_OK)
         ALOGE("Failed to register wildcard AID for DH");
+
     return true;
 }
 
@@ -404,8 +445,14 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
         break;
 
     case NFA_EE_DISCOVER_REQ_EVT:
-        ALOGD ("%s: NFA_EE_DISCOVER_REQ_EVT; status=0x%X; num ee=%u", __FUNCTION__,
-                eventData->discover_req.status, eventData->discover_req.num_ee);
+        {
+            ALOGD ("%s: NFA_EE_DISCOVER_REQ_EVT; status=0x%X; num ee=%u", __FUNCTION__,
+                    eventData->discover_req.status, eventData->discover_req.num_ee);
+            SyncEventGuard guard (routingManager.mEeInfoEvent);
+            memcpy (&routingManager.mEeInfo, &eventData->discover_req, sizeof(routingManager.mEeInfo));
+            routingManager.mReceivedEeInfo = true;
+            routingManager.mEeInfoEvent.notifyOne();
+        }
         break;
 
     case NFA_EE_NO_CB_ERR_EVT:
