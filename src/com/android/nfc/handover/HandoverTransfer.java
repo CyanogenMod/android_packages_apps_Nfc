@@ -445,7 +445,8 @@ public class HandoverTransfer implements Handler.Callback,
         Intent intent = new Intent(HandoverService.ACTION_CANCEL_HANDOVER_TRANSFER);
         intent.putExtra(HandoverService.EXTRA_ADDRESS, mDeviceType == DEVICE_TYPE_BLUETOOTH
                 ? mRemoteDevice.getAddress() : mRemoteMac);
-        intent.putExtra(HandoverService.EXTRA_INCOMING, incoming ? 1 : 0);
+        intent.putExtra(HandoverService.EXTRA_INCOMING, incoming ?
+                HandoverService.DIRECTION_INCOMING : HandoverService.DIRECTION_OUTGOING);
         PendingIntent pi = PendingIntent.getBroadcast(mContext, mTransferId, intent,
                 PendingIntent.FLAG_ONE_SHOT);
 
