@@ -34,7 +34,8 @@ extern "C"
 const JNINativeMethod RoutingManager::sMethods [] =
 {
     {"doGetDefaultRouteDestination", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination},
-    {"doGetDefaultOffHostRouteDestination", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination}
+    {"doGetDefaultOffHostRouteDestination", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination},
+    {"doGetAidMatchingMode", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode}
 };
 
 RoutingManager::RoutingManager ()
@@ -61,6 +62,11 @@ RoutingManager::RoutingManager ()
         mOffHostEe = num;
     else
         mOffHostEe = 0xf4;
+
+    if (GetNumValue("AID_MATCHING_MODE", &num, sizeof(num)))
+        mAidMatchingMode = num;
+    else
+        mAidMatchingMode = AID_MATCHING_EXACT_ONLY;
 
     ALOGD("%s: mOffHostEe=0x%02X", fn, mOffHostEe);
 
@@ -522,4 +528,9 @@ int RoutingManager::com_android_nfc_cardemulation_doGetDefaultRouteDestination (
 int RoutingManager::com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv*)
 {
     return getInstance().mOffHostEe;
+}
+
+int RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode (JNIEnv*)
+{
+    return getInstance().mAidMatchingMode;
 }
