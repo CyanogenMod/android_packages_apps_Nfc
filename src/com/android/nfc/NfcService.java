@@ -20,7 +20,6 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
-import android.app.ActivityManager.RunningTaskInfo;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -41,6 +40,7 @@ import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcCardEmulation;
 import android.nfc.INfcLockscreenDispatch;
 import android.nfc.INfcTag;
+import android.nfc.INfcUnlockHandler;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
@@ -75,9 +75,9 @@ import com.android.nfc.handover.HandoverManager;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -153,9 +153,9 @@ public class NfcService implements DeviceHostListener {
     // fields below are protected by this
     private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
             new ReaderModeDeathRecipient();
+    private final NfcUnlockManager mNfcUnlockManager;
 
     private int mLockscreenPollMask;
-    private boolean mLockscreenDispatchEnabled;
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -279,6 +279,8 @@ public class NfcService implements DeviceHostListener {
         mScreenStateHelper = new ScreenStateHelper(mContext);
         mContentResolver = mContext.getContentResolver();
         mDeviceHost = new NativeNfcManager(mContext, this);
+
+        mNfcUnlockManager = NfcUnlockManager.getInstance();
 
         mHandoverManager = new HandoverManager(mContext);
         boolean isNfcProvisioningEnabled = false;
@@ -852,8 +854,28 @@ public class NfcService implements DeviceHostListener {
 
             synchronized (NfcService.this) {
                 mLockscreenPollMask = lockscreenPollMask;
-                mLockscreenDispatchEnabled = enableLockscreenDispatch;
                 mNfcDispatcher.registerLockscreenDispatch(lockscreenDispatch);
+            }
+
+            applyRouting(false);
+        }
+
+        @Override
+        public void addNfcUnlockHandler(INfcUnlockHandler unlockHandler, int[] techList) {
+            NfcPermissions.enforceAdminPermissions(mContext);
+
+            int lockscreenPollMask = computeLockscreenPollMask(techList);
+            synchronized (NfcService.this) {
+                mNfcUnlockManager.addUnlockHandler(unlockHandler, lockscreenPollMask);
+            }
+
+            applyRouting(false);
+        }
+
+        @Override
+        public void removeNfcUnlockHandler(IBinder token) throws RemoteException {
+            synchronized (NfcService.this) {
+                mNfcUnlockManager.removeUnlockHandler(token);
             }
 
             applyRouting(false);
@@ -1381,9 +1403,11 @@ public class NfcService implements DeviceHostListener {
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED && mInProvisionMode) {
             paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                mLockscreenDispatchEnabled) {
+                (mNfcUnlockManager.isLockscreenPollingEnabled() || mLockscreenPollMask != 0)) {
             // For lock-screen tags, no low-power polling
-            paramsBuilder.setTechMask(mLockscreenPollMask);
+            // TODO: remove mLockscreenPollMask when removing old API
+            paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask()
+                    | mLockscreenPollMask);
             paramsBuilder.setEnableLowPowerDiscovery(false);
         }
 
