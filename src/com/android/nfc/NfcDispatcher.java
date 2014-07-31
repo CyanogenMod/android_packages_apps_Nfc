@@ -17,6 +17,7 @@
 package com.android.nfc;
 
 import android.nfc.INfcLockscreenDispatch;
+import android.nfc.INfcUnlockHandler;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
 
@@ -50,6 +51,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -67,12 +69,14 @@ class NfcDispatcher {
     final HandoverManager mHandoverManager;
     final String[] mProvisioningMimes;
     final ScreenStateHelper mScreenStateHelper;
+    private final NfcUnlockManager mNfcUnlockManager;
 
     // Locked on this
     PendingIntent mOverrideIntent;
     IntentFilter[] mOverrideFilters;
     String[][] mOverrideTechLists;
     boolean mProvisioningOnly;
+
     private INfcLockscreenDispatch mLockscreenDispatch;
 
     NfcDispatcher(Context context,
@@ -85,6 +89,7 @@ class NfcDispatcher {
         mContentResolver = context.getContentResolver();
         mHandoverManager = handoverManager;
         mScreenStateHelper = new ScreenStateHelper(context);
+        mNfcUnlockManager = NfcUnlockManager.getInstance();
 
         synchronized (this) {
             mProvisioningOnly = provisionOnly;
@@ -226,7 +231,10 @@ class NfcDispatcher {
                 mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
             screenUnlocked = handleLockscreenDispatch(tag);
             if (!screenUnlocked) {
-                return false;
+                screenUnlocked = handleNfcUnlock(tag);
+                if (!screenUnlocked) {
+                    return false;
+                }
             }
         }
 
@@ -294,11 +302,17 @@ class NfcDispatcher {
                 return false;
             }
         } catch (RemoteException e) {
+            // unregister handler here in case of DeadObjectException? we don't want to keep polling
+            // at the lock screen if the package is uninstalled or dead
             Log.e(TAG, "Failed to dispatch tag to lockscreen dispatch", e);
             return false;
         }
 
         return true;
+    }
+
+    private boolean handleNfcUnlock(Tag tag) {
+        return mNfcUnlockManager.tryUnlock(tag);
     }
 
     boolean tryOverrides(DispatchInfo dispatch, Tag tag, NdefMessage message, PendingIntent overrideIntent,
