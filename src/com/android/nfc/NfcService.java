@@ -1892,6 +1892,7 @@ public class NfcService implements DeviceHostListener {
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
+            pw.println("mLockscreenPollMask=" + mLockscreenPollMask);
             pw.println(mCurrentDiscoveryParameters);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
