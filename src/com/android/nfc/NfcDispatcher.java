@@ -273,14 +273,17 @@ class NfcDispatcher {
             return false;
         }
 
-        if (tryTech(dispatch, tag)) {
+        // Only allow NDEF-based mimeType matching for unlock tags
+        if (!screenUnlocked && tryTech(dispatch, tag)) {
             return true;
         }
 
-        dispatch.setTagIntent();
-        if (dispatch.tryStartActivity()) {
-            if (DBG) Log.i(TAG, "matched TAG");
-            return true;
+        if (!screenUnlocked) {
+            dispatch.setTagIntent();
+            if (dispatch.tryStartActivity()) {
+                if (DBG) Log.i(TAG, "matched TAG");
+                return true;
+            }
         }
 
         if (DBG) Log.i(TAG, "no match");
