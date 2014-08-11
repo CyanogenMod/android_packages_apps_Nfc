@@ -53,6 +53,7 @@
     <application android:name=".NfcApplication"
                  android:icon="@drawable/icon"
                  android:label="@string/app_name"
+                 android:theme="@android:style/Theme.Material.Light"
                  android:persistent="true"
                  android:backupAgent="com.android.nfc.NfcBackupAgent"
     >
@@ -74,7 +75,7 @@
         />
 
         <activity android:name=".cardemulation.DefaultRemovedActivity"
-            android:theme="@*android:style/Theme.Holo.Dialog.Alert"
+            android:theme="@*android:style/Theme.Material.Dialog.Alert"
             android:finishOnCloseSystemDialogs="true"
             android:excludeFromRecents="true"
             android:clearTaskOnLaunch="true"
