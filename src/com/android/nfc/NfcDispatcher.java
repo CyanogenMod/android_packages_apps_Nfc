@@ -59,24 +59,27 @@ import java.util.List;
  * Dispatch of NFC events to start activities
  */
 class NfcDispatcher {
-    static final boolean DBG = false;
-    static final String TAG = "NfcDispatcher";
+    private static final boolean DBG = false;
+    private static final String TAG = "NfcDispatcher";
 
-    final Context mContext;
-    final IActivityManager mIActivityManager;
-    final RegisteredComponentCache mTechListFilters;
-    final ContentResolver mContentResolver;
-    final HandoverManager mHandoverManager;
-    final String[] mProvisioningMimes;
-    final ScreenStateHelper mScreenStateHelper;
+    static final int DISPATCH_SUCCESS = 1;
+    static final int DISPATCH_FAIL = 2;
+    static final int DISPATCH_UNLOCK = 3;
+
+    private final Context mContext;
+    private final IActivityManager mIActivityManager;
+    private final RegisteredComponentCache mTechListFilters;
+    private final ContentResolver mContentResolver;
+    private final HandoverManager mHandoverManager;
+    private final String[] mProvisioningMimes;
+    private final ScreenStateHelper mScreenStateHelper;
     private final NfcUnlockManager mNfcUnlockManager;
 
     // Locked on this
-    PendingIntent mOverrideIntent;
-    IntentFilter[] mOverrideFilters;
-    String[][] mOverrideTechLists;
-    boolean mProvisioningOnly;
-
+    private PendingIntent mOverrideIntent;
+    private IntentFilter[] mOverrideFilters;
+    private String[][] mOverrideTechLists;
+    private boolean mProvisioningOnly;
     private INfcLockscreenDispatch mLockscreenDispatch;
 
     NfcDispatcher(Context context,
@@ -212,8 +215,14 @@ class NfcDispatcher {
         }
     }
 
-    /** Returns false if no activities were found to dispatch to */
-    public boolean dispatchTag(Tag tag) {
+    /** Returns:
+     * <ul>
+     *  <li /> DISPATCH_SUCCESS if dispatched to an activity,
+     *  <li /> DISPATCH_FAIL if no activities were found to dispatch to,
+     *  <li /> DISPATCH_UNLOCK if the tag was used to unlock the device
+     * </ul>
+     */
+    public int dispatchTag(Tag tag) {
         PendingIntent overrideIntent;
         IntentFilter[] overrideFilters;
         String[][] overrideTechLists;
@@ -233,7 +242,7 @@ class NfcDispatcher {
             if (!screenUnlocked) {
                 screenUnlocked = handleNfcUnlock(tag);
                 if (!screenUnlocked) {
-                    return false;
+                    return DISPATCH_FAIL;
                 }
             }
         }
@@ -250,44 +259,48 @@ class NfcDispatcher {
 
         resumeAppSwitches();
 
-        if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters, overrideTechLists)) {
-            return true;
+        if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters,
+                overrideTechLists)) {
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (!provisioningOnly && mHandoverManager.tryHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
-            return true;
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (!provisioningOnly && NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
             if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
-            return true;
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (tryNdef(dispatch, message, provisioningOnly)) {
-            return true;
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
+        }
+
+        if (screenUnlocked) {
+            // We only allow NDEF-based mimeType matching in case of an unlock
+            return DISPATCH_UNLOCK;
         }
 
         if (provisioningOnly) {
             // We only allow NDEF-based mimeType matching
-            return false;
+            return DISPATCH_FAIL;
         }
 
         // Only allow NDEF-based mimeType matching for unlock tags
-        if (!screenUnlocked && tryTech(dispatch, tag)) {
-            return true;
+        if (tryTech(dispatch, tag)) {
+            return DISPATCH_SUCCESS;
         }
 
-        if (!screenUnlocked) {
-            dispatch.setTagIntent();
-            if (dispatch.tryStartActivity()) {
-                if (DBG) Log.i(TAG, "matched TAG");
-                return true;
-            }
+        dispatch.setTagIntent();
+        if (dispatch.tryStartActivity()) {
+            if (DBG) Log.i(TAG, "matched TAG");
+            return DISPATCH_SUCCESS;
         }
 
         if (DBG) Log.i(TAG, "no match");
-        return screenUnlocked;
+        return DISPATCH_FAIL;
     }
 
     /**

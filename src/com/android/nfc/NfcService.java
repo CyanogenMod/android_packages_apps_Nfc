@@ -1584,10 +1584,10 @@ public class NfcService implements DeviceHostListener {
                             new Bundle[]{extras});
                     Log.d(TAG, "mock NDEF tag, starting corresponding activity");
                     Log.d(TAG, tag.toString());
-                    boolean delivered = mNfcDispatcher.dispatchTag(tag);
-                    if (delivered) {
+                    int dispatchStatus = mNfcDispatcher.dispatchTag(tag);
+                    if (dispatchStatus == NfcDispatcher.DISPATCH_SUCCESS) {
                         playSound(SOUND_END);
-                    } else {
+                    } else if (dispatchStatus == NfcDispatcher.DISPATCH_FAIL) {
                         playSound(SOUND_ERROR);
                     }
                     break;
@@ -1769,10 +1769,11 @@ public class NfcService implements DeviceHostListener {
                     return;
                 }
             }
-            if (!mNfcDispatcher.dispatchTag(tag)) {
+            int dispatchResult = mNfcDispatcher.dispatchTag(tag);
+            if (dispatchResult == NfcDispatcher.DISPATCH_FAIL) {
                 unregisterObject(tagEndpoint.getHandle());
                 playSound(SOUND_ERROR);
-            } else {
+            } else if (dispatchResult == NfcDispatcher.DISPATCH_SUCCESS) {
                 playSound(SOUND_END);
             }
         }
