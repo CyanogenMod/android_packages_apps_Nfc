@@ -31,9 +31,6 @@ extern "C"
 class RoutingManager
 {
 public:
-    static const int ROUTE_HOST = 0;
-    static const int ROUTE_ESE = 1;
-
     static RoutingManager& getInstance ();
     bool initialize(nfc_jni_native_data* native);
     void enableRoutingToHost();
@@ -65,6 +62,7 @@ private:
     int mActiveSe;
     bool mReceivedEeInfo;
     tNFA_EE_DISCOVER_REQ mEeInfo;
+    tNFA_TECHNOLOGY_MASK mSeTechMask;
     static const JNINativeMethod sMethods [];
     SyncEvent mEeRegisterEvent;
     SyncEvent mRoutingEvent;
