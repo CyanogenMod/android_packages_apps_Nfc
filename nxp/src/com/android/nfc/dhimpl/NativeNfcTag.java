@@ -104,26 +104,28 @@ public class NativeNfcTag implements TagEndpoint {
         }
 
         @Override
-        public synchronized void run() {
+        public void run() {
             if (DBG) Log.d(TAG, "Starting background presence check");
-            while (isPresent && !isStopped) {
-                try {
-                    if (!isPaused) {
-                        doCheck = true;
+            synchronized (this) {
+                while (isPresent && !isStopped) {
+                    try {
+                        if (!isPaused) {
+                            doCheck = true;
+                        }
+                        this.wait(watchdogTimeout);
+                        if (doCheck) {
+                            isPresent = doPresenceCheck();
+                        } else {
+                            // 1) We are paused, waiting for unpause
+                            // 2) We just unpaused, do pres check in next iteration
+                            //       (after watchdogTimeout ms sleep)
+                            // 3) We just set the timeout, wait for this timeout
+                            //       to expire once first.
+                            // 4) We just stopped, exit loop anyway
+                        }
+                    } catch (InterruptedException e) {
+                        // Activity detected, loop
                     }
-                    this.wait(watchdogTimeout);
-                    if (doCheck) {
-                        isPresent = doPresenceCheck();
-                    } else {
-                        // 1) We are paused, waiting for unpause
-                        // 2) We just unpaused, do pres check in next iteration
-                        //       (after watchdogTimeout ms sleep)
-                        // 3) We just set the timeout, wait for this timeout
-                        //       to expire once first.
-                        // 4) We just stopped, exit loop anyway
-                    }
-                } catch (InterruptedException e) {
-                    // Activity detected, loop
                 }
             }
 
