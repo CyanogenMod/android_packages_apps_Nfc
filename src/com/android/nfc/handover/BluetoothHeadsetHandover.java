@@ -49,8 +49,8 @@ import com.android.nfc.R;
  *
  */
 public class BluetoothHeadsetHandover implements BluetoothProfile.ServiceListener {
-    static final String TAG = HandoverManager.TAG;
-    static final boolean DBG = HandoverManager.DBG;
+    static final String TAG = "BluetoothHeadsetHandover";
+    static final boolean DBG = false;
 
     static final String ACTION_ALLOW_CONNECT = "com.android.nfc.handover.action.ALLOW_CONNECT";
     static final String ACTION_DENY_CONNECT = "com.android.nfc.handover.action.DENY_CONNECT";
