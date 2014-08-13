@@ -26,9 +26,6 @@ import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
-import android.net.wifi.p2p.WifiP2pGroup;
-import android.net.wifi.p2p.WifiP2pInfo;
-import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -39,9 +36,6 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.android.nfc.R;
-import com.android.nfc.handover.wifi.WifiDirectReceiveHandler;
-import com.android.nfc.handover.wifi.WifiDirectSendHandler;
-import com.android.nfc.handover.wifi.WifiHandoverTransferProcessor;
 
 import java.io.File;
 import java.util.HashMap;
@@ -135,7 +129,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     boolean mBluetoothEnabledByNfc;
 
     private HandoverTransfer mWifiTransfer;
-    private WifiHandoverTransferProcessor mWifiTransferProcessor;
 
     class MessageHandler extends Handler {
         @Override
@@ -182,50 +175,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         }
     };
 
-    final BroadcastReceiver mWifiP2pStatusReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            HandoverTransfer transfer;
-            synchronized (this) {
-                if (mWifiTransfer == null) {
-                    return;
-                }
-
-                transfer = mWifiTransfer;
-            }
-
-            if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(intent.getAction())) {
-                WifiP2pGroup p2pGroup =
-                        intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
-                WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
-
-
-                if (p2pInfo.groupFormed) {
-
-                    String macAddress = getMacAddressFromP2pGroup(p2pGroup);
-
-                    if (macAddress != null) {
-                        macAddress = normalizeMac(macAddress);
-
-                        if (macAddress.equals(transfer.mRemoteMac))  {
-                            if (transfer.mIncoming) {
-                                mWifiTransferProcessor =
-                                        new WifiDirectReceiveHandler(context, macAddress, p2pInfo);
-                            } else {
-                                mWifiTransferProcessor = new WifiDirectSendHandler(
-                                        context, macAddress, p2pInfo, transfer.mOutgoingUris);
-                            }
-
-                            mWifiTransferProcessor.start();
-                        }
-                    }
-                } else {
-                    Log.e(TAG, "P2P Group information not available, can't start transfer.");
-                }
-            }
-        }
-    };
-
     public HandoverService() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mPendingOutTransfers = new LinkedList<BluetoothOppHandover>();
@@ -249,11 +198,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(ACTION_HANDOVER_STARTED);
         registerReceiver(mHandoverStatusReceiver, filter, HANDOVER_STATUS_PERMISSION, mHandler);
-
-        IntentFilter wifiStatusFilter =
-                new IntentFilter(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
-        registerReceiver(mWifiP2pStatusReceiver, wifiStatusFilter);
-
     }
 
     @Override
@@ -263,7 +207,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             mSoundPool.release();
         }
         unregisterReceiver(mHandoverStatusReceiver);
-        unregisterReceiver(mWifiP2pStatusReceiver);
     }
 
     void doOutgoingTransfer(Message msg) {
@@ -273,7 +216,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         PendingHandoverTransfer pendingTransfer = msgData.getParcelable(BUNDLE_TRANSFER);
         createHandoverTransfer(pendingTransfer);
 
-        // WiFi will send once the P2P link is established
         if (pendingTransfer.deviceType == HandoverTransfer.DEVICE_TYPE_BLUETOOTH) {
             // Create the actual bluetooth transfer
             BluetoothOppHandover handover = new BluetoothOppHandover(HandoverService.this,
@@ -364,11 +306,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             macAddress = pendingTransfer.remoteDevice.getAddress();
             transfer = maybeCreateHandoverTransfer(macAddress,
                     pendingTransfer.incoming, pendingTransfer);
-        } else if (pendingTransfer.deviceType == HandoverTransfer.DEVICE_TYPE_WIFI) {
-            transfer = new HandoverTransfer(this, this, pendingTransfer);
-            synchronized (this) {
-                mWifiTransfer = transfer;
-            }
         } else {
             Log.e(TAG, "Invalid device type [" + pendingTransfer.deviceType + "] received.");
             return;
@@ -405,13 +342,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
 
     HandoverTransfer findHandoverTransfer(String macAddress, boolean incoming) {
-
-        synchronized (this) {
-            if (mWifiTransfer != null && macAddress.equals(mWifiTransfer.mRemoteMac)) {
-                return mWifiTransfer;
-            }
-        }
-
         Pair<String, Boolean> key = new Pair<String, Boolean>(macAddress, incoming);
         if (mBluetoothTransfers.containsKey(key)) {
             HandoverTransfer transfer = mBluetoothTransfers.get(key);
@@ -453,8 +383,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                             "android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
                     cancelIntent.putExtra(EXTRA_TRANSFER_ID, id);
                     sendBroadcast(cancelIntent);
-                } else if (deviceType == HandoverTransfer.DEVICE_TYPE_WIFI) {
-                    // TODO: cancel transfer
                 }
             }
             return;
@@ -499,12 +427,6 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         if (transfer != null) {
             if (DBG) Log.d(TAG, "Cancelling transfer " + Integer.toString(transfer.mTransferId));
             transfer.cancel();
-
-            if (transfer.mDeviceType == HandoverTransfer.DEVICE_TYPE_WIFI) {
-                if (mWifiTransferProcessor != null) {
-                    mWifiTransferProcessor.cancelTransfer();
-                }
-            }
         }
     }
 
@@ -597,23 +519,5 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             }
         }
         disableBluetoothIfNeeded();
-    }
-
-    private static String getMacAddressFromP2pGroup(WifiP2pGroup p2pGroup) {
-        if (p2pGroup.isGroupOwner()) {
-            if (p2pGroup.getClientList().size() > 0) {
-                // Should be only one client
-                return p2pGroup.getClientList().iterator().next().deviceAddress;
-            } else {
-                Log.e(TAG, "No clients in P2P group, can't start transfer.");
-                return null;
-            }
-        } else {
-            return p2pGroup.getOwner().deviceAddress;
-        }
-    }
-
-    private static String normalizeMac(String mac) {
-        return mac.replace(":", "").toUpperCase();
     }
 }
