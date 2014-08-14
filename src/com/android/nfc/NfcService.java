@@ -873,9 +873,9 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
-        public void removeNfcUnlockHandler(IBinder token) throws RemoteException {
+        public void removeNfcUnlockHandler(INfcUnlockHandler token) throws RemoteException {
             synchronized (NfcService.this) {
-                mNfcUnlockManager.removeUnlockHandler(token);
+                mNfcUnlockManager.removeUnlockHandler(token.asBinder());
             }
 
             applyRouting(false);
