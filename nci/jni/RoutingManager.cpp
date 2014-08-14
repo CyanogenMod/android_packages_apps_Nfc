@@ -77,7 +77,6 @@ RoutingManager::~RoutingManager ()
 bool RoutingManager::initialize (nfc_jni_native_data* native)
 {
     static const char fn [] = "RoutingManager::initialize()";
-    tNFA_TECHNOLOGY_MASK hce_listen_tech_mask = NFA_TECHNOLOGY_MASK_A;
     mNativeData = native;
 
     tNFA_STATUS nfaStat;
@@ -115,26 +114,26 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
                 mEeInfo.ee_disc_info[i].lbp_protocol);
              if (mEeInfo.ee_disc_info[i].ee_handle == (mActiveSe | NFA_HANDLE_GROUP_EE))
              {
-                if (mEeInfo.ee_disc_info[i].la_protocol != 0) mSeTechMask |= NFA_TECHNOLOGY_MASK_A;
-                if (mEeInfo.ee_disc_info[i].lb_protocol != 0) mSeTechMask |= NFA_TECHNOLOGY_MASK_B;
-                ALOGD("Configuring tech mask 0x%02x on EE 0x%04x", mSeTechMask, mEeInfo.ee_disc_info[i].ee_handle);
-                nfaStat = NFA_CeConfigureUiccListenTech(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask);
-                if (nfaStat != NFA_STATUS_OK)
-                    ALOGE ("Failed to configure UICC listen technologies.");
-                // Set technology routes to UICC if it's there
-                nfaStat = NFA_EeSetDefaultTechRouting(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask, mSeTechMask,
-                        mSeTechMask);
-                if (nfaStat != NFA_STATUS_OK)
-                    ALOGE ("Failed to configure UICC listen technologies.");
-                // Also configure HCE tech mask to the same technologies
-                hce_listen_tech_mask = mSeTechMask;
+                 if (mEeInfo.ee_disc_info[i].la_protocol != 0) mSeTechMask |= NFA_TECHNOLOGY_MASK_A;
+
+                 if (mSeTechMask != 0x00)
+                 {
+                     ALOGD("Configuring tech mask 0x%02x on EE 0x%04x", mSeTechMask, mEeInfo.ee_disc_info[i].ee_handle);
+                     nfaStat = NFA_CeConfigureUiccListenTech(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask);
+                     if (nfaStat != NFA_STATUS_OK)
+                         ALOGE ("Failed to configure UICC listen technologies.");
+                     // Set technology routes to UICC if it's there
+                     nfaStat = NFA_EeSetDefaultTechRouting(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask, mSeTechMask,
+                             mSeTechMask);
+                     if (nfaStat != NFA_STATUS_OK)
+                         ALOGE ("Failed to configure UICC technology routing.");
+                 }
              }
         }
     }
 
-    // Tell the host-routing to only listen on Nfc-A, unless
-    // listen_tech_mask says otherwise
-    nfaStat = NFA_CeSetIsoDepListenTech(hce_listen_tech_mask);
+    // Tell the host-routing to only listen on Nfc-A
+    nfaStat = NFA_CeSetIsoDepListenTech(NFA_TECHNOLOGY_MASK_A);
     if (nfaStat != NFA_STATUS_OK)
         ALOGE ("Failed to configure CE IsoDep technologies");
 
@@ -159,10 +158,10 @@ void RoutingManager::enableRoutingToHost()
     {
         SyncEventGuard guard (mRoutingEvent);
 
-        // Route Nfc-A to host if we don't have a UICC
+        // Route Nfc-A to host if we don't have a SE
         if (mSeTechMask == 0)
         {
-            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0x1, 0, 0);
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, NFA_TECHNOLOGY_MASK_A, 0, 0);
             if (nfaStat == NFA_STATUS_OK)
                 mRoutingEvent.wait ();
             else
@@ -184,7 +183,7 @@ void RoutingManager::disableRoutingToHost()
 
     {
         SyncEventGuard guard (mRoutingEvent);
-        // Default routing for NFC-A technology if we don't have a UICC
+        // Default routing for NFC-A technology if we don't have a SE
         if (mSeTechMask == 0)
         {
             nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0, 0, 0);
