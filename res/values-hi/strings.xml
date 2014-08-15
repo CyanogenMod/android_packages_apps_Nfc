@@ -25,8 +25,8 @@
     <string name="disconnected_headset" msgid="4066109452701733916">"डिस्कनेक्ट किया गया"</string>
     <string name="pairing_headset" msgid="6443461444755646137">"युग्मन"</string>
     <string name="pairing_headset_failed" msgid="6509629663883514688">"युग्‍मित नहीं किया जा सका"</string>
-    <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth को सक्षम नहीं किया जा सका"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"क्‍या आप वाकई Bluetooth उपकरण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> को युग्मित करना चाहते हैं?"</string>
+    <string name="failed_to_enable_bt" msgid="7229153323594758077">"ब्लूटूथ को सक्षम नहीं किया जा सका"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"क्‍या आप वाकई ब्लूटूथ उपकरण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> को युग्मित करना चाहते हैं?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"हां"</string>
     <string name="pair_no" msgid="5022308368904055020">"नहीं"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"<xliff:g id="APP">%1$s</xliff:g> के साथ भुगतान करने के लिए पुन: टैप करें"</string>
