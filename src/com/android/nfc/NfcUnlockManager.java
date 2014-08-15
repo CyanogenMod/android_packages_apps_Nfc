@@ -12,22 +12,34 @@ import java.util.HashMap;
  * Singleton for handling NFC Unlock related logic and state.
  */
 class NfcUnlockManager {
-
     private static final String TAG = "NfcUnlockManager";
-    private final HashMap<INfcUnlockHandler, Integer> mUnlockHandlers;
 
+    private final HashMap<IBinder, UnlockHandlerWrapper> mUnlockHandlers;
     private int mLockscreenPollMask;
+
+    private static class UnlockHandlerWrapper {
+        final INfcUnlockHandler mUnlockHandler;
+        final int mPollMask;
+
+
+        private UnlockHandlerWrapper(INfcUnlockHandler unlockHandler, int pollMask) {
+            mUnlockHandler = unlockHandler;
+            mPollMask = pollMask;
+        }
+    }
 
     public static NfcUnlockManager getInstance() {
         return Singleton.INSTANCE;
     }
 
+
     synchronized int addUnlockHandler(INfcUnlockHandler unlockHandler, int pollMask) {
-        if (mUnlockHandlers.containsKey(unlockHandler)) {
+        if (mUnlockHandlers.containsKey(unlockHandler.asBinder())) {
             return mLockscreenPollMask;
         }
 
-        mUnlockHandlers.put(unlockHandler, pollMask);
+        mUnlockHandlers.put(unlockHandler.asBinder(),
+                new UnlockHandlerWrapper(unlockHandler, pollMask));
         return (mLockscreenPollMask |= pollMask);
     }
 
@@ -41,14 +53,16 @@ class NfcUnlockManager {
     }
 
     synchronized boolean tryUnlock(Tag tag) {
-        for (INfcUnlockHandler handler : mUnlockHandlers.keySet()) {
+        for (IBinder binder : mUnlockHandlers.keySet()) {
             try {
-                if (handler.onUnlockAttempted(tag)) {
+                UnlockHandlerWrapper handlerWrapper = mUnlockHandlers.get(binder);
+                if (handlerWrapper.mUnlockHandler.onUnlockAttempted(tag)) {
                     return true;
                 }
             } catch (RemoteException e) {
-                // remove handler here? keep a counter of failed attempts and remove at Nth?
-                Log.e(TAG, "failed to communicate with unlock handler, skipping", e);
+                Log.e(TAG, "failed to communicate with unlock handler, removing", e);
+                mUnlockHandlers.remove(binder);
+                mLockscreenPollMask = recomputePollMask();
             }
         }
 
@@ -57,8 +71,8 @@ class NfcUnlockManager {
 
     private int recomputePollMask() {
         int pollMask = 0;
-        for (int mask : mUnlockHandlers.values()) {
-            pollMask |= mask;
+        for (UnlockHandlerWrapper wrapper : mUnlockHandlers.values()) {
+            pollMask |= wrapper.mPollMask;
         }
         return pollMask;
     }
@@ -76,7 +90,7 @@ class NfcUnlockManager {
     }
 
     private NfcUnlockManager() {
-        mUnlockHandlers = new HashMap<INfcUnlockHandler, Integer>();
+        mUnlockHandlers = new HashMap<IBinder, UnlockHandlerWrapper>();
         mLockscreenPollMask = 0;
     }
 }
