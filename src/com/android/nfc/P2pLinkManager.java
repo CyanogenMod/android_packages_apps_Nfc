@@ -221,7 +221,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     int mNdefCallbackUid;
     SendTask mSendTask;
     SharedPreferences mPrefs;
-    boolean mFirstBeam;
     SnepClient mSnepClient;
     HandoverClient mHandoverClient;
     NdefPushClient mNdefPushClient;
@@ -250,7 +249,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         mIsSendEnabled = false;
         mIsReceiveEnabled = false;
         mPrefs = context.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
-        mFirstBeam = mPrefs.getBoolean(NfcService.PREF_FIRST_BEAM, true);
         mHandoverManager = handoverManager;
         mDefaultMiu = defaultMiu;
         mDefaultRwSize = defaultRwSize;
@@ -594,13 +592,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     }
 
     void onSendComplete(NdefMessage msg, long elapsedRealtime) {
-        if (mFirstBeam) {
-            EventLogTags.writeNfcFirstShare();
-            mPrefs.edit().putBoolean(NfcService.PREF_FIRST_BEAM, false).apply();
-            mFirstBeam = false;
-        }
-        EventLogTags.writeNfcShare(getMessageSize(msg), getMessageTnf(msg), getMessageType(msg),
-                getMessageAarPresent(msg), (int) elapsedRealtime);
         // Make callbacks on UI thread
         mHandler.sendEmptyMessage(MSG_SEND_COMPLETE);
     }
@@ -895,8 +886,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     }
 
     void onReceiveComplete(NdefMessage msg) {
-        EventLogTags.writeNfcNdefReceived(getMessageSize(msg), getMessageTnf(msg),
-                getMessageType(msg), getMessageAarPresent(msg));
         // Make callbacks on UI thread
         mHandler.obtainMessage(MSG_RECEIVE_COMPLETE, msg).sendToTarget();
     }
@@ -926,11 +915,6 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 synchronized (this) {
                     if (mLinkState != LINK_STATE_DEBOUNCE) {
                         break;
-                    }
-                    if (mSendState == SEND_STATE_SENDING) {
-                        EventLogTags.writeNfcShareFail(getMessageSize(mMessageToSend),
-                                getMessageTnf(mMessageToSend), getMessageType(mMessageToSend),
-                                getMessageAarPresent(mMessageToSend));
                     }
                     if (DBG) Log.d(TAG, "Debounce timeout");
                     mLinkState = LINK_STATE_DOWN;
