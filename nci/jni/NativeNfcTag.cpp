@@ -999,12 +999,6 @@ void nativeNfcTag_doCheckNdefResult (tNFA_STATUS status, uint32_t maxSize, uint3
     //#define RW_NDEF_FL_UNKNOWN    0x08    /* Unable to find if tag is ndef capable/formated/read only */
     //#define RW_NDEF_FL_FORMATABLE 0x10    /* Tag supports format operation */
 
-    if (status == NFC_STATUS_BUSY)
-    {
-        ALOGE ("%s: stack is busy", __FUNCTION__);
-        return;
-    }
-
     if (!sCheckNdefWaitingForComplete)
     {
         ALOGE ("%s: not waiting", __FUNCTION__);
