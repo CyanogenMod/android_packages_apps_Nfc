@@ -44,7 +44,7 @@ public class ConfirmConnectActivity extends Activity {
                .setPositiveButton(res.getString(R.string.pair_yes),
                        new DialogInterface.OnClickListener() {
                    public void onClick(DialogInterface dialog, int id) {
-                        Intent allowIntent = new Intent(BluetoothHeadsetHandover.ACTION_ALLOW_CONNECT);
+                        Intent allowIntent = new Intent(BluetoothPeripheralHandover.ACTION_ALLOW_CONNECT);
                         allowIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
                         sendBroadcast(allowIntent);
                         ConfirmConnectActivity.this.finish();
@@ -53,7 +53,7 @@ public class ConfirmConnectActivity extends Activity {
                .setNegativeButton(res.getString(R.string.pair_no),
                        new DialogInterface.OnClickListener() {
                    public void onClick(DialogInterface dialog, int id) {
-                       Intent denyIntent = new Intent(BluetoothHeadsetHandover.ACTION_DENY_CONNECT);
+                       Intent denyIntent = new Intent(BluetoothPeripheralHandover.ACTION_DENY_CONNECT);
                        denyIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
                        sendBroadcast(denyIntent);
                        ConfirmConnectActivity.this.finish();

@@ -54,6 +54,9 @@ public class HandoverManager {
 
     private static final byte[] TYPE_BT_OOB = "application/vnd.bluetooth.ep.oob"
             .getBytes(Charset.forName("US_ASCII"));
+    private static final byte[] TYPE_BLE_OOB = "application/vnd.bluetooth.le.oob"
+            .getBytes(Charset.forName("US_ASCII"));
+
     private static final byte[] TYPE_NOKIA = "nokia.com:bt".getBytes(Charset.forName("US_ASCII"));
 
     private static final byte[] RTD_COLLISION_RESOLUTION = {0x63, 0x72}; // "cr";
@@ -63,8 +66,15 @@ public class HandoverManager {
     private static final int CARRIER_POWER_STATE_ACTIVATING = 2;
     private static final int CARRIER_POWER_STATE_UNKNOWN = 3;
 
+    private static final int BT_HANDOVER_TYPE_MAC = 0x1B;
+    private static final int BT_HANDOVER_TYPE_LE_ROLE = 0x1C;
+    private static final int BT_HANDOVER_TYPE_LONG_LOCAL_NAME = 0x09;
+    private static final int BT_HANDOVER_TYPE_SHORT_LOCAL_NAME = 0x08;
+    public static final int BT_HANDOVER_LE_ROLE_CENTRAL_ONLY = 0x01;
+
     static final String ACTION_WHITELIST_DEVICE =
             "android.btopp.intent.action.WHITELIST_DEVICE";
+
     static final int MSG_HANDOVER_COMPLETE = 0;
     static final int MSG_HEADSET_CONNECTED = 1;
     static final int MSG_HEADSET_NOT_CONNECTED = 2;
@@ -93,6 +103,7 @@ public class HandoverManager {
         public BluetoothDevice device;
         public String name;
         public boolean carrierActivating = false;
+        public int transport = BluetoothDevice.TRANSPORT_AUTO;
     }
 
     class MessageHandler extends Handler {
@@ -442,10 +453,11 @@ public class HandoverManager {
                 return true;
             }
 
-            Message msg = Message.obtain(null, HandoverService.MSG_HEADSET_HANDOVER, 0, 0);
+            Message msg = Message.obtain(null, HandoverService.MSG_PERIPHERAL_HANDOVER, 0, 0);
             Bundle headsetData = new Bundle();
-            headsetData.putParcelable(HandoverService.EXTRA_HEADSET_DEVICE, handover.device);
-            headsetData.putString(HandoverService.EXTRA_HEADSET_NAME, handover.name);
+            headsetData.putParcelable(HandoverService.EXTRA_PERIPHERAL_DEVICE, handover.device);
+            headsetData.putString(HandoverService.EXTRA_PERIPHERAL_NAME, handover.name);
+            headsetData.putInt(HandoverService.EXTRA_PERIPHERAL_TRANSPORT, handover.transport);
             msg.setData(headsetData);
             return sendOrQueueMessageLocked(msg);
         }
@@ -545,6 +557,11 @@ public class HandoverManager {
                 }
                 return data;
             }
+
+            if (oob.getTnf() == NdefRecord.TNF_MIME_MEDIA &&
+                    Arrays.equals(oob.getType(), TYPE_BLE_OOB)) {
+                return parseBleOob(ByteBuffer.wrap(oob.getPayload()));
+            }
         }
 
         return null;
@@ -558,6 +575,11 @@ public class HandoverManager {
         // Check for BT OOB record
         if (r.getTnf() == NdefRecord.TNF_MIME_MEDIA && Arrays.equals(r.getType(), TYPE_BT_OOB)) {
             return parseBtOob(ByteBuffer.wrap(r.getPayload()));
+        }
+
+        // Check for BLE OOB record
+        if (r.getTnf() == NdefRecord.TNF_MIME_MEDIA && Arrays.equals(r.getType(), TYPE_BLE_OOB)) {
+            return parseBleOob(ByteBuffer.wrap(r.getPayload()));
         }
 
         // Check for Handover Select, followed by a BT OOB record
@@ -603,16 +625,8 @@ public class HandoverManager {
         result.valid = false;
 
         try {
-            payload.position(2);
-            byte[] address = new byte[6];
-            payload.get(address);
-            // ByteBuffer.order(LITTLE_ENDIAN) doesn't work for
-            // ByteBuffer.get(byte[]), so manually swap order
-            for (int i = 0; i < 3; i++) {
-                byte temp = address[i];
-                address[i] = address[5 - i];
-                address[5 - i] = temp;
-            }
+            payload.position(2); // length
+            byte[] address = parseMacFromBluetoothRecord(payload);
             result.device = mBluetoothAdapter.getRemoteDevice(address);
             result.valid = true;
 
@@ -621,12 +635,12 @@ public class HandoverManager {
                 int len = payload.get();
                 int type = payload.get();
                 switch (type) {
-                    case 0x08:  // short local name
+                    case BT_HANDOVER_TYPE_SHORT_LOCAL_NAME:
                         nameBytes = new byte[len - 1];
                         payload.get(nameBytes);
                         result.name = new String(nameBytes, Charset.forName("UTF-8"));
                         break;
-                    case 0x09:  // long local name
+                    case BT_HANDOVER_TYPE_LONG_LOCAL_NAME:
                         if (result.name != null) break;  // prefer short name
                         nameBytes = new byte[len - 1];
                         payload.get(nameBytes);
@@ -644,6 +658,64 @@ public class HandoverManager {
         }
         if (result.valid && result.name == null) result.name = "";
         return result;
+    }
+
+    BluetoothHandoverData parseBleOob(ByteBuffer payload) {
+        BluetoothHandoverData result = new BluetoothHandoverData();
+        result.valid = false;
+        result.transport = BluetoothDevice.TRANSPORT_LE;
+
+        try {
+
+            while (payload.remaining() > 0) {
+                byte[] nameBytes;
+                int len = payload.get();
+                int type = payload.get();
+                switch (type) {
+                    case BT_HANDOVER_TYPE_MAC: // mac address
+                        byte[] address = parseMacFromBluetoothRecord(payload);
+                        payload.position(payload.position() + 1); // advance over random byte
+                        result.device = mBluetoothAdapter.getRemoteDevice(address);
+                        result.valid = true;
+                        break;
+                    case BT_HANDOVER_TYPE_LE_ROLE:
+                        byte role = payload.get();
+                        if (role == BT_HANDOVER_LE_ROLE_CENTRAL_ONLY) {
+                            // only central role supported, can't pair
+                            result.valid = false;
+                            return result;
+                        }
+                        break;
+                    case BT_HANDOVER_TYPE_LONG_LOCAL_NAME:
+                        nameBytes = new byte[len - 1];
+                        payload.get(nameBytes);
+                        result.name = new String(nameBytes, Charset.forName("UTF-8"));
+                        break;
+                    default:
+                        payload.position(payload.position() + len - 1);
+                        break;
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            Log.i(TAG, "BT OOB: invalid BT address");
+        } catch (BufferUnderflowException e) {
+            Log.i(TAG, "BT OOB: payload shorter than expected");
+        }
+        if (result.valid && result.name == null) result.name = "";
+        return result;
+    }
+
+    private byte[] parseMacFromBluetoothRecord(ByteBuffer payload) {
+        byte[] address = new byte[6];
+        payload.get(address);
+        // ByteBuffer.order(LITTLE_ENDIAN) doesn't work for
+        // ByteBuffer.get(byte[]), so manually swap order
+        for (int i = 0; i < 3; i++) {
+            byte temp = address[i];
+            address[i] = address[5 - i];
+            address[5 - i] = temp;
+        }
+        return address;
     }
 
     static byte[] addressToReverseBytes(String address) {
