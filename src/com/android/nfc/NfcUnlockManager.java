@@ -7,6 +7,7 @@ import android.os.RemoteException;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.Iterator;
 
 /**
  * Singleton for handling NFC Unlock related logic and state.
@@ -53,15 +54,17 @@ class NfcUnlockManager {
     }
 
     synchronized boolean tryUnlock(Tag tag) {
-        for (IBinder binder : mUnlockHandlers.keySet()) {
+        Iterator<IBinder> iterator = mUnlockHandlers.keySet().iterator();
+        while (iterator.hasNext()) {
             try {
+                IBinder binder = iterator.next();
                 UnlockHandlerWrapper handlerWrapper = mUnlockHandlers.get(binder);
                 if (handlerWrapper.mUnlockHandler.onUnlockAttempted(tag)) {
                     return true;
                 }
             } catch (RemoteException e) {
                 Log.e(TAG, "failed to communicate with unlock handler, removing", e);
-                mUnlockHandlers.remove(binder);
+                iterator.remove();
                 mLockscreenPollMask = recomputePollMask();
             }
         }
