@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.Queue;
 
 public class HandoverService extends Service implements HandoverTransfer.Callback,
-        BluetoothHeadsetHandover.Callback {
+        BluetoothPeripheralHandover.Callback {
 
     static final String TAG = "HandoverService";
     static final boolean DBG = true;
@@ -54,12 +54,13 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     static final int MSG_DEREGISTER_CLIENT = 1;
     static final int MSG_START_INCOMING_TRANSFER = 2;
     static final int MSG_START_OUTGOING_TRANSFER = 3;
-    static final int MSG_HEADSET_HANDOVER = 4;
+    static final int MSG_PERIPHERAL_HANDOVER = 4;
 
     static final String BUNDLE_TRANSFER = "transfer";
 
-    static final String EXTRA_HEADSET_DEVICE = "device";
-    static final String EXTRA_HEADSET_NAME = "headsetname";
+    static final String EXTRA_PERIPHERAL_DEVICE = "device";
+    static final String EXTRA_PERIPHERAL_NAME = "headsetname";
+    static final String EXTRA_PERIPHERAL_TRANSPORT = "transporttype";
 
     public static final String ACTION_CANCEL_HANDOVER_TRANSFER =
             "com.android.nfc.handover.action.CANCEL_HANDOVER_TRANSFER";
@@ -124,7 +125,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     BluetoothAdapter mBluetoothAdapter;
     Messenger mClient;
     Handler mHandler;
-    BluetoothHeadsetHandover mBluetoothHeadsetHandover;
+    BluetoothPeripheralHandover mBluetoothPeripheralHandover;
     boolean mBluetoothHeadsetConnected;
     boolean mBluetoothEnabledByNfc;
 
@@ -149,8 +150,8 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                 case MSG_START_OUTGOING_TRANSFER:
                     doOutgoingTransfer(msg);
                     break;
-                case MSG_HEADSET_HANDOVER:
-                    doHeadsetHandover(msg);
+                case MSG_PERIPHERAL_HANDOVER:
+                    doPeripheralHandover(msg);
                     break;
             }
         }
@@ -253,23 +254,24 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         // Remote device will connect and finish the transfer
     }
 
-    void doHeadsetHandover(Message msg) {
+    void doPeripheralHandover(Message msg) {
         Bundle msgData = msg.getData();
-        BluetoothDevice device = msgData.getParcelable(EXTRA_HEADSET_DEVICE);
-        String name = msgData.getString(EXTRA_HEADSET_NAME);
-        if (mBluetoothHeadsetHandover != null) {
+        BluetoothDevice device = msgData.getParcelable(EXTRA_PERIPHERAL_DEVICE);
+        String name = msgData.getString(EXTRA_PERIPHERAL_NAME);
+        int transport = msgData.getInt(EXTRA_PERIPHERAL_TRANSPORT);
+        if (mBluetoothPeripheralHandover != null) {
            Log.d(TAG, "Ignoring pairing request, existing handover in progress.");
            return;
         }
-        mBluetoothHeadsetHandover = new BluetoothHeadsetHandover(HandoverService.this,
-                device, name, HandoverService.this);
+        mBluetoothPeripheralHandover = new BluetoothPeripheralHandover(HandoverService.this,
+                device, name, transport, HandoverService.this);
         if (mBluetoothAdapter.isEnabled()) {
-            mBluetoothHeadsetHandover.start();
+            mBluetoothPeripheralHandover.start();
         } else {
             // Once BT is enabled, the headset pairing will be started
             if (!enableBluetooth()) {
                 Log.e(TAG, "Error enabling Bluetooth.");
-                mBluetoothHeadsetHandover = null;
+                mBluetoothPeripheralHandover = null;
             }
         }
     }
@@ -434,10 +436,10 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
                 BluetoothAdapter.ERROR);
         if (state == BluetoothAdapter.STATE_ON) {
-            // If there is a pending headset pairing, start it
-            if (mBluetoothHeadsetHandover != null &&
-                    !mBluetoothHeadsetHandover.hasStarted()) {
-                mBluetoothHeadsetHandover.start();
+            // If there is a pending device pairing, start it
+            if (mBluetoothPeripheralHandover != null &&
+                    !mBluetoothPeripheralHandover.hasStarted()) {
+                mBluetoothPeripheralHandover.start();
             }
 
             // Start any pending file transfers
@@ -503,9 +505,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     }
 
     @Override
-    public void onBluetoothHeadsetHandoverComplete(boolean connected) {
+    public void onBluetoothPeripheralHandoverComplete(boolean connected) {
         // Called on the main thread
-        mBluetoothHeadsetHandover = null;
+        mBluetoothPeripheralHandover = null;
         mBluetoothHeadsetConnected = connected;
         if (mClient != null) {
             Message msg = Message.obtain(null,
