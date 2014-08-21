@@ -164,6 +164,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             String action = intent.getAction();
             int deviceType = intent.getIntExtra(EXTRA_HANDOVER_DEVICE_TYPE,
                     HandoverTransfer.DEVICE_TYPE_BLUETOOTH);
+
             if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
                 handleBluetoothStateChanged(intent);
             } else if (action.equals(ACTION_CANCEL_HANDOVER_TRANSFER)) {
@@ -389,6 +390,8 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             }
             return;
         }
+
+        transfer.setBluetoothTransferId(id);
 
         if (action.equals(ACTION_TRANSFER_DONE)) {
             int handoverStatus = intent.getIntExtra(EXTRA_TRANSFER_STATUS,
