@@ -238,12 +238,9 @@ class NfcDispatcher {
         boolean screenUnlocked = false;
         if (!provisioningOnly &&
                 mScreenStateHelper.checkScreenState() == ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
-            screenUnlocked = handleLockscreenDispatch(tag);
+            screenUnlocked = handleNfcUnlock(tag);
             if (!screenUnlocked) {
-                screenUnlocked = handleNfcUnlock(tag);
-                if (!screenUnlocked) {
-                    return DISPATCH_FAIL;
-                }
+                return DISPATCH_FAIL;
             }
         }
 
@@ -301,30 +298,6 @@ class NfcDispatcher {
 
         if (DBG) Log.i(TAG, "no match");
         return DISPATCH_FAIL;
-    }
-
-    /**
-     * Returns true if the tag should be dispatched into the system after the lockscreen
-     * dispatch.
-     */
-    private boolean handleLockscreenDispatch(Tag tag) {
-        INfcLockscreenDispatch lockscreenDispatch;
-        synchronized (this) {
-            lockscreenDispatch = mLockscreenDispatch;
-        }
-
-        try {
-            if (lockscreenDispatch == null || !lockscreenDispatch.onTagDetected(tag)) {
-                return false;
-            }
-        } catch (RemoteException e) {
-            // unregister handler here in case of DeadObjectException? we don't want to keep polling
-            // at the lock screen if the package is uninstalled or dead
-            Log.e(TAG, "Failed to dispatch tag to lockscreen dispatch", e);
-            return false;
-        }
-
-        return true;
     }
 
     private boolean handleNfcUnlock(Tag tag) {
