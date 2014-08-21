@@ -62,9 +62,9 @@ public class HandoverTransfer implements Handler.Callback,
         MediaScannerConnection.OnScanCompletedListener {
 
     interface Callback {
+
         void onTransferComplete(HandoverTransfer transfer, boolean success);
     };
-
     static final String TAG = "HandoverTransfer";
 
     static final Boolean DBG = true;
@@ -76,10 +76,10 @@ public class HandoverTransfer implements Handler.Callback,
     static final int STATE_W4_NEXT_TRANSFER = 2;
     // In the states below no new files are accepted.
     static final int STATE_W4_MEDIA_SCANNER = 3;
-
     static final int STATE_FAILED = 4;
     static final int STATE_SUCCESS = 5;
     static final int STATE_CANCELLED = 6;
+    static final int STATE_CANCELLING = 7;
     static final int MSG_NEXT_TRANSFER_TIMER = 0;
 
     static final int MSG_TRANSFER_TIMEOUT = 1;
@@ -100,6 +100,7 @@ public class HandoverTransfer implements Handler.Callback,
     final boolean mIncoming;  // whether this is an incoming transfer
 
     final int mTransferId; // Unique ID of this transfer used for notifications
+    int mBluetoothTransferId; // ID of this transfer in Bluetooth namespace
 
     final PendingIntent mCancelIntent;
     final Context mContext;
@@ -136,6 +137,7 @@ public class HandoverTransfer implements Handler.Callback,
         mRemoteMac = pendingTransfer.remoteMacAddress;
         mIncoming = pendingTransfer.incoming;
         mTransferId = pendingTransfer.id;
+        mBluetoothTransferId = -1;
         mDeviceType = pendingTransfer.deviceType;
         // For incoming transfers, count can be set later
         mTotalCount = (pendingTransfer.uris != null) ? pendingTransfer.uris.length : 0;
@@ -179,6 +181,15 @@ public class HandoverTransfer implements Handler.Callback,
         if (mIncoming && mRemoteDevice != null) whitelistOppDevice(mRemoteDevice);
 
         updateStateAndNotification(STATE_IN_PROGRESS);
+    }
+
+    public synchronized void setBluetoothTransferId(int id) {
+        if (mBluetoothTransferId == -1 && id != -1) {
+            mBluetoothTransferId = id;
+            if (mState == STATE_CANCELLING) {
+                sendBluetoothCancelIntentAndUpdateState();
+            }
+        }
     }
 
     public void finishTransfer(boolean success, Uri uri, String mimeType) {
@@ -237,6 +248,20 @@ public class HandoverTransfer implements Handler.Callback,
             if (file.exists()) file.delete();
         }
 
+        if (mBluetoothTransferId != -1) {
+            // we know the ID, we can cancel immediately
+            sendBluetoothCancelIntentAndUpdateState();
+        } else {
+            updateStateAndNotification(STATE_CANCELLING);
+        }
+
+    }
+
+    private void sendBluetoothCancelIntentAndUpdateState() {
+        Intent cancelIntent = new Intent(
+                "android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
+        cancelIntent.putExtra(HandoverService.EXTRA_TRANSFER_ID, mBluetoothTransferId);
+        mContext.sendBroadcast(cancelIntent);
         updateStateAndNotification(STATE_CANCELLED);
     }
 
@@ -289,7 +314,7 @@ public class HandoverTransfer implements Handler.Callback,
                     android.R.drawable.stat_sys_upload_done);
             notBuilder.setTicker(mContext.getString(R.string.beam_failed));
             notBuilder.setContentTitle(mContext.getString(R.string.beam_failed));
-        } else if (mState == STATE_CANCELLED) {
+        } else if (mState == STATE_CANCELLED || mState == STATE_CANCELLING) {
             notBuilder.setAutoCancel(false);
             notBuilder.setSmallIcon(mIncoming ? android.R.drawable.stat_sys_download_done :
                     android.R.drawable.stat_sys_upload_done);
