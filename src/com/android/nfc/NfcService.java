@@ -60,6 +60,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -75,7 +76,6 @@ import com.android.nfc.handover.HandoverManager;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -148,6 +148,8 @@ public class NfcService implements DeviceHostListener {
 
     public static final String ACTION_LLCP_DOWN =
             "com.android.nfc.action.LLCP_DOWN";
+
+    private final UserManager mUserManager;
 
     // NFC Execution Environment
     // fields below are protected by this
@@ -317,6 +319,8 @@ public class NfcService implements DeviceHostListener {
                 PowerManager.PARTIAL_WAKE_LOCK, "NfcService:mRoutingWakeLock");
 
         mKeyguard = (KeyguardManager) mContext.getSystemService(Context.KEYGUARD_SERVICE);
+        mUserManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+
         mScreenState = mScreenStateHelper.checkScreenState();
 
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
@@ -717,7 +721,11 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void setAppCallback(IAppCallback callback) {
             NfcPermissions.enforceUserPermissions(mContext);
-            mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
+
+            // don't allow Beam for Managed Profiles
+            if(!mUserManager.getUserInfo(UserHandle.getCallingUserId()).isManagedProfile()) {
+                mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
+            }
         }
 
         @Override
