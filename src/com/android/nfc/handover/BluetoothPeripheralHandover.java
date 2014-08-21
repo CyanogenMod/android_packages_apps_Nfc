@@ -210,7 +210,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                                 != BluetoothProfile.STATE_DISCONNECTED) {
                             mHidResult = RESULT_PENDING;
                             mInput.disconnect(mDevice);
-                            toast(mContext.getString(R.string.disconnecting_headset) + " " +
+                            toast(mContext.getString(R.string.disconnecting_peripheral) + " " +
                                     mName + "...");
                             break;
                         } else {
