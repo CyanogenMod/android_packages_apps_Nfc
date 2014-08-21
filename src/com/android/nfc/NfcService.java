@@ -155,8 +155,6 @@ public class NfcService implements DeviceHostListener {
             new ReaderModeDeathRecipient();
     private final NfcUnlockManager mNfcUnlockManager;
 
-    private int mLockscreenPollMask;
-
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
     int mScreenState;
@@ -835,32 +833,6 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
-        public void registerLockscreenDispatch(INfcLockscreenDispatch lockscreenDispatch,
-                                               int[] techList)
-                throws RemoteException {
-
-            NfcPermissions.enforceAdminPermissions(mContext);
-
-            boolean enableLockscreenDispatch = lockscreenDispatch != null;
-            int lockscreenPollMask;
-
-            if (enableLockscreenDispatch) {
-                lockscreenPollMask = computeLockscreenPollMask(techList);
-                mDeviceHost.enableScreenOffSuspend();
-            } else {
-                lockscreenPollMask = 0;
-                mDeviceHost.disableScreenOffSuspend();
-            }
-
-            synchronized (NfcService.this) {
-                mLockscreenPollMask = lockscreenPollMask;
-                mNfcDispatcher.registerLockscreenDispatch(lockscreenDispatch);
-            }
-
-            applyRouting(false);
-        }
-
-        @Override
         public void addNfcUnlockHandler(INfcUnlockHandler unlockHandler, int[] techList) {
             NfcPermissions.enforceAdminPermissions(mContext);
 
@@ -1403,11 +1375,9 @@ public class NfcService implements DeviceHostListener {
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED && mInProvisionMode) {
             paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                (mNfcUnlockManager.isLockscreenPollingEnabled() || mLockscreenPollMask != 0)) {
+                mNfcUnlockManager.isLockscreenPollingEnabled()) {
             // For lock-screen tags, no low-power polling
-            // TODO: remove mLockscreenPollMask when removing old API
-            paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask()
-                    | mLockscreenPollMask);
+            paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask());
             paramsBuilder.setEnableLowPowerDiscovery(false);
         }
 
@@ -1893,7 +1863,6 @@ public class NfcService implements DeviceHostListener {
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
             pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
             pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
-            pw.println("mLockscreenPollMask=" + mLockscreenPollMask);
             pw.println(mCurrentDiscoveryParameters);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
