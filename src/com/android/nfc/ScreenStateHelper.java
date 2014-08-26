@@ -6,8 +6,6 @@ import android.os.PowerManager;
 
 /**
  * Helper class for determining the current screen state for NFC activities.
- *
- * @hide
  */
 class ScreenStateHelper {
 
