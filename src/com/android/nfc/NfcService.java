@@ -1595,8 +1595,10 @@ public class NfcService implements DeviceHostListener {
                             break;
                         }
                     }
-                    if (readerParams == null ||
-                            (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) {
+
+                    boolean playSound = readerParams == null ||
+                        (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0;
+                    if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && playSound) {
                         playSound(SOUND_START);
                     }
                     if (tag.getConnectedTechnology() == TagTechnology.NFC_BARCODE) {
