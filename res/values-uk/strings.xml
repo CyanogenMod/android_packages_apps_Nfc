@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Торкніться, щоб переглянути"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Пристрій отримувача не підтримує пересилання великих файлів за допомогою функції Передавання даних Android."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Знову притуліть пристрої один до одного"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Під’єднання"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Під’єднано"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Не вдалося з’єднатись"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Від’єднання"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Від’єднано"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Створення пари"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Не вдалося створити пару"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"Під’єднання"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"Під’єднано"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"Не вдалося під’єднатись"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"Від’єднання"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"Від’єднано"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"Підключення"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"Не вдалося підключитися"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Не вдалося ввімкнути Bluetooth"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"Дійсно створити пару з пристроєм Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Так"</string>
