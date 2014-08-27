@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"দেখতে স্পর্শ করুন"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"রিসিভার এর ডিভাইস বীমের মাধ্যমে বড় ফাইল স্থানান্তর সমর্থন করে না।"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ডিভাইসগুলিকে আবার একত্র করুন"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"সংযুক্ত হচ্ছে"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"সংযুক্ত হয়েছে"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"সংযুক্ত করা যায়নি"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"সংযোগ বিচ্ছিন্ন হচ্ছে"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"সংযোগ বিচ্ছিন্ন করা হয়েছে"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"যুক্ত করা হচ্ছে..."</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"যুক্ত করা যায়নি"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"সংযুক্ত হচ্ছে"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"সংযুক্ত হয়েছে"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"সংযুক্ত করা যায়নি"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"সংযোগ বিচ্ছিন্ন হচ্ছে"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"সংযোগ বিচ্ছিন্ন হয়েছে"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"যুক্ত করা হচ্ছে"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"যুক্ত করা যায়নি"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth সক্ষম করা যায়নি"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"আপনি কি <xliff:g id="DEVICE_NAME">%1$s</xliff:g> Bluetooth ডিভাইসটি যুক্ত করার ব্যাপারে নিশ্চিত?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"হ্যাঁ"</string>
