@@ -20,10 +20,10 @@
     <string name="beam_try_again" msgid="3364677301009783455">"डिव्हाइसेस पुन्हा एकत्र आणा"</string>
     <string name="connecting_peripheral" msgid="3957490448472434505">"कनेक्ट करीत आहे"</string>
     <string name="connected_peripheral" msgid="5777997713940423952">"कनेक्ट केलेले"</string>
-    <string name="connect_peripheral_failed" msgid="7173159351147270788">"कनेक्ट करु शकलो नाही"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"कनेक्ट करू शकलो नाही"</string>
     <string name="disconnecting_peripheral" msgid="5320432304947519207">"डिस्कनेक्ट करत आहे"</string>
     <string name="disconnected_peripheral" msgid="2768150931245385916">"डिस्कनेक्ट केले"</string>
-    <string name="pairing_peripheral" msgid="5618129595426303236">"जोडणी"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"जोडत आहे"</string>
     <string name="pairing_peripheral_failed" msgid="976004756112808526">"जोडू शकलो नाही"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth सक्षम करू शकलो नाही"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"आपण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> Bluetooth डिव्हाइस जोडू इच्छिता याची आपल्याला खात्री आहे?"</string>

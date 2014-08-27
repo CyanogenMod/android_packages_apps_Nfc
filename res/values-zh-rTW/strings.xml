@@ -22,7 +22,7 @@
     <string name="connected_peripheral" msgid="5777997713940423952">"已連線"</string>
     <string name="connect_peripheral_failed" msgid="7173159351147270788">"無法連線"</string>
     <string name="disconnecting_peripheral" msgid="5320432304947519207">"正在中斷連線"</string>
-    <string name="disconnected_peripheral" msgid="2768150931245385916">"連線已中斷"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"已中斷連線"</string>
     <string name="pairing_peripheral" msgid="5618129595426303236">"配對中"</string>
     <string name="pairing_peripheral_failed" msgid="976004756112808526">"無法配對"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"無法啟用藍牙"</string>
