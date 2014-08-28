@@ -267,6 +267,8 @@ public class HandoverTransfer implements Handler.Callback,
 
     void updateNotification() {
         Builder notBuilder = new Notification.Builder(mContext);
+        notBuilder.setColor(mContext.getResources().getColor(
+                com.android.internal.R.color.system_notification_accent_color));
         notBuilder.setWhen(mStartTime);
         String beamString;
         if (mIncoming) {
