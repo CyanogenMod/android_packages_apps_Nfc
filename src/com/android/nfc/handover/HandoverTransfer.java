@@ -270,6 +270,7 @@ public class HandoverTransfer implements Handler.Callback,
         notBuilder.setColor(mContext.getResources().getColor(
                 com.android.internal.R.color.system_notification_accent_color));
         notBuilder.setWhen(mStartTime);
+        notBuilder.setVisibility(Notification.VISIBILITY_PUBLIC);
         String beamString;
         if (mIncoming) {
             beamString = mContext.getString(R.string.beam_progress);
