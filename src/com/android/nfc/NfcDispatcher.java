@@ -261,7 +261,7 @@ class NfcDispatcher {
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
-        if (!provisioningOnly && mHandoverManager.tryHandover(message)) {
+        if (mHandoverManager.tryHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
