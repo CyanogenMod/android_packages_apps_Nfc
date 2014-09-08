@@ -23,6 +23,7 @@ import android.bluetooth.BluetoothHeadset;
 import android.bluetooth.BluetoothInputDevice;
 import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -31,6 +32,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelUuid;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -82,6 +84,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
     final Callback mCallback;
     final BluetoothAdapter mBluetoothAdapter;
     final int mTransport;
+    final boolean mProvisioning;
 
     final Object mLock = new Object();
 
@@ -111,6 +114,10 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         mCallback = callback;
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
+        ContentResolver contentResolver = mContext.getContentResolver();
+        mProvisioning = Settings.Secure.getInt(contentResolver,
+                Settings.Global.DEVICE_PROVISIONED, 0) == 0;
+
         mState = STATE_INIT;
     }
 
@@ -126,6 +133,9 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         checkMainThread();
         if (mState != STATE_INIT) return;
         if (mBluetoothAdapter == null) return;
+        // only allow BLE connections during provisioning
+        if (mProvisioning && mTransport != BluetoothDevice.TRANSPORT_LE) return;
+
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
