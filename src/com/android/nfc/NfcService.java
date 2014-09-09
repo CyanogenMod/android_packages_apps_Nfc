@@ -27,6 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
@@ -78,6 +79,7 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -98,14 +100,16 @@ public class NfcService implements DeviceHostListener {
     static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
 
     static final int MSG_NDEF_TAG = 0;
-    static final int MSG_LLCP_LINK_ACTIVATION = 2;
-    static final int MSG_LLCP_LINK_DEACTIVATED = 3;
-    static final int MSG_MOCK_NDEF = 7;
-    static final int MSG_LLCP_LINK_FIRST_PACKET = 15;
-    static final int MSG_ROUTE_AID = 16;
-    static final int MSG_UNROUTE_AID = 17;
-    static final int MSG_COMMIT_ROUTING = 18;
-    static final int MSG_INVOKE_BEAM = 19;
+    static final int MSG_LLCP_LINK_ACTIVATION = 1;
+    static final int MSG_LLCP_LINK_DEACTIVATED = 2;
+    static final int MSG_MOCK_NDEF = 3;
+    static final int MSG_LLCP_LINK_FIRST_PACKET = 4;
+    static final int MSG_ROUTE_AID = 5;
+    static final int MSG_UNROUTE_AID = 6;
+    static final int MSG_COMMIT_ROUTING = 7;
+    static final int MSG_INVOKE_BEAM = 8;
+    static final int MSG_RF_FIELD_ACTIVATED = 9;
+    static final int MSG_RF_FIELD_DEACTIVATED = 10;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -138,6 +142,12 @@ public class NfcService implements DeviceHostListener {
     // the Beam animation when called through the share menu.
     static final int INVOKE_BEAM_DELAY_MS = 1000;
 
+    // RF field events as defined in NFC extras
+    public static final String ACTION_RF_FIELD_ON_DETECTED =
+            "com.android.nfc_extras.action.RF_FIELD_ON_DETECTED";
+    public static final String ACTION_RF_FIELD_OFF_DETECTED =
+            "com.android.nfc_extras.action.RF_FIELD_OFF_DETECTED";
+
     // for use with playSound()
     public static final int SOUND_START = 0;
     public static final int SOUND_END = 1;
@@ -156,6 +166,10 @@ public class NfcService implements DeviceHostListener {
     private final ReaderModeDeathRecipient mReaderModeDeathRecipient =
             new ReaderModeDeathRecipient();
     private final NfcUnlockManager mNfcUnlockManager;
+
+    private final NfceeAccessControl mNfceeAccessControl;
+
+    List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
@@ -260,6 +274,15 @@ public class NfcService implements DeviceHostListener {
         sendMessage(NfcService.MSG_LLCP_LINK_FIRST_PACKET, device);
     }
 
+    @Override
+    public void onRemoteFieldActivated() {
+        sendMessage(NfcService.MSG_RF_FIELD_ACTIVATED, null);
+    }
+
+    public void onRemoteFieldDeactivated() {
+        sendMessage(NfcService.MSG_RF_FIELD_DEACTIVATED, null);
+    }
+
     final class ReaderModeParams {
         public int flags;
         public IAppCallback callback;
@@ -305,6 +328,8 @@ public class NfcService implements DeviceHostListener {
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         mPrefsEditor = mPrefs.edit();
 
+        mNfceeAccessControl = new NfceeAccessControl(mContext);
+
         mState = NfcAdapter.STATE_OFF;
         mIsNdefPushEnabled = mPrefs.getBoolean(PREF_NDEF_PUSH_ON, NDEF_PUSH_ON_DEFAULT);
         setBeamShareActivityState(mIsNdefPushEnabled);
@@ -330,6 +355,18 @@ public class NfcService implements DeviceHostListener {
         filter.addAction(Intent.ACTION_USER_SWITCHED);
         registerForAirplaneMode(filter);
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
+
+        IntentFilter ownerFilter = new IntentFilter(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        mContext.registerReceiver(mOwnerReceiver, ownerFilter);
+
+        ownerFilter = new IntentFilter();
+        ownerFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        ownerFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        ownerFilter.addDataScheme("package");
+        mContext.registerReceiver(mOwnerReceiver, ownerFilter);
+
+        updatePackageCache();
 
         PackageManager pm = mContext.getPackageManager();
         mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION);
@@ -373,6 +410,14 @@ public class NfcService implements DeviceHostListener {
 
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        }
+    }
+
+    void updatePackageCache() {
+        PackageManager pm = mContext.getPackageManager();
+        List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_OWNER);
+        synchronized (this) {
+            mInstalledPackages = packages;
         }
     }
 
@@ -1664,9 +1709,34 @@ public class NfcService implements DeviceHostListener {
                 case MSG_LLCP_LINK_FIRST_PACKET:
                     mP2pLinkManager.onLlcpFirstPacketReceived();
                     break;
+                case MSG_RF_FIELD_ACTIVATED:
+                    Intent fieldOnIntent = new Intent(ACTION_RF_FIELD_ON_DETECTED);
+                    sendNfcEeAccessProtectedBroadcast(fieldOnIntent);
+                    break;
+                case MSG_RF_FIELD_DEACTIVATED:
+                    Intent fieldOffIntent = new Intent(ACTION_RF_FIELD_OFF_DETECTED);
+                    sendNfcEeAccessProtectedBroadcast(fieldOffIntent);
+                    break;
                 default:
                     Log.e(TAG, "Unknown message received");
                     break;
+            }
+        }
+
+        private void sendNfcEeAccessProtectedBroadcast(Intent intent) {
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            // Resume app switches so the receivers can start activites without delay
+            mNfcDispatcher.resumeAppSwitches();
+
+            synchronized (this) {
+                for (PackageInfo pkg : mInstalledPackages) {
+                    if (pkg != null && pkg.applicationInfo != null) {
+                        if (mNfceeAccessControl.check(pkg.applicationInfo)) {
+                            intent.setPackage(pkg.packageName);
+                            mContext.sendBroadcast(intent);
+                        }
+                    }
+                }
             }
         }
 
@@ -1831,6 +1901,25 @@ public class NfcService implements DeviceHostListener {
             }
         }
     };
+
+    private final BroadcastReceiver mOwnerReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(Intent.ACTION_PACKAGE_REMOVED) ||
+                    action.equals(Intent.ACTION_PACKAGE_ADDED) ||
+                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE) ||
+                    action.equals(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE)) {
+                updatePackageCache();
+
+                if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
+                    // Clear the NFCEE access cache in case a UID gets recycled
+                    mNfceeAccessControl.invalidateCache();
+                }
+            }
+        }
+    };
+
 
     /**
      * Returns true if airplane mode is currently on

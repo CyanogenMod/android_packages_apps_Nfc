@@ -335,4 +335,13 @@ public class NativeNfcManager implements DeviceHost {
     private void notifyHostEmuDeactivated() {
         mListener.onHostCardEmulationDeactivated();
     }
+
+    private void notifyRfFieldActivated() {
+        mListener.onRemoteFieldActivated();
+    }
+
+    private void notifyRfFieldDeactivated() {
+        mListener.onRemoteFieldDeactivated();
+    }
+
 }

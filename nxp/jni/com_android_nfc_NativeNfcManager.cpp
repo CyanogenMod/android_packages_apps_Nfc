@@ -50,6 +50,8 @@ static jmethodID cached_NfcManager_notifyLlcpLinkActivation;
 static jmethodID cached_NfcManager_notifyLlcpLinkDeactivated;
 static jmethodID cached_NfcManager_notifyTargetDeselected;
 
+static jmethodID cached_NfcManager_notifyRfFieldActivated;
+static jmethodID cached_NfcManager_notifyRfFieldDeactivated;
 namespace android {
 
 phLibNfc_Handle     storedHandle = 0;
@@ -1169,11 +1171,13 @@ static void nfc_jni_transaction_callback(void *context,
             case phLibNfc_eSE_EvtFieldOn:
             {
                 TRACE("> SE EVT_FIELD_ON");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifyRfFieldActivated);
             }break;
 
             case phLibNfc_eSE_EvtFieldOff:
             {
                 TRACE("> SE EVT_FIELD_OFF");
+                e->CallVoidMethod(nat->manager, cached_NfcManager_notifyRfFieldDeactivated);
             }break;
 
             default:
@@ -1604,6 +1608,12 @@ static jboolean com_android_nfc_NfcManager_init_native_struc(JNIEnv *e, jobject 
 
    cached_NfcManager_notifyLlcpLinkDeactivated = e->GetMethodID(cls,
       "notifyLlcpLinkDeactivated","(Lcom/android/nfc/dhimpl/NativeP2pDevice;)V");
+
+   cached_NfcManager_notifyRfFieldActivated = e->GetMethodID(cls,
+      "notifyRfFieldActivated", "()V");
+
+   cached_NfcManager_notifyRfFieldDeactivated = e->GetMethodID(cls,
+      "notifyRfFieldDeactivated", "()V");
 
    if(nfc_jni_cache_object(e,"com/android/nfc/dhimpl/NativeNfcTag",&(nat->cached_NfcTag)) == -1)
    {

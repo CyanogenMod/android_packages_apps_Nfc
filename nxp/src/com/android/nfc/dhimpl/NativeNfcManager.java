@@ -373,4 +373,12 @@ public class NativeNfcManager implements DeviceHost {
     private void notifyLlcpLinkDeactivated(NativeP2pDevice device) {
         mListener.onLlcpLinkDeactivated(device);
     }
+
+    private void notifyRfFieldActivated() {
+        mListener.onRemoteFieldActivated();
+    }
+
+    private void notifyRfFieldDeactivated() {
+        mListener.onRemoteFieldDeactivated();
+    }
 }
