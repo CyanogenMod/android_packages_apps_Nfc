@@ -16,6 +16,7 @@
 
 package com.android.nfc;
 
+import android.content.pm.UserInfo;
 import android.os.UserManager;
 import com.android.nfc.echoserver.EchoServer;
 import com.android.nfc.handover.HandoverClient;
@@ -483,7 +484,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
             if (pkgs != null && pkgs.length >= 1) {
                 if (!generatePlayLink || beamDefaultDisabled(pkgs[0])
-                        || isManaged(foregroundUids.get(0))) {
+                        || isManagedOrBeamDisabled(foregroundUids.get(0))) {
                     if (DBG) Log.d(TAG, "Disabling default Beam behavior");
                     mMessageToSend = null;
                     mUrisToSend = null;
@@ -498,9 +499,13 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         }
     }
 
-    private boolean isManaged(int uid) {
+    private boolean isManagedOrBeamDisabled(int uid) {
         UserManager userManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
-        return userManager.getUserInfo(UserHandle.getUserId(uid)).isManagedProfile();
+        UserInfo userInfo = userManager.getUserInfo(UserHandle.getUserId(uid));
+        return userInfo.isManagedProfile() ||
+                userManager.hasUserRestriction(
+                        UserManager.DISALLOW_OUTGOING_BEAM, userInfo.getUserHandle());
+
     }
 
     boolean beamDefaultDisabled(String pkgName) {
