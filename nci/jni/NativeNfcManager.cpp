@@ -84,6 +84,8 @@ namespace android
     jmethodID               gCachedNfcManagerNotifyHostEmuActivated;
     jmethodID               gCachedNfcManagerNotifyHostEmuData;
     jmethodID               gCachedNfcManagerNotifyHostEmuDeactivated;
+    jmethodID               gCachedNfcManagerNotifyRfFieldActivated;
+    jmethodID               gCachedNfcManagerNotifyRfFieldDeactivated;
     const char*             gNativeP2pDeviceClassName                 = "com/android/nfc/dhimpl/NativeP2pDevice";
     const char*             gNativeLlcpServiceSocketClassName         = "com/android/nfc/dhimpl/NativeLlcpServiceSocket";
     const char*             gNativeLlcpConnectionlessSocketClassName  = "com/android/nfc/dhimpl/NativeLlcpConnectionlessSocket";
@@ -562,6 +564,11 @@ static jboolean nfcManager_initNativeStruc (JNIEnv* e, jobject o)
     gCachedNfcManagerNotifyHostEmuDeactivated = e->GetMethodID(cls.get(),
             "notifyHostEmuDeactivated", "()V");
 
+    gCachedNfcManagerNotifyRfFieldActivated = e->GetMethodID(cls.get(),
+            "notifyRfFieldActivated", "()V");
+    gCachedNfcManagerNotifyRfFieldDeactivated = e->GetMethodID(cls.get(),
+            "notifyRfFieldDeactivated", "()V");
+
     if (nfc_jni_cache_object(e, gNativeNfcTagClassName, &(nat->cached_NfcTag)) == -1)
     {
         ALOGE ("%s: fail cache NativeNfcTag", __FUNCTION__);
@@ -647,6 +654,21 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
     case NFA_DM_RF_FIELD_EVT:
         ALOGD ("%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __FUNCTION__,
               eventData->rf_field.status, eventData->rf_field.rf_field_status);
+        if (!sP2pActive && eventData->rf_field.status == NFA_STATUS_OK)
+        {
+            struct nfc_jni_native_data *nat = getNative(NULL, NULL);
+            JNIEnv* e = NULL;
+            ScopedAttach attach(nat->vm, &e);
+            if (e == NULL)
+            {
+                ALOGE ("jni env is null");
+                return;
+            }
+            if (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON)
+                e->CallVoidMethod (nat->manager, android::gCachedNfcManagerNotifyRfFieldActivated);
+            else
+                e->CallVoidMethod (nat->manager, android::gCachedNfcManagerNotifyRfFieldDeactivated);
+        }
         break;
 
     case NFA_DM_NFCC_TRANSPORT_ERR_EVT:
