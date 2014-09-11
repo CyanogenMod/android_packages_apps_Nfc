@@ -29,6 +29,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.content.res.Resources.NotFoundException;
 import android.media.AudioManager;
 import android.media.SoundPool;
@@ -764,9 +765,14 @@ public class NfcService implements DeviceHostListener {
         public void setAppCallback(IAppCallback callback) {
             NfcPermissions.enforceUserPermissions(mContext);
 
-            // don't allow Beam for Managed Profiles
-            if(!mUserManager.getUserInfo(UserHandle.getCallingUserId()).isManagedProfile()) {
+            // don't allow Beam for managed profiles, or devices with a device owner or policy owner
+            UserInfo userInfo = mUserManager.getUserInfo(UserHandle.getCallingUserId());
+            if(!userInfo.isManagedProfile()
+                    && !mUserManager.hasUserRestriction(
+                            UserManager.DISALLOW_OUTGOING_BEAM, userInfo.getUserHandle())) {
                 mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
+            } else if (DBG) {
+                Log.d(TAG, "Disabling default Beam behavior");
             }
         }
 
