@@ -30,6 +30,9 @@ extern "C"
     #include "nfa_ee_api.h"
     #include "nfa_ce_api.h"
 }
+extern bool gActivated;
+extern SyncEvent gDeactivatedEvent;
+
 
 const JNINativeMethod RoutingManager::sMethods [] =
 {
@@ -374,12 +377,18 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
             routingManager.notifyActivated();
         }
         break;
+
     case NFA_DEACTIVATED_EVT:
     case NFA_CE_DEACTIVATED_EVT:
         {
+            ALOGD("%s: NFA_DEACTIVATED_EVT, NFA_CE_DEACTIVATED_EVT", fn);
             routingManager.notifyDeactivated();
+            SyncEventGuard g (gDeactivatedEvent);
+            gActivated = false; //guard this variable from multi-threaded access
+            gDeactivatedEvent.notifyOne ();
         }
         break;
+
     case NFA_CE_DATA_EVT:
         {
             tNFA_CE_DATA& ce_data = eventData->ce_data;
