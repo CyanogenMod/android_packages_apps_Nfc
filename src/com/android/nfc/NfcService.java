@@ -110,7 +110,7 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_INVOKE_BEAM = 8;
     static final int MSG_RF_FIELD_ACTIVATED = 9;
     static final int MSG_RF_FIELD_DEACTIVATED = 10;
-    static final int MSG_RESUME_POLLNG = 11;
+    static final int MSG_RESUME_POLLING = 11;
 
     static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
