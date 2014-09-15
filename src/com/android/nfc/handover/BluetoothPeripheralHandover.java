@@ -129,12 +129,12 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
      * Main entry point. This method is usually called after construction,
      * to begin the BT sequence. Must be called on Main thread.
      */
-    public void start() {
+    public boolean start() {
         checkMainThread();
-        if (mState != STATE_INIT) return;
-        if (mBluetoothAdapter == null) return;
-        // only allow BLE connections during provisioning
-        if (mProvisioning && mTransport != BluetoothDevice.TRANSPORT_LE) return;
+        if (mState != STATE_INIT || mBluetoothAdapter == null
+                || (mProvisioning && mTransport != BluetoothDevice.TRANSPORT_LE)) {
+            return false;
+        }
 
 
         IntentFilter filter = new IntentFilter();
@@ -153,6 +153,8 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         mAction = ACTION_INIT;
 
         nextStep();
+
+        return true;
     }
 
     /**
@@ -296,6 +298,15 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                     requestPairConfirmation();
                     mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
                     break;
+                }
+
+                if (mTransport == BluetoothDevice.TRANSPORT_LE) {
+                    if (mDevice.getBondState() != BluetoothDevice.BOND_NONE) {
+                        mDevice.removeBond();
+                        requestPairConfirmation();
+                        mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
+                        break;
+                    }
                 }
                 // fall-through
             case STATE_WAITING_FOR_BOND_CONFIRMATION:
