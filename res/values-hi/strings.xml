@@ -14,10 +14,10 @@
     <string name="beam_complete" msgid="477026736424637435">"बीम करना पूर्ण"</string>
     <string name="beam_failed" msgid="5116241718189888630">"बीम पूर्ण नहीं हुआ"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"बीम रद्द"</string>
-    <string name="cancel" msgid="61873902552555096">"रद्द करें"</string>
+    <string name="cancel" msgid="61873902552555096">"रहने दें"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"देखने के लिए स्‍पर्श करें"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"प्राप्तकर्ता का उपकरण, बीम द्वारा बड़ी फ़ाइल के स्थानांतरण का समर्थन नहीं करता."</string>
-    <string name="beam_try_again" msgid="3364677301009783455">"उपकरणों को पुन: एक साथ लाएं"</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"प्राप्तकर्ता का डिवाइस, बीम द्वारा बड़ी फ़ाइल के स्थानांतरण का समर्थन नहीं करता."</string>
+    <string name="beam_try_again" msgid="3364677301009783455">"डिवाइस को पुन: एक साथ लाएं"</string>
     <string name="connecting_peripheral" msgid="3957490448472434505">"कनेक्ट हो रहा है"</string>
     <string name="connected_peripheral" msgid="5777997713940423952">"कनेक्ट है"</string>
     <string name="connect_peripheral_failed" msgid="7173159351147270788">"कनेक्‍ट नहीं किया जा सका"</string>
@@ -26,7 +26,7 @@
     <string name="pairing_peripheral" msgid="5618129595426303236">"युग्मन"</string>
     <string name="pairing_peripheral_failed" msgid="976004756112808526">"युग्‍मित नहीं किया जा सका"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"ब्लूटूथ को सक्षम नहीं किया जा सका"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"क्‍या आप वाकई ब्लूटूथ उपकरण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> को युग्मित करना चाहते हैं?"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"क्‍या आप वाकई ब्लूटूथ डिवाइस <xliff:g id="DEVICE_NAME">%1$s</xliff:g> को युग्मित करना चाहते हैं?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"हां"</string>
     <string name="pair_no" msgid="5022308368904055020">"नहीं"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"<xliff:g id="APP">%1$s</xliff:g> के साथ भुगतान करने के लिए पुन: टैप करें"</string>
@@ -36,7 +36,7 @@
     <string name="pay_with" msgid="5531545488795798945">"इनके द्वारा भुगतान करें"</string>
     <string name="complete_with" msgid="6797459104103012992">"इनके द्वारा पूर्ण करें"</string>
     <string name="default_pay_app_removed" msgid="4108250545457437360">"टैप करके भुगतान करने के लिए आपकी पसंदीदा सेवा को निकाल दिया गया था. कोई अन्‍य चुनें?"</string>
-    <string name="ask_nfc_tap" msgid="2925239870458286340">"पूर्ण करने के लिए अन्य उपकरण टैप करें"</string>
+    <string name="ask_nfc_tap" msgid="2925239870458286340">"पूर्ण करने के लिए अन्य डिवाइस टैप करें"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"कनेक्ट करें"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"नेटवर्क से कनेक्‍ट करने में असमर्थ"</string>
     <string name="status_wifi_connected" msgid="5893022897732105739">"कनेक्ट किया गया"</string>
