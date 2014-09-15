@@ -26,6 +26,7 @@ import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
+import android.nfc.NfcAdapter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -114,6 +115,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     public static final String HANDOVER_STATUS_PERMISSION =
             "android.permission.NFC_HANDOVER_STATUS";
 
+    // Amount of time to pause polling when connecting to peripherals
+    private static final int PAUSE_POLLING_TIMEOUT_MS = 20000;
+
     // Variables below only accessed on main thread
     final Queue<BluetoothOppHandover> mPendingOutTransfers;
     final HashMap<Pair<String, Boolean>, HandoverTransfer> mBluetoothTransfers;
@@ -123,6 +127,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     int mSuccessSound;
 
     BluetoothAdapter mBluetoothAdapter;
+    NfcAdapter mNfcAdapter;
     Messenger mClient;
     Handler mHandler;
     BluetoothPeripheralHandover mBluetoothPeripheralHandover;
@@ -193,6 +198,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
         mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
         mSuccessSound = mSoundPool.load(this, R.raw.end, 1);
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
         IntentFilter filter = new IntentFilter(ACTION_TRANSFER_DONE);
         filter.addAction(ACTION_TRANSFER_PROGRESS);
@@ -220,6 +226,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
         if (pendingTransfer.deviceType == HandoverTransfer.DEVICE_TYPE_BLUETOOTH) {
             // Create the actual bluetooth transfer
+
             BluetoothOppHandover handover = new BluetoothOppHandover(HandoverService.this,
                     pendingTransfer.remoteDevice, pendingTransfer.uris,
                     pendingTransfer.remoteActivating);
@@ -266,10 +273,14 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         }
         mBluetoothPeripheralHandover = new BluetoothPeripheralHandover(HandoverService.this,
                 device, name, transport, HandoverService.this);
+        mNfcAdapter.pausePolling(PAUSE_POLLING_TIMEOUT_MS);
         if (mBluetoothAdapter.isEnabled()) {
-            mBluetoothPeripheralHandover.start();
+            if (!mBluetoothPeripheralHandover.start()) {
+                mNfcAdapter.resumePolling();
+            }
         } else {
             // Once BT is enabled, the headset pairing will be started
+
             if (!enableBluetooth()) {
                 Log.e(TAG, "Error enabling Bluetooth.");
                 mBluetoothPeripheralHandover = null;
@@ -442,7 +453,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             // If there is a pending device pairing, start it
             if (mBluetoothPeripheralHandover != null &&
                     !mBluetoothPeripheralHandover.hasStarted()) {
-                mBluetoothPeripheralHandover.start();
+                if (!mBluetoothPeripheralHandover.start()) {
+                    mNfcAdapter.resumePolling();
+                }
             }
 
             // Start any pending file transfers
@@ -512,6 +525,16 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         // Called on the main thread
         mBluetoothPeripheralHandover = null;
         mBluetoothHeadsetConnected = connected;
+
+        // <hack> resume polling immediately if the connection failed,
+        // otherwise just wait for polling to come back up after the timeout
+        // This ensures we don't disconnect if the user left the volantis
+        // on the tag after pairing completed, which results in automatic
+        // disconnection </hack>
+        if (!connected) {
+            mNfcAdapter.resumePolling();
+        }
+
         if (mClient != null) {
             Message msg = Message.obtain(null,
                     connected ? HandoverManager.MSG_HEADSET_CONNECTED
