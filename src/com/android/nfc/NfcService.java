@@ -40,7 +40,6 @@ import android.nfc.IAppCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcCardEmulation;
-import android.nfc.INfcLockscreenDispatch;
 import android.nfc.INfcTag;
 import android.nfc.INfcUnlockHandler;
 import android.nfc.NdefMessage;
@@ -111,6 +110,9 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_INVOKE_BEAM = 8;
     static final int MSG_RF_FIELD_ACTIVATED = 9;
     static final int MSG_RF_FIELD_DEACTIVATED = 10;
+    static final int MSG_RESUME_POLLNG = 11;
+
+    static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
     static final int TASK_ENABLE = 1;
     static final int TASK_DISABLE = 2;
@@ -160,6 +162,9 @@ public class NfcService implements DeviceHostListener {
     public static final String ACTION_LLCP_DOWN =
             "com.android.nfc.action.LLCP_DOWN";
 
+    // Timeout to re-apply routing if a tag was present and we postponed it
+    private static final int APPLY_ROUTING_RETRY_TIMEOUT_MS = 5000;
+
     private final UserManager mUserManager;
 
     // NFC Execution Environment
@@ -204,6 +209,7 @@ public class NfcService implements DeviceHostListener {
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
+    boolean mPollingPaused;
 
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
@@ -680,6 +686,36 @@ public class NfcService implements DeviceHostListener {
             new EnableDisableTask().execute(TASK_DISABLE);
 
             return true;
+        }
+
+        public void pausePolling(int timeoutInMs) {
+            NfcPermissions.enforceAdminPermissions(mContext);
+
+            if (timeoutInMs <= 0 || timeoutInMs > MAX_POLLING_PAUSE_TIMEOUT) {
+                Log.e(TAG, "Refusing to pause polling for " + timeoutInMs + "ms.");
+                return;
+            }
+
+            synchronized (NfcService.this) {
+                mPollingPaused = true;
+                mDeviceHost.disableDiscovery();
+                mHandler.sendMessageDelayed(
+                        mHandler.obtainMessage(MSG_RESUME_POLLING), timeoutInMs);
+            }
+        }
+
+        public void resumePolling() {
+            NfcPermissions.enforceAdminPermissions(mContext);
+
+            synchronized (NfcService.this) {
+                if (!mPollingPaused) {
+                    return;
+                }
+
+                mHandler.removeMessages(MSG_RESUME_POLLING);
+                mPollingPaused = false;
+                new ApplyRoutingTask().execute();
+            }
         }
 
         @Override
@@ -1382,6 +1418,8 @@ public class NfcService implements DeviceHostListener {
             // still talking to a tag, postpone re-configuration.
             if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && isTagPresent()) {
                 Log.d(TAG, "Not updating discovery parameters, tag connected.");
+                mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_RESUME_POLLING),
+                        APPLY_ROUTING_RETRY_TIMEOUT_MS);
                 return;
             }
 
@@ -1721,6 +1759,8 @@ public class NfcService implements DeviceHostListener {
                 case MSG_RF_FIELD_DEACTIVATED:
                     Intent fieldOffIntent = new Intent(ACTION_RF_FIELD_OFF_DETECTED);
                     sendNfcEeAccessProtectedBroadcast(fieldOffIntent);
+                case MSG_RESUME_POLLING:
+                    mNfcAdapter.resumePolling();
                     break;
                 default:
                     Log.e(TAG, "Unknown message received");
