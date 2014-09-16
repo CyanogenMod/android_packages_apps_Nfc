@@ -688,6 +688,7 @@ public class NfcService implements DeviceHostListener {
             return true;
         }
 
+        @Override
         public void pausePolling(int timeoutInMs) {
             NfcPermissions.enforceAdminPermissions(mContext);
 
@@ -704,6 +705,7 @@ public class NfcService implements DeviceHostListener {
             }
         }
 
+        @Override
         public void resumePolling() {
             NfcPermissions.enforceAdminPermissions(mContext);
 
@@ -1759,6 +1761,7 @@ public class NfcService implements DeviceHostListener {
                 case MSG_RF_FIELD_DEACTIVATED:
                     Intent fieldOffIntent = new Intent(ACTION_RF_FIELD_OFF_DETECTED);
                     sendNfcEeAccessProtectedBroadcast(fieldOffIntent);
+                    break;
                 case MSG_RESUME_POLLING:
                     mNfcAdapter.resumePolling();
                     break;
