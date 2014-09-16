@@ -157,36 +157,36 @@ public class HostEmulationManager {
                     NfcService.getInstance().sendData(ANDROID_HCE_RESPONSE);
                     return;
                 }
-                AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(selectAid);
+                AidResolveInfo resolveInfo = mAidCache.resolveAid(selectAid);
                 if (resolveInfo == null || resolveInfo.services.size() == 0) {
                     // Tell the remote we don't handle this AID
                     NfcService.getInstance().sendData(AID_NOT_FOUND);
                     return;
                 }
-                mLastSelectedAid = resolveInfo.aid;
+                mLastSelectedAid = selectAid;
                 if (resolveInfo.defaultService != null) {
                     // Resolve to default
                     // Check if resolvedService requires unlock
-                    if (resolveInfo.defaultService.requiresUnlock() &&
+                    ApduServiceInfo defaultServiceInfo = resolveInfo.defaultService;
+                    if (defaultServiceInfo.requiresUnlock() &&
                             mKeyguard.isKeyguardLocked() && mKeyguard.isKeyguardSecure()) {
-                        String category = mAidCache.getCategoryForAid(resolveInfo.aid);
                         // Just ignore all future APDUs until next tap
                         mState = STATE_W4_DEACTIVATE;
-                        launchTapAgain(resolveInfo.defaultService, category);
+                        launchTapAgain(resolveInfo.defaultService, resolveInfo.category);
                         return;
                     }
                     // In no circumstance should this be an OffHostService -
                     // we should never get this AID on the host in the first place
-                    if (!resolveInfo.defaultService.isOnHost()) {
+                    if (!defaultServiceInfo.isOnHost()) {
                         Log.e(TAG, "AID that was meant to go off-host was routed to host." +
                                 " Check routing table configuration.");
                         NfcService.getInstance().sendData(AID_NOT_FOUND);
                         return;
                     }
-                    resolvedService = resolveInfo.defaultService.getComponent();
+                    resolvedService = defaultServiceInfo.getComponent();
                 } else if (mActiveServiceName != null) {
-                    for (ApduServiceInfo service : resolveInfo.services) {
-                        if (mActiveServiceName.equals(service.getComponent())) {
+                    for (ApduServiceInfo serviceInfo : resolveInfo.services) {
+                        if (mActiveServiceName.equals(serviceInfo.getComponent())) {
                             resolvedService = mActiveServiceName;
                             break;
                         }
@@ -195,11 +195,10 @@ public class HostEmulationManager {
                 if (resolvedService == null) {
                     // We have no default, and either one or more services.
                     // Ask the user to confirm.
-                    // Get corresponding category
-                    String category = mAidCache.getCategoryForAid(resolveInfo.aid);
                     // Just ignore all future APDUs until we resolve to only one
                     mState = STATE_W4_DEACTIVATE;
-                    launchResolver((ArrayList<ApduServiceInfo>)resolveInfo.services, null, category);
+                    launchResolver((ArrayList<ApduServiceInfo>)resolveInfo.services, null,
+                            resolveInfo.category);
                     return;
                 }
             }
@@ -492,16 +491,11 @@ public class HostEmulationManager {
                 }
             } else if (msg.what == HostApduService.MSG_UNHANDLED) {
                 synchronized (mLock) {
-                    AidResolveInfo resolveInfo = mAidCache.resolveAidPrefix(mLastSelectedAid);
-                    String category = mAidCache.getCategoryForAid(mLastSelectedAid);
+                    AidResolveInfo resolveInfo = mAidCache.resolveAid(mLastSelectedAid);
+                    boolean isPayment = false;
                     if (resolveInfo.services.size() > 0) {
-                        final ArrayList<ApduServiceInfo> services = new ArrayList<ApduServiceInfo>();
-                        for (ApduServiceInfo service : resolveInfo.services) {
-                            if (!service.getComponent().equals(mActiveServiceName)) {
-                                services.add(service);
-                            }
-                        }
-                        launchResolver(services, mActiveServiceName, category);
+                        launchResolver((ArrayList<ApduServiceInfo>)resolveInfo.services,
+                                mActiveServiceName, resolveInfo.category);
                     }
                 }
             }
