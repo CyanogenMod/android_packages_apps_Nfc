@@ -221,7 +221,6 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
     boolean isForegroundAllowedLocked(ComponentName service) {
         ApduServiceInfo serviceInfo = mServiceCache.getService(ActivityManager.getCurrentUser(),
                 service);
-        boolean allowed = false;
         // Do some sanity checking
         if (!mPaymentDefaults.preferForeground) {
             // Foreground apps are not allowed to override payment default
@@ -248,15 +247,16 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
                         return false;
                     }
                 }
-                allowed = true;
+                return true;
             } else {
                 // Could not find payment service or fg app doesn't register other AIDs;
                 // okay to proceed.
-                allowed = true;
+                return true;
             }
+        } else {
+            // Payment allows override, so allow anything.
+            return true;
         }
-
-        return allowed;
     }
 
     public boolean registerPreferredForegroundService(ComponentName service, int callingUid) {
@@ -271,6 +271,8 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
                     Log.e(TAG, "Calling UID is not in the foreground, ignorning!");
                     success = false;
                 }
+            } else {
+                Log.e(TAG, "Requested foreground service conflicts with default payment app.");
             }
         }
         if (success) {
