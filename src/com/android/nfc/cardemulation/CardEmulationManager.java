@@ -48,7 +48,7 @@ import com.android.nfc.cardemulation.RegisteredServicesCache;
 public class CardEmulationManager implements RegisteredServicesCache.Callback,
         PreferredServices.Callback {
     static final String TAG = "CardEmulationManager";
-    static final boolean DBG = false;
+    static final boolean DBG = true;
 
     final RegisteredAidCache mAidCache;
     final RegisteredServicesCache mServiceCache;
@@ -349,6 +349,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 throws RemoteException {
             NfcPermissions.enforceUserPermissions(mContext);
             if (!isServiceRegistered(UserHandle.getCallingUserId(), service)) {
+                Log.e(TAG, "setPreferredService: unknown component.");
                 return false;
             }
             return mPreferredServices.registerPreferredForegroundService(service,
@@ -361,6 +362,11 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
             return mPreferredServices.unregisteredPreferredForegroundService(
                     Binder.getCallingUid());
 
+        }
+
+        @Override
+        public boolean supportsAidPrefixRegistration() throws RemoteException {
+            return mAidCache.supportsAidPrefixRegistration();
         }
     }
 
