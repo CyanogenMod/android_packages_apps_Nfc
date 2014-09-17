@@ -16,16 +16,16 @@
 
 package com.android.nfc;
 
-import com.android.internal.policy.PolicyManager;
-
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.TimeAnimator;
 import android.app.ActivityManager;
+import android.app.Service;
 import android.app.StatusBarManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -35,6 +35,12 @@ import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.os.AsyncTask;
 import android.os.Binder;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.Process;
+import android.os.RemoteException;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.ActionMode;
@@ -58,6 +64,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.android.internal.policy.PolicyManager;
 
 /**
  * This class is responsible for handling the UI animation
@@ -82,9 +89,10 @@ import android.widget.Toast;
  *
  * All methods of this class must be called on the UI thread
  */
-public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
-        TimeAnimator.TimeListener, TextureView.SurfaceTextureListener, android.view.Window.Callback {
-    static final String TAG = "SendUi";
+public class SendUiService extends Service
+        implements Animator.AnimatorListener, View.OnTouchListener, TimeAnimator.TimeListener,
+        TextureView.SurfaceTextureListener, android.view.Window.Callback {
+    static final String TAG = "SendUiService";
 
     static final float INTERMEDIATE_SCALE = 0.6f;
 
@@ -124,22 +132,32 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int STATE_SENDING = 8;
     static final int STATE_COMPLETE = 9;
 
+    static final int MSG_TAKE_SCREENSHOT = 1;
+    static final int MSG_SHOW_PRESEND = 2;
+    static final int MSG_SHOW_START_SEND = 3;
+    static final int MSG_SHOW_SEND_HINT = 4;
+    static final int MSG_FINISH = 5;
+    static final int MSG_REGISTER_CLIENT = 6;
+    static final int MSG_RETRY_REPLY = 7;
+
+    static final String EXTRA_TOAST_MESSAGE = "android.nfc.extra.sendui.TOAST_MESSAGE";
+
+    private static final int RETRY_DELAY_MILLIS = 100;
+
     // all members are only used on UI thread
-    final WindowManager mWindowManager;
-    final Context mContext;
-    final Display mDisplay;
-    final DisplayMetrics mDisplayMetrics;
-    final Matrix mDisplayMatrix;
-    final WindowManager.LayoutParams mWindowLayoutParams;
-    final LayoutInflater mLayoutInflater;
-    final StatusBarManager mStatusBarManager;
-    final View mScreenshotLayout;
-    final ImageView mScreenshotView;
-    final ImageView mBlackLayer;
-    final TextureView mTextureView;
-    final TextView mTextHint;
-    final TextView mTextRetry;
-    final Callback mCallback;
+    WindowManager mWindowManager;
+    Display mDisplay;
+    DisplayMetrics mDisplayMetrics;
+    Matrix mDisplayMatrix;
+    WindowManager.LayoutParams mWindowLayoutParams;
+    LayoutInflater mLayoutInflater;
+    StatusBarManager mStatusBarManager;
+    View mScreenshotLayout;
+    ImageView mScreenshotView;
+    ImageView mBlackLayer;
+    TextureView mTextureView;
+    TextView mTextHint;
+    TextView mTextRetry;
 
     // The mFrameCounter animation is purely used to count down a certain
     // number of (vsync'd) frames. This is needed because the first 3
@@ -150,17 +168,17 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     // Wait for hw surface => start frame counter => start pre-animation after 3 frames
     // For platforms where no hw acceleration can be used, the pre-animation
     // is started immediately.
-    final TimeAnimator mFrameCounterAnimator;
+    TimeAnimator mFrameCounterAnimator;
 
-    final ObjectAnimator mPreAnimator;
-    final ObjectAnimator mSlowSendAnimator;
-    final ObjectAnimator mFastSendAnimator;
-    final ObjectAnimator mFadeInAnimator;
-    final ObjectAnimator mHintAnimator;
-    final ObjectAnimator mScaleUpAnimator;
-    final ObjectAnimator mAlphaDownAnimator;
-    final ObjectAnimator mAlphaUpAnimator;
-    final AnimatorSet mSuccessAnimatorSet;
+    ObjectAnimator mPreAnimator;
+    ObjectAnimator mSlowSendAnimator;
+    ObjectAnimator mFastSendAnimator;
+    ObjectAnimator mFadeInAnimator;
+    ObjectAnimator mHintAnimator;
+    ObjectAnimator mScaleUpAnimator;
+    ObjectAnimator mAlphaDownAnimator;
+    ObjectAnimator mAlphaUpAnimator;
+    AnimatorSet mSuccessAnimatorSet;
 
     // Besides animating the screenshot, the Beam UI also renders
     // fireflies on platforms where we can do hardware-acceleration.
@@ -169,8 +187,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     // that animation becoming janky. Likewise, the fireflies are
     // stopped in their tracks as soon as we finish the animation,
     // to make the finishing animation smooth.
-    final boolean mHardwareAccelerated;
-    final FireflyRenderer mFireflyRenderer;
+    boolean mHardwareAccelerated;
+    FireflyRenderer mFireflyRenderer;
 
     String mToastString;
     Bitmap mScreenshotBitmap;
@@ -185,24 +203,67 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     int mSurfaceWidth;
     int mSurfaceHeight;
 
-    interface Callback {
-        public void onSendConfirmed();
-        public void onCanceled();
+    private final Messenger mMessenger;
+    private final Handler mHandler = new MessageHandler();
+    Messenger mClient;
+
+    class MessageHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MSG_TAKE_SCREENSHOT:
+                    takeScreenshot();
+                    break;
+                case MSG_SHOW_PRESEND:
+                    boolean promptToTap = (msg.arg1 != 0);
+                    showPreSend(promptToTap);
+                    break;
+                case MSG_SHOW_START_SEND:
+                    showStartSend();
+                    break;
+                case MSG_FINISH:
+                    if (msg.obj != null) {
+                        finishAndToast(msg.arg1, (String) msg.obj);
+                    } else {
+                        finish(msg.arg1);
+                    }
+                    break;
+                case MSG_SHOW_SEND_HINT:
+                    showSendHint();
+                    break;
+                case MSG_REGISTER_CLIENT:
+                    mClient = msg.replyTo;
+                    break;
+                case MSG_RETRY_REPLY:
+                    tryReply(msg.arg1, false);
+                    break;
+                default:
+                    Log.e(TAG, "unhandled message: " + msg.what);
+                    break;
+            }
+        }
     }
 
-    public SendUi(Context context, Callback callback) {
-        mContext = context;
-        mCallback = callback;
+    @Override
+    public IBinder onBind(Intent intent) {
+        return mMessenger.getBinder();
+    }
 
+    public SendUiService() {
+        mMessenger = new Messenger(mHandler);
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
         mDisplayMetrics = new DisplayMetrics();
         mDisplayMatrix = new Matrix();
-        mWindowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-        mStatusBarManager = (StatusBarManager) context.getSystemService(Context.STATUS_BAR_SERVICE);
+        mWindowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        mStatusBarManager = (StatusBarManager) getSystemService(Context.STATUS_BAR_SERVICE);
 
         mDisplay = mWindowManager.getDefaultDisplay();
 
-        mLayoutInflater = (LayoutInflater)
-                context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        mLayoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mScreenshotLayout = mLayoutInflater.inflate(R.layout.screenshot, null);
 
         mScreenshotView = (ImageView) mScreenshotLayout.findViewById(R.id.screenshot);
@@ -225,8 +286,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 0,
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
-                | hwAccelerationFlags
-                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        | hwAccelerationFlags
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.privateFlags |=
                 WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
@@ -244,8 +305,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", SEND_SCREENSHOT_SCALE);
         PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", SEND_SCREENSHOT_SCALE);
-        PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
-                new float[]{1.0f, 0.0f});
+        PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha", 1.0f, 0.0f);
 
         mSlowSendAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, postX, postY);
         mSlowSendAnimator.setInterpolator(new DecelerateInterpolator());
@@ -257,10 +317,13 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mFastSendAnimator.setDuration(FAST_SEND_DURATION_MS);
         mFastSendAnimator.addListener(this);
 
-        PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
-        PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
+        PropertyValuesHolder scaleUpX =
+                PropertyValuesHolder.ofFloat("scaleX", SCALE_UP_SCREENSHOT_SCALE);
+        PropertyValuesHolder scaleUpY =
+                PropertyValuesHolder.ofFloat("scaleY", SCALE_UP_SCREENSHOT_SCALE);
 
-        mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(mScreenshotView, scaleUpX, scaleUpY);
+        mScaleUpAnimator = ObjectAnimator.ofPropertyValuesHolder(
+                mScreenshotView, scaleUpX, scaleUpY);
         mScaleUpAnimator.setInterpolator(new DecelerateInterpolator());
         mScaleUpAnimator.setDuration(SCALE_UP_DURATION_MS);
         mScaleUpAnimator.addListener(this);
@@ -293,15 +356,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
         // Create a Window with a Decor view; creating a window allows us to get callbacks
         // on key events (which require a decor view to be dispatched).
-        mContext.setTheme(android.R.style.Theme_Black_NoTitleBar_Fullscreen);
-        Window window = PolicyManager.makeNewWindow(mContext);
+        setTheme(android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        Window window = PolicyManager.makeNewWindow(this);
         window.setCallback(this);
         window.requestFeature(Window.FEATURE_NO_TITLE);
         mDecor = window.getDecorView();
         window.setContentView(mScreenshotLayout, mWindowLayoutParams);
 
         if (mHardwareAccelerated) {
-            mFireflyRenderer = new FireflyRenderer(context);
+            mFireflyRenderer = new FireflyRenderer(this);
         } else {
             mFireflyRenderer = null;
         }
@@ -347,7 +410,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Update display metrics
         mDisplay.getRealMetrics(mDisplayMetrics);
 
-        final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
+        final int statusBarHeight = getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
 
         mBlackLayer.setVisibility(View.GONE);
@@ -361,9 +424,9 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mScreenshotLayout.requestFocus();
 
         if (promptToNfcTap) {
-            mTextHint.setText(mContext.getResources().getString(R.string.ask_nfc_tap));
+            mTextHint.setText(getResources().getString(R.string.ask_nfc_tap));
         } else {
-            mTextHint.setText(mContext.getResources().getString(R.string.touch));
+            mTextHint.setText(getResources().getString(R.string.touch));
         }
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
@@ -375,7 +438,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // So we have to use SENSOR_LANDSCAPE or SENSOR_PORTRAIT to make sure
         // we lock in portrait / landscape and have the sensor determine
         // which way is up.
-        int orientation = mContext.getResources().getConfiguration().orientation;
+        int orientation = getResources().getConfiguration().orientation;
 
         switch (orientation) {
             case Configuration.ORIENTATION_LANDSCAPE:
@@ -412,17 +475,15 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Update the starting scale - touchscreen-mashers may trigger
         // this before the pre-animation completes.
         float currentScale = mScreenshotView.getScaleX();
-        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
-                new float[] {currentScale, 0.0f});
-        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
-                new float[] {currentScale, 0.0f});
+        PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX", currentScale, 0.0f);
+        PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY", currentScale, 0.0f);
 
         mSlowSendAnimator.setValues(postX, postY);
 
         float currentAlpha = mBlackLayer.getAlpha();
         if (mBlackLayer.isShown() && currentAlpha > 0.0f) {
-            PropertyValuesHolder alphaDown = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {currentAlpha, 0.0f});
+            PropertyValuesHolder alphaDown =
+                    PropertyValuesHolder.ofFloat("alpha", currentAlpha, 0.0f);
             mAlphaDownAnimator.setValues(alphaDown);
             mAlphaDownAnimator.start();
         }
@@ -476,27 +537,27 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (finishMode == FINISH_SCALE_UP) {
             mBlackLayer.setVisibility(View.GONE);
             PropertyValuesHolder scaleUpX = PropertyValuesHolder.ofFloat("scaleX",
-                    new float[] {currentScale, 1.0f});
+                    currentScale, 1.0f);
             PropertyValuesHolder scaleUpY = PropertyValuesHolder.ofFloat("scaleY",
-                    new float[] {currentScale, 1.0f});
+                    currentScale, 1.0f);
             PropertyValuesHolder scaleUpAlpha = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {currentAlpha, 1.0f});
+                    currentAlpha, 1.0f);
             mScaleUpAnimator.setValues(scaleUpX, scaleUpY, scaleUpAlpha);
 
             mScaleUpAnimator.start();
         } else if (finishMode == FINISH_SEND_SUCCESS){
             // Modify the fast send parameters to match the current scale
             PropertyValuesHolder postX = PropertyValuesHolder.ofFloat("scaleX",
-                    new float[] {currentScale, 0.0f});
+                    currentScale, 0.0f);
             PropertyValuesHolder postY = PropertyValuesHolder.ofFloat("scaleY",
-                    new float[] {currentScale, 0.0f});
+                    currentScale, 0.0f);
             PropertyValuesHolder alpha = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {currentAlpha, 0.0f});
+                    currentAlpha, 0.0f);
             mFastSendAnimator.setValues(postX, postY, alpha);
 
             // Reset the fadeIn parameters to start from alpha 1
             PropertyValuesHolder fadeIn = PropertyValuesHolder.ofFloat("alpha",
-                    new float[] {0.0f, 1.0f});
+                    0.0f, 1.0f);
             mFadeInAnimator.setValues(fadeIn);
 
             mSlowSendAnimator.cancel();
@@ -507,26 +568,37 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     void dismiss() {
         if (mState < STATE_W4_TOUCH) return;
+
         // Immediately set to IDLE, to prevent .cancel() calls
         // below from immediately calling into dismiss() again.
         // (They can do so on the same thread).
         mState = STATE_IDLE;
         mSurface = null;
         mFrameCounterAnimator.cancel();
+        mFrameCounterAnimator.removeAllListeners();
         mPreAnimator.cancel();
+        mPreAnimator.removeAllListeners();
         mSlowSendAnimator.cancel();
+        mSlowSendAnimator.removeAllListeners();
         mFastSendAnimator.cancel();
+        mFastSendAnimator.removeAllListeners();
         mSuccessAnimatorSet.cancel();
+        mSuccessAnimatorSet.removeAllListeners();
         mScaleUpAnimator.cancel();
+        mScaleUpAnimator.removeAllListeners();
         mAlphaUpAnimator.cancel();
+        mAlphaUpAnimator.removeAllListeners();
         mAlphaDownAnimator.cancel();
+        mAlphaDownAnimator.removeAllListeners();
         mWindowManager.removeView(mDecor);
         mStatusBarManager.disable(StatusBarManager.DISABLE_NONE);
         mScreenshotBitmap = null;
         if (mToastString != null) {
-            Toast.makeText(mContext, mToastString, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, mToastString, Toast.LENGTH_LONG).show();
         }
+
         mToastString = null;
+        Process.killProcess(Process.myPid() );
     }
 
     /**
@@ -575,7 +647,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 Log.e(TAG, "Invalid state on screenshot completion: " + Integer.toString(mState));
             }
         }
-    };
+    }
 
     /**
      * Returns a screenshot of the current display contents.
@@ -585,21 +657,21 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // take screenshots only in the natural orientation of the device :!)
 
         mDisplay.getRealMetrics(mDisplayMetrics);
-        boolean hasNavBar =  mContext.getResources().getBoolean(
+        boolean hasNavBar =  getResources().getBoolean(
                 com.android.internal.R.bool.config_showNavigationBar);
 
         float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
-        final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
+        final int statusBarHeight = getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
 
         // Navbar has different sizes, depending on orientation
-        final int navBarHeight = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+        final int navBarHeight = hasNavBar ? getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.navigation_bar_height) : 0;
-        final int navBarHeightLandscape = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+        final int navBarHeightLandscape = hasNavBar ? getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.navigation_bar_height_landscape) : 0;
 
-        final int navBarWidth = hasNavBar ? mContext.getResources().getDimensionPixelSize(
+        final int navBarWidth = hasNavBar ? getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.navigation_bar_width) : 0;
 
         boolean requiresRotation = (degrees > 0);
@@ -714,7 +786,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mFrameCounterAnimator.cancel();
         mPreAnimator.cancel();
 
-        mCallback.onSendConfirmed();
+        tryReply(P2pEventManager.MSG_ON_SEND_CONFIRMED, true);
         return true;
     }
 
@@ -757,11 +829,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mBlackLayer.setVisibility(View.VISIBLE);
         mTextHint.setVisibility(View.GONE);
 
-        mTextRetry.setText(mContext.getResources().getString(R.string.beam_try_again));
+        mTextRetry.setText(getResources().getString(R.string.beam_try_again));
         mTextRetry.setVisibility(View.VISIBLE);
 
         PropertyValuesHolder alphaUp = PropertyValuesHolder.ofFloat("alpha",
-                new float[] {mBlackLayer.getAlpha(), 0.9f});
+                mBlackLayer.getAlpha(), 0.9f);
         mAlphaUpAnimator.setValues(alphaUp);
         mAlphaUpAnimator.start();
     }
@@ -770,7 +842,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            mCallback.onCanceled();
+            tryReply(P2pEventManager.MSG_ON_BEAM_CANCELLED, false);
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
                 keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
@@ -778,6 +850,30 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
             return onTouch(mScreenshotView, null);
         } else {
             return false;
+        }
+    }
+
+    private void tryReply(int what, boolean retry) {
+        if (mClient != null) {
+            Message message = Message.obtain(null, what);
+            try {
+                mClient.send(message);
+            } catch (RemoteException e) {
+                if (retry) {
+                    Log.e(TAG, "failed to communicate with NFC process, retrying", e);
+                    Message msg = Message.obtain(null, MSG_RETRY_REPLY);
+                    msg.arg1 = message.what;
+                    mHandler.sendMessageDelayed(msg, RETRY_DELAY_MILLIS);
+                } else {
+                    Log.e(TAG, "failed to communicate with NFC process, aborting");
+                    Process.killProcess(Process.myPid());
+                }
+            }
+        } else {
+            // should never happen as the remote unbinds if it fails to register mClient
+            // kill the process in case it's somehow in a runaway state taking up memory
+            Log.e(TAG, "inconsistent state in SendUiService, killing");
+            Process.killProcess(Process.myPid());
         }
     }
 
