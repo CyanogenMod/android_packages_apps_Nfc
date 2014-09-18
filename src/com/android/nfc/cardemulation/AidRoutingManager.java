@@ -30,7 +30,7 @@ import java.util.Set;
 public class AidRoutingManager {
     static final String TAG = "AidRoutingManager";
 
-    static final boolean DBG = true;
+    static final boolean DBG = false;
 
     static final int ROUTE_HOST = 0x00;
 
