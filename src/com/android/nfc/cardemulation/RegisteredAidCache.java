@@ -341,9 +341,9 @@ public class RegisteredAidCache {
                 return EMPTY_RESOLVE_INFO;
             } else {
                 // No children that are preferred; add all services of the root
-                // and children
+                // make single service default if no children are present
                 if (DBG) Log.d(TAG, "No service has preference, adding all.");
-                return resolveAidConflictLocked(prefixServices, false);
+                return resolveAidConflictLocked(prefixServices, conflictingServices.isEmpty());
             }
         }
     }
@@ -363,7 +363,7 @@ public class RegisteredAidCache {
                     continue;
                 }
                 ServiceAidInfo serviceAidInfo = new ServiceAidInfo();
-                serviceAidInfo.aid = aid;
+                serviceAidInfo.aid = aid.toUpperCase();
                 serviceAidInfo.service = service;
                 serviceAidInfo.category = service.getCategoryForAid(aid);
 
@@ -455,6 +455,7 @@ public class RegisteredAidCache {
                     // This means we don't have a default for this prefix and all its
                     // conflicting children. So, for all conflicting AIDs, just add
                     // all handling services without setting a default
+                    boolean foundChildService = false;
                     for (Map.Entry<String, ArrayList<ServiceAidInfo>> entry :
                             prefixConflicts.conflictMap.entrySet()) {
                         if (!entry.getKey().equalsIgnoreCase(aidToResolve)) {
@@ -470,7 +471,13 @@ public class RegisteredAidCache {
                             childResolveInfo.mustRoute = false;
                             mAidCache.put(entry.getKey(),childResolveInfo);
                             resolvedAids.add(entry.getKey());
+                            foundChildService |= !childResolveInfo.services.isEmpty();
                         }
+                    }
+                    // Special case: if in the end we didn't add any children services,
+                    // and the prefix has only one service, make that default
+                    if (!foundChildService && resolveInfo.services.size() == 1) {
+                        resolveInfo.defaultService = resolveInfo.services.get(0);
                     }
                 } else {
                     // This prefix is not handled at all; we will evaluate
