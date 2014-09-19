@@ -266,7 +266,7 @@ class NfcDispatcher {
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
-        if (!provisioningOnly && NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
+        if (NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
             if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
