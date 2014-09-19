@@ -48,7 +48,7 @@ import com.android.nfc.cardemulation.RegisteredServicesCache;
 public class CardEmulationManager implements RegisteredServicesCache.Callback,
         PreferredServices.Callback {
     static final String TAG = "CardEmulationManager";
-    static final boolean DBG = true;
+    static final boolean DBG = false;
 
     final RegisteredAidCache mAidCache;
     final RegisteredServicesCache mServiceCache;
