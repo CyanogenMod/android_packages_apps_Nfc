@@ -1210,6 +1210,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
 
     sIsDisabling = true;
     pn544InteropAbortNow ();
+    RoutingManager::getInstance().onNfccShutdown();
     PowerSwitch::getInstance ().initialize (PowerSwitch::UNKNOWN_LEVEL);
 
     if (sIsNfaEnabled)
