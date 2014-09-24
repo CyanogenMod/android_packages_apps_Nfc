@@ -38,6 +38,7 @@ public:
     bool addAidRouting(const UINT8* aid, UINT8 aidLen, int route);
     bool removeAidRouting(const UINT8* aid, UINT8 aidLen);
     bool commitRouting();
+    void onNfccShutdown();
     int registerJniFunctions (JNIEnv* e);
 private:
     RoutingManager();
@@ -81,5 +82,6 @@ private:
     SyncEvent mRoutingEvent;
     SyncEvent mEeUpdateEvent;
     SyncEvent mEeInfoEvent;
+    SyncEvent mEeSetModeEvent;
 };
 
