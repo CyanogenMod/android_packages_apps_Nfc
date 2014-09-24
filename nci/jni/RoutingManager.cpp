@@ -41,6 +41,8 @@ const JNINativeMethod RoutingManager::sMethods [] =
     {"doGetAidMatchingMode", "()I", (void*) RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode}
 };
 
+static const int MAX_NUM_EE = 5;
+
 RoutingManager::RoutingManager ()
 {
     static const char fn [] = "RoutingManager::RoutingManager()";
@@ -259,6 +261,48 @@ bool RoutingManager::commitRouting()
     return (nfaStat == NFA_STATUS_OK);
 }
 
+void RoutingManager::onNfccShutdown ()
+{
+    static const char fn [] = "RoutingManager:onNfccShutdown";
+    if (mActiveSe == 0x00) return;
+
+    tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
+    UINT8 actualNumEe = MAX_NUM_EE;
+    tNFA_EE_INFO eeInfo[MAX_NUM_EE];
+
+    memset (&eeInfo, 0, sizeof(eeInfo));
+    if ((nfaStat = NFA_EeGetInfo (&actualNumEe, eeInfo)) != NFA_STATUS_OK)
+    {
+        ALOGE ("%s: fail get info; error=0x%X", fn, nfaStat);
+        return;
+    }
+    if (actualNumEe != 0)
+    {
+        for (UINT8 xx = 0; xx < actualNumEe; xx++)
+        {
+            if ((eeInfo[xx].num_interface != 0)
+                && (eeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS)
+                && (eeInfo[xx].ee_status == NFA_EE_STATUS_ACTIVE))
+            {
+                ALOGD ("%s: Handle: 0x%04x Change Status Active to Inactive", fn, eeInfo[xx].ee_handle);
+                SyncEventGuard guard (mEeSetModeEvent);
+                if ((nfaStat = NFA_EeModeSet (eeInfo[xx].ee_handle, NFA_EE_MD_DEACTIVATE)) == NFA_STATUS_OK)
+                {
+                    mEeSetModeEvent.wait (); //wait for NFA_EE_MODE_SET_EVT
+                }
+                else
+                {
+                    ALOGE ("Failed to set EE inactive");
+                }
+            }
+        }
+    }
+    else
+    {
+        ALOGD ("%s: No active EEs found", fn);
+    }
+}
+
 void RoutingManager::notifyActivated ()
 {
     JNIEnv* e = NULL;
@@ -433,8 +477,10 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
 
     case NFA_EE_MODE_SET_EVT:
         {
+            SyncEventGuard guard (routingManager.mEeSetModeEvent);
             ALOGD ("%s: NFA_EE_MODE_SET_EVT; status: 0x%04X  handle: 0x%04X  ", fn,
                     eventData->mode_set.status, eventData->mode_set.ee_handle);
+            routingManager.mEeSetModeEvent.notifyOne();
         }
         break;
 
