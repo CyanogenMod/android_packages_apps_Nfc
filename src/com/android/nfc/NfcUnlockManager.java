@@ -3,7 +3,6 @@ package com.android.nfc;
 import android.nfc.INfcUnlockHandler;
 import android.nfc.Tag;
 import android.os.IBinder;
-import android.os.RemoteException;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -62,7 +61,7 @@ class NfcUnlockManager {
                 if (handlerWrapper.mUnlockHandler.onUnlockAttempted(tag)) {
                     return true;
                 }
-            } catch (RemoteException e) {
+            } catch (Exception e) {
                 Log.e(TAG, "failed to communicate with unlock handler, removing", e);
                 iterator.remove();
                 mLockscreenPollMask = recomputePollMask();
