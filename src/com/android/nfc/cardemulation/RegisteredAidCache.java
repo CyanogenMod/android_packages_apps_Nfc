@@ -155,6 +155,8 @@ public class RegisteredAidCache {
                         " - " + longestAidMatch + "]");
                 NavigableMap<String, AidResolveInfo> matchingAids =
                         mAidCache.subMap(shortestAidMatch, true, longestAidMatch, true);
+
+                resolveInfo.category = CardEmulation.CATEGORY_OTHER;
                 for (Map.Entry<String, AidResolveInfo> entry : matchingAids.entrySet()) {
                     boolean isPrefix = isPrefix(entry.getKey());
                     String entryAid = isPrefix ? entry.getKey().substring(0,
@@ -169,6 +171,7 @@ public class RegisteredAidCache {
                                 Log.e(TAG, "Different defaults for conflicting AIDs!");
                             }
                             resolveInfo.defaultService = entryResolveInfo.defaultService;
+                            resolveInfo.category = entryResolveInfo.category;
                         }
                         for (ApduServiceInfo serviceInfo : entryResolveInfo.services) {
                             if (!resolveInfo.services.contains(serviceInfo)) {
@@ -234,6 +237,9 @@ public class RegisteredAidCache {
                     CardEmulation.CATEGORY_PAYMENT.equals(serviceAidInfo.category);
             if (serviceAidInfo.service.getComponent().equals(mPreferredForegroundService)) {
                 resolveInfo.services.add(serviceAidInfo.service);
+                if (serviceClaimsPaymentAid) {
+                    resolveInfo.category = CardEmulation.CATEGORY_PAYMENT;
+                }
                 matchedForeground = serviceAidInfo.service;
             } else if (serviceAidInfo.service.getComponent().equals(mPreferredPaymentService) &&
                     serviceClaimsPaymentAid) {
@@ -420,7 +426,7 @@ public class RegisteredAidCache {
         while (!aidsToResolve.isEmpty()) {
             final ArrayList<String> resolvedAids = new ArrayList<String>();
 
-            String aidToResolve = aidsToResolve.poll();
+            String aidToResolve = aidsToResolve.peek();
             // Because of the lexicographical ordering, all following AIDs either start with the
             // same bytes and are longer, or start with different bytes.
 
@@ -581,8 +587,9 @@ public class RegisteredAidCache {
 
     String dumpEntry(Map.Entry<String, AidResolveInfo> entry) {
         StringBuilder sb = new StringBuilder();
-        sb.append("    \"" + entry.getKey() + "\"\n");
+        String category = entry.getValue().category;
         ApduServiceInfo defaultServiceInfo = entry.getValue().defaultService;
+        sb.append("    \"" + entry.getKey() + "\" (category: " + category + ")\n");
         ComponentName defaultComponent = defaultServiceInfo != null ?
                 defaultServiceInfo.getComponent() : null;
 
