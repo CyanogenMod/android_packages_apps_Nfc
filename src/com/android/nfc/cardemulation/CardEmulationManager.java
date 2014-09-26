@@ -63,7 +63,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         mAidCache = new RegisteredAidCache(context);
         mHostEmulationManager = new HostEmulationManager(context, mAidCache);
         mServiceCache = new RegisteredServicesCache(context, this);
-        mPreferredServices = new PreferredServices(context, mServiceCache, this);
+        mPreferredServices = new PreferredServices(context, mServiceCache, mAidCache, this);
 
         mServiceCache.initialize();
     }
