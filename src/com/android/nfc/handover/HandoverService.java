@@ -116,7 +116,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
             "android.permission.NFC_HANDOVER_STATUS";
 
     // Amount of time to pause polling when connecting to peripherals
-    private static final int PAUSE_POLLING_TIMEOUT_MS = 20000;
+    private static final int PAUSE_POLLING_TIMEOUT_MS = 35000;
 
     // Variables below only accessed on main thread
     final Queue<BluetoothOppHandover> mPendingOutTransfers;
