@@ -61,6 +61,7 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
     final SettingsObserver mSettingsObserver;
     final Context mContext;
     final RegisteredServicesCache mServiceCache;
+    final RegisteredAidCache mAidCache;
     final Callback mCallback;
     final ForegroundUtils mForegroundUtils = ForegroundUtils.getInstance();
     final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -89,9 +90,10 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
     }
 
     public PreferredServices(Context context, RegisteredServicesCache serviceCache,
-            Callback callback) {
+            RegisteredAidCache aidCache, Callback callback) {
         mContext = context;
         mServiceCache = serviceCache;
+        mAidCache = aidCache;
         mCallback = callback;
         mSettingsObserver = new SettingsObserver(mHandler);
         mContext.getContentResolver().registerContentObserver(
@@ -219,6 +221,11 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
 
     // Verifies whether a service is allowed to register as preferred
     boolean isForegroundAllowedLocked(ComponentName service) {
+        if (service.equals(mPaymentDefaults.currentPreferred)) {
+            // If the requester is already the payment default, allow it to request foreground
+            // override as well (it could use this to make sure it handles AIDs of category OTHER)
+            return true;
+        }
         ApduServiceInfo serviceInfo = mServiceCache.getService(ActivityManager.getCurrentUser(),
                 service);
         // Do some sanity checking
@@ -240,9 +247,10 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
                     ActivityManager.getCurrentUser(), mPaymentDefaults.currentPreferred);
             if (paymentServiceInfo != null && otherAids != null && otherAids.size() > 0) {
                 for (String aid : otherAids) {
-                    if (CardEmulation.CATEGORY_PAYMENT.equals(
-                            paymentServiceInfo.getCategoryForAid(aid))) {
-                        Log.e(TAG, "AID " + aid + " is registered by the default payment app, " +
+                    RegisteredAidCache.AidResolveInfo resolveInfo = mAidCache.resolveAid(aid);
+                    if (CardEmulation.CATEGORY_PAYMENT.equals(resolveInfo.category) &&
+                            paymentServiceInfo.equals(resolveInfo.defaultService)) {
+                        Log.d(TAG, "AID " + aid + " is handled by the default payment app, " +
                                 "and the user has not allowed payments to be overridden.");
                         return false;
                     }
