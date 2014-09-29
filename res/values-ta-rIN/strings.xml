@@ -35,7 +35,7 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"<xliff:g id="APP">%1$s</xliff:g> ஐப் பயன்படுத்த முடியவில்லை."</string>
     <string name="pay_with" msgid="5531545488795798945">"இதனுடன் செலுத்து"</string>
     <string name="complete_with" msgid="6797459104103012992">"இதனுடன் நிறைவு செய்"</string>
-    <string name="default_pay_app_removed" msgid="4108250545457437360">"தட்டி &amp; கட்டண செலுத்தலுக்கான உங்களின் முன்னுரிமை சேவை அகற்றப்பட்டது. மற்றொன்றைத் தேர்ந்தெடுக்கவா?"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"தட்டி கட்டண செலுத்தலுக்கான உங்களின் முன்னுரிமை சேவை அகற்றப்பட்டது. மற்றொன்றைத் தேர்ந்தெடுக்கவா?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"முடிக்க மற்றொரு சாதனத்தைத் தட்டவும்"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"இணை"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"நெட்வொர்க்குடன் இணைக்க முடியவில்லை"</string>

@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"လှိုင်းလွှင့်မှု ပြီးဆုံးပါပြီ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"လှိုင်းလွှင့်မှု မပြီးဆုံးပါ"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"လှိုင်းလွှင့်မှု ပယ်ဖျက်မည်"</string>
-    <string name="cancel" msgid="61873902552555096">"နေတော့"</string>
+    <string name="cancel" msgid="61873902552555096">"ထားတော့"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ကြည့်ရန် တို့ထိပါ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"လက်ခံစက်သည် လှိုင်းလွှင့်ခြင်းမှတစ်ဆင့် ကြီးမားသောဖိုင်လွဲခြင်းများကို မထောက်ပံ့ပါ"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ထပ်ပြီး စက်ကို အတူထားပါ"</string>
