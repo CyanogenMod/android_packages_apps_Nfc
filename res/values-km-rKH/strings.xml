@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"បញ្ចប់​ការ​ផ្ទេរ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"ការ​ផ្ទេរ​មិន​បាន​បញ្ចប់"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"បាន​បោះបង់​ការ​ផ្ទេរ"</string>
-    <string name="cancel" msgid="61873902552555096">"បោះ​បង់​"</string>
+    <string name="cancel" msgid="61873902552555096">"បោះ​បង់"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ប៉ះ​ដើម្បី​មើល"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ឧបករណ៍​របស់​អ្នក​ទទួល​មិន​គាំទ្រ​ការ​ផ្ទេរ​ឯកសារ​​ដែល​មាន​ទំហំ​ធំ​តាម​ការ​ផ្ទេរ​ឡើយ។"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"នាំ​ឧបករណ៍​ជាមួយគ្នា​ម្ដងទៀត"</string>
@@ -23,7 +23,7 @@
     <string name="connect_peripheral_failed" msgid="7173159351147270788">"មិន​អាច​ភ្ជាប់"</string>
     <string name="disconnecting_peripheral" msgid="5320432304947519207">"ផ្ដាច់"</string>
     <string name="disconnected_peripheral" msgid="2768150931245385916">"បាន​ផ្ដាច់"</string>
-    <string name="pairing_peripheral" msgid="5618129595426303236">"ផ្គូផ្គង​"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"ផ្គូផ្គង"</string>
     <string name="pairing_peripheral_failed" msgid="976004756112808526">"មិន​អាច​ផ្គូផ្គង"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"មិន​អាច​បើក​ប៊្លូធូស"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"តើ​អ្នក​ប្រាកដ​ជា​ចង់​ផ្គូផ្គង​ឧបករណ៍​ប៊្លូធូស <xliff:g id="DEVICE_NAME">%1$s</xliff:g> ?"</string>
