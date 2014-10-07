@@ -16,7 +16,6 @@
 
 package com.android.nfc;
 
-import android.nfc.INfcLockscreenDispatch;
 import android.nfc.INfcUnlockHandler;
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverManager;
@@ -80,7 +79,6 @@ class NfcDispatcher {
     private IntentFilter[] mOverrideFilters;
     private String[][] mOverrideTechLists;
     private boolean mProvisioningOnly;
-    private INfcLockscreenDispatch mLockscreenDispatch;
 
     NfcDispatcher(Context context,
                   HandoverManager handoverManager,
@@ -531,10 +529,6 @@ class NfcDispatcher {
             }
         }
         return true;
-    }
-
-    synchronized void registerLockscreenDispatch(INfcLockscreenDispatch lockscreenDispatch) {
-        mLockscreenDispatch = lockscreenDispatch;
     }
 
     static String checkForAar(NdefRecord record) {
