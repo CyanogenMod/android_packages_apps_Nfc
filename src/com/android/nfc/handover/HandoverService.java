@@ -56,6 +56,8 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     static final int MSG_START_INCOMING_TRANSFER = 2;
     static final int MSG_START_OUTGOING_TRANSFER = 3;
     static final int MSG_PERIPHERAL_HANDOVER = 4;
+    static final int MSG_PAUSE_POLLING = 5;
+
 
     static final String BUNDLE_TRANSFER = "transfer";
 
@@ -117,6 +119,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
 
     // Amount of time to pause polling when connecting to peripherals
     private static final int PAUSE_POLLING_TIMEOUT_MS = 35000;
+    public static final int PAUSE_DELAY_MILLIS = 300;
 
     // Variables below only accessed on main thread
     final Queue<BluetoothOppHandover> mPendingOutTransfers;
@@ -157,6 +160,9 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
                     break;
                 case MSG_PERIPHERAL_HANDOVER:
                     doPeripheralHandover(msg);
+                    break;
+                case MSG_PAUSE_POLLING:
+                    mNfcAdapter.pausePolling(PAUSE_POLLING_TIMEOUT_MS);
                     break;
             }
         }
@@ -273,7 +279,11 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         }
         mBluetoothPeripheralHandover = new BluetoothPeripheralHandover(HandoverService.this,
                 device, name, transport, HandoverService.this);
-        mNfcAdapter.pausePolling(PAUSE_POLLING_TIMEOUT_MS);
+        // TODO: figure out a way to disable polling without deactivating current target
+        if (transport == BluetoothDevice.TRANSPORT_LE) {
+            mHandler.sendMessageDelayed(
+                    mHandler.obtainMessage(MSG_PAUSE_POLLING), PAUSE_DELAY_MILLIS);
+        }
         if (mBluetoothAdapter.isEnabled()) {
             if (!mBluetoothPeripheralHandover.start()) {
                 mNfcAdapter.resumePolling();
@@ -523,6 +533,7 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
     @Override
     public void onBluetoothPeripheralHandoverComplete(boolean connected) {
         // Called on the main thread
+        int transport = mBluetoothPeripheralHandover.mTransport;
         mBluetoothPeripheralHandover = null;
         mBluetoothHeadsetConnected = connected;
 
@@ -531,7 +542,13 @@ public class HandoverService extends Service implements HandoverTransfer.Callbac
         // This ensures we don't disconnect if the user left the volantis
         // on the tag after pairing completed, which results in automatic
         // disconnection </hack>
-        if (!connected) {
+        if (transport == BluetoothDevice.TRANSPORT_LE && !connected) {
+            if (mHandler.hasMessages(MSG_PAUSE_POLLING)) {
+                mHandler.removeMessages(MSG_PAUSE_POLLING);
+            }
+
+            // do this unconditionally as the polling could have been paused as we were removing
+            // the message in the handler. It's a no-op if polling is already enabled.
             mNfcAdapter.resumePolling();
         }
 
