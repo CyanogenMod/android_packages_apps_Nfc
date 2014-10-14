@@ -12,12 +12,28 @@
   <string name="beam_progress">Beam gëtt empfaangen...</string>
   <string name="beam_outgoing">Beamen...</string>
   <string name="beam_complete">Beam ofgeschloss</string>
+  <string name="beam_failed">Beam net ofgeschloss</string>
+  <string name="beam_canceled">Beam ofgebrach</string>
   <string name="cancel">Ofbriechen</string>
   <string name="beam_touch_to_view">Dréck fir ze kucken</string>
+  <string name="beam_handover_not_supported">Den Apparat vum Empfänger ënnerstëtzt keen Transfert vu grousse Fichieren iwwer Beam.</string>
   <string name="beam_try_again">Bréng d\'Apparater nees beieneen</string>
+  <string name="connecting_headset">Connectéieren</string>
   <string name="connected_headset">Verbonnen</string>
+  <string name="connect_headset_failed">Konnt net connectéieren</string>
+  <string name="disconnecting_headset">Connectioun gëtt getrennt</string>
+  <string name="disconnected_headset">Connectioun getrennt</string>
   <string name="pairing_headset">Verbannen</string>
   <string name="pairing_headset_failed">Konnt net verbannen</string>
+  <string name="failed_to_enable_bt">Bluetooth konnt net aktivéiert ginn</string>
+  <string name="confirm_pairing">Bass du sécher datt s du eng Connectioun mam Bluetooth-Apparat <xliff:g id="device_name">%1$s</xliff:g> wëlls hierstellen?</string>
   <string name="pair_yes">Jo</string>
   <string name="pair_no">Nee</string>
+  <string name="tap_again_to_pay">Dréck nees fir mat <xliff:g id="app">%1$s</xliff:g> ze bezuelen</string>
+  <string name="tap_again_to_complete">Dréck nees fir mat <xliff:g id="app">%1$s</xliff:g> ofzeschléissen</string>
+  <string name="transaction_failure">Dës Transaktioun konnt net mat <xliff:g id="app">%1$s</xliff:g> ofgeschloss ginn.</string>
+  <string name="could_not_use_app">Konnt <xliff:g id="app">%1$s</xliff:g> net benotzen.</string>
+  <string name="pay_with">Bezuele mat</string>
+  <string name="complete_with">Ofschléisse mat</string>
+  <string name="default_pay_app_removed">Däi preferréierte Service fir Drécken a Bezuelen gouf geläscht. Een aneren auswielen?</string>
 </resources>
