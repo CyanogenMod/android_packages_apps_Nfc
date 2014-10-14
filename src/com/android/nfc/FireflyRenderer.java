@@ -24,18 +24,19 @@ import android.graphics.SurfaceTexture;
 import android.opengl.GLUtils;
 import android.util.Log;
 
-import javax.microedition.khronos.egl.EGL10;
-import javax.microedition.khronos.egl.EGLConfig;
-import javax.microedition.khronos.egl.EGLContext;
-import javax.microedition.khronos.egl.EGLDisplay;
-import javax.microedition.khronos.egl.EGLSurface;
-import javax.microedition.khronos.opengles.GL10;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+
+import javax.microedition.khronos.egl.EGL10;
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.egl.EGLContext;
+import javax.microedition.khronos.egl.EGLDisplay;
+import javax.microedition.khronos.egl.EGLSurface;
+import javax.microedition.khronos.opengles.GL10;
 
 public class FireflyRenderer {
     private static final String LOG_TAG = "NfcFireflyThread";
@@ -347,9 +348,6 @@ public class FireflyRenderer {
             if (mEglContext != null) {
                 mEgl.eglDestroyContext(mEglDisplay, mEglContext);
             }
-
-            mEgl.eglTerminate(mEglDisplay);
-            mEgl.eglReleaseThread();
         }
 
         private EGLConfig chooseEglConfig() {
