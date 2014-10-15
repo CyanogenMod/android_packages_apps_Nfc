@@ -128,9 +128,5 @@
         <service android:name=".handover.HandoverService"
             android:process=":handover"
         />
-
-        <service android:name=".SendUiService"
-            android:process=":sendui"
-        />
     </application>
 </manifest>
