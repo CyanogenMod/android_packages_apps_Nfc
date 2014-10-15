@@ -583,12 +583,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     Bitmap createScreenshot() {
         // We need to orient the screenshot correctly (and the Surface api seems to
         // take screenshots only in the natural orientation of the device :!)
-
         mDisplay.getRealMetrics(mDisplayMetrics);
         boolean hasNavBar =  mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_showNavigationBar);
 
-        float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
+        float[] dims = {mDisplayMetrics.widthPixels / 4, mDisplayMetrics.heightPixels / 4};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
         final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
