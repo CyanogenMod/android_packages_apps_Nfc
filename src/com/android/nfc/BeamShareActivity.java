@@ -32,6 +32,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
+import android.os.UserHandle;
 import android.util.Log;
 import android.webkit.URLUtil;
 
@@ -78,7 +79,7 @@ public class BeamShareActivity extends Activity {
 
     private void showNfcDialogAndExit(int msgId) {
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
-        registerReceiver(mReceiver, filter);
+        registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this,
                 AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);

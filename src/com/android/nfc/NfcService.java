@@ -20,6 +20,7 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -27,6 +28,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.IPackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
@@ -372,6 +374,9 @@ public class NfcService implements DeviceHostListener {
         ownerFilter.addDataScheme("package");
         mContext.registerReceiver(mOwnerReceiver, ownerFilter);
 
+        IntentFilter policyFilter = new IntentFilter(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
+        mContext.registerReceiverAsUser(mPolicyReceiver, UserHandle.ALL, policyFilter, null, null);
+
         updatePackageCache();
 
         PackageManager pm = mContext.getPackageManager();
@@ -647,11 +652,39 @@ public class NfcService implements DeviceHostListener {
     }
 
     void setBeamShareActivityState(boolean enabled) {
-        mContext.getPackageManager().setComponentEnabledSetting(
-                new ComponentName("com.android.nfc","com.android.nfc.BeamShareActivity"),
-                enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
-                          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP);
+        UserManager um = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+        // Propagate the state change to all user profiles related to the current
+        // user. Note that the list returned by getUserProfiles contains the
+        // current user.
+        List <UserHandle> luh = um.getUserProfiles();
+        for (UserHandle uh : luh){
+            enforceBeamShareActivityPolicy(mContext, uh, enabled);
+        }
+    }
+
+    void enforceBeamShareActivityPolicy(Context context, UserHandle uh,
+            boolean isGlobalEnabled){
+        UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        IPackageManager mIpm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+        boolean isActiveForUser =
+                (!um.hasUserRestriction(UserManager.DISALLOW_OUTGOING_BEAM, uh)) &&
+                isGlobalEnabled;
+        if (DBG){
+            Log.d(TAG, "Enforcing a policy change on user: " + uh +
+                    ", isActiveForUser = " + isActiveForUser);
+        }
+        try {
+            mIpm.setComponentEnabledSetting(new ComponentName(
+                    BeamShareActivity.class.getPackageName$(),
+                    BeamShareActivity.class.getName()),
+                    isActiveForUser ?
+                            PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
+                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            PackageManager.DONT_KILL_APP,
+                    uh.getIdentifier());
+        } catch (RemoteException e) {
+            Log.w(TAG, "Unable to change Beam status for user " + uh);
+        }
     }
 
     final class NfcAdapterService extends INfcAdapter.Stub {
@@ -1968,6 +2001,17 @@ public class NfcService implements DeviceHostListener {
         }
     };
 
+    private final BroadcastReceiver mPolicyReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent){
+            String action = intent.getAction();
+            if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED
+                    .equals(action)) {
+                enforceBeamShareActivityPolicy(context,
+                        new UserHandle(getSendingUserId()), mIsNdefPushEnabled);
+            }
+        }
+    };
 
     /**
      * Returns true if airplane mode is currently on
