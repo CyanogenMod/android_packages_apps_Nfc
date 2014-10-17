@@ -294,6 +294,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
     void nextStepConnect() {
         switch (mState) {
             case STATE_INIT_COMPLETE:
+
                 if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
                     requestPairConfirmation();
                     mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
@@ -359,6 +360,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                         break;
                     } else if (mHidResult == RESULT_CONNECTED) {
                         toast(mContext.getString(R.string.connected_peripheral) + " " + mName);
+                        mDevice.setAlias(mName);
                         complete(true);
                     } else {
                         toast (mContext.getString(R.string.connect_peripheral_failed) + " "
@@ -374,6 +376,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                         // we'll take either as success
                         toast(mContext.getString(R.string.connected_peripheral) + " " + mName);
                         if (mA2dpResult == RESULT_CONNECTED) startTheMusic();
+                        mDevice.setAlias(mName);
                         complete(true);
                     } else {
                         toast (mContext.getString(R.string.connect_peripheral_failed) + " " + mName);
