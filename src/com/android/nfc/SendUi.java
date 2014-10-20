@@ -587,7 +587,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         boolean hasNavBar =  mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_showNavigationBar);
 
-        float[] dims = {mDisplayMetrics.widthPixels / 4, mDisplayMetrics.heightPixels / 4};
+        float[] dims = {mDisplayMetrics.widthPixels, mDisplayMetrics.heightPixels};
         float degrees = getDegreesForRotation(mDisplay.getRotation());
         final int statusBarHeight = mContext.getResources().getDimensionPixelSize(
                                         com.android.internal.R.dimen.status_bar_height);
