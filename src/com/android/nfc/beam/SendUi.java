@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-package com.android.nfc;
+package com.android.nfc.beam;
 
 import com.android.internal.policy.PolicyManager;
+import com.android.nfc.R;
+import com.android.nfc.beam.FireflyRenderer;
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -110,8 +112,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     static final int TEXT_HINT_ALPHA_DURATION_MS = 500;
     static final int TEXT_HINT_ALPHA_START_DELAY_MS = 300;
 
-    static final int FINISH_SCALE_UP = 0;
-    static final int FINISH_SEND_SUCCESS = 1;
+    public static final int FINISH_SCALE_UP = 0;
+    public static final int FINISH_SEND_SUCCESS = 1;
 
     static final int STATE_IDLE = 0;
     static final int STATE_W4_SCREENSHOT = 1;
@@ -185,7 +187,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     int mSurfaceWidth;
     int mSurfaceHeight;
 
-    interface Callback {
+    public interface Callback {
         public void onSendConfirmed();
         public void onCanceled();
     }
