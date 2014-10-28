@@ -484,7 +484,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
             if (pkgs != null && pkgs.length >= 1) {
                 if (!generatePlayLink || beamDefaultDisabled(pkgs[0])
-                        || isManagedOrBeamDisabled(foregroundUids.get(0))) {
+                        || isBeamDisabled(foregroundUids.get(0))) {
                     if (DBG) Log.d(TAG, "Disabling default Beam behavior");
                     mMessageToSend = null;
                     mUrisToSend = null;
@@ -499,11 +499,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         }
     }
 
-    private boolean isManagedOrBeamDisabled(int uid) {
+    private boolean isBeamDisabled(int uid) {
         UserManager userManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
         UserInfo userInfo = userManager.getUserInfo(UserHandle.getUserId(uid));
-        return userInfo.isManagedProfile() ||
-                userManager.hasUserRestriction(
+        return userManager.hasUserRestriction(
                         UserManager.DISALLOW_OUTGOING_BEAM, userInfo.getUserHandle());
 
     }

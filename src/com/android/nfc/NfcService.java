@@ -805,8 +805,7 @@ public class NfcService implements DeviceHostListener {
 
             // don't allow Beam for managed profiles, or devices with a device owner or policy owner
             UserInfo userInfo = mUserManager.getUserInfo(UserHandle.getCallingUserId());
-            if(!userInfo.isManagedProfile()
-                    && !mUserManager.hasUserRestriction(
+            if(!mUserManager.hasUserRestriction(
                             UserManager.DISALLOW_OUTGOING_BEAM, userInfo.getUserHandle())) {
                 mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
             } else if (DBG) {
