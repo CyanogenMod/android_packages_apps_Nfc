@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Көрүш үчүн тийиңиз"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Алуучунун түзмөгү beam аркылуу чоң файлдарды кабылдабайт."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Түзмөктөрдү кайрадан бириктириңиз"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Туташууда"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Туташып турат"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Туташа алган жок"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Ажыратылууда"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Ажыратылды"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Жупташтыруу"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Жупташтырылган жок"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"Туташууда"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"Туташты"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"Туташа алган жок"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"Ажыратылууда"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"Ажыратылды"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"Жупташтыруу"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"Жупташкан жок"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth жандырылган жок"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> Bluetooth түзмөгү менен жупташтырууну каалаганыңыз аныкпы?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Ооба"</string>
@@ -42,8 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"Туташып турат"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Тармакка туташуу"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> тармагына туташасызбы?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam NFC иштетилишин талап кылат. Аны иштетесизби?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>

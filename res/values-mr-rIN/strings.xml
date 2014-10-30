@@ -18,15 +18,15 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"पाहण्यासाठी स्पर्श करा"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"प्राप्तकर्त्याचे डिव्हाइस बीमद्वारे मोठी फाईल स्थानांतरीत करण्यास समर्थन देत नाही."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"डिव्हाइसेस पुन्हा एकत्र आणा"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"कनेक्ट करीत आहे"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"कनेक्ट केले"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"कनेक्ट करु शकलो नाही"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"डिस्कनेक्ट करत आहे"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"डिस्कनेक्ट केले"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"जोडत आहे"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"जोडू शकलो नाही"</string>
-    <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth सक्षम करू शकलो नाही"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"आपण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> Bluetooth डिव्हाइस जोडू इच्छिता याची आपल्याला खात्री आहे?"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"कनेक्ट करीत आहे"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"कनेक्ट केलेले"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"कनेक्ट करू शकलो नाही"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"डिस्कनेक्ट करत आहे"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"डिस्कनेक्ट केले"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"जोडत आहे"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"जोडू शकलो नाही"</string>
+    <string name="failed_to_enable_bt" msgid="7229153323594758077">"ब सक्षम करू शकलो नाही"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"आपण <xliff:g id="DEVICE_NAME">%1$s</xliff:g> ब डिव्हाइस जोडू इच्छिता याची आपल्याला खात्री आहे?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"होय"</string>
     <string name="pair_no" msgid="5022308368904055020">"नाही"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"<xliff:g id="APP">%1$s</xliff:g> सह देय देण्यासाठी पुन्हा टॅप करा"</string>
@@ -42,8 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"कनेक्ट केले"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"नेटवर्कवर कनेक्ट करा"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> नेटवर्कशी कनेक्ट करायचे?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ला सक्षम करण्यासाठी NFC आवश्यक आहे. आपण हे सक्षम करू इच्छिता?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android बीम"</string>
 </resources>

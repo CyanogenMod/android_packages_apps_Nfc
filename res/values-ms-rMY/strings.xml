@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Sentuh untuk melihat"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Peranti penerima tidak menyokong pemindahan fail besar melalui pancaran."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Dekatkan peranti semula"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Menyambung"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Disambungkan"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Tidak dapat menyambung"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Memutuskan sambungan"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Diputuskan sambungan"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Menjadikan pasangan"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Tidak dapat berpasangan"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"Menyambung"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"Disambungkan"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"Tidak dapat menyambung"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"Memutuskan sambungan"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"Diputuskan sambungan"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"Menjadikan pasangan"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"Tidak dapat berpasangan"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Tidak dapat mendayakan Bluetooth"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"Adakah anda pasti anda mahu memadankan peranti Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Ya"</string>
@@ -42,6 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"Disambungkan"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Sambung kepada rangkaian"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Sambung ke rangkaian <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
-    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Pancaran Android memerlukan NFC untuk didayakan. Adakah anda ingin dayakan?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Pancaran Android tidak didayakan dalam Tetapan. Adakah anda ingin dayakan?"</string>
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"NFC perlu didayakan untuk menggunakan Pancaran Android. Adakah anda ingin dayakan?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Pancaran Android"</string>
 </resources>

@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Görüntülemek için dokunun"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Alıcının cihazı yüksek boyutlu dosyaların ışınlamayla aktarılmasını desteklemiyor."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Cihazları tekrar bir araya getirin"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Bağlanıyor"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Bağlandı"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Bağlantı kurulamadı"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Bağlantı kesiliyor"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Bağlantı kesildi"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Eşleştiriliyor"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Eşleştirilemedi"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"Bağlanılıyor"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"Bağlı"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"Bağlantı kurulamadı"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"Bağlantı kesiliyor"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"Bağlantı kesildi"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"Eşleştiriliyor"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"Eşleştirilemedi"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth etkinleştirilemedi"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> adlı Bluetooth cihazını eşlemek istediğinizden emin misiniz?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Evet"</string>
@@ -42,8 +42,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"Bağlanıldı"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Ağa bağlanın"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> adlı ağa bağlanılsın mı?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam, NFC\'nin etkinleştirilmesini gerektiriyor. Etkinleştirmek istiyor musunuz?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>

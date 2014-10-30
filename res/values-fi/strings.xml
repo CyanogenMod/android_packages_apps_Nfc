@@ -8,7 +8,7 @@
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-vuorovaikutus suoritettu"</string>
     <string name="outbound_me_profile_text" msgid="5594998841143667989">"Anna tälle henkilölle yhteystietosi koskettamalla."</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC otettu käyttöön."</string>
-    <string name="touch" msgid="4727218133711188355">"Kosketa palkkia"</string>
+    <string name="touch" msgid="4727218133711188355">"Muodosta yhteys"</string>
     <string name="beam_progress" msgid="7453634884807323920">"Saapuva sisällönjakopyyntö..."</string>
     <string name="beam_outgoing" msgid="4679536649779123495">"Jaetaan sisältöä…"</string>
     <string name="beam_complete" msgid="477026736424637435">"Sisältö jaettu"</string>
@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Kosketa ja näytä"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Vastaanottajan laite ei tue suurten tiedostojen siirtoa sisällön jakamisen kautta."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Yhdistä laitteet uudelleen"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Yhdistetään"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Yhdistetty"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Ei yhteyttä"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Katkaistaan yhteyttä"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Yhteys katkaistu"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Laiteparia muodostetaan"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Laiteparia ei voi muodostaa"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"Muodostetaan yhteyttä"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"Yhdistetty"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"Yhteyttä ei voitu muodostaa"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"Katkaistaan yhteyttä"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"Yhteys katkaistu"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"Laiteparia muodostetaan"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"Laiteparia ei voitu muodostaa"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Bluetooth-yhteyttä ei voi ottaa käyttöön"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"Oletko varma, että haluat muodostaa laiteparin Bluetooth-laitteeseen <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Kyllä"</string>
@@ -43,5 +43,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"Yhdistä verkkoon"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Yhdistetäänkö verkkoon <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam edellyttää, että NFC on käytössä. Haluatko ottaa sen käyttöön?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android Beam ei ole käytössä. Haluatko ottaa sen käyttöön?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>

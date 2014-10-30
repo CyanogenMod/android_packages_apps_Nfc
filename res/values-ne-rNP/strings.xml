@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"अवलोकन गर्न छुनुहोस्"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"प्राप्तकर्ताको उपकरणले बिम मार्फत ठूलो फाइल ट्रान्सफर गर्न समर्थन गर्दैन।"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"फेरि उपकरणहरू एकै साथ ल्याउनुहोस्"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"जडान गरिदै"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"जडान गरियो"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"जडान गर्न सकेन।"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"विच्छेद हुँदै..."</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"विच्छेद भएको"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"जोडी हुँदै..."</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"जोडी हुन सकेन"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"जडान गरिँदै"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"जडित"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"जडान गर्न सकेन"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"विच्छेद हुँदै..."</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"विच्छेद भएको"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"जोडा मिलाउँदै"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"जोडा मिलाउन सकेन"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"ब्लुटुथ सक्षम पार्न सकेन"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"तपाईँ ब्लुटुथ उपकरण जोडी गर्न निश्चित हुनुहुन्छ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"हो"</string>
@@ -43,5 +43,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"सञ्जालमा जडान गर्नुहोस्"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"सञ्जाल <xliff:g id="NETWORK_SSID">%1$s</xliff:g>मा जडान गर्ने?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android बीम सक्षम गर्नको लागि NFC आवश्यक छ। के तपाईँ यसलाई सक्षम गर्न चाहनुहुन्छ?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android बीम सेटिङ्हरूमा सक्षम गरिएको छैन। के तपाईँ यसलाई सक्षम गर्न चाहनुहुन्छ?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android बिम"</string>
 </resources>

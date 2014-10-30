@@ -18,13 +18,13 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ແຕະ​ເພື່ອ​ເບິ່ງ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ອຸປະກອນຂອງຜູ່ຮັບບໍ່ສາມາດຮອງຮັບການໂອນໄຟລ໌ຂະຫນາດໃຫຍ່ໂດຍຜ່ານ beam ໄດ້."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ນຳອຸປະກອນເຂົ້າມາຫາກັນໃໝ່ອີກຄັ້ງ"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"ກຳລັງເຊື່ອມຕໍ່"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"ເຊື່ອມ​ຕໍ່ແລ້ວ"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"ບໍ່ສາມາດເຊື່ອມຕໍ່ໄດ້"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"ກຳລັງຕັດການເຊື່ອມຕໍ່"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"ຕັດການເຊື່ອມຕໍ່ແລ້ວ"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"ກຳລັງຈັບຄູ່..."</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"ບໍ່ສາມາດຈັບຄູ່ໄດ້"</string>
+    <string name="connecting_peripheral" msgid="3957490448472434505">"ກຳລັງເຊື່ອມຕໍ່"</string>
+    <string name="connected_peripheral" msgid="5777997713940423952">"ເຊື່ອມ​ຕໍ່ແລ້ວ"</string>
+    <string name="connect_peripheral_failed" msgid="7173159351147270788">"ບໍ່ສາມາດເຊື່ອມຕໍ່ໄດ້"</string>
+    <string name="disconnecting_peripheral" msgid="5320432304947519207">"ກຳລັງຕັດການເຊື່ອມຕໍ່"</string>
+    <string name="disconnected_peripheral" msgid="2768150931245385916">"​ຕັດ​ການ​ເຊື່ອມ​ຕໍ່​ແລ້ວ"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"​ກຳ​ລັງ​ຈັບ​ຄູ່"</string>
+    <string name="pairing_peripheral_failed" msgid="976004756112808526">"ບໍ່ສາມາດຈັບຄູ່ໄດ້"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"ບໍ່ສາມາດເປີດນຳໃຊ້ Bluetooth ໄດ້"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"ທ່ານແນ່ໃຈບໍວ່າທ່ານຕ້ອງການຈັບຄູ່ອຸປະກອນ Bluetooth <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"ຕົກລົງ"</string>
@@ -43,5 +43,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"ເຊື່ອມຕໍ່ກັບເຄືອຂ່າຍ"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"​ເຊື່ອມ​ຕໍ່​ກັບ​ເຄືອ​ຂ່າຍ <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ບໍ?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ຕ້ອງ​ໃຊ້ NFC. ທ່ານ​ຕ້ອງ​ການ​ເປີດ​ໃຊ້ NFC ບໍ່?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"Android Beam ບໍ່​ໄດ້​ຖືກ​ເປີດ​ນຳ​ໃຊ້​ໃນ​ການ​ຕັ້ງ​ຄ່າ. ທ່ານ​ຕ້ອງ​ການ​ເປີດ​ໃຊ້​ມັນ​ບໍ່?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
