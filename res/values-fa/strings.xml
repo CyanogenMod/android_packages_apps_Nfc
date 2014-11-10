@@ -23,7 +23,7 @@
     <string name="connect_peripheral_failed" msgid="7173159351147270788">"متصل نشد"</string>
     <string name="disconnecting_peripheral" msgid="5320432304947519207">"در حال قطع ارتباط"</string>
     <string name="disconnected_peripheral" msgid="2768150931245385916">"اتصال قطع شد"</string>
-    <string name="pairing_peripheral" msgid="5618129595426303236">"در حال مرتبط کردن"</string>
+    <string name="pairing_peripheral" msgid="5618129595426303236">"در حال مرتبط‌سازی"</string>
     <string name="pairing_peripheral_failed" msgid="976004756112808526">"مرتبط نشد"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"فعال کردن بلوتوث امکانپذیر نیست"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"آیا مطمئن هستید که می‌خواهید دستگاه بلوتوث <xliff:g id="DEVICE_NAME">%1$s</xliff:g> را جفت کنید؟"</string>
