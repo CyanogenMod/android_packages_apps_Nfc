@@ -248,6 +248,15 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
     }
 
     /**
+     * Returns whether a service in this package is preferred,
+     * either because it's the default payment app or it's running
+     * in the foreground.
+     */
+    public boolean packageHasPreferredService(String packageName) {
+        return mPreferredServices.packageHasPreferredService(packageName);
+    }
+
+    /**
      * This class implements the application-facing APIs
      * and are called from binder. All calls must be
      * permission-checked.
