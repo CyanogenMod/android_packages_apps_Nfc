@@ -24,8 +24,12 @@ import android.nfc.NdefRecord;
 import android.nfc.tech.Ndef;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.util.Log;
 
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.BitSet;
 
 public final class NfcWifiProtectedSetup {
 
@@ -37,13 +41,20 @@ public final class NfcWifiProtectedSetup {
      * ID into configuration record for SSID and Network Key in hex.
      * Obtained from WFA Wifi Simple Configuration Technical Specification v2.0.2.1.
      */
-    private static final String SSID_ID = "1045";
-    private static final String NETWORK_KEY_ID = "1027";
+    private static final short CREDENTIAL_FIELD_ID = 0x100E;
+    private static final short SSID_FIELD_ID = 0x1045;
+    private static final short NETWORK_KEY_FIELD_ID = 0x1027;
+    private static final short AUTH_TYPE_FIELD_ID = 0x1003;
 
-    private static final int SIZE_FIELD_WIDTH = 4;
-    private static final int MAX_SSID_SIZE_BYTES = 32;
+    private static final short AUTH_TYPE_EXPECTED_SIZE = 2;
+
+    private static final short AUTH_TYPE_OPEN = 0;
+    private static final short AUTH_TYPE_WPA_PSK = 0x0002;
+    private static final short AUTH_TYPE_WPA_EAP =  0x0008;
+    private static final short AUTH_TYPE_WPA2_EAP = 0x0010;
+    private static final short AUTH_TYPE_WPA2_PSK = 0x0020;
+
     private static final int MAX_NETWORK_KEY_SIZE_BYTES = 64;
-    private static final int HEX_CHARS_PER_BYTE = 2;
 
     private NfcWifiProtectedSetup() {}
 
@@ -58,7 +69,13 @@ public final class NfcWifiProtectedSetup {
             return false;
         }
 
-        final WifiConfiguration wifiConfiguration = parse(cachedNdefMessage);
+        final WifiConfiguration wifiConfiguration;
+        try {
+            wifiConfiguration = parse(cachedNdefMessage);
+        } catch (BufferUnderflowException e) {
+            // malformed payload
+            return false;
+        }
 
         if (wifiConfiguration != null &&!UserManager.get(context).hasUserRestriction(
                 UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT)) {
@@ -77,99 +94,83 @@ public final class NfcWifiProtectedSetup {
     private static WifiConfiguration parse(NdefMessage message) {
         NdefRecord[] records = message.getRecords();
 
-        for (int i = 0; i < records.length; ++i) {
-            NdefRecord record = records[i];
+        for (NdefRecord record : records) {
             if (new String(record.getType()).equals(NFC_TOKEN_MIME_TYPE)) {
-                String hexStringPayload = bytesToHex(record.getPayload());
-
-                int ssidStringIndex = hexStringPayload.indexOf(SSID_ID);
-
-                if (ssidStringIndex > 0) {
-                    int networkKeyStringIndex = hexStringPayload.indexOf(NETWORK_KEY_ID);
-                    if (networkKeyStringIndex > 0) {
-
-                        ssidStringIndex += SSID_ID.length();
-                        networkKeyStringIndex += NETWORK_KEY_ID.length();
-
-                        String ssidSize;
-                        try {
-                            ssidSize = hexStringPayload.substring(ssidStringIndex,
-                                    ssidStringIndex + SIZE_FIELD_WIDTH);
-                        } catch(IndexOutOfBoundsException ex) {
-                            return null;
-                        }
-
-                        int ssidSizeBytes = hexStringToInt(ssidSize);
-                        if (ssidSizeBytes > MAX_SSID_SIZE_BYTES) {
-                            return null;
-                        }
-
-                        String networkKeySize;
-                        try {
-                            networkKeySize = hexStringPayload.substring(networkKeyStringIndex,
-                                    networkKeyStringIndex + SIZE_FIELD_WIDTH);
-                        } catch (IndexOutOfBoundsException ex) {
-                            return null;
-                        }
-
-                        int networkKeySizeBytes = hexStringToInt(networkKeySize);
-                        if (networkKeySizeBytes > MAX_NETWORK_KEY_SIZE_BYTES) {
-                            return null;
-                        }
-
-                        ssidStringIndex += SIZE_FIELD_WIDTH;
-                        networkKeyStringIndex += SIZE_FIELD_WIDTH;
-
-                        String ssid;
-                        String networkKey;
-                        try {
-                            int ssidByteIndex = ssidStringIndex / HEX_CHARS_PER_BYTE;
-                            ssid = new String(Arrays.copyOfRange(record.getPayload(), ssidByteIndex,
-                                    ssidByteIndex + ssidSizeBytes));
-
-                            int networkKeyByteIndex = networkKeyStringIndex / HEX_CHARS_PER_BYTE;
-                            networkKey = new String(Arrays.copyOfRange(record.getPayload(),
-                                            networkKeyByteIndex,
-                                            networkKeyByteIndex + networkKeySizeBytes));
-                        } catch (ArrayIndexOutOfBoundsException ex) {
-                            return null;
-                        }
-
-                        WifiConfiguration configuration = new WifiConfiguration();
-                        configuration.preSharedKey = '"' + networkKey + '"';
-                        configuration.SSID = '"' + ssid + '"';
-
-                        return configuration;
+                ByteBuffer payload = ByteBuffer.wrap(record.getPayload());
+                while (payload.hasRemaining()) {
+                    short fieldId = payload.getShort();
+                    short fieldSize = payload.getShort();
+                    if (fieldId == CREDENTIAL_FIELD_ID) {
+                        return parseCredential(payload, fieldSize);
                     }
                 }
             }
+        }
+        return null;
+    }
+
+    private static WifiConfiguration parseCredential(ByteBuffer payload, short size) {
+        int startPosition = payload.position();
+        WifiConfiguration result = new WifiConfiguration();
+        while (payload.position() < startPosition + size) {
+            short fieldId = payload.getShort();
+            short fieldSize = payload.getShort();
+
+            // sanity check
+            if (payload.position() + fieldSize > startPosition + size) {
+                return null;
+            }
+
+            switch (fieldId) {
+                case SSID_FIELD_ID:
+                    byte[] ssid = new byte[fieldSize];
+                    payload.get(ssid);
+                    result.SSID = new String(ssid);
+                    break;
+                case NETWORK_KEY_FIELD_ID:
+                    if (fieldSize > MAX_NETWORK_KEY_SIZE_BYTES) {
+                        return null;
+                    }
+                    byte[] networkKey = new byte[fieldSize];
+                    payload.get(networkKey);
+                    result.preSharedKey = new String(networkKey);
+                    break;
+                case AUTH_TYPE_FIELD_ID:
+                    if (fieldSize != AUTH_TYPE_EXPECTED_SIZE) {
+                        // corrupt data
+                        return null;
+                    }
+
+                    short authType = payload.getShort();
+                    populateAllowedKeyManagement(result.allowedKeyManagement, authType);
+                    break;
+                default:
+                    // unknown / unparsed tag
+                    payload.position(payload.position() + fieldSize);
+                    break;
+            }
+        }
+
+        if (result.preSharedKey != null && result.SSID != null) {
+            return result;
         }
 
         return null;
     }
 
-    private static int hexStringToInt(String bigEndianHexString) {
-        int val = 0;
-
-        for (int i = 0; i < bigEndianHexString.length(); ++i) {
-            val = (val | Character.digit(bigEndianHexString.charAt(i), 16));
-
-            if (i < bigEndianHexString.length() - 1) {
-                val <<= 4;
-            }
+    private static void populateAllowedKeyManagement(BitSet allowedKeyManagement, short authType) {
+        if (authType == AUTH_TYPE_WPA_PSK) {
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        } else if (authType == AUTH_TYPE_WPA2_PSK) {
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        } else if (authType == (AUTH_TYPE_WPA2_PSK | AUTH_TYPE_WPA_PSK)) {
+            // only WPA_PSK and WPA2_PSK can be mixed together
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        } else if (authType == AUTH_TYPE_WPA_EAP || authType == AUTH_TYPE_WPA2_EAP) {
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
+        } else if (authType == AUTH_TYPE_OPEN) {
+            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         }
-
-        return val;
     }
-
-    private static String bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for ( int j = 0; j < bytes.length; j++) {
-            int value = bytes[j] & 0xFF;
-            hexChars[j * 2] = Character.forDigit(value >>> 4, 16);
-            hexChars[j * 2 + 1] = Character.forDigit(value & 0x0F, 16);
-        }
-        return new String(hexChars);
-    }
-
 }
