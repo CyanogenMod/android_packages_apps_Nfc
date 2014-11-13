@@ -847,6 +847,11 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
+        public void verifyNfcPermission() {
+            NfcPermissions.enforceUserPermissions(mContext);
+        }
+
+        @Override
         public void invokeBeam() {
             NfcPermissions.enforceUserPermissions(mContext);
 
