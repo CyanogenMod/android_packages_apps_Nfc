@@ -52,5 +52,4 @@ LOCAL_STATIC_LIBRARIES := libxml2
 LOCAL_MODULE := libnfc_nci_jni
 LOCAL_MODULE_TAGS := optional
 
-include external/stlport/libstlport.mk
 include $(BUILD_SHARED_LIBRARY)
