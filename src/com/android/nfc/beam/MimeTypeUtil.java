@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.nfc.handover;
+package com.android.nfc.beam;
 
 import android.content.ContentResolver;
 import android.content.Context;
