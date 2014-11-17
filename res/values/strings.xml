@@ -29,14 +29,25 @@
     <string name="beam_handover_not_supported">The receiver\'s device doesn\'t support large file transfer via beam.</string>
     <string name="beam_try_again">Bring devices together again</string>
 
-    <string name="connecting_peripheral">Connecting</string>
-    <string name="connected_peripheral">Connected</string>
-    <string name="connect_peripheral_failed">Could not connect</string>
-    <string name="disconnecting_peripheral">Disconnecting</string>
-    <string name="disconnected_peripheral">Disconnected</string>
-    <string name="pairing_peripheral">Pairing</string>
-    <string name="pairing_peripheral_failed">Could not pair</string>
+    <!-- String referring to the device being connected when there is no name for the device -->
+    <string name="device">device</string>
+    <!-- Toast string informing the user that the device is connecting [CHAR_LIMIT=35] -->
+    <string name="connecting_peripheral">Connecting <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device is connected [CHAR_LIMIT=35] -->
+    <string name="connected_peripheral">Connected <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device failed to connect [CHAR_LIMIT=35] -->
+    <string name="connect_peripheral_failed">Could not connect <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device is disconnecting [CHAR_LIMIT=35] -->
+    <string name="disconnecting_peripheral">Disconnecting <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device is disconnected [CHAR_LIMIT=35] -->
+    <string name="disconnected_peripheral">Disconnected <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device is pairing [CHAR_LIMIT=35] -->
+    <string name="pairing_peripheral">Pairing <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that the device failed to pair [CHAR_LIMIT=35] -->
+    <string name="pairing_peripheral_failed">Could not pair <xliff:g id="device_name">%1$s</xliff:g></string>
+    <!-- Toast string informing the user that BT could not be enabled [CHAR_LIMIT=35] -->
     <string name="failed_to_enable_bt">Could not enable Bluetooth</string>
+    <!-- Dialog string informing the user that BT could not be enabled [CHAR_LIMIT=75] -->
     <string name="confirm_pairing">Are you sure you want to pair the Bluetooth device <xliff:g id="device_name">%1$s</xliff:g>?</string>
     <string name="pair_yes">Yes</string>
     <string name="pair_no">No</string>
