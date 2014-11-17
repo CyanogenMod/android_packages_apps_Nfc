@@ -75,7 +75,7 @@ import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.cardemulation.CardEmulationManager;
 import com.android.nfc.dhimpl.NativeNfcManager;
-import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.handover.HandoverDataParser;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -216,7 +216,7 @@ public class NfcService implements DeviceHostListener {
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
     private KeyguardManager mKeyguard;
-    private HandoverManager mHandoverManager;
+    private HandoverDataParser mHandoverDataParser;
     private ContentResolver mContentResolver;
     private CardEmulationManager mCardEmulationManager;
 
@@ -314,7 +314,7 @@ public class NfcService implements DeviceHostListener {
 
         mNfcUnlockManager = NfcUnlockManager.getInstance();
 
-        mHandoverManager = new HandoverManager(mContext);
+        mHandoverDataParser = new HandoverDataParser();
         boolean isNfcProvisioningEnabled = false;
         try {
             isNfcProvisioningEnabled = mContext.getResources().getBoolean(
@@ -329,8 +329,8 @@ public class NfcService implements DeviceHostListener {
             mInProvisionMode = false;
         }
 
-        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverManager, mInProvisionMode);
-        mP2pLinkManager = new P2pLinkManager(mContext, mHandoverManager,
+        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverDataParser, mInProvisionMode);
+        mP2pLinkManager = new P2pLinkManager(mContext, mHandoverDataParser,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
@@ -1445,7 +1445,6 @@ public class NfcService implements DeviceHostListener {
                     // Notify dispatcher it's fine to dispatch to any package now
                     // and allow handover transfers.
                     mNfcDispatcher.disableProvisioningMode();
-                    mHandoverManager.setEnabled(true);
                 }
             }
             // Special case: if we're transitioning to unlocked state while

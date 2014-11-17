@@ -15,7 +15,7 @@
  */
 
 
-package com.android.nfc;
+package com.android.nfc.beam;
 
 import android.content.Context;
 import android.graphics.Bitmap;
