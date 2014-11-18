@@ -125,8 +125,14 @@
             android:noHistory="true"
         />
 
-        <service android:name=".handover.HandoverService"
-            android:process=":handover"
+        <service android:name=".beam.BeamSendService"
+            android:process=":beam"
+        />
+        <service android:name=".beam.BeamReceiveService"
+            android:process=":beam"
+        />
+
+        <service android:name=".handover.PeripheralHandoverService"
         />
     </application>
 </manifest>

@@ -205,18 +205,18 @@ public class BeamShareActivity extends Activity {
                 }
             }
             if (numValidUris > 0) {
-                shareData = new BeamShareData(null, uriArray, 0);
+                shareData = new BeamShareData(null, uriArray, UserHandle.CURRENT, 0);
             } else {
                 // No uris left
-                shareData = new BeamShareData(null, null, 0);
+                shareData = new BeamShareData(null, null, UserHandle.CURRENT, 0);
             }
         } else if (mNdefMessage != null) {
-            shareData = new BeamShareData(mNdefMessage, null, 0);
+            shareData = new BeamShareData(mNdefMessage, null, UserHandle.CURRENT, 0);
             if (DBG) Log.d(TAG, "Created NDEF message:" + mNdefMessage.toString());
         } else {
             if (DBG) Log.d(TAG, "Could not find any data to parse.");
             // Activity may have set something to share over NFC, so pass on anyway
-            shareData = new BeamShareData(null, null, 0);
+            shareData = new BeamShareData(null, null, UserHandle.CURRENT, 0);
         }
         mNfcAdapter.invokeBeam(shareData);
         finish();

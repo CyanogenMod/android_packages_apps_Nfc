@@ -20,35 +20,24 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.nio.charset.Charset;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Random;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.ServiceConnection;
-import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.Message;
-import android.os.Messenger;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
 
 /**
  * Manages handover of NFC to other technologies.
  */
-public class HandoverManager {
+public class HandoverDataParser {
     private static final String TAG = "NfcHandover";
     private static final boolean DBG = false;
 
@@ -72,33 +61,14 @@ public class HandoverManager {
     private static final int BT_HANDOVER_TYPE_SHORT_LOCAL_NAME = 0x08;
     public static final int BT_HANDOVER_LE_ROLE_CENTRAL_ONLY = 0x01;
 
-    static final String ACTION_WHITELIST_DEVICE =
-            "android.btopp.intent.action.WHITELIST_DEVICE";
-
-    static final int MSG_HANDOVER_COMPLETE = 0;
-    static final int MSG_HEADSET_CONNECTED = 1;
-    static final int MSG_HEADSET_NOT_CONNECTED = 2;
-
-    private final Context mContext;
     private final BluetoothAdapter mBluetoothAdapter;
-    private final MessageHandler mHandler = new MessageHandler();
-    private final Messenger mMessenger = new Messenger(mHandler);
 
     private final Object mLock = new Object();
     // Variables below synchronized on mLock
-    /* package as optimization */ HashMap<Integer, PendingHandoverTransfer> mPendingTransfers;
-    private ArrayList<Message> mPendingServiceMessages;
-    /* package as optimization */ boolean mBluetoothHeadsetPending;
-    /* package as optimization */ boolean mBluetoothHeadsetConnected;
-    protected boolean mBluetoothEnabledByNfc;
-    private int mHandoverTransferId;
-    private Messenger mService = null;
-    private boolean mBinding = false;
-    private boolean mBound;
-    private String mLocalBluetoothAddress;
-    private boolean mEnabled;
 
-    static class BluetoothHandoverData {
+    private String mLocalBluetoothAddress;
+
+    public static class BluetoothHandoverData {
         public boolean valid = false;
         public BluetoothDevice device;
         public String name;
@@ -106,141 +76,19 @@ public class HandoverManager {
         public int transport = BluetoothDevice.TRANSPORT_AUTO;
     }
 
-    class MessageHandler extends Handler {
-        @Override
-        public void handleMessage(Message msg) {
-            synchronized (mLock) {
-                switch (msg.what) {
-                    case MSG_HANDOVER_COMPLETE:
-                        int transferId = msg.arg1;
-                        Log.d(TAG, "Completed transfer id: " + Integer.toString(transferId));
-                        if (mPendingTransfers.containsKey(transferId)) {
-                            mPendingTransfers.remove(transferId);
-                          } else {
-                            Log.e(TAG, "Could not find completed transfer id: " +
-                                    Integer.toString(transferId));
-                        }
-                        break;
-                    case MSG_HEADSET_CONNECTED:
-                        mBluetoothEnabledByNfc = msg.arg1 != 0;
-                        mBluetoothHeadsetConnected = true;
-                        mBluetoothHeadsetPending = false;
-                        break;
-                    case MSG_HEADSET_NOT_CONNECTED:
-                        mBluetoothEnabledByNfc = false; // No need to maintain this state any longer
-                        mBluetoothHeadsetConnected = false;
-                        mBluetoothHeadsetPending = false;
-                        break;
-                    default:
-                        break;
-                }
-                unbindServiceIfNeededLocked(false);
-            }
-        }
-    };
+    public static class IncomingHandoverData {
+        public final NdefMessage handoverSelect;
+        public final BluetoothHandoverData handoverData;
 
-    private ServiceConnection mConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            synchronized (mLock) {
-                mService = new Messenger(service);
-                mBinding = false;
-                mBound = true;
-                // Register this client and transfer last known service state
-                Message msg = Message.obtain(null, HandoverService.MSG_REGISTER_CLIENT);
-                msg.arg1 = mBluetoothEnabledByNfc ? 1 : 0;
-                msg.arg2 = mBluetoothHeadsetConnected ? 1 : 0;
-                msg.replyTo = mMessenger;
-                try {
-                    mService.send(msg);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Failed to register client");
-                }
-                // Send all queued messages
-                while (!mPendingServiceMessages.isEmpty()) {
-                    msg = mPendingServiceMessages.remove(0);
-                    try {
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        Log.e(TAG, "Failed to send queued message to service");
-                    }
-                }
-            }
+        public IncomingHandoverData(NdefMessage handoverSelect,
+                                    BluetoothHandoverData handoverData) {
+            this.handoverSelect = handoverSelect;
+            this.handoverData = handoverData;
         }
+    }
 
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            synchronized (mLock) {
-                Log.d(TAG, "Service disconnected");
-                if (mService != null) {
-                    try {
-                        Message msg = Message.obtain(null, HandoverService.MSG_DEREGISTER_CLIENT);
-                        msg.replyTo = mMessenger;
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        // Service may have crashed - ignore
-                    }
-                }
-                mService = null;
-                mBound = false;
-                mBluetoothHeadsetPending = false;
-                mPendingTransfers.clear();
-                mPendingServiceMessages.clear();
-            }
-        }
-    };
-
-    public HandoverManager(Context context) {
-        mContext = context;
+    public HandoverDataParser() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mPendingTransfers = new HashMap<Integer, PendingHandoverTransfer>();
-        mPendingServiceMessages = new ArrayList<Message>();
-
-        IntentFilter filter = new IntentFilter(Intent.ACTION_USER_SWITCHED);
-        mContext.registerReceiver(mReceiver, filter, null, null);
-        mEnabled = true;
-        mBluetoothEnabledByNfc = false;
-    }
-
-    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action.equals(Intent.ACTION_USER_SWITCHED)) {
-                // Just force unbind the service.
-                unbindServiceIfNeededLocked(true);
-            }
-        }
-    };
-
-    /**
-     * @return whether the service was bound to successfully
-     */
-    boolean bindServiceIfNeededLocked() {
-        if (!mBinding) {
-            Log.d(TAG, "Binding to handover service");
-            boolean bindSuccess = mContext.bindServiceAsUser(new Intent(mContext,
-                    HandoverService.class), mConnection, Context.BIND_AUTO_CREATE,
-                    UserHandle.CURRENT);
-            mBinding = bindSuccess;
-            return bindSuccess;
-        } else {
-           // A previous bind is pending
-           return true;
-        }
-    }
-
-    void unbindServiceIfNeededLocked(boolean force) {
-        // If no service operation is pending, unbind
-        if (mBound && (force || (!mBluetoothHeadsetPending && mPendingTransfers.isEmpty()))) {
-            Log.d(TAG, "Unbinding from service.");
-            mContext.unbindService(mConnection);
-            mBound = false;
-            mPendingServiceMessages.clear();
-            mBluetoothHeadsetPending = false;
-            mPendingTransfers.clear();
-        }
-        return;
     }
 
     static NdefRecord createCollisionRecord() {
@@ -256,7 +104,8 @@ public class HandoverManager {
         payload[1] = 1;   // length of carrier data reference
         payload[2] = 'b'; // carrier data reference: ID for Bluetooth OOB data record
         payload[3] = 0;  // Auxiliary data reference count
-        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_ALTERNATIVE_CARRIER, null, payload);
+        return new NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_ALTERNATIVE_CARRIER, null,
+                payload);
     }
 
     NdefRecord createBluetoothOobDataRecord() {
@@ -278,12 +127,6 @@ public class HandoverManager {
         }
 
         return new NdefRecord(NdefRecord.TNF_MIME_MEDIA, TYPE_BT_OOB, new byte[]{'b'}, payload);
-    }
-
-    public void setEnabled(boolean enabled) {
-        synchronized (mLock) {
-            mEnabled = enabled;
-        }
     }
 
     public boolean isHandoverSupported() {
@@ -345,16 +188,16 @@ public class HandoverManager {
     }
 
     /**
-     * Return null if message is not a Handover Request,
-     * return the Handover Select response if it is.
+     * Returns null if message is not a Handover Request,
+     * returns the IncomingHandoverData (Hs + parsed data) if it is.
      */
-    public NdefMessage tryHandoverRequest(NdefMessage m) {
-        if (m == null) return null;
+    public IncomingHandoverData getIncomingHandoverData(NdefMessage handoverRequest) {
+        if (handoverRequest == null) return null;
         if (mBluetoothAdapter == null) return null;
 
-        if (DBG) Log.d(TAG, "tryHandoverRequest():" + m.toString());
+        if (DBG) Log.d(TAG, "getIncomingHandoverData():" + handoverRequest.toString());
 
-        NdefRecord handoverRequestRecord = m.getRecords()[0];
+        NdefRecord handoverRequestRecord = handoverRequest.getRecords()[0];
         if (handoverRequestRecord.getTnf() != NdefRecord.TNF_WELL_KNOWN) {
             return null;
         }
@@ -365,7 +208,7 @@ public class HandoverManager {
 
         // we have a handover request, look for BT OOB record
         BluetoothHandoverData bluetoothData = null;
-        for (NdefRecord dataRecord : m.getRecords()) {
+        for (NdefRecord dataRecord : handoverRequest.getRecords()) {
             if (dataRecord.getTnf() == NdefRecord.TNF_MIME_MEDIA) {
                 if (Arrays.equals(dataRecord.getType(), TYPE_BT_OOB)) {
                     bluetoothData = parseBtOob(ByteBuffer.wrap(dataRecord.getPayload()));
@@ -373,13 +216,21 @@ public class HandoverManager {
             }
         }
 
-        return tryBluetoothHandoverRequest(bluetoothData);
+        NdefMessage hs = tryBluetoothHandoverRequest(bluetoothData);
+        if (hs != null) {
+            return new IncomingHandoverData(hs, bluetoothData);
+        }
+
+        return null;
+    }
+
+    public BluetoothHandoverData getOutgoingHandoverData(NdefMessage handoverSelect) {
+        return parseBluetooth(handoverSelect);
     }
 
     private NdefMessage tryBluetoothHandoverRequest(BluetoothHandoverData bluetoothData) {
         NdefMessage selectMessage = null;
         if (bluetoothData != null) {
-
             // Note: there could be a race where we conclude
             // that Bluetooth is already enabled, and shortly
             // after the user turns it off. That will cause
@@ -388,23 +239,6 @@ public class HandoverManager {
             // be common for the user to be changing BT settings
             // while waiting to receive a picture.
             boolean bluetoothActivating = !mBluetoothAdapter.isEnabled();
-            synchronized (mLock) {
-                if (!mEnabled) return null;
-
-                Message msg = Message.obtain(null, HandoverService.MSG_START_INCOMING_TRANSFER);
-                PendingHandoverTransfer transfer
-                        = registerBluetoothInTransferLocked(bluetoothData.device);
-                Bundle transferData = new Bundle();
-                transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
-                msg.setData(transferData);
-
-                if (!sendOrQueueMessageLocked(msg)) {
-                    removeTransferLocked(transfer.id);
-                    return null;
-                }
-            }
-            // BT OOB found, whitelist it for incoming OPP data
-            whitelistOppDevice(bluetoothData.device);
 
             // return BT OOB record so they can perform handover
             selectMessage = (createBluetoothHandoverSelectMessage(bluetoothActivating));
@@ -415,101 +249,7 @@ public class HandoverManager {
         return selectMessage;
     }
 
-    public boolean sendOrQueueMessageLocked(Message msg) {
-        if (!mBound || mService == null) {
-            // Need to start service, let us know if we can queue the message
-            if (!bindServiceIfNeededLocked()) {
-                Log.e(TAG, "Could not start service");
-                return false;
-            }
-            // Queue the message to send when the service is bound
-            mPendingServiceMessages.add(msg);
-        } else {
-            try {
-                mService.send(msg);
-            } catch (RemoteException e) {
-                Log.e(TAG, "Could not connect to handover service");
-                return false;
-            }
-        }
-        return true;
-    }
 
-    public boolean tryHandover(NdefMessage m) {
-        if (m == null) return false;
-        if (mBluetoothAdapter == null) return false;
-
-        if (DBG) Log.d(TAG, "tryHandover(): " + m.toString());
-
-        BluetoothHandoverData handover = parseBluetooth(m);
-        if (handover == null) return false;
-        if (!handover.valid) return true;
-
-        synchronized (mLock) {
-            if (!mEnabled) return false;
-
-            if (mBluetoothAdapter == null) {
-                if (DBG) Log.d(TAG, "BT handover, but BT not available");
-                return true;
-            }
-
-            Message msg = Message.obtain(null, HandoverService.MSG_PERIPHERAL_HANDOVER, 0, 0);
-            Bundle headsetData = new Bundle();
-            headsetData.putParcelable(HandoverService.EXTRA_PERIPHERAL_DEVICE, handover.device);
-            headsetData.putString(HandoverService.EXTRA_PERIPHERAL_NAME, handover.name);
-            headsetData.putInt(HandoverService.EXTRA_PERIPHERAL_TRANSPORT, handover.transport);
-            msg.setData(headsetData);
-            return sendOrQueueMessageLocked(msg);
-        }
-    }
-
-    // This starts sending an Uri over BT
-    public void doHandoverUri(Uri[] uris,
-                              NdefMessage handoverResponse) {
-        if (mBluetoothAdapter == null) return;
-
-        BluetoothHandoverData data = parseBluetooth(handoverResponse);
-        if (data != null && data.valid) {
-            // Register a new handover transfer object
-            synchronized (mLock) {
-                Message msg = Message.obtain(null, HandoverService.MSG_START_OUTGOING_TRANSFER, 0, 0);
-                PendingHandoverTransfer transfer = registerBluetoothOutTransferLocked(data, uris);
-                Bundle transferData = new Bundle();
-                transferData.putParcelable(HandoverService.BUNDLE_TRANSFER, transfer);
-                msg.setData(transferData);
-                if (DBG) Log.d(TAG, "Initiating outgoing bluetooth transfer, [" +
-                        mLocalBluetoothAddress + "]->[" + data.device.getAddress() + "]");
-                sendOrQueueMessageLocked(msg);
-            }
-        }
-    }
-
-    PendingHandoverTransfer registerBluetoothInTransferLocked(BluetoothDevice remoteDevice) {
-        PendingHandoverTransfer transfer = PendingHandoverTransfer.forBluetoothDevice(
-                mHandoverTransferId++, true, remoteDevice, false, null);
-        mPendingTransfers.put(transfer.id, transfer);
-
-        return transfer;
-    }
-
-    PendingHandoverTransfer registerBluetoothOutTransferLocked(BluetoothHandoverData data,
-                                                               Uri[] uris) {
-        PendingHandoverTransfer transfer = PendingHandoverTransfer.forBluetoothDevice(
-                mHandoverTransferId++, false, data.device, data.carrierActivating, uris);
-        mPendingTransfers.put(transfer.id, transfer);
-        return transfer;
-    }
-
-    void removeTransferLocked(int id) {
-        mPendingTransfers.remove(id);
-    }
-
-    void whitelistOppDevice(BluetoothDevice device) {
-        if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
-        Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        mContext.sendBroadcastAsUser(intent, UserHandle.CURRENT);
-    }
 
     boolean isCarrierActivating(NdefRecord handoverRec, byte[] carrierId) {
         byte[] payload = handoverRec.getPayload();
@@ -567,7 +307,7 @@ public class HandoverManager {
         return null;
     }
 
-    BluetoothHandoverData parseBluetooth(NdefMessage m) {
+    public BluetoothHandoverData parseBluetooth(NdefMessage m) {
         NdefRecord r = m.getRecords()[0];
         short tnf = r.getTnf();
         byte[] type = r.getType();
@@ -728,17 +468,6 @@ public class HandoverManager {
         }
 
         return result;
-    }
-
-    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
-    private static String byteArrayToHexString(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for ( int j = 0; j < bytes.length; j++ ) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
     }
 }
 

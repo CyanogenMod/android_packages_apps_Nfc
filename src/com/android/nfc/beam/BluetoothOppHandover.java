@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.nfc.handover;
+package com.android.nfc.beam;
 
 import android.bluetooth.BluetoothDevice;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
-import android.os.UserHandle;
 import android.util.Log;
-import android.webkit.MimeTypeMap;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class BluetoothOppHandover implements Handler.Callback {
     static final String TAG = "BluetoothOppHandover";
@@ -52,14 +49,14 @@ public class BluetoothOppHandover implements Handler.Callback {
     final Context mContext;
     final BluetoothDevice mDevice;
 
-    final Uri[] mUris;
+    final ArrayList<Uri> mUris;
     final boolean mRemoteActivating;
     final Handler mHandler;
     final Long mCreateTime;
 
     int mState;
 
-    public BluetoothOppHandover(Context context, BluetoothDevice device, Uri[] uris,
+    public BluetoothOppHandover(Context context, BluetoothDevice device, ArrayList<Uri> uris,
             boolean remoteActivating) {
         mContext = context;
         mDevice = device;
@@ -67,7 +64,7 @@ public class BluetoothOppHandover implements Handler.Callback {
         mRemoteActivating = remoteActivating;
         mCreateTime = SystemClock.elapsedRealtime();
 
-        mHandler = new Handler(context.getMainLooper(),this);
+        mHandler = new Handler(context.getMainLooper(), this);
         mState = STATE_INIT;
     }
 
@@ -99,7 +96,7 @@ public class BluetoothOppHandover implements Handler.Callback {
     void sendIntent() {
         Intent intent = new Intent();
         intent.setPackage("com.android.bluetooth");
-        String mimeType = MimeTypeUtil.getMimeTypeForUri(mContext, mUris[0]);
+        String mimeType = MimeTypeUtil.getMimeTypeForUri(mContext, mUris.get(0));
         intent.setType(mimeType);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
         for (Uri uri : mUris) {
@@ -113,13 +110,12 @@ public class BluetoothOppHandover implements Handler.Callback {
                 Log.e(TAG, "Failed to transfer permission to Bluetooth process.");
             }
         }
-        if (mUris.length == 1) {
+        if (mUris.size() == 1) {
             intent.setAction(ACTION_HANDOVER_SEND);
-            intent.putExtra(Intent.EXTRA_STREAM, mUris[0]);
+            intent.putExtra(Intent.EXTRA_STREAM, mUris.get(0));
         } else {
-            ArrayList<Uri> uris = new ArrayList<Uri>(Arrays.asList(mUris));
             intent.setAction(ACTION_HANDOVER_SEND_MULTIPLE);
-            intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+            intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, mUris);
         }
         if (DBG) Log.d(TAG, "Handing off outging transfer to BT");
         mContext.sendBroadcast(intent);
