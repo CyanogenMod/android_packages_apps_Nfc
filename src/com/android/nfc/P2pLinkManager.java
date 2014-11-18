@@ -16,11 +16,17 @@
 
 package com.android.nfc;
 
+import android.content.Intent;
 import android.content.pm.UserInfo;
+
+import com.android.nfc.beam.BeamManager;
+import com.android.nfc.beam.BeamSendService;
+import com.android.nfc.beam.BeamTransferRecord;
+
 import android.os.UserManager;
 import com.android.nfc.echoserver.EchoServer;
 import com.android.nfc.handover.HandoverClient;
-import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.handover.HandoverDataParser;
 import com.android.nfc.handover.HandoverServer;
 import com.android.nfc.ndefpush.NdefPushClient;
 import com.android.nfc.ndefpush.NdefPushServer;
@@ -204,7 +210,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     final Context mContext;
     final P2pEventListener mEventListener;
     final Handler mHandler;
-    final HandoverManager mHandoverManager;
+    final HandoverDataParser mHandoverDataParser;
     final ForegroundUtils mForegroundUtils;
 
     final int mDefaultMiu;
@@ -218,6 +224,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     boolean mIsReceiveEnabled;
     NdefMessage mMessageToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
     Uri[] mUrisToSend;  // not valid in SEND_STATE_NOTHING_TO_SEND
+    UserHandle mUserHandle; // not valid in SEND_STATE_NOTHING_TO_SEND
     int mSendFlags; // not valid in SEND_STATE_NOTHING_TO_SEND
     IAppCallback mCallbackNdef;
     int mNdefCallbackUid;
@@ -231,11 +238,11 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     boolean mLlcpConnectDelayed;
     long mLastLlcpActivationTime;
 
-    public P2pLinkManager(Context context, HandoverManager handoverManager, int defaultMiu,
+    public P2pLinkManager(Context context, HandoverDataParser handoverDataParser, int defaultMiu,
             int defaultRwSize) {
         mNdefPushServer = new NdefPushServer(NDEFPUSH_SAP, mNppCallback);
         mDefaultSnepServer = new SnepServer(mDefaultSnepCallback, defaultMiu, defaultRwSize);
-        mHandoverServer = new HandoverServer(HANDOVER_SAP, handoverManager, mHandoverCallback);
+        mHandoverServer = new HandoverServer(context, HANDOVER_SAP, handoverDataParser, mHandoverCallback);
 
         if (ECHOSERVER_ENABLED) {
             mEchoServer = new EchoServer();
@@ -251,7 +258,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         mIsSendEnabled = false;
         mIsReceiveEnabled = false;
         mPrefs = context.getSharedPreferences(NfcService.PREF, Context.MODE_PRIVATE);
-        mHandoverManager = handoverManager;
+        mHandoverDataParser = handoverDataParser;
         mDefaultMiu = defaultMiu;
         mDefaultRwSize = defaultRwSize;
         mLlcpServicesConnected = false;
@@ -330,7 +337,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 }
             }
             if (mMessageToSend != null ||
-                    (mUrisToSend != null && mHandoverManager.isHandoverSupported())) {
+                    (mUrisToSend != null && mHandoverDataParser.isHandoverSupported())) {
                 mSendState = SEND_STATE_PENDING;
                 mEventListener.onP2pNfcTapRequested();
                 scheduleTimeoutLocked(MSG_WAIT_FOR_LINK_TIMEOUT, WAIT_FOR_LINK_TIMEOUT_MS);
@@ -364,7 +371,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                         mSendState = SEND_STATE_NOTHING_TO_SEND;
                         prepareMessageToSend(true);
                         if (mMessageToSend != null ||
-                                (mUrisToSend != null && mHandoverManager.isHandoverSupported())) {
+                                (mUrisToSend != null && mHandoverDataParser.isHandoverSupported())) {
                             // Ideally we would delay showing the Beam animation until
                             // we know for certain the other side has SNEP/handover.
                             // Unfortunately, the NXP LLCP implementation has a bug that
@@ -466,6 +473,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                         BeamShareData shareData = mCallbackNdef.createBeamShareData();
                         mMessageToSend = shareData.ndefMessage;
                         mUrisToSend = shareData.uris;
+                        mUserHandle = shareData.userHandle;
                         mSendFlags = shareData.flags;
                         return;
                     } catch (Exception e) {
@@ -747,9 +755,15 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         SnepClient snepClient;
         HandoverClient handoverClient;
 
-        int doHandover(Uri[] uris) throws IOException {
+        int doHandover(Uri[] uris, UserHandle userHandle) throws IOException {
             NdefMessage response = null;
-            NdefMessage request = mHandoverManager.createHandoverRequestMessage();
+            BeamManager beamManager = BeamManager.getInstance();
+
+            if (beamManager.isBeamInProgress()) {
+                return HANDOVER_FAILURE;
+            }
+
+            NdefMessage request = mHandoverDataParser.createHandoverRequestMessage();
             if (request != null) {
                 if (handoverClient != null) {
                     response = handoverClient.sendHandoverRequest(request);
@@ -767,8 +781,13 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             } else {
                 return HANDOVER_UNSUPPORTED;
             }
-            mHandoverManager.doHandoverUri(uris, response);
-            return HANDOVER_SUCCESS;
+
+            if (beamManager.startBeamSend(mContext,
+                    mHandoverDataParser.getOutgoingHandoverData(response), uris, userHandle)) {
+                return HANDOVER_SUCCESS;
+            }
+
+            return HANDOVER_FAILURE;
         }
 
         int doSnepProtocol(NdefMessage msg) throws IOException {
@@ -784,6 +803,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         public Void doInBackground(Void... args) {
             NdefMessage m;
             Uri[] uris;
+            UserHandle userHandle;
             boolean result = false;
 
             synchronized (P2pLinkManager.this) {
@@ -792,6 +812,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 }
                 m = mMessageToSend;
                 uris = mUrisToSend;
+                userHandle = mUserHandle;
                 snepClient = mSnepClient;
                 handoverClient = mHandoverClient;
                 nppClient = mNdefPushClient;
@@ -802,7 +823,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             if (uris != null) {
                 if (DBG) Log.d(TAG, "Trying handover request");
                 try {
-                    int handoverResult = doHandover(uris);
+                    int handoverResult = doHandover(uris, userHandle);
                     switch (handoverResult) {
                         case HANDOVER_SUCCESS:
                             result = true;
@@ -882,7 +903,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             // since Android 4.1 used the NFC Forum default server to
             // implement connection handover, we will support this
             // until we can deprecate it.
-            NdefMessage response = mHandoverManager.tryHandoverRequest(msg);
+            NdefMessage response = mHandoverDataParser.getIncomingHandoverData(msg).handoverSelect;
             if (response != null) {
                 onReceiveHandover();
                 return SnepMessage.getSuccessResponse(response);

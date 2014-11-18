@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.nfc.handover;
+package com.android.nfc.beam;
+
+import com.android.nfc.R;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -34,19 +36,21 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 
-import com.android.nfc.R;
-
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 
 /**
- * A HandoverTransfer object represents a set of files
+ * A BeamTransferManager object represents a set of files
  * that were received through NFC connection handover
  * from the same source address.
+ *
+ * It manages starting, stopping, and processing the transfer, as well
+ * as the user visible notification.
  *
  * For Bluetooth, files are received through OPP, and
  * we have no knowledge how many files will be transferred
@@ -57,21 +61,21 @@ import java.util.Locale;
  * same source address as part of the same transfer.
  * The corresponding URIs will be grouped in a single folder.
  *
+ * @hide
  */
-public class HandoverTransfer implements Handler.Callback,
-        MediaScannerConnection.OnScanCompletedListener {
 
+public class BeamTransferManager implements Handler.Callback,
+        MediaScannerConnection.OnScanCompletedListener {
     interface Callback {
 
-        void onTransferComplete(HandoverTransfer transfer, boolean success);
+        void onTransferComplete(BeamTransferManager transfer, boolean success);
     };
-    static final String TAG = "HandoverTransfer";
+    static final String TAG = "BeamTransferManager";
 
     static final Boolean DBG = true;
 
     // In the states below we still accept new file transfer
     static final int STATE_NEW = 0;
-
     static final int STATE_IN_PROGRESS = 1;
     static final int STATE_W4_NEXT_TRANSFER = 2;
     // In the states below no new files are accepted.
@@ -83,9 +87,8 @@ public class HandoverTransfer implements Handler.Callback,
     static final int MSG_NEXT_TRANSFER_TIMER = 0;
 
     static final int MSG_TRANSFER_TIMEOUT = 1;
-    static final int DEVICE_TYPE_BLUETOOTH = 1;
+    static final int DATA_LINK_TYPE_BLUETOOTH = 1;
 
-    public static final int DEVICE_TYPE_WIFI = 2;
     // We need to receive an update within this time period
     // to still consider this transfer to be "alive" (ie
     // a reason to keep the handover transport enabled).
@@ -97,6 +100,12 @@ public class HandoverTransfer implements Handler.Callback,
 
     static final String BEAM_DIR = "beam";
 
+    static final String ACTION_WHITELIST_DEVICE =
+            "android.btopp.intent.action.WHITELIST_DEVICE";
+
+    static final String ACTION_STOP_BLUETOOTH_TRANSFER =
+            "android.btopp.intent.action.STOP_HANDOVER_TRANSFER";
+
     final boolean mIncoming;  // whether this is an incoming transfer
 
     final int mTransferId; // Unique ID of this transfer used for notifications
@@ -107,49 +116,51 @@ public class HandoverTransfer implements Handler.Callback,
     final Handler mHandler;
     final NotificationManager mNotificationManager;
     final BluetoothDevice mRemoteDevice;
-    final String mRemoteMac;
     final Callback mCallback;
-    final Long mStartTime;
+    final boolean mRemoteActivating;
 
     // Variables below are only accessed on the main thread
     int mState;
     int mCurrentCount;
     int mSuccessCount;
     int mTotalCount;
-    int mDeviceType;
+    int mDataLinkType;
     boolean mCalledBack;
     Long mLastUpdate; // Last time an event occurred for this transfer
     float mProgress; // Progress in range [0..1]
     ArrayList<Uri> mUris; // Received uris from transport
     ArrayList<String> mTransferMimeTypes; // Mime-types received from transport
-    Uri[] mOutgoingUris; // URIs to send via Wifi Direct
-
+    Uri[] mOutgoingUris; // URIs to send
     ArrayList<String> mPaths; // Raw paths on the filesystem for Beam-stored files
     HashMap<String, String> mMimeTypes; // Mime-types associated with each path
     HashMap<String, Uri> mMediaUris; // URIs found by the media scanner for each path
     int mUrisScanned;
+    Long mStartTime;
 
-    public HandoverTransfer(Context context, Callback callback,
-            PendingHandoverTransfer pendingTransfer) {
+    public BeamTransferManager(Context context, Callback callback,
+                               BeamTransferRecord pendingTransfer, boolean incoming) {
         mContext = context;
         mCallback = callback;
         mRemoteDevice = pendingTransfer.remoteDevice;
-        mRemoteMac = pendingTransfer.remoteMacAddress;
-        mIncoming = pendingTransfer.incoming;
+        mIncoming = incoming;
         mTransferId = pendingTransfer.id;
         mBluetoothTransferId = -1;
-        mDeviceType = pendingTransfer.deviceType;
+        mDataLinkType = pendingTransfer.dataLinkType;
+        mRemoteActivating = pendingTransfer.remoteActivating;
+        mStartTime = 0L;
         // For incoming transfers, count can be set later
         mTotalCount = (pendingTransfer.uris != null) ? pendingTransfer.uris.length : 0;
         mLastUpdate = SystemClock.elapsedRealtime();
         mProgress = 0.0f;
         mState = STATE_NEW;
-        mUris = new ArrayList<Uri>();
+        mUris = pendingTransfer.uris == null
+                ? new ArrayList<Uri>()
+                : new ArrayList<Uri>(Arrays.asList(pendingTransfer.uris));
         mTransferMimeTypes = new ArrayList<String>();
         mMimeTypes = new HashMap<String, String>();
         mPaths = new ArrayList<String>();
         mMediaUris = new HashMap<String, Uri>();
-        mCancelIntent = buildCancelIntent(mIncoming);
+        mCancelIntent = buildCancelIntent();
         mUrisScanned = 0;
         mCurrentCount = 0;
         mSuccessCount = 0;
@@ -158,15 +169,28 @@ public class HandoverTransfer implements Handler.Callback,
         mHandler.sendEmptyMessageDelayed(MSG_TRANSFER_TIMEOUT, ALIVE_CHECK_MS);
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
-
-        mStartTime = System.currentTimeMillis();
     }
 
     void whitelistOppDevice(BluetoothDevice device) {
         if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
-        Intent intent = new Intent(HandoverManager.ACTION_WHITELIST_DEVICE);
+        Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
         mContext.sendBroadcastAsUser(intent, UserHandle.CURRENT);
+    }
+
+    public void start() {
+        if (mStartTime > 0) {
+            // already started
+            return;
+        }
+
+        mStartTime = System.currentTimeMillis();
+
+        if (!mIncoming) {
+            if (mDataLinkType == BeamTransferRecord.DATA_LINK_TYPE_BLUETOOTH) {
+                new BluetoothOppHandover(mContext, mRemoteDevice, mUris, mRemoteActivating).start();
+            }
+        }
     }
 
     public void updateFileProgress(float progress) {
@@ -218,7 +242,6 @@ public class HandoverTransfer implements Handler.Callback,
             if (mIncoming) {
                 processFiles();
             } else {
-                Log.i(TAG, "Updating state!");
                 updateStateAndNotification(mSuccessCount > 0 ? STATE_SUCCESS : STATE_FAILED);
             }
         } else {
@@ -258,9 +281,8 @@ public class HandoverTransfer implements Handler.Callback,
     }
 
     private void sendBluetoothCancelIntentAndUpdateState() {
-        Intent cancelIntent = new Intent(
-                "android.btopp.intent.action.STOP_HANDOVER_TRANSFER");
-        cancelIntent.putExtra(HandoverService.EXTRA_TRANSFER_ID, mBluetoothTransferId);
+        Intent cancelIntent = new Intent(ACTION_STOP_BLUETOOTH_TRANSFER);
+        cancelIntent.putExtra(BeamStatusReceiver.EXTRA_TRANSFER_ID, mBluetoothTransferId);
         mContext.sendBroadcast(cancelIntent);
         updateStateAndNotification(STATE_CANCELLED);
     }
@@ -409,10 +431,6 @@ public class HandoverTransfer implements Handler.Callback,
 
     }
 
-    public int getTransferId() {
-        return mTransferId;
-    }
-
     public boolean handleMessage(Message msg) {
         if (msg.what == MSG_NEXT_TRANSFER_TIMER) {
             // We didn't receive a new transfer in time, finalize this one
@@ -442,18 +460,6 @@ public class HandoverTransfer implements Handler.Callback,
         }
     }
 
-    boolean checkMediaStorage(File path) {
-        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            if (!path.isDirectory() && !path.mkdir()) {
-                Log.e(TAG, "Not dir or not mkdir " + path.getAbsolutePath());
-                return false;
-            }
-            return true;
-        } else {
-            Log.e(TAG, "External storage not mounted, can't store file.");
-            return false;
-        }
-    }
 
     Intent buildViewIntent() {
         if (mPaths.size() == 0) return null;
@@ -469,19 +475,31 @@ public class HandoverTransfer implements Handler.Callback,
         return viewIntent;
     }
 
-    PendingIntent buildCancelIntent(boolean incoming) {
-        Intent intent = new Intent(HandoverService.ACTION_CANCEL_HANDOVER_TRANSFER);
-        intent.putExtra(HandoverService.EXTRA_ADDRESS, mDeviceType == DEVICE_TYPE_BLUETOOTH
-                ? mRemoteDevice.getAddress() : mRemoteMac);
-        intent.putExtra(HandoverService.EXTRA_INCOMING, incoming ?
-                HandoverService.DIRECTION_INCOMING : HandoverService.DIRECTION_OUTGOING);
+    PendingIntent buildCancelIntent() {
+        Intent intent = new Intent(BeamStatusReceiver.ACTION_CANCEL_HANDOVER_TRANSFER);
+        intent.putExtra(BeamStatusReceiver.EXTRA_ADDRESS, mRemoteDevice.getAddress());
+        intent.putExtra(BeamStatusReceiver.EXTRA_INCOMING, mIncoming ?
+                BeamStatusReceiver.DIRECTION_INCOMING : BeamStatusReceiver.DIRECTION_OUTGOING);
         PendingIntent pi = PendingIntent.getBroadcast(mContext, mTransferId, intent,
                 PendingIntent.FLAG_ONE_SHOT);
 
         return pi;
     }
 
-    File generateUniqueDestination(String path, String fileName) {
+    static boolean checkMediaStorage(File path) {
+        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+            if (!path.isDirectory() && !path.mkdir()) {
+                Log.e(TAG, "Not dir or not mkdir " + path.getAbsolutePath());
+                return false;
+            }
+            return true;
+        } else {
+            Log.e(TAG, "External storage not mounted, can't store file.");
+            return false;
+        }
+    }
+
+    static File generateUniqueDestination(String path, String fileName) {
         int dotIndex = fileName.lastIndexOf(".");
         String extension = null;
         String fileNameWithoutExtension = null;
@@ -502,7 +520,7 @@ public class HandoverTransfer implements Handler.Callback,
         return dstFile;
     }
 
-    File generateMultiplePath(String beamRoot) {
+    static File generateMultiplePath(String beamRoot) {
         // Generate a unique directory with the date
         String format = "yyyy-MM-dd";
         SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.US);
