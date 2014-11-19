@@ -354,6 +354,20 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
         loadDefaultsFromSettings(userId);
     }
 
+    public boolean packageHasPreferredService(String packageName) {
+        if (packageName == null) return false;
+
+        if (mPaymentDefaults.currentPreferred != null &&
+                packageName.equals(mPaymentDefaults.currentPreferred.getPackageName())) {
+            return true;
+        } else if (mForegroundCurrent != null &&
+                packageName.equals(mForegroundCurrent.getPackageName())) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Preferred services (in order of importance): ");
         pw.println("    *** Current preferred foreground service: " + mForegroundCurrent);
