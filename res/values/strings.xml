@@ -28,6 +28,7 @@
     <string name="beam_touch_to_view">Touch to view</string>
     <string name="beam_handover_not_supported">The receiver\'s device doesn\'t support large file transfer via beam.</string>
     <string name="beam_try_again">Bring devices together again</string>
+    <string name="beam_busy">Beam is currently busy. Try again when the previous transfer completes.</string>
 
     <!-- String referring to the device being connected when there is no name for the device -->
     <string name="device">device</string>
