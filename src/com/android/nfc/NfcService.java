@@ -80,10 +80,12 @@ import com.android.nfc.handover.HandoverDataParser;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
 
 public class NfcService implements DeviceHostListener {
     static final boolean DBG = false;
@@ -1806,14 +1808,32 @@ public class NfcService implements DeviceHostListener {
             intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
             // Resume app switches so the receivers can start activites without delay
             mNfcDispatcher.resumeAppSwitches();
-
+            ArrayList<String> matchingPackages = new ArrayList<String>();
+            ArrayList<String> preferredPackages = new ArrayList<String>();
             synchronized (this) {
                 for (PackageInfo pkg : mInstalledPackages) {
                     if (pkg != null && pkg.applicationInfo != null) {
                         if (mNfceeAccessControl.check(pkg.applicationInfo)) {
-                            intent.setPackage(pkg.packageName);
-                            mContext.sendBroadcast(intent);
+                            matchingPackages.add(pkg.packageName);
+                            if (mCardEmulationManager != null &&
+                                    mCardEmulationManager.packageHasPreferredService(pkg.packageName)) {
+                                preferredPackages.add(pkg.packageName);
+                            }
                         }
+                    }
+                }
+                if (preferredPackages.size() > 0) {
+                    // If there's any packages in here which are preferred, only
+                    // send field events to those packages, to prevent other apps
+                    // with signatures in nfcee_access.xml from acting upon the events.
+                    for (String packageName : preferredPackages){
+                        intent.setPackage(packageName);
+                        mContext.sendBroadcast(intent);
+                    }
+                } else {
+                    for (String packageName : matchingPackages){
+                        intent.setPackage(packageName);
+                        mContext.sendBroadcast(intent);
                     }
                 }
             }
