@@ -52,6 +52,7 @@ public final class HandoverServer {
 
     public interface Callback {
         void onHandoverRequestReceived();
+        void onHandoverBusy();
     }
 
     public HandoverServer(Context context, int sap, HandoverDataParser manager, Callback callback) {
@@ -203,6 +204,7 @@ public final class HandoverServer {
                         BeamManager beamManager = BeamManager.getInstance();
 
                         if (beamManager.isBeamInProgress()) {
+                            mCallback.onHandoverBusy();
                             break;
                         }
 
@@ -227,7 +229,8 @@ public final class HandoverServer {
                         // We're done
                         mCallback.onHandoverRequestReceived();
                         if (!beamManager.startBeamReceive(mContext, handoverData.handoverData)) {
-                             break;
+                            mCallback.onHandoverBusy();
+                            break;
                         }
                         // We can process another handover transfer
                         byteStream = new ByteArrayOutputStream();
