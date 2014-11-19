@@ -115,6 +115,11 @@ interface P2pEventListener {
     public void onP2pHandoverNotSupported();
 
     /**
+     * Called to indicate the device is busy with another handover transfer
+     */
+    public void onP2pHandoverBusy();
+
+    /**
      * Called to indicate a receive was successful.
      */
     public void onP2pReceiveComplete(boolean playSound);
@@ -179,6 +184,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     static final int MSG_HANDOVER_NOT_SUPPORTED = 7;
     static final int MSG_SHOW_CONFIRMATION_UI = 8;
     static final int MSG_WAIT_FOR_LINK_TIMEOUT = 9;
+    static final int MSG_HANDOVER_BUSY = 10;
 
     // values for mLinkState
     static final int LINK_STATE_DOWN = 1;
@@ -202,6 +208,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
     static final int HANDOVER_SUCCESS = 0;
     static final int HANDOVER_FAILURE = 1;
     static final int HANDOVER_UNSUPPORTED = 2;
+    static final int HANDOVER_BUSY = 3;
 
     final NdefPushServer mNdefPushServer;
     final SnepServer mDefaultSnepServer;
@@ -610,6 +617,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         mHandler.sendEmptyMessage(MSG_HANDOVER_NOT_SUPPORTED);
     }
 
+    void onHandoverBusy() {
+        mHandler.sendEmptyMessage(MSG_HANDOVER_BUSY);
+    }
+
     void onSendComplete(NdefMessage msg, long elapsedRealtime) {
         // Make callbacks on UI thread
         mHandler.sendEmptyMessage(MSG_SEND_COMPLETE);
@@ -760,7 +771,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             BeamManager beamManager = BeamManager.getInstance();
 
             if (beamManager.isBeamInProgress()) {
-                return HANDOVER_FAILURE;
+                return HANDOVER_BUSY;
             }
 
             NdefMessage request = mHandoverDataParser.createHandoverRequestMessage();
@@ -782,12 +793,12 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 return HANDOVER_UNSUPPORTED;
             }
 
-            if (beamManager.startBeamSend(mContext,
+            if (!beamManager.startBeamSend(mContext,
                     mHandoverDataParser.getOutgoingHandoverData(response), uris, userHandle)) {
-                return HANDOVER_SUCCESS;
+                return HANDOVER_BUSY;
             }
 
-            return HANDOVER_FAILURE;
+            return HANDOVER_SUCCESS;
         }
 
         int doSnepProtocol(NdefMessage msg) throws IOException {
@@ -835,6 +846,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                             result = false;
                             onHandoverUnsupported();
                             break;
+                        case HANDOVER_BUSY:
+                            result = false;
+                            onHandoverBusy();
+                            break;
                     }
                 } catch (IOException e) {
                     result = false;
@@ -879,6 +894,11 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
         @Override
         public void onHandoverRequestReceived() {
             onReceiveHandover();
+        }
+
+        @Override
+        public void onHandoverBusy() {
+            onHandoverBusy();
         }
     };
 
@@ -1018,6 +1038,17 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                     }
                 }
                 break;
+            case MSG_HANDOVER_BUSY:
+                synchronized (P2pLinkManager.this) {
+                    mSendTask = null;
+
+                    if (mLinkState == LINK_STATE_DOWN || mSendState != SEND_STATE_SENDING) {
+                        break;
+                    }
+                    mSendState = SEND_STATE_NOTHING_TO_SEND;
+                    if (DBG) Log.d(TAG, "onP2pHandoverBusy()");
+                    mEventListener.onP2pHandoverBusy();
+                }
         }
         return true;
     }
