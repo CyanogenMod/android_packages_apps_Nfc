@@ -1507,20 +1507,25 @@ public class NfcService implements DeviceHostListener {
                 paramsBuilder.setEnableReaderMode(true);
             } else {
                 paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+                paramsBuilder.setEnableP2p(mIsNdefPushEnabled);
             }
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED && mInProvisionMode) {
             paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+            // enable P2P for MFM/EDU/Corp provisioning
+            paramsBuilder.setEnableP2p(true);
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
                 mNfcUnlockManager.isLockscreenPollingEnabled()) {
             // For lock-screen tags, no low-power polling
             paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask());
             paramsBuilder.setEnableLowPowerDiscovery(false);
+            paramsBuilder.setEnableP2p(false);
         }
 
         if (mIsHceCapable && mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
             // Host routing is always enabled at lock screen or later
             paramsBuilder.setEnableHostRouting(true);
         }
+
         return paramsBuilder.build();
     }
 
@@ -1975,6 +1980,7 @@ public class NfcService implements DeviceHostListener {
                 } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
                     screenState = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
                 }
+
                 new ApplyRoutingTask().execute(Integer.valueOf(screenState));
             } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean isAirplaneModeOn = intent.getBooleanExtra("state", false);
@@ -2005,6 +2011,7 @@ public class NfcService implements DeviceHostListener {
             }
         }
     };
+
 
     private final BroadcastReceiver mOwnerReceiver = new BroadcastReceiver() {
         @Override
