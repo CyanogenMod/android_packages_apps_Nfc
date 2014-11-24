@@ -18,6 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"බැලීමට ස්පර්ශ කරන්න"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"බීම් ඔස්සේ ලැබෙන්නාගේ උපාංගය විශාල ගොනු හුවමාරුව සඳහා සහය නොදක්වයි."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"නැවතත් උපාංග එකට ගෙනෙන්න"</string>
+    <string name="beam_busy" msgid="5253335587620612576">"Beam දැනට කාර්ය බහුලය. පෙර මාරුව සම්පූර්ණ වන විට නැවත උත්සාහ කරන්න."</string>
     <string name="device" msgid="4459621591392478151">"උපාංගය"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> සබැඳෙමින්"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> සබැඳිණි"</string>

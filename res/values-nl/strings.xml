@@ -18,6 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Raak aan om te bekijken"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Het apparaat van de ontvanger ondersteunt de overdracht van grote bestanden via beam niet."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Houd de apparaten nogmaals tegen elkaar"</string>
+    <string name="beam_busy" msgid="5253335587620612576">"Beam is momenteel bezet. Probeer het opnieuw zodra de huidige overdracht is voltooid."</string>
     <string name="device" msgid="4459621591392478151">"apparaat"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> verbinden"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> verbonden"</string>
