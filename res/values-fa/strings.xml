@@ -18,6 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"برای مشاهده لمس کنید"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"دستگاه گیرنده انتقال فایل‌های بزرگ از طریق پرتو را پشتیبانی نمی‌کند."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"مرتبط‌کردن دوباره دستگاه‌ها"</string>
+    <string name="beam_busy" msgid="5253335587620612576">"«پرتو» در حال حاضر مشغول است. هنگامی که انتقال قبلی کامل شد دوباره امتحان کنید."</string>
     <string name="device" msgid="4459621591392478151">"دستگاه"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"در حال اتصال <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> متصل شد"</string>
