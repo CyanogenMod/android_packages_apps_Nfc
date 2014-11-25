@@ -72,6 +72,7 @@ public final class NfcDiscoveryParameters {
 
     static final int NFC_POLL_DEFAULT = -1;
 
+    // NOTE: when adding a new field, don't forget to update equals() and toString() below
     private int mTechMask = 0;
     private boolean mEnableLowPowerDiscovery = true;
     private boolean mEnableReaderMode = false;
@@ -117,7 +118,8 @@ public final class NfcDiscoveryParameters {
         return mTechMask == params.mTechMask &&
                 (mEnableLowPowerDiscovery == params.mEnableLowPowerDiscovery) &&
                 (mEnableReaderMode == params.mEnableReaderMode) &&
-                (mEnableHostRouting == params.mEnableHostRouting);
+                (mEnableHostRouting == params.mEnableHostRouting)
+                && (mEnableP2p == params.mEnableP2p);
     }
 
     @Override
@@ -130,7 +132,8 @@ public final class NfcDiscoveryParameters {
         }
         sb.append("mEnableLPD: " + Boolean.toString(mEnableLowPowerDiscovery) + "\n");
         sb.append("mEnableReader: " + Boolean.toString(mEnableReaderMode) + "\n");
-        sb.append("mEnableHostRouting: " + Boolean.toString(mEnableHostRouting));
+        sb.append("mEnableHostRouting: " + Boolean.toString(mEnableHostRouting) + "\n");
+        sb.append("mEnableP2p: " + Boolean.toString(mEnableP2p));
         return sb.toString();
     }
 
