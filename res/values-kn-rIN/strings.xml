@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ವೀಕ್ಷಿಸಲು ಸ್ಪರ್ಶಿಸಿ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ಸ್ವೀಕರಿಸುವವರ ಸಾಧನವು ಬೀಮ್ ಮೂಲಕ ಮಾಡಲಾಗುವ ವರ್ಗಾವಣೆಯನ್ನು ಬೆಂಬಲಿಸುವುದಿಲ್ಲ."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ಸಾಧನಗಳನ್ನು ಮತ್ತೆ ಒಟ್ಟಿಗೆ ತನ್ನಿ"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"ಬೀಮ್ ಪ್ರಸ್ತುತ ಕಾರ್ಯನಿರತವಾಗಿದೆ. ಹಿಂದಿನ ವರ್ಗಾವಣೆ ಪೂರ್ಣಗೊಂಡ ಬಳಿಕ ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ."</string>
     <string name="device" msgid="4459621591392478151">"ಸಾಧನ"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> ಸಾಧನವನ್ನು ಸಂಪರ್ಕಿತಗೊಳಿಸಲಾಗುತ್ತಿದೆ"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> ಸಾಧನವನ್ನು ಸಂಪರ್ಕಿತಗೊಳಿಸಲಾಗಿದೆ"</string>

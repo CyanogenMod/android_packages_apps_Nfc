@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"వీక్షించడానికి తాకండి"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"స్వీకర్త పరికరం Beam ద్వారా పెద్ద ఫైల్ బదిలీకి మద్దతు ఇవ్వదు."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"పరికరాలను మళ్లీ సమీపంలోకి తీసుకురండి"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"Beam ప్రస్తుతం బిజీగా ఉంది. మునుపటి బదిలీ పూర్తయిన తర్వాత మళ్లీ ప్రయత్నించండి."</string>
     <string name="device" msgid="4459621591392478151">"పరికరం"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>ని కనెక్ట్ చేస్తోంది"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> కనెక్ట్ చేయబడింది"</string>
