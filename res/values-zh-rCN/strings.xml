@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"触摸即可查看"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"接收者的设备不支持传输较大的文件。"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"再次让两台设备接触"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"Beam 目前正忙。请在之前的传输任务完成后重试。"</string>
     <string name="device" msgid="4459621591392478151">"设备"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"正在连接到<xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"已连接到<xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>

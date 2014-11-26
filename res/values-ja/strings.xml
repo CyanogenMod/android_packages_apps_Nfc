@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"タップして表示"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"受信側の端末は、ビーム経由のサイズの大きなファイルの転送をサポートしていません。"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"端末同士をもう一度近づける"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"ビームは現在使用中です。前回の転送が完了したら、もう一度お試しください。"</string>
     <string name="device" msgid="4459621591392478151">"端末"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>を接続しています"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>を接続しました"</string>

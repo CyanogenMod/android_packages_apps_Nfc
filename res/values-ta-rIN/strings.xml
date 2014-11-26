@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"பார்க்கத் தொடவும்"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"பெறுநரின் சாதனம் பீம் வழியான பெரிய கோப்புப் பரிமாற்றத்தை ஆதரிக்கவில்லை."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"மீண்டும் சாதனங்களை ஒன்றாகக் கொண்டுவரவும்"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"பீம் தற்போது பணிமிகுதியில் உள்ளது. முந்தைய இடமாற்றம் முடியும்போது, மீண்டும் முயலவும்."</string>
     <string name="device" msgid="4459621591392478151">"சாதனம்"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>ஐ இணைக்கிறது"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> இணைக்கப்பட்டது"</string>

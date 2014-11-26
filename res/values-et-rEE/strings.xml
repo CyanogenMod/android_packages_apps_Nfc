@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Puudutage  vaatamiseks"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Vastuvõtja seade ei toeta suurte failide edastamist kiire kaudu."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Ühendage seadmed uuesti"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"Kiirega edastamise funktsioon on praegu hõivatud. Proovige uuesti, kui ülekandmine on lõppenud."</string>
     <string name="device" msgid="4459621591392478151">"seade"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"Ühendamine seadmega <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"Ühendatud seadmega <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
