@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Көрүш үчүн тийиңиз"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Алуучунун түзмөгү beam аркылуу чоң файлдарды кабылдабайт."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Түзмөктөрдү кайрадан бириктириңиз"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"Учурда өткөрүү бош эмес. Мурунку өткөрүү аяктаганда кайра аракет кылыңыз."</string>
     <string name="device" msgid="4459621591392478151">"түзмөк"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> туташтырылууда"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> туташтырылды"</string>

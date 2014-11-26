@@ -18,8 +18,7 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"輕觸即可查看"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"接收者的裝置不支援透過 Beam 傳輸大型檔案。"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"再次將裝置放在一起"</string>
-    <!-- no translation found for beam_busy (5253335587620612576) -->
-    <skip />
+    <string name="beam_busy" msgid="5253335587620612576">"Beam 目前忙碌中。請等待先前的傳輸作業完成，然後再試一次。"</string>
     <string name="device" msgid="4459621591392478151">"裝置"</string>
     <string name="connecting_peripheral" msgid="1296182660525660935">"正在與 <xliff:g id="DEVICE_NAME">%1$s</xliff:g> 連線"</string>
     <string name="connected_peripheral" msgid="20748648543160091">"已連上 <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
