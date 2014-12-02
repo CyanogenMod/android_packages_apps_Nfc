@@ -342,6 +342,8 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 } else if (shareData.ndefMessage != null) {
                     mMessageToSend = shareData.ndefMessage;
                 }
+
+                mUserHandle = shareData.userHandle;
             }
             if (mMessageToSend != null ||
                     (mUrisToSend != null && mHandoverDataParser.isHandoverSupported())) {
@@ -484,7 +486,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                         mSendFlags = shareData.flags;
                         return;
                     } catch (Exception e) {
-                        Log.e(TAG, "Failed NDEF callback: " + e.getMessage());
+                        Log.e(TAG, "Failed NDEF callback: ", e);
                     }
                 } else {
                     // This is not necessarily an error - we no longer unset callbacks from
