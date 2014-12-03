@@ -1052,7 +1052,7 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
         status = stopPolling_rfDiscoveryDisabled();
 
     PeerToPeer::getInstance().enableP2pListening (false);
-
+    sP2pEnabled = false;
     sDiscoveryEnabled = false;
     //if nothing is active after this, then tell the controller to power down
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::DISCOVERY))
