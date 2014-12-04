@@ -1425,7 +1425,7 @@ static void com_android_nfc_NfcManager_enableDiscovery(JNIEnv *e, jobject o, jin
         nat->discovery_cfg.PollDevInfo.PollCfgInfo.EnableIso15693 = (modes & 0x08) != 0;
     }
 
-    nfc_jni_start_discovery_locked(nat, restart);
+    nfc_jni_start_discovery_locked(nat, false);
 clean_and_return:
     CONCURRENCY_UNLOCK();
 }
