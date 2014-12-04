@@ -993,8 +993,7 @@ public class NfcService implements DeviceHostListener {
             Map<Integer, Integer> techCodeToMask = new HashMap<Integer, Integer>();
 
             techCodeToMask.put(TagTechnology.NFC_A, NfcService.NFC_POLL_A);
-            techCodeToMask.put(TagTechnology.NFC_B,
-                    NfcService.NFC_POLL_B | NfcService.NFC_POLL_B_PRIME);
+            techCodeToMask.put(TagTechnology.NFC_B, NfcService.NFC_POLL_B);
             techCodeToMask.put(TagTechnology.NFC_V, NfcService.NFC_POLL_ISO15693);
             techCodeToMask.put(TagTechnology.NFC_F, NfcService.NFC_POLL_F);
             techCodeToMask.put(TagTechnology.NFC_BARCODE, NfcService.NFC_POLL_KOVIO);
