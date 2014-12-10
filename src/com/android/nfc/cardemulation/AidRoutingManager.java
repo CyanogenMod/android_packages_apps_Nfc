@@ -88,7 +88,23 @@ public class AidRoutingManager {
 
     void clearNfcRoutingTableLocked() {
         for (Map.Entry<String, Integer> aidEntry : mRouteForAid.entrySet())  {
-            NfcService.getInstance().unrouteAids(aidEntry.getKey());
+            String aid = aidEntry.getKey();
+            if (aid.endsWith("*")) {
+                if (mAidMatchingSupport == AID_MATCHING_EXACT_ONLY) {
+                    Log.e(TAG, "Device does not support prefix AIDs but AID [" + aid
+                            + "] is registered");
+                } else if (mAidMatchingSupport == AID_MATCHING_PREFIX_ONLY) {
+                    if (DBG) Log.d(TAG, "Unrouting prefix AID " + aid);
+                    // Cut off '*' since controller anyway treats all AIDs as a prefix
+                    aid = aid.substring(0, aid.length() - 1);
+                } else if (mAidMatchingSupport == AID_MATCHING_EXACT_OR_PREFIX) {
+                    if (DBG) Log.d(TAG, "Unrouting prefix AID " + aid);
+                }
+            } else {
+                if (DBG) Log.d(TAG, "Unrouting exact AID " + aid);
+            }
+
+            NfcService.getInstance().unrouteAids(aid);
         }
     }
 
