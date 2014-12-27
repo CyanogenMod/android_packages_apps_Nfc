@@ -155,6 +155,7 @@ PowerSwitch::PowerLevel PowerSwitch::getLevel ()
 ** Returns:         True if ok.
 **
 *******************************************************************************/
+#ifndef USES_SEC_NFC
 bool PowerSwitch::setLevel (PowerLevel newLevel)
 {
     static const char fn [] = "PowerSwitch::setLevel";
@@ -217,7 +218,12 @@ TheEnd:
     mMutex.unlock ();
     return retval;
 }
-
+#else
+bool PowerSwitch::setLevel (PowerLevel newLevel)
+{
+	return false;
+}
+#endif
 
 bool PowerSwitch::setScreenOffPowerState (ScreenOffPowerState newState)
 {

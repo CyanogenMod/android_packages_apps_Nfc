@@ -19,6 +19,10 @@ $(patsubst ./%,%, \
  )
 endef
 
+ifeq ($(BOARD_USES_SEC_NFC),true)
+	LOCAL_CFLAGS += -DUSES_SEC_NFC
+endif
+
 LOCAL_SRC_FILES:= $(call all-cpp-files-under, .)
 
 LOCAL_C_INCLUDES += \
