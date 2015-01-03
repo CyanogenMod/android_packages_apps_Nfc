@@ -6,7 +6,7 @@
   <string name="inbound_me_profile_title">Kontakt iwwer NFC empfaangen</string>
   <string name="inbound_me_profile_text">Dréck fir dës Persoun als Kontakt anzedroen.</string>
   <string name="outbound_me_profile_title">NFC-Interaktioun ofgeschloss</string>
-  <string name="outbound_me_profile_text">Untippe fir dëser Persoun deng Kontakt-Informatiounen ze ginn.</string>
+  <string name="outbound_me_profile_text">Drécke fir dëser Persoun deng Kontakt-Informatiounen ze ginn.</string>
   <string name="accessibility_nfc_enabled">NFC aktivéiert.</string>
   <string name="touch">Dréck fir ze beamen</string>
   <string name="beam_progress">Beam gëtt empfaangen...</string>
