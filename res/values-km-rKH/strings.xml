@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"បញ្ចប់​ការ​ផ្ទេរ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"ការ​ផ្ទេរ​មិន​បាន​បញ្ចប់"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"បាន​បោះបង់​ការ​ផ្ទេរ"</string>
-    <string name="cancel" msgid="61873902552555096">"បោះ​បង់​"</string>
+    <string name="cancel" msgid="61873902552555096">"បោះ​បង់"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ប៉ះ​ដើម្បី​មើល"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ឧបករណ៍​របស់​អ្នក​ទទួល​មិន​គាំទ្រ​ការ​ផ្ទេរ​ឯកសារ​​ដែល​មាន​ទំហំ​ធំ​តាម​ការ​ផ្ទេរ​ឡើយ។"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"នាំ​ឧបករណ៍​ជាមួយគ្នា​ម្ដងទៀត"</string>
