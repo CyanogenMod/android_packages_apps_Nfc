@@ -15,7 +15,7 @@
   <string name="beam_failed">Beam net ofgeschloss</string>
   <string name="beam_canceled">Beam ofgebrach</string>
   <string name="cancel">Ofbriechen</string>
-  <string name="beam_touch_to_view">Dréck fir ze kucken</string>
+  <string name="beam_touch_to_view">Dréck fir unzekucken</string>
   <string name="beam_handover_not_supported">Den Apparat vum Empfänger ënnerstëtzt keen Transfert vu grousse Fichieren iwwer Beam.</string>
   <string name="beam_try_again">Bréng d\'Apparater nees beieneen</string>
   <string name="connecting_headset">Connectéieren</string>

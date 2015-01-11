@@ -3,7 +3,6 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
   <string name="app_name">Nfc خزمەتگوزاری</string>
   <string name="nfcUserLabel">Nfc</string>
-  <string name="inbound_me_profile_title">وه‌رگری په‌یوه‌ندی له‌لایه‌ن NFC</string>
   <string name="inbound_me_profile_text">دەست لێدە بۆ زیاد کردن وەکو پەیوەندی</string>
   <string name="outbound_me_profile_title">کالێکی NFC تەواو بو</string>
   <string name="outbound_me_profile_text">دەست لێدە بۆ پێدانی زانیاری پەیوەندی خۆت بەم کەسە</string>
@@ -27,8 +26,6 @@
   <string name="pairing_headset_failed">نه‌ناسێنرا</string>
   <string name="failed_to_enable_bt">نه‌توانرا بلوتوس چالاک بکرێت</string>
   <string name="confirm_pairing">دڵنیای له‌ ناساندنی ئامێری بلوتوسی <xliff:g id="device_name">%1$s</xliff:g>؟</string>
-  <string name="pair_yes">بەڵێ</string>
-  <string name="pair_no">نەخێر</string>
   <string name="tap_again_to_pay">تاپ بکه‌ دووباره‌ بۆ ناساندن له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g></string>
   <string name="tap_again_to_complete">تاپ بکه‌ دووباره‌ بۆ ته‌واوکردن له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g></string>
   <string name="transaction_failure">گواستنه‌وه‌ نه‌توانرا ته‌واوبکرێت له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g>.</string>
