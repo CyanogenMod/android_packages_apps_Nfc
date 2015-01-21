@@ -159,13 +159,7 @@ public final class NfcWifiProtectedSetup {
     }
 
     private static void populateAllowedKeyManagement(BitSet allowedKeyManagement, short authType) {
-        if (authType == AUTH_TYPE_WPA_PSK) {
-            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-        } else if (authType == AUTH_TYPE_WPA2_PSK) {
-            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
-        } else if (authType == (AUTH_TYPE_WPA2_PSK | AUTH_TYPE_WPA_PSK)) {
-            // only WPA_PSK and WPA2_PSK can be mixed together
-            allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        if (authType == AUTH_TYPE_WPA_PSK || authType == AUTH_TYPE_WPA2_PSK) {
             allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
         } else if (authType == AUTH_TYPE_WPA_EAP || authType == AUTH_TYPE_WPA2_EAP) {
             allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
