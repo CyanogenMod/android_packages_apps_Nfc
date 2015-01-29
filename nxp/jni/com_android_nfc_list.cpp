@@ -16,8 +16,9 @@
 
 #include <com_android_nfc_list.h>
 #include <com_android_nfc.h>
-#include <pthread.h>
 #include <errno.h>
+#include <malloc.h>
+#include <pthread.h>
 #include <cutils/log.h>
 
 #undef LOG_TAG
