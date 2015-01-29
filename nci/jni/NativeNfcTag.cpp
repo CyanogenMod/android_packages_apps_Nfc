@@ -16,8 +16,10 @@
 
 #include <semaphore.h>
 #include <errno.h>
+#include <malloc.h>
 #include <time.h>
 #include <signal.h>
+#include <string.h>
 #include "OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "NfcTag.h"
