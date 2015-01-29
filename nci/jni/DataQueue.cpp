@@ -20,6 +20,9 @@
 
 #include "DataQueue.h"
 
+#include <malloc.h>
+#include <string.h>
+
 #include <cutils/log.h>
 
 
