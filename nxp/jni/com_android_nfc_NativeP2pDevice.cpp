@@ -15,8 +15,9 @@
  * limitations under the License.
  */
 
-#include <semaphore.h>
 #include <errno.h>
+#include <malloc.h>
+#include <semaphore.h>
 #include <ScopedLocalRef.h>
 
 #include "com_android_nfc.h"
