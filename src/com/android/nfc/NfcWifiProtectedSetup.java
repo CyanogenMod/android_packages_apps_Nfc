@@ -125,7 +125,7 @@ public final class NfcWifiProtectedSetup {
                 case SSID_FIELD_ID:
                     byte[] ssid = new byte[fieldSize];
                     payload.get(ssid);
-                    result.SSID = new String(ssid);
+                    result.SSID = "\"" + new String(ssid) + "\"";
                     break;
                 case NETWORK_KEY_FIELD_ID:
                     if (fieldSize > MAX_NETWORK_KEY_SIZE_BYTES) {
@@ -133,7 +133,7 @@ public final class NfcWifiProtectedSetup {
                     }
                     byte[] networkKey = new byte[fieldSize];
                     payload.get(networkKey);
-                    result.preSharedKey = new String(networkKey);
+                    result.preSharedKey = "\"" + new String(networkKey) + "\"";
                     break;
                 case AUTH_TYPE_FIELD_ID:
                     if (fieldSize != AUTH_TYPE_EXPECTED_SIZE) {
