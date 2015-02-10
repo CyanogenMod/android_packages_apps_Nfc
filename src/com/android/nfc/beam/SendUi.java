@@ -16,7 +16,6 @@
 
 package com.android.nfc.beam;
 
-import com.android.internal.policy.PolicyManager;
 import com.android.nfc.R;
 import com.android.nfc.beam.FireflyRenderer;
 
@@ -46,6 +45,7 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.PhoneWindow;
 import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.TextureView;
@@ -296,7 +296,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         // Create a Window with a Decor view; creating a window allows us to get callbacks
         // on key events (which require a decor view to be dispatched).
         mContext.setTheme(android.R.style.Theme_Black_NoTitleBar_Fullscreen);
-        Window window = PolicyManager.makeNewWindow(mContext);
+        Window window = new PhoneWindow(mContext);
         window.setCallback(this);
         window.requestFeature(Window.FEATURE_NO_TITLE);
         mDecor = window.getDecorView();
