@@ -23,10 +23,10 @@
   <string name="connect_headset_failed">Konnt net connectéieren</string>
   <string name="disconnecting_headset">Connectioun gëtt getrennt</string>
   <string name="disconnected_headset">Connectioun getrennt</string>
-  <string name="pairing_headset">Verbannen</string>
-  <string name="pairing_headset_failed">Konnt net verbannen</string>
+  <string name="pairing_headset">Koppelung</string>
+  <string name="pairing_headset_failed">Konnt net koppelen</string>
   <string name="failed_to_enable_bt">Bluetooth konnt net aktivéiert ginn</string>
-  <string name="confirm_pairing">Bass du sécher datt s du eng Connectioun mam Bluetooth-Apparat <xliff:g id="device_name">%1$s</xliff:g> wëlls hierstellen?</string>
+  <string name="confirm_pairing">Bass du sécher datt s du de Bluetooth-Apparat <xliff:g id="device_name">%1$s</xliff:g> wëlls koppelen?</string>
   <string name="pair_yes">Jo</string>
   <string name="pair_no">Nee</string>
   <string name="tap_again_to_pay">Dréck nees fir mat <xliff:g id="app">%1$s</xliff:g> ze bezuelen</string>
