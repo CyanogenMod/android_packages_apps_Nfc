@@ -18,13 +18,15 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"ប៉ះ​ដើម្បី​មើល"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ឧបករណ៍​របស់​អ្នក​ទទួល​មិន​គាំទ្រ​ការ​ផ្ទេរ​ឯកសារ​​ដែល​មាន​ទំហំ​ធំ​តាម​ការ​ផ្ទេរ​ឡើយ។"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"នាំ​ឧបករណ៍​ជាមួយគ្នា​ម្ដងទៀត"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"តភ្ជាប់"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"បាន​តភ្ជាប់"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"មិន​អាច​តភ្ជាប់។"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"កំពុង​ផ្ដាច់..."</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"បាន​ផ្ដាច់"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"ផ្គូផ្គង​"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"មិន​អាច​ផ្គូផ្គង"</string>
+    <string name="beam_busy" msgid="5253335587620612576">"ប៊ីមកំពុងជាប់រវល់។ សាកល្បងម្តងទៀតនៅពេលដែលការផ្ទេរពីមុនបញ្ចប់។"</string>
+    <string name="device" msgid="4459621591392478151">"ឧបករណ៍"</string>
+    <string name="connecting_peripheral" msgid="1296182660525660935">"កំពុងភ្ជាប់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="connected_peripheral" msgid="20748648543160091">"បានភ្ជាប់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="connect_peripheral_failed" msgid="7925702596242839275">"មិនអាចភ្ជាប់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g> បានទេ"</string>
+    <string name="disconnecting_peripheral" msgid="1443699384809097200">"កំពុងផ្តាច់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="disconnected_peripheral" msgid="4470578100296504366">"បានផ្តាច់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="pairing_peripheral" msgid="6983626861540899365">"កំពុងភ្ជាប់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="pairing_peripheral_failed" msgid="6087643307743264679">"មិនអាចភ្ជាប់ <xliff:g id="DEVICE_NAME">%1$s</xliff:g> បានទេ"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"មិន​អាច​បើក​ប៊្លូធូស"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"តើ​អ្នក​ប្រាកដ​ជា​ចង់​ផ្គូផ្គង​ឧបករណ៍​ប៊្លូធូស <xliff:g id="DEVICE_NAME">%1$s</xliff:g> ?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"បាទ/ចាស"</string>
@@ -43,5 +45,5 @@
     <string name="title_connect_to_network" msgid="2474034615817280146">"​ភ្ជាប់​បណ្ដាញ"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"ភ្ជាប់​បណ្ដាញ <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam ទាមទារ​ឲ្យ​បើក NFC ។ តើ​អ្នក​ចង់​បើក​វា​ឬ?"</string>
-    <string name="beam_requires_beam_enabled" msgid="5620935068991096814">"មិន​បាន​បើក Android Beam ក្នុង​ការ​កំណត់។ តើ​អ្នក​ចង់​បើ​វា​ឬ?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>

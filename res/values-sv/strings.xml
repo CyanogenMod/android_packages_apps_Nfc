@@ -18,13 +18,15 @@
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Tryck och visa"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Mottagarens enheten stöder inte trådlös överföring av stora filer."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"För samman enheterna igen"</string>
-    <string name="connecting_headset" msgid="3929250919225573008">"Anslutningen upprättas"</string>
-    <string name="connected_headset" msgid="4047751837023241955">"Anslutningen har upprättats"</string>
-    <string name="connect_headset_failed" msgid="7500801585498094863">"Det gick inte att ansluta"</string>
-    <string name="disconnecting_headset" msgid="868262189044372780">"Anslutningen avbryts"</string>
-    <string name="disconnected_headset" msgid="4066109452701733916">"Frånkopplad"</string>
-    <string name="pairing_headset" msgid="6443461444755646137">"Parkoppling upprättas"</string>
-    <string name="pairing_headset_failed" msgid="6509629663883514688">"Det gick inte att parkoppla"</string>
+    <string name="beam_busy" msgid="5253335587620612576">"Beam används för närvarande. Försök igen när den pågående överföringen är klar."</string>
+    <string name="device" msgid="4459621591392478151">"enhet"</string>
+    <string name="connecting_peripheral" msgid="1296182660525660935">"Ansluter <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="connected_peripheral" msgid="20748648543160091">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> har anslutits"</string>
+    <string name="connect_peripheral_failed" msgid="7925702596242839275">"Det gick inte att ansluta <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="disconnecting_peripheral" msgid="1443699384809097200">"Kopplar från <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="disconnected_peripheral" msgid="4470578100296504366">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> har kopplats från"</string>
+    <string name="pairing_peripheral" msgid="6983626861540899365">"Kopplar <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
+    <string name="pairing_peripheral_failed" msgid="6087643307743264679">"Det gick inte att koppla <xliff:g id="DEVICE_NAME">%1$s</xliff:g>"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Det gick inte att aktivera Bluetooth"</string>
     <string name="confirm_pairing" msgid="4112568077038265363">"Är du säker på att du vill para ihop Bluetooth-enheten <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Ja"</string>
@@ -42,8 +44,6 @@
     <string name="status_wifi_connected" msgid="5893022897732105739">"Ansluten"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Anslut till nätverk"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Vill du ansluta till nätverket <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
-    <!-- no translation found for beam_requires_nfc_enabled (2800366967218600534) -->
-    <skip />
-    <!-- no translation found for beam_requires_beam_enabled (5620935068991096814) -->
-    <skip />
+    <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam kräver att NFC har aktiverats. Vill du göra det?"</string>
+    <string name="android_beam" msgid="1666446406999492763">"Android Beam"</string>
 </resources>
