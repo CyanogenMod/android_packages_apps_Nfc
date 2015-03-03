@@ -869,6 +869,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         return null;
     }
 
+    public ActionMode onWindowStartingActionMode(
+            android.view.ActionMode.Callback callback, int type) {
+        return null;
+    }
+
     @Override
     public void onActionModeStarted(ActionMode mode) {
     }
