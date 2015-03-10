@@ -16,9 +16,11 @@
 
 package com.android.nfc;
 
-import android.nfc.INfcUnlockHandler;
+import android.bluetooth.BluetoothAdapter;
+
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
-import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.handover.HandoverDataParser;
+import com.android.nfc.handover.PeripheralHandoverService;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -50,7 +52,6 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -69,10 +70,11 @@ class NfcDispatcher {
     private final IActivityManager mIActivityManager;
     private final RegisteredComponentCache mTechListFilters;
     private final ContentResolver mContentResolver;
-    private final HandoverManager mHandoverManager;
+    private final HandoverDataParser mHandoverDataParser;
     private final String[] mProvisioningMimes;
     private final ScreenStateHelper mScreenStateHelper;
     private final NfcUnlockManager mNfcUnlockManager;
+    private final boolean mDeviceSupportsBluetooth;
 
     // Locked on this
     private PendingIntent mOverrideIntent;
@@ -81,16 +83,17 @@ class NfcDispatcher {
     private boolean mProvisioningOnly;
 
     NfcDispatcher(Context context,
-                  HandoverManager handoverManager,
+                  HandoverDataParser handoverDataParser,
                   boolean provisionOnly) {
         mContext = context;
         mIActivityManager = ActivityManagerNative.getDefault();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mContentResolver = context.getContentResolver();
-        mHandoverManager = handoverManager;
+        mHandoverDataParser = handoverDataParser;
         mScreenStateHelper = new ScreenStateHelper(context);
         mNfcUnlockManager = NfcUnlockManager.getInstance();
+        mDeviceSupportsBluetooth = BluetoothAdapter.getDefaultAdapter() != null;
 
         synchronized (this) {
             mProvisioningOnly = provisionOnly;
@@ -259,7 +262,7 @@ class NfcDispatcher {
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
-        if (mHandoverManager.tryHandover(message)) {
+        if (tryPeripheralHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
@@ -504,6 +507,24 @@ class NfcDispatcher {
         }
         return false;
     }
+
+    public boolean tryPeripheralHandover(NdefMessage m) {
+        if (m == null || !mDeviceSupportsBluetooth) return false;
+
+        if (DBG) Log.d(TAG, "tryHandover(): " + m.toString());
+
+        HandoverDataParser.BluetoothHandoverData handover = mHandoverDataParser.parseBluetooth(m);
+        if (handover == null || !handover.valid) return false;
+
+        Intent intent = new Intent(mContext, PeripheralHandoverService.class);
+        intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_DEVICE, handover.device);
+        intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_NAME, handover.name);
+        intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_TRANSPORT, handover.transport);
+        mContext.startServiceAsUser(intent, UserHandle.CURRENT);
+
+        return true;
+    }
+
 
     /**
      * Tells the ActivityManager to resume allowing app switches.

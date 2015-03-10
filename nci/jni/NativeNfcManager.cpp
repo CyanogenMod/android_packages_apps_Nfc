@@ -122,6 +122,7 @@ static bool                 sIsDisabling = false;
 static bool                 sRfEnabled = false; // whether RF discovery is enabled
 static bool                 sSeRfActive = false;  // whether RF with SE is likely active
 static bool                 sReaderModeEnabled = false; // whether we're only reading tags, not allowing P2p/card emu
+static bool                 sP2pEnabled = false;
 static bool                 sP2pActive = false; // whether p2p was last active
 static bool                 sAbortConnlessWait = false;
 #define CONFIG_UPDATE_TECH_MASK     (1 << 1)
@@ -930,7 +931,7 @@ TheEnd:
 **
 *******************************************************************************/
 static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_mask, \
-    jboolean enable_lptd, jboolean reader_mode, jboolean enable_host_routing,
+    jboolean enable_lptd, jboolean reader_mode, jboolean enable_host_routing, jboolean enable_p2p,
     jboolean restart)
 {
     tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
@@ -968,20 +969,27 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_
         if (sPollingEnabled)
         {
             ALOGD ("%s: Enable p2pListening", __FUNCTION__);
-            PeerToPeer::getInstance().enableP2pListening (!reader_mode);
+
+            if (enable_p2p && !sP2pEnabled) {
+                sP2pEnabled = true;
+                PeerToPeer::getInstance().enableP2pListening (true);
+                NFA_ResumeP2p();
+            } else if (!enable_p2p && sP2pEnabled) {
+                sP2pEnabled = false;
+                PeerToPeer::getInstance().enableP2pListening (false);
+                NFA_PauseP2p();
+            }
 
             if (reader_mode && !sReaderModeEnabled)
             {
                 sReaderModeEnabled = true;
-                NFA_PauseP2p();
                 NFA_DisableListening();
                 NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
             }
-            else if (sReaderModeEnabled)
+            else if (!reader_mode && sReaderModeEnabled)
             {
                 struct nfc_jni_native_data *nat = getNative(e, o);
                 sReaderModeEnabled = false;
-                NFA_ResumeP2p();
                 NFA_EnableListening();
                 NFA_SetRfDiscoveryDuration(nat->discovery_duration);
             }
@@ -1044,7 +1052,7 @@ void nfcManager_disableDiscovery (JNIEnv* e, jobject o)
         status = stopPolling_rfDiscoveryDisabled();
 
     PeerToPeer::getInstance().enableP2pListening (false);
-
+    sP2pEnabled = false;
     sDiscoveryEnabled = false;
     //if nothing is active after this, then tell the controller to power down
     if (! PowerSwitch::getInstance ().setModeOff (PowerSwitch::DISCOVERY))
@@ -1616,7 +1624,7 @@ static JNINativeMethod gMethods[] =
     {"commitRouting", "()Z",
             (void*) nfcManager_commitRouting},
 
-    {"doEnableDiscovery", "(IZZZZ)V",
+    {"doEnableDiscovery", "(IZZZZZ)V",
             (void*) nfcManager_enableDiscovery},
 
     {"doCheckLlcp", "()Z",

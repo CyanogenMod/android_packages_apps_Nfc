@@ -161,11 +161,12 @@ public class NativeNfcManager implements DeviceHost {
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,
                                           boolean enableReaderMode,
+                                          boolean enableP2p,
                                           boolean restart);
     @Override
     public void enableDiscovery(NfcDiscoveryParameters params, boolean restart) {
         doEnableDiscovery(params.getTechMask(), params.shouldEnableLowPowerDiscovery(),
-                params.shouldEnableReaderMode(), restart);
+                params.shouldEnableReaderMode(), params.shouldEnableP2p(), restart);
     }
 
     @Override

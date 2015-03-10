@@ -222,8 +222,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                                 != BluetoothProfile.STATE_DISCONNECTED) {
                             mHidResult = RESULT_PENDING;
                             mInput.disconnect(mDevice);
-                            toast(mContext.getString(R.string.disconnecting_peripheral) + " " +
-                                    mName + "...");
+                            toast(getToastString(R.string.disconnecting_peripheral));
                             break;
                         } else {
                             mHidResult = RESULT_DISCONNECTED;
@@ -244,8 +243,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                             mA2dpResult = RESULT_DISCONNECTED;
                         }
                         if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
-                            toast(mContext.getString(R.string.disconnecting_peripheral) + " " +
-                                    mName + "...");
+                            toast(getToastString(R.string.disconnecting_peripheral));
                             break;
                         }
                     }
@@ -254,7 +252,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
             case STATE_DISCONNECTING:
                 if (mTransport == BluetoothDevice.TRANSPORT_LE) {
                     if (mHidResult == RESULT_DISCONNECTED) {
-                        toast(mContext.getString(R.string.disconnected_peripheral) + " " + mName);
+                        toast(getToastString(R.string.disconnected_peripheral));
                         complete(false);
                     }
 
@@ -265,7 +263,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                         break;
                     }
                     if (mA2dpResult == RESULT_DISCONNECTED && mHfpResult == RESULT_DISCONNECTED) {
-                        toast(mContext.getString(R.string.disconnected_peripheral) + " " + mName);
+                        toast(getToastString(R.string.disconnected_peripheral));
                     }
                     complete(false);
                     break;
@@ -273,6 +271,10 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
 
         }
 
+    }
+
+    private String getToastString(int resid) {
+        return mContext.getString(resid, mName != null ? mName : R.string.device);
     }
 
     boolean getProfileProxys() {
@@ -294,6 +296,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
     void nextStepConnect() {
         switch (mState) {
             case STATE_INIT_COMPLETE:
+
                 if (mDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
                     requestPairConfirmation();
                     mState = STATE_WAITING_FOR_BOND_CONFIRMATION;
@@ -325,8 +328,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                                 != BluetoothProfile.STATE_CONNECTED) {
                             mHidResult = RESULT_PENDING;
                             mInput.connect(mDevice);
-                            toast(mContext.getString(R.string.connecting_peripheral) + " "
-                                    + mName + "...");
+                            toast(getToastString(R.string.connecting_peripheral));
                             break;
                         } else {
                             mHidResult = RESULT_CONNECTED;
@@ -346,8 +348,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                             mA2dpResult = RESULT_CONNECTED;
                         }
                         if (mA2dpResult == RESULT_PENDING || mHfpResult == RESULT_PENDING) {
-                            toast(mContext.getString(R.string.connecting_peripheral) + " "
-                                    + mName + "...");
+                            toast(getToastString(R.string.connecting_peripheral));
                             break;
                         }
                     }
@@ -358,11 +359,11 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                     if (mHidResult == RESULT_PENDING) {
                         break;
                     } else if (mHidResult == RESULT_CONNECTED) {
-                        toast(mContext.getString(R.string.connected_peripheral) + " " + mName);
+                        toast(getToastString(R.string.connected_peripheral));
+                        mDevice.setAlias(mName);
                         complete(true);
                     } else {
-                        toast (mContext.getString(R.string.connect_peripheral_failed) + " "
-                                + mName);
+                        toast (getToastString(R.string.connect_peripheral_failed));
                         complete(false);
                     }
                 } else {
@@ -372,11 +373,12 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                     }
                     if (mA2dpResult == RESULT_CONNECTED || mHfpResult == RESULT_CONNECTED) {
                         // we'll take either as success
-                        toast(mContext.getString(R.string.connected_peripheral) + " " + mName);
+                        toast(getToastString(R.string.connected_peripheral));
                         if (mA2dpResult == RESULT_CONNECTED) startTheMusic();
+                        mDevice.setAlias(mName);
                         complete(true);
                     } else {
-                        toast (mContext.getString(R.string.connect_peripheral_failed) + " " + mName);
+                        toast (getToastString(R.string.connect_peripheral_failed));
                         complete(false);
                     }
                 }
@@ -386,9 +388,9 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
 
     void startBonding() {
         mState = STATE_BONDING;
-        toast(mContext.getString(R.string.pairing_peripheral) + " " + mName + "...");
+        toast(getToastString(R.string.pairing_peripheral));
         if (!mDevice.createBond(mTransport)) {
-            toast(mContext.getString(R.string.pairing_peripheral_failed) + " " + mName);
+            toast(getToastString(R.string.pairing_peripheral_failed));
             complete(false);
         }
     }
@@ -410,7 +412,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
             if (bond == BluetoothDevice.BOND_BONDED) {
                 nextStepConnect();
             } else if (bond == BluetoothDevice.BOND_NONE) {
-                toast(mContext.getString(R.string.pairing_peripheral_failed) + " " + mName);
+                toast(getToastString(R.string.pairing_peripheral_failed));
                 complete(false);
             }
         } else if (BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED.equals(action) &&

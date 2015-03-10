@@ -20,6 +20,7 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -27,6 +28,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.IPackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
@@ -75,15 +77,17 @@ import com.android.nfc.DeviceHost.NfcDepEndpoint;
 import com.android.nfc.DeviceHost.TagEndpoint;
 import com.android.nfc.cardemulation.CardEmulationManager;
 import com.android.nfc.dhimpl.NativeNfcManager;
-import com.android.nfc.handover.HandoverManager;
+import com.android.nfc.handover.HandoverDataParser;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
 
 public class NfcService implements DeviceHostListener {
     static final boolean DBG = false;
@@ -216,7 +220,7 @@ public class NfcService implements DeviceHostListener {
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
     private KeyguardManager mKeyguard;
-    private HandoverManager mHandoverManager;
+    private HandoverDataParser mHandoverDataParser;
     private ContentResolver mContentResolver;
     private CardEmulationManager mCardEmulationManager;
 
@@ -314,7 +318,7 @@ public class NfcService implements DeviceHostListener {
 
         mNfcUnlockManager = NfcUnlockManager.getInstance();
 
-        mHandoverManager = new HandoverManager(mContext);
+        mHandoverDataParser = new HandoverDataParser();
         boolean isNfcProvisioningEnabled = false;
         try {
             isNfcProvisioningEnabled = mContext.getResources().getBoolean(
@@ -329,8 +333,8 @@ public class NfcService implements DeviceHostListener {
             mInProvisionMode = false;
         }
 
-        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverManager, mInProvisionMode);
-        mP2pLinkManager = new P2pLinkManager(mContext, mHandoverManager,
+        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverDataParser, mInProvisionMode);
+        mP2pLinkManager = new P2pLinkManager(mContext, mHandoverDataParser,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
         mPrefs = mContext.getSharedPreferences(PREF, Context.MODE_PRIVATE);
@@ -373,6 +377,9 @@ public class NfcService implements DeviceHostListener {
         ownerFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         ownerFilter.addDataScheme("package");
         mContext.registerReceiver(mOwnerReceiver, ownerFilter);
+
+        IntentFilter policyFilter = new IntentFilter(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
+        mContext.registerReceiverAsUser(mPolicyReceiver, UserHandle.ALL, policyFilter, null, null);
 
         updatePackageCache();
 
@@ -658,11 +665,39 @@ public class NfcService implements DeviceHostListener {
     }
 
     void setBeamShareActivityState(boolean enabled) {
-        mContext.getPackageManager().setComponentEnabledSetting(
-                new ComponentName("com.android.nfc","com.android.nfc.BeamShareActivity"),
-                enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
-                          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP);
+        UserManager um = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+        // Propagate the state change to all user profiles related to the current
+        // user. Note that the list returned by getUserProfiles contains the
+        // current user.
+        List <UserHandle> luh = um.getUserProfiles();
+        for (UserHandle uh : luh){
+            enforceBeamShareActivityPolicy(mContext, uh, enabled);
+        }
+    }
+
+    void enforceBeamShareActivityPolicy(Context context, UserHandle uh,
+            boolean isGlobalEnabled){
+        UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        IPackageManager mIpm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+        boolean isActiveForUser =
+                (!um.hasUserRestriction(UserManager.DISALLOW_OUTGOING_BEAM, uh)) &&
+                isGlobalEnabled;
+        if (DBG){
+            Log.d(TAG, "Enforcing a policy change on user: " + uh +
+                    ", isActiveForUser = " + isActiveForUser);
+        }
+        try {
+            mIpm.setComponentEnabledSetting(new ComponentName(
+                    BeamShareActivity.class.getPackageName$(),
+                    BeamShareActivity.class.getName()),
+                    isActiveForUser ?
+                            PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
+                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            PackageManager.DONT_KILL_APP,
+                    uh.getIdentifier());
+        } catch (RemoteException e) {
+            Log.w(TAG, "Unable to change Beam status for user " + uh);
+        }
     }
 
     final class NfcAdapterService extends INfcAdapter.Stub {
@@ -816,13 +851,17 @@ public class NfcService implements DeviceHostListener {
 
             // don't allow Beam for managed profiles, or devices with a device owner or policy owner
             UserInfo userInfo = mUserManager.getUserInfo(UserHandle.getCallingUserId());
-            if(!userInfo.isManagedProfile()
-                    && !mUserManager.hasUserRestriction(
+            if(!mUserManager.hasUserRestriction(
                             UserManager.DISALLOW_OUTGOING_BEAM, userInfo.getUserHandle())) {
                 mP2pLinkManager.setNdefCallback(callback, Binder.getCallingUid());
             } else if (DBG) {
                 Log.d(TAG, "Disabling default Beam behavior");
             }
+        }
+
+        @Override
+        public void verifyNfcPermission() {
+            NfcPermissions.enforceUserPermissions(mContext);
         }
 
         @Override
@@ -965,8 +1004,7 @@ public class NfcService implements DeviceHostListener {
             Map<Integer, Integer> techCodeToMask = new HashMap<Integer, Integer>();
 
             techCodeToMask.put(TagTechnology.NFC_A, NfcService.NFC_POLL_A);
-            techCodeToMask.put(TagTechnology.NFC_B,
-                    NfcService.NFC_POLL_B | NfcService.NFC_POLL_B_PRIME);
+            techCodeToMask.put(TagTechnology.NFC_B, NfcService.NFC_POLL_B);
             techCodeToMask.put(TagTechnology.NFC_V, NfcService.NFC_POLL_ISO15693);
             techCodeToMask.put(TagTechnology.NFC_F, NfcService.NFC_POLL_F);
             techCodeToMask.put(TagTechnology.NFC_BARCODE, NfcService.NFC_POLL_KOVIO);
@@ -1424,7 +1462,6 @@ public class NfcService implements DeviceHostListener {
                     // Notify dispatcher it's fine to dispatch to any package now
                     // and allow handover transfers.
                     mNfcDispatcher.disableProvisioningMode();
-                    mHandoverManager.setEnabled(true);
                 }
             }
             // Special case: if we're transitioning to unlocked state while
@@ -1480,20 +1517,25 @@ public class NfcService implements DeviceHostListener {
                 paramsBuilder.setEnableReaderMode(true);
             } else {
                 paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+                paramsBuilder.setEnableP2p(mIsNdefPushEnabled);
             }
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED && mInProvisionMode) {
             paramsBuilder.setTechMask(NfcDiscoveryParameters.NFC_POLL_DEFAULT);
+            // enable P2P for MFM/EDU/Corp provisioning
+            paramsBuilder.setEnableP2p(true);
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
                 mNfcUnlockManager.isLockscreenPollingEnabled()) {
             // For lock-screen tags, no low-power polling
             paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask());
             paramsBuilder.setEnableLowPowerDiscovery(false);
+            paramsBuilder.setEnableP2p(false);
         }
 
         if (mIsHceCapable && mScreenState >= ScreenStateHelper.SCREEN_STATE_ON_LOCKED) {
             // Host routing is always enabled at lock screen or later
             paramsBuilder.setEnableHostRouting(true);
         }
+
         return paramsBuilder.build();
     }
 
@@ -1786,14 +1828,32 @@ public class NfcService implements DeviceHostListener {
             intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
             // Resume app switches so the receivers can start activites without delay
             mNfcDispatcher.resumeAppSwitches();
-
+            ArrayList<String> matchingPackages = new ArrayList<String>();
+            ArrayList<String> preferredPackages = new ArrayList<String>();
             synchronized (this) {
                 for (PackageInfo pkg : mInstalledPackages) {
                     if (pkg != null && pkg.applicationInfo != null) {
                         if (mNfceeAccessControl.check(pkg.applicationInfo)) {
-                            intent.setPackage(pkg.packageName);
-                            mContext.sendBroadcast(intent);
+                            matchingPackages.add(pkg.packageName);
+                            if (mCardEmulationManager != null &&
+                                    mCardEmulationManager.packageHasPreferredService(pkg.packageName)) {
+                                preferredPackages.add(pkg.packageName);
+                            }
                         }
+                    }
+                }
+                if (preferredPackages.size() > 0) {
+                    // If there's any packages in here which are preferred, only
+                    // send field events to those packages, to prevent other apps
+                    // with signatures in nfcee_access.xml from acting upon the events.
+                    for (String packageName : preferredPackages){
+                        intent.setPackage(packageName);
+                        mContext.sendBroadcast(intent);
+                    }
+                } else {
+                    for (String packageName : matchingPackages){
+                        intent.setPackage(packageName);
+                        mContext.sendBroadcast(intent);
                     }
                 }
             }
@@ -1930,6 +1990,7 @@ public class NfcService implements DeviceHostListener {
                 } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
                     screenState = ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED;
                 }
+
                 new ApplyRoutingTask().execute(Integer.valueOf(screenState));
             } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean isAirplaneModeOn = intent.getBooleanExtra("state", false);
@@ -1961,6 +2022,7 @@ public class NfcService implements DeviceHostListener {
         }
     };
 
+
     private final BroadcastReceiver mOwnerReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -1979,6 +2041,17 @@ public class NfcService implements DeviceHostListener {
         }
     };
 
+    private final BroadcastReceiver mPolicyReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent){
+            String action = intent.getAction();
+            if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED
+                    .equals(action)) {
+                enforceBeamShareActivityPolicy(context,
+                        new UserHandle(getSendingUserId()), mIsNdefPushEnabled);
+            }
+        }
+    };
 
     /**
      * Returns true if airplane mode is currently on

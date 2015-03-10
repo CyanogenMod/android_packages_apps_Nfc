@@ -15,40 +15,50 @@
  */
 package com.android.nfc.handover;
 
-import android.nfc.FormatException;
-import android.nfc.NdefMessage;
-import android.util.Log;
-
-import com.android.nfc.LlcpException;
-import com.android.nfc.NfcService;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
 import com.android.nfc.DeviceHost.LlcpSocket;
+import com.android.nfc.LlcpException;
+import com.android.nfc.NfcService;
+import com.android.nfc.beam.BeamManager;
+import com.android.nfc.beam.BeamReceiveService;
+import com.android.nfc.beam.BeamTransferRecord;
+
+import android.bluetooth.BluetoothDevice;
+import android.content.Context;
+import android.content.Intent;
+import android.nfc.FormatException;
+import android.nfc.NdefMessage;
+import android.os.UserHandle;
+import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
 public final class HandoverServer {
-    public static final String HANDOVER_SERVICE_NAME = "urn:nfc:sn:handover";
-    public static final String TAG = "HandoverServer";
-    public static final Boolean DBG = false;
+    static final String HANDOVER_SERVICE_NAME = "urn:nfc:sn:handover";
+    static final String TAG = "HandoverServer";
+    static final Boolean DBG = false;
 
-    public static final int MIU = 128;
+    static final int MIU = 128;
 
-    final HandoverManager mHandoverManager;
+    final HandoverDataParser mHandoverDataParser;
     final int mSap;
     final Callback mCallback;
+    private final Context mContext;
 
     ServerThread mServerThread = null;
     boolean mServerRunning = false;
 
     public interface Callback {
         void onHandoverRequestReceived();
+        void onHandoverBusy();
     }
 
-    public HandoverServer(int sap, HandoverManager manager, Callback callback) {
+    public HandoverServer(Context context, int sap, HandoverDataParser manager, Callback callback) {
+        mContext = context;
         mSap = sap;
-        mHandoverManager = manager;
+        mHandoverDataParser = manager;
         mCallback = callback;
     }
 
@@ -191,16 +201,24 @@ public final class HandoverServer {
                     }
 
                     if (handoverRequestMsg != null) {
+                        BeamManager beamManager = BeamManager.getInstance();
+
+                        if (beamManager.isBeamInProgress()) {
+                            mCallback.onHandoverBusy();
+                            break;
+                        }
+
                         // 2) convert to handover response
-                        NdefMessage resp = mHandoverManager.tryHandoverRequest(handoverRequestMsg);
-                        if (resp == null) {
+                        HandoverDataParser.IncomingHandoverData handoverData
+                                = mHandoverDataParser.getIncomingHandoverData(handoverRequestMsg);
+                        if (handoverData == null) {
                             Log.e(TAG, "Failed to create handover response");
                             break;
                         }
 
                         // 3) send handover response
                         int offset = 0;
-                        byte[] buffer = resp.toByteArray();
+                        byte[] buffer = handoverData.handoverSelect.toByteArray();
                         int remoteMiu = mSock.getRemoteMiu();
                         while (offset < buffer.length) {
                             int length = Math.min(buffer.length - offset, remoteMiu);
@@ -210,6 +228,10 @@ public final class HandoverServer {
                         }
                         // We're done
                         mCallback.onHandoverRequestReceived();
+                        if (!beamManager.startBeamReceive(mContext, handoverData.handoverData)) {
+                            mCallback.onHandoverBusy();
+                            break;
+                        }
                         // We can process another handover transfer
                         byteStream = new ByteArrayOutputStream();
                     }
@@ -238,3 +260,4 @@ public final class HandoverServer {
         }
     }
 }
+

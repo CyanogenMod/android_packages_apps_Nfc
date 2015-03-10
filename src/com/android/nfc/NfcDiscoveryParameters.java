@@ -55,27 +55,29 @@ public final class NfcDiscoveryParameters {
             return this;
         }
 
+        public NfcDiscoveryParameters.Builder setEnableP2p(boolean enable) {
+            mParameters.mEnableP2p = enable;
+            return this;
+        }
+
         public NfcDiscoveryParameters build() {
-            if (mParameters.mEnableReaderMode && mParameters.mEnableLowPowerDiscovery) {
-                throw new IllegalStateException("Can't enable LPTD and reader mode simultaneously");
+            if (mParameters.mEnableReaderMode &&
+                    (mParameters.mEnableLowPowerDiscovery || mParameters.mEnableP2p)) {
+                throw new IllegalStateException("Can't enable LPTD/P2P and reader mode " +
+                        "simultaneously");
             }
             return mParameters;
         }
     }
 
-    // Polling technology masks
     static final int NFC_POLL_DEFAULT = -1;
-    static final int NFC_POLL_A = 0x01;
-    static final int NFC_POLL_B = 0x02;
-    static final int NFC_POLL_F = 0x04;
-    static final int NFC_POLL_ISO15693 = 0x08;
-    static final int NFC_POLL_B_PRIME = 0x10;
-    static final int NFC_POLL_KOVIO = 0x20;
 
+    // NOTE: when adding a new field, don't forget to update equals() and toString() below
     private int mTechMask = 0;
     private boolean mEnableLowPowerDiscovery = true;
     private boolean mEnableReaderMode = false;
     private boolean mEnableHostRouting = false;
+    private boolean mEnableP2p = false;
 
     public NfcDiscoveryParameters() {}
 
@@ -99,6 +101,10 @@ public final class NfcDiscoveryParameters {
         return mTechMask != 0 || mEnableHostRouting;
     }
 
+    public boolean shouldEnableP2p() {
+        return mEnableP2p;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == this) {
@@ -112,7 +118,8 @@ public final class NfcDiscoveryParameters {
         return mTechMask == params.mTechMask &&
                 (mEnableLowPowerDiscovery == params.mEnableLowPowerDiscovery) &&
                 (mEnableReaderMode == params.mEnableReaderMode) &&
-                (mEnableHostRouting == params.mEnableHostRouting);
+                (mEnableHostRouting == params.mEnableHostRouting)
+                && (mEnableP2p == params.mEnableP2p);
     }
 
     @Override
@@ -125,7 +132,8 @@ public final class NfcDiscoveryParameters {
         }
         sb.append("mEnableLPD: " + Boolean.toString(mEnableLowPowerDiscovery) + "\n");
         sb.append("mEnableReader: " + Boolean.toString(mEnableReaderMode) + "\n");
-        sb.append("mEnableHostRouting: " + Boolean.toString(mEnableHostRouting));
+        sb.append("mEnableHostRouting: " + Boolean.toString(mEnableHostRouting) + "\n");
+        sb.append("mEnableP2p: " + Boolean.toString(mEnableP2p));
         return sb.toString();
     }
 

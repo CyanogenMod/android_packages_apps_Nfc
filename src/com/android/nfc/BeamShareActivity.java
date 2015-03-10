@@ -32,6 +32,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
+import android.os.UserHandle;
 import android.util.Log;
 import android.webkit.URLUtil;
 
@@ -78,7 +79,7 @@ public class BeamShareActivity extends Activity {
 
     private void showNfcDialogAndExit(int msgId) {
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
-        registerReceiver(mReceiver, filter);
+        registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this,
                 AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);
@@ -204,18 +205,18 @@ public class BeamShareActivity extends Activity {
                 }
             }
             if (numValidUris > 0) {
-                shareData = new BeamShareData(null, uriArray, 0);
+                shareData = new BeamShareData(null, uriArray, UserHandle.CURRENT, 0);
             } else {
                 // No uris left
-                shareData = new BeamShareData(null, null, 0);
+                shareData = new BeamShareData(null, null, UserHandle.CURRENT, 0);
             }
         } else if (mNdefMessage != null) {
-            shareData = new BeamShareData(mNdefMessage, null, 0);
+            shareData = new BeamShareData(mNdefMessage, null, UserHandle.CURRENT, 0);
             if (DBG) Log.d(TAG, "Created NDEF message:" + mNdefMessage.toString());
         } else {
             if (DBG) Log.d(TAG, "Could not find any data to parse.");
             // Activity may have set something to share over NFC, so pass on anyway
-            shareData = new BeamShareData(null, null, 0);
+            shareData = new BeamShareData(null, null, UserHandle.CURRENT, 0);
         }
         mNfcAdapter.invokeBeam(shareData);
         finish();
