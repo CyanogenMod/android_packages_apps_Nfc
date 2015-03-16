@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"Transmitere încheiată"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Transmiterea nu este finalizată"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Transmitere anulată"</string>
-    <string name="cancel" msgid="61873902552555096">"Anulaţi"</string>
+    <string name="cancel" msgid="61873902552555096">"Anulați"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"Atingeţi pentru a afişa"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Dispozitivul destinatarului nu acceptă transferul fişierelor mari prin fascicul."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Apropiați dispozitivele din nou"</string>
