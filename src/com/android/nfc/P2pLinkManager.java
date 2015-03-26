@@ -867,7 +867,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
 
         @Override
         public void onHandoverBusy() {
-            onHandoverBusy();
+            P2pLinkManager.this.onHandoverBusy();
         }
     };
 
