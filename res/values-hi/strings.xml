@@ -14,7 +14,7 @@
     <string name="beam_complete" msgid="477026736424637435">"बीम करना पूर्ण"</string>
     <string name="beam_failed" msgid="5116241718189888630">"बीम पूर्ण नहीं हुआ"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"बीम रद्द"</string>
-    <string name="cancel" msgid="61873902552555096">"रहने दें"</string>
+    <string name="cancel" msgid="61873902552555096">"अभी नहीं"</string>
     <string name="beam_touch_to_view" msgid="7853129156831642630">"देखने के लिए स्‍पर्श करें"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"प्राप्तकर्ता का डिवाइस, बीम द्वारा बड़ी फ़ाइल के स्थानांतरण का समर्थन नहीं करता."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"डिवाइस को पुन: एक साथ लाएं"</string>
