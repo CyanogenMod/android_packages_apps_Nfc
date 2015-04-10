@@ -46,6 +46,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.PhoneWindow;
+import android.view.SearchEvent;
 import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.TextureView;
@@ -856,6 +857,11 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onPanelClosed(int featureId, Menu menu) {
 
+    }
+
+    @Override
+    public boolean onSearchRequested(SearchEvent searchEvent) {
+        return onSearchRequested();
     }
 
     @Override
