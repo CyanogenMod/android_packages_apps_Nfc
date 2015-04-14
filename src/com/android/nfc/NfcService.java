@@ -290,6 +290,7 @@ public class NfcService implements DeviceHostListener {
         sendMessage(NfcService.MSG_RF_FIELD_ACTIVATED, null);
     }
 
+    @Override
     public void onRemoteFieldDeactivated() {
         sendMessage(NfcService.MSG_RF_FIELD_DEACTIVATED, null);
     }
