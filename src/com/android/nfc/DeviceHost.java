@@ -116,6 +116,8 @@ public interface DeviceHost {
         public int getMode();
 
         public byte[] getGeneralBytes();
+
+        public byte getLlcpVersion();
     }
 
     public interface LlcpSocket {
