@@ -1864,7 +1864,7 @@ public class NfcService implements DeviceHostListener {
                                 // Register P2P device
                                 mObjectMap.put(device.getHandle(), device);
                             }
-                            mP2pLinkManager.onLlcpActivated();
+                            mP2pLinkManager.onLlcpActivated(device.getLlcpVersion());
                             return true;
                         } else {
                             /* should not happen */
@@ -1893,7 +1893,7 @@ public class NfcService implements DeviceHostListener {
                             // Register P2P device
                             mObjectMap.put(device.getHandle(), device);
                         }
-                        mP2pLinkManager.onLlcpActivated();
+                        mP2pLinkManager.onLlcpActivated(device.getLlcpVersion());
                         return true;
                     }
                 } else {
