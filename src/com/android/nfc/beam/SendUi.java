@@ -556,6 +556,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         protected void onPostExecute(Bitmap result) {
             if (mState == STATE_W4_SCREENSHOT) {
                 // Screenshot done, wait for request to start preSend anim
+                mScreenshotBitmap = result;
                 mState = STATE_W4_PRESEND;
             } else if (mState == STATE_W4_SCREENSHOT_THEN_STOP) {
                 // We were asked to finish, move to idle state and exit
