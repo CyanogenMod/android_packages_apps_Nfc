@@ -45,7 +45,7 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
-import android.view.PhoneWindow;
+import com.android.internal.policy.PhoneWindow;
 import android.view.SearchEvent;
 import android.view.Surface;
 import android.view.SurfaceControl;
