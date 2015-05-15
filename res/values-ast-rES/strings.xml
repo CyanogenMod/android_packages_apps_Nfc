@@ -18,13 +18,6 @@
   <string name="beam_touch_to_view">Toca pa ver</string>
   <string name="beam_handover_not_supported">El preséu del receptor nun almite la tresferencia de ficheros grandes.</string>
   <string name="beam_try_again">Vuelvi a xuntar los preseos</string>
-  <string name="connecting_peripheral">Coneutando</string>
-  <string name="connected_peripheral">Coneutáu</string>
-  <string name="connect_peripheral_failed">Nun pudo coneutase</string>
-  <string name="disconnecting_peripheral">Desconeutando</string>
-  <string name="disconnected_peripheral">Desconeutáu</string>
-  <string name="pairing_peripheral">Empareyando</string>
-  <string name="pairing_peripheral_failed">Nun pudo empareyase</string>
   <string name="failed_to_enable_bt">Nun pudo activase Bluetooth</string>
   <string name="confirm_pairing">Daveres que quies empareyar el preséu Bluetooth <xliff:g id="device_name">%1$s</xliff:g>?</string>
   <string name="pair_yes">Sí</string>
