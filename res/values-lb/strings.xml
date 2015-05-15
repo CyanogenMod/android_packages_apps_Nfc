@@ -18,13 +18,7 @@
   <string name="beam_touch_to_view">Dréck fir unzekucken</string>
   <string name="beam_handover_not_supported">Den Apparat vum Empfänger ënnerstëtzt keen Transfert vu grousse Fichieren iwwer Beam.</string>
   <string name="beam_try_again">Bréng d\'Apparater nees beieneen</string>
-  <string name="connecting_peripheral">Gëtt verbonnen</string>
-  <string name="connected_peripheral">Verbonnen</string>
-  <string name="connect_peripheral_failed">Konnt net verbannen</string>
-  <string name="disconnecting_peripheral">Verbindung gëtt getrennt</string>
-  <string name="disconnected_peripheral">Deconnectéiert</string>
-  <string name="pairing_peripheral">Koppelung</string>
-  <string name="pairing_peripheral_failed">Konnt net koppelen</string>
+  <string name="device">Apparat</string>
   <string name="failed_to_enable_bt">Bluetooth konnt net aktivéiert ginn</string>
   <string name="confirm_pairing">Bass du sécher datt s du de Bluetooth-Apparat <xliff:g id="device_name">%1$s</xliff:g> wëlls koppelen?</string>
   <string name="pair_yes">Jo</string>
