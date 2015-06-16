@@ -443,6 +443,11 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 return;
             }
 
+            if (isBeamDisabled(foregroundUids.get(0))) {
+                if (DBG) Log.d(TAG, "Beam is disabled by policy.");
+                return;
+            }
+
             if (mCallbackNdef != null) {
                 if (foregroundUids.contains(mNdefCallbackUid)) {
                     try {
@@ -467,8 +472,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             // application disabled this explicitly in their manifest.
             String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
             if (pkgs != null && pkgs.length >= 1) {
-                if (!generatePlayLink || beamDefaultDisabled(pkgs[0])
-                        || isBeamDisabled(foregroundUids.get(0))) {
+                if (!generatePlayLink || beamDefaultDisabled(pkgs[0])) {
                     if (DBG) Log.d(TAG, "Disabling default Beam behavior");
                     mMessageToSend = null;
                     mUrisToSend = null;
