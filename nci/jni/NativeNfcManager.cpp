@@ -1244,6 +1244,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     sDiscoveryEnabled = false;
     sPollingEnabled = false;
     sIsDisabling = false;
+    sP2pEnabled = false;
     gActivated = false;
 
     {
