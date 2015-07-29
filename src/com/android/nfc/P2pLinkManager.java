@@ -331,6 +331,9 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             if (mForegroundUtils.getForegroundUids().contains(mNdefCallbackUid)) {
                 // Try to get data from the registered NDEF callback
                 prepareMessageToSend(false);
+            } else {
+                mMessageToSend = null;
+                mUrisToSend = null;
             }
             if (mMessageToSend == null && mUrisToSend == null && shareData != null) {
                 // No data from the NDEF callback, get data from ShareData
