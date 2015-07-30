@@ -41,6 +41,7 @@ import android.util.Log;
 import android.view.ActionMode;
 import android.view.Display;
 import android.view.KeyEvent;
+import android.view.KeyboardShortcutGroup;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -61,6 +62,8 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.util.List;
 
 /**
  * This class is responsible for handling the UI animation
@@ -888,4 +891,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
     @Override
     public void onActionModeFinished(ActionMode mode) {
     }
+
+    @Override
+    public void onProvideKeyboardShortcuts(List<KeyboardShortcutGroup> data, Menu menu) {}
 }
