@@ -962,13 +962,11 @@ static jint nativeNfcTag_doGetNdefType (JNIEnv*, jobject, jint libnfcType, jint 
     case NFA_PROTOCOL_ISO_DEP:
         ndefType = NDEF_TYPE4_TAG;
         break;
-    case NFA_PROTOCOL_ISO15693:
-        ndefType = NDEF_UNKNOWN_TYPE;
-        break;
     case NFA_PROTOCOL_INVALID:
         ndefType = NDEF_UNKNOWN_TYPE;
         break;
     default:
+        /* NFA_PROTOCOL_ISO15693 and others */
         ndefType = NDEF_UNKNOWN_TYPE;
         break;
     }
@@ -1295,25 +1293,23 @@ static jboolean nativeNfcTag_doIsNdefFormatable (JNIEnv*,
         jbyteArray)
 {
     jboolean isFormattable = JNI_FALSE;
-
-    switch (NfcTag::getInstance().getProtocol())
+    tNFC_PROTOCOL protocol = NfcTag::getInstance().getProtocol();
+    if (NFA_PROTOCOL_T1T == protocol || NFA_PROTOCOL_ISO15693 == protocol)
     {
-    case NFA_PROTOCOL_T1T:
-    case NFA_PROTOCOL_ISO15693:
         isFormattable = JNI_TRUE;
-        break;
-
-    case NFA_PROTOCOL_T3T:
+    }
+    else if (NFA_PROTOCOL_T3T == protocol)
+    {
         isFormattable = NfcTag::getInstance().isFelicaLite() ? JNI_TRUE : JNI_FALSE;
-        break;
-
-    case NFA_PROTOCOL_T2T:
+    }
+    else if (NFA_PROTOCOL_T2T == protocol)
+    {
         isFormattable = ( NfcTag::getInstance().isMifareUltralight() |
                           NfcTag::getInstance().isInfineonMyDMove() |
                           NfcTag::getInstance().isKovioType2Tag() )
                         ? JNI_TRUE : JNI_FALSE;
-        break;
     }
+
     ALOGD("%s: is formattable=%u", __FUNCTION__, isFormattable);
     return isFormattable;
 }
