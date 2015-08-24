@@ -1082,7 +1082,7 @@ void NfcTag::resetTechnologies ()
 {
     static const char fn [] = "NfcTag::resetTechnologies";
     ALOGD ("%s", fn);
-   	mNumTechList = 0;
+    mNumTechList = 0;
     memset (mTechList, 0, sizeof(mTechList));
     memset (mTechHandles, 0, sizeof(mTechHandles));
     memset (mTechLibNfcTypes, 0, sizeof(mTechLibNfcTypes));
@@ -1228,6 +1228,42 @@ bool NfcTag::isMifareUltralight ()
             break;
         }
     }
+    ALOGD ("%s: return=%u", fn, retval);
+    return retval;
+}
+
+
+/*******************************************************************************
+**
+** Function:        isMifareDESFire
+**
+** Description:     Whether the currently activated tag is Mifare DESFire.
+**
+** Returns:         True if tag is Mifare DESFire.
+**
+*******************************************************************************/
+bool NfcTag::isMifareDESFire ()
+{
+    static const char fn [] = "NfcTag::isMifareDESFire";
+    bool retval = false;
+
+    for (int i =0; i < mNumTechList; i++)
+    {
+        if ( (mTechParams[i].mode == NFC_DISCOVERY_TYPE_POLL_A) ||
+             (mTechParams[i].mode == NFC_DISCOVERY_TYPE_LISTEN_A) ||
+             (mTechParams[i].mode == NFC_DISCOVERY_TYPE_LISTEN_A_ACTIVE) )
+        {
+            /* DESfire has one sak byte and 2 ATQA bytes */
+            if ( (mTechParams[i].param.pa.sens_res[0] == 0x44) &&
+                 (mTechParams[i].param.pa.sens_res[1] == 0x03) &&
+                 (mTechParams[i].param.pa.sel_rsp == 0x20) )
+            {
+                retval = true;
+            }
+            break;
+        }
+    }
+
     ALOGD ("%s: return=%u", fn, retval);
     return retval;
 }
@@ -1408,7 +1444,7 @@ void NfcTag::resetAllTransceiveTimeouts ()
 {
     mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_3A] = 618; //NfcA
     mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_3B] = 1000; //NfcB
-    mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_4] = 309; //ISO-DEP
+    mTechnologyTimeoutsTable [TARGET_TYPE_ISO14443_4] = 618; //ISO-DEP
     mTechnologyTimeoutsTable [TARGET_TYPE_FELICA] = 255; //Felica
     mTechnologyTimeoutsTable [TARGET_TYPE_ISO15693] = 1000;//NfcV
     mTechnologyTimeoutsTable [TARGET_TYPE_NDEF] = 1000;
