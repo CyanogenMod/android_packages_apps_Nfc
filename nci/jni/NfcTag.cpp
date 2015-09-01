@@ -27,6 +27,8 @@
 extern "C"
 {
     #include "rw_int.h"
+    #include "nfc_brcm_defs.h"
+    #include "phNxpExtns.h"
 }
 
 
@@ -392,6 +394,18 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
         ALOGD ("%s: Kovio", fn);
         mTechList [mNumTechList] = TARGET_TYPE_KOVIO_BARCODE;
     }
+    else if (NFC_PROTOCOL_MIFARE == rfDetail.protocol)
+    {
+        ALOGD ("%s: Mifare Classic", fn);
+        EXTNS_MfcInit (activationData);
+        mTechList [mNumTechList] = TARGET_TYPE_ISO14443_3A;  //is TagTechnology.NFC_A by Java API
+        mNumTechList++;
+        mTechHandles [mNumTechList] = rfDetail.rf_disc_id;
+        mTechLibNfcTypes [mNumTechList] = rfDetail.protocol;
+        //save the stack's data structure for interpretation later
+        memcpy (&(mTechParams[mNumTechList]), &(rfDetail.rf_tech_param), sizeof(rfDetail.rf_tech_param));
+        mTechList [mNumTechList] = TARGET_TYPE_MIFARE_CLASSIC; //is TagTechnology.MIFARE_CLASSIC by Java API
+    }
     else
     {
         ALOGE ("%s: unknown protocol ????", fn);
@@ -500,6 +514,19 @@ void NfcTag::discoverTechnologies (tNFA_DISC_RESULT& discoveryData)
     {
         //is TagTechnology.NFC_V by Java API
         mTechList [mNumTechList] = TARGET_TYPE_ISO15693;
+    }
+    else if (NFC_PROTOCOL_MIFARE == discovery_ntf.protocol)
+    {
+        mTechList [mNumTechList] = TARGET_TYPE_MIFARE_CLASSIC;
+        if (mNumTechList < (MAX_NUM_TECHNOLOGY-1))
+        {
+            mNumTechList++;
+            mTechHandles [mNumTechList] = discovery_ntf.rf_disc_id;
+            mTechLibNfcTypes [mNumTechList] = discovery_ntf.protocol;
+            mTechList [mNumTechList] = TARGET_TYPE_ISO14443_3A;
+            //save the stack's data structure for interpretation later
+            memcpy (&(mTechParams[mNumTechList]), &(discovery_ntf.rf_tech_param), sizeof(discovery_ntf.rf_tech_param));
+        }
     }
     else
     {
@@ -821,6 +848,13 @@ void NfcTag::fillNativeNfcTagMembers4 (JNIEnv* e, jclass tag_cls, jobject tag, t
             //really, there is no data
             actBytes.reset(e->NewByteArray(0));
         }
+        else if (NFC_PROTOCOL_MIFARE == mTechLibNfcTypes[i])
+        {
+                ALOGD ("%s: Mifare Classic; tech A", fn);
+                actBytes.reset (e->NewByteArray(1));
+                e->SetByteArrayRegion (actBytes.get(), 0, 1,
+                        (jbyte*) &mTechParams [i].param.pa.sel_rsp);
+        }
         else if (NFC_PROTOCOL_ISO_DEP == mTechLibNfcTypes[i])
         {
             //t4t
@@ -1124,6 +1158,10 @@ void NfcTag::selectFirstTag ()
         if (mTechLibNfcTypes [foundIdx] == NFA_PROTOCOL_ISO_DEP)
         {
             rf_intf = NFA_INTERFACE_ISO_DEP;
+        }
+        else if (mTechLibNfcTypes [foundIdx] == NFA_PROTOCOL_MIFARE)
+        {
+            rf_intf = NFA_INTERFACE_MIFARE;
         }
         else
             rf_intf = NFA_INTERFACE_FRAME;
