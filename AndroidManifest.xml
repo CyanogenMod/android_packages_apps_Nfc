@@ -138,5 +138,7 @@
 
         <service android:name=".handover.PeripheralHandoverService"
         />
+
+        <service android:name=".NfcBootstrapService" exported="true" />
     </application>
 </manifest>
