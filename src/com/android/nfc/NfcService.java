@@ -429,7 +429,7 @@ public class NfcService implements DeviceHostListener {
 
     void updatePackageCache() {
         PackageManager pm = mContext.getPackageManager();
-        List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_OWNER);
+        List<PackageInfo> packages = pm.getInstalledPackages(0, UserHandle.USER_SYSTEM);
         synchronized (this) {
             mInstalledPackages = packages;
         }
