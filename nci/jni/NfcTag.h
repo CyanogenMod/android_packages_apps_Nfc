@@ -222,6 +222,18 @@ public:
 
     /*******************************************************************************
     **
+    ** Function:        isMifareDESFire
+    **
+    ** Description:     Whether the currently activated tag is Mifare DESFire.
+    **
+    ** Returns:         True if tag is Mifare DESFire.
+    **
+    *******************************************************************************/
+    bool isMifareDESFire ();
+
+
+    /*******************************************************************************
+    **
     ** Function:        isFelicaLite
     **
     ** Description:     Whether the currently activated tag is Felica Lite.

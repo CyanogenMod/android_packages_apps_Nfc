@@ -39,6 +39,7 @@ extern "C"
     #include "nfa_ee_api.h"
     #include "nfc_brcm_defs.h"
     #include "ce_api.h"
+    #include "phNxpExtns.h"
 }
 
 extern const UINT8 nfca_version_string [];
@@ -59,6 +60,7 @@ namespace android
     extern void nativeNfcTag_formatStatus (bool is_ok);
     extern void nativeNfcTag_resetPresenceCheck ();
     extern void nativeNfcTag_doReadCompleted (tNFA_STATUS status);
+    extern void nativeNfcTag_setRfInterface (tNFA_INTF_TYPE rfInterface);
     extern void nativeNfcTag_abortWaits ();
     extern void nativeLlcpConnectionlessSocket_abortWait ();
     extern void nativeNfcTag_registerNdefTypeHandler ();
@@ -95,6 +97,7 @@ namespace android
     void                    doStartupConfig ();
     void                    startStopPolling (bool isStartPolling);
     void                    startRfDiscovery (bool isStart);
+    bool                    isDiscoveryStarted ();
 }
 
 
@@ -296,6 +299,16 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
 
     case NFA_ACTIVATED_EVT: // NFC link/protocol activated
         ALOGD("%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d, sIsDisabling=%d", __FUNCTION__, gIsSelectingRfInterface, sIsDisabling);
+        if((eventData->activated.activate_ntf.protocol != NFA_PROTOCOL_NFC_DEP) && (!isListenMode (eventData->activated)))
+        {
+            nativeNfcTag_setRfInterface ((tNFA_INTF_TYPE) eventData->activated.activate_ntf.intf_param.type);
+        }
+        if (EXTNS_GetConnectFlag () == TRUE)
+        {
+            NfcTag::getInstance().setActivationState ();
+            nativeNfcTag_doConnectStatus (true);
+            break;
+        }
         NfcTag::getInstance().setActive(true);
         if (sIsDisabling || !sIsNfaEnabled)
             break;
@@ -361,8 +374,13 @@ static void nfaConnectionCallback (UINT8 connEvent, tNFA_CONN_EVT_DATA* eventDat
         }
         else if (gIsTagDeactivating)
         {
-            NfcTag::getInstance().setActive(false);
-            nativeNfcTag_doDeactivateStatus(0);
+            NfcTag::getInstance ().setActive (false);
+            nativeNfcTag_doDeactivateStatus (0);
+        }
+        else if (EXTNS_GetDeactivateFlag () == TRUE)
+        {
+            NfcTag::getInstance().setActive (false);
+            nativeNfcTag_doDeactivateStatus (0);
         }
 
         // If RF is activated for what we think is a Secure Element transaction
@@ -705,6 +723,7 @@ void nfaDeviceManagementCallback (UINT8 dmEvent, tNFA_DM_CBACK_DATA* eventData)
 
             if (!sIsDisabling && sIsNfaEnabled)
             {
+                EXTNS_Close ();
                 NFA_Disable(FALSE);
                 sIsDisabling = true;
             }
@@ -860,6 +879,7 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 NFA_P2pSetTraceLevel (num);
                 sNfaEnableEvent.wait(); //wait for NFA command to finish
             }
+            EXTNS_Init (nfaDeviceManagementCallback, nfaConnectionCallback);
         }
 
         if (stat == NFA_STATUS_OK)
@@ -904,7 +924,10 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
         ALOGE ("%s: fail nfa enable; error=0x%X", __FUNCTION__, stat);
 
         if (sIsNfaEnabled)
+        {
+            EXTNS_Close ();
             stat = NFA_Disable (FALSE /* ungraceful */);
+        }
 
         theInstance.Finalize();
     }
@@ -1217,6 +1240,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     ALOGD ("%s: enter", __FUNCTION__);
 
     sIsDisabling = true;
+
     pn544InteropAbortNow ();
     RoutingManager::getInstance().onNfccShutdown();
     PowerSwitch::getInstance ().initialize (PowerSwitch::UNKNOWN_LEVEL);
@@ -1224,6 +1248,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     if (sIsNfaEnabled)
     {
         SyncEventGuard guard (sNfaDisableEvent);
+        EXTNS_Close ();
         tNFA_STATUS stat = NFA_Disable (TRUE /* graceful */);
         if (stat == NFA_STATUS_OK)
         {
@@ -1244,6 +1269,7 @@ static jboolean nfcManager_doDeinitialize (JNIEnv*, jobject)
     sDiscoveryEnabled = false;
     sPollingEnabled = false;
     sIsDisabling = false;
+    sP2pEnabled = false;
     gActivated = false;
 
     {
@@ -1722,6 +1748,21 @@ void startRfDiscovery(bool isStart)
     {
         ALOGE ("%s: Failed to start/stop RF discovery; error=0x%X", __FUNCTION__, status);
     }
+}
+
+
+/*******************************************************************************
+**
+** Function:        isDiscoveryStarted
+**
+** Description:     Indicates whether the discovery is started.
+**
+** Returns:         True if discovery is started
+**
+*******************************************************************************/
+bool isDiscoveryStarted ()
+{
+    return sRfEnabled;
 }
 
 

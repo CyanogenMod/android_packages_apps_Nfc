@@ -4,8 +4,7 @@ NFC := $(VOB_COMPONENTS)/nfc
 
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
-LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
-
+include $(call all-makefiles-under,$(LOCAL_PATH))
 
 ifneq ($(NCI_VERSION),)
 LOCAL_CFLAGS += -DNCI_VERSION=$(NCI_VERSION) -O0 -g
@@ -13,14 +12,7 @@ endif
 
 LOCAL_CFLAGS += -Wall -Wextra
 
-define all-cpp-files-under
-$(patsubst ./%,%, \
-  $(shell cd $(LOCAL_PATH) ; \
-          find $(1) -name "*.cpp" -and -not -name ".*") \
- )
-endef
-
-LOCAL_SRC_FILES:= $(call all-cpp-files-under, .)
+LOCAL_SRC_FILES := $(call all-subdir-cpp-files) $(call all-subdir-c-files)
 
 LOCAL_C_INCLUDES += \
     external/libxml2/include \
@@ -48,6 +40,5 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := libxml2
 
 LOCAL_MODULE := libnfc_nci_jni
-LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
