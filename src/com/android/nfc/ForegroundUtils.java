@@ -18,6 +18,7 @@ package com.android.nfc;
 import java.util.ArrayList;
 import java.util.List;
 
+import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.app.IProcessObserver;
@@ -131,6 +132,31 @@ public class ForegroundUtils extends IProcessObserver.Stub {
                 callback.onUidToBackground(uid);
             }
         }
+    }
+
+    public String getForegroundActivityPkg() {
+        int uid = getForegroundUids().size() > 0 ? getForegroundUids().get(0) : -1;
+        if (uid == -1) {
+            return null;
+        }
+        SparseBooleanArray foregroundPids = mForegroundUidPids.get(uid,
+                new SparseBooleanArray());
+        if(foregroundPids.size() == 0) {
+            return null;
+        }
+        int pid = foregroundPids.keyAt(0);
+        try {
+            List<RunningAppProcessInfo> list = mIActivityManager.getRunningAppProcesses();
+            for (RunningAppProcessInfo info : list) {
+                if (info.uid == uid && info.pid == pid) {
+                    return info.processName;
+                }
+            }
+        } catch (RemoteException e) {
+            // TODO Auto-generated catch block
+            return null;
+        }
+        return null;
     }
 
     @Override
