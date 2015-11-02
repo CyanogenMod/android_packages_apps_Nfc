@@ -498,15 +498,21 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
 
             // fall back to default NDEF for the foreground activity, unless the
             // application disabled this explicitly in their manifest.
-            String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
-            if (pkgs != null && pkgs.length >= 1) {
-                if (!generatePlayLink || beamDefaultDisabled(pkgs[0])
+            String pkg = mForegroundUtils.getForegroundActivityPkg();
+            if (pkg == null) {
+                String[] pkgs = mPackageManager.getPackagesForUid(foregroundUids.get(0));
+                if (pkgs != null && pkgs.length >= 1) {
+                    pkg = pkgs[0];
+                }
+            }
+            if (pkg != null) {
+                if (!generatePlayLink || beamDefaultDisabled(pkg)
                         || isBeamDisabled(foregroundUids.get(0))) {
                     if (DBG) Log.d(TAG, "Disabling default Beam behavior");
                     mMessageToSend = null;
                     mUrisToSend = null;
                 } else {
-                    mMessageToSend = createDefaultNdef(pkgs[0]);
+                    mMessageToSend = createDefaultNdef(pkg);
                     mUrisToSend = null;
                 }
             }
