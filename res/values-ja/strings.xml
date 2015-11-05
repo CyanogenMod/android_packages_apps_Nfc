@@ -37,7 +37,7 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"<xliff:g id="APP">%1$s</xliff:g>を使用できませんでした。"</string>
     <string name="pay_with" msgid="5531545488795798945">"お支払い:"</string>
     <string name="complete_with" msgid="6797459104103012992">"完了:"</string>
-    <string name="default_pay_app_removed" msgid="4108250545457437360">"「タップしてお支払い」用のサービスが削除されました。別のサービスを選択しますか？"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"「タップ＆ペイ」用のサービスが削除されました。別のサービスを選択しますか？"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"完了するには別の端末をタップしてください"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"接続"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"ネットワークに接続できません"</string>
