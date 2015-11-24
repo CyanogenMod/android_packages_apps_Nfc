@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2010 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -702,6 +705,13 @@ public class NfcService implements DeviceHostListener {
     }
 
     final class NfcAdapterService extends INfcAdapter.Stub {
+        /**
+         * An interface for vendor specific extensions
+         */
+        public IBinder getNfcAdapterVendorInterface(String vendor) {
+            return null;
+        }
+
         @Override
         public boolean enable() throws RemoteException {
             NfcPermissions.enforceAdminPermissions(mContext);
