@@ -187,7 +187,7 @@ nfc_jni_native_data *getNative (JNIEnv* e, jobject o)
 *******************************************************************************/
 static void handleRfDiscoveryEvent (tNFC_RESULT_DEVT* discoveredDevice)
 {
-    if (discoveredDevice->more)
+    if (discoveredDevice->more == NCI_DISCOVER_NTF_MORE)
     {
         //there is more discovery notification coming
         return;

@@ -535,7 +535,7 @@ void NfcTag::discoverTechnologies (tNFA_DISC_RESULT& discoveryData)
     }
 
     mNumTechList++;
-    if (discovery_ntf.more == FALSE)
+    if (discovery_ntf.more != NCI_DISCOVER_NTF_MORE)
     {
         for (int i=0; i < mNumTechList; i++)
         {
