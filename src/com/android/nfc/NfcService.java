@@ -947,6 +947,10 @@ public class NfcService implements DeviceHostListener {
         public void setReaderMode(IBinder binder, IAppCallback callback, int flags, Bundle extras)
                 throws RemoteException {
             synchronized (NfcService.this) {
+                if (!isNfcEnabled()) {
+                    Log.e(TAG, "setReaderMode() called while NFC is not enabled.");
+                    return;
+                }
                 if (flags != 0) {
                     try {
                         mReaderModeParams = new ReaderModeParams();
