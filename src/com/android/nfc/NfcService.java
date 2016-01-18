@@ -62,6 +62,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -191,6 +192,12 @@ public class NfcService implements DeviceHostListener {
 
     ReaderModeParams mReaderModeParams;
 
+    private int mUserId;
+    boolean mPollingPaused;
+    byte mDebounceTagUid[];
+    long mDebounceTagLastSeen;
+    int mDebounceTagDebounceMs;
+
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
     // thread
@@ -213,7 +220,6 @@ public class NfcService implements DeviceHostListener {
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
-    boolean mPollingPaused;
 
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
@@ -225,7 +231,6 @@ public class NfcService implements DeviceHostListener {
     private ScreenStateHelper mScreenStateHelper;
     private ForegroundUtils mForegroundUtils;
 
-    private int mUserId;
     private static NfcService sService;
 
     public static NfcService getInstance() {
@@ -1029,29 +1034,6 @@ public class NfcService implements DeviceHostListener {
 
     final class TagService extends INfcTag.Stub {
         @Override
-        public int close(int nativeHandle) throws RemoteException {
-            NfcPermissions.enforceUserPermissions(mContext);
-
-            TagEndpoint tag = null;
-
-            if (!isNfcEnabled()) {
-                return ErrorCodes.ERROR_NOT_INITIALIZED;
-            }
-
-            /* find the tag in the hmap */
-            tag = (TagEndpoint) findObject(nativeHandle);
-            if (tag != null) {
-                /* Remove the device from the hmap */
-                unregisterObject(nativeHandle);
-                tag.disconnect();
-                return ErrorCodes.SUCCESS;
-            }
-            /* Restart polling loop for notification */
-            applyRouting(true);
-            return ErrorCodes.ERROR_DISCONNECT;
-        }
-
-        @Override
         public int connect(int nativeHandle, int technology) throws RemoteException {
             NfcPermissions.enforceUserPermissions(mContext);
 
@@ -1336,6 +1318,29 @@ public class NfcService implements DeviceHostListener {
             return null;
         }
 
+        @Override
+        public boolean done(int nativeHandle, int debounceMs) throws RemoteException {
+            NfcPermissions.enforceUserPermissions(mContext);
+
+            TagEndpoint tag = (TagEndpoint) findObject(nativeHandle);
+            if (tag != null) {
+                // Store UID and params
+                int uidLength = tag.getUid().length;
+                mDebounceTagDebounceMs = debounceMs;
+                mDebounceTagLastSeen = SystemClock.elapsedRealtime();
+                mDebounceTagUid = new byte[uidLength];
+                System.arraycopy(tag.getUid(), 0, mDebounceTagUid, 0, uidLength);
+
+                // Disconnect from this tag; this should resume the normal
+                // polling loop (and enter listen mode for a while), before
+                // we pick up any tags again.
+                unregisterObject(nativeHandle);
+                tag.disconnect();
+                return true;
+            } else {
+                return false;
+            }
+        }
         @Override
         public int setTimeout(int tech, int timeout) throws RemoteException {
             NfcPermissions.enforceUserPermissions(mContext);
@@ -1711,6 +1716,21 @@ public class NfcService implements DeviceHostListener {
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
+                    if (mDebounceTagUid != null && Arrays.equals(mDebounceTagUid, tag.getUid())) {
+                        // This is a tag we're debouncing.  Check if it's been long enough
+                        if (SystemClock.elapsedRealtime() - mDebounceTagLastSeen < mDebounceTagDebounceMs) {
+                            mDebounceTagLastSeen = SystemClock.elapsedRealtime();
+                             // Still ignoring this tag...poll again
+                            tag.disconnect();
+                            return;
+                        } else {
+                            // It's been long enough since we've last seen it; dispatch again.
+                            mDebounceTagUid = null;
+                        }
+                    } else {
+                        // Different UID, stop debouncing (if we were) and dispatch this tag
+                        mDebounceTagUid = null;
+                    }
                     ReaderModeParams readerParams = null;
                     int presenceCheckDelay = DEFAULT_PRESENCE_CHECK_DELAY;
                     DeviceHost.TagDisconnectedCallback callback =
