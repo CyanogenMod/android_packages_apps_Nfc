@@ -6,7 +6,7 @@
     <string name="inbound_me_profile_title" msgid="6146013785225412693">"Kontakt per NFC erhalten"</string>
     <string name="inbound_me_profile_text" msgid="2342757196108092923">"Zum Hinzufügen dieser Person als Kontakt tippen"</string>
     <string name="outbound_me_profile_title" msgid="2523625031572784769">"NFC-Interaktion abgeschlossen"</string>
-    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Zum Weitergeben Ihrer Kontaktinformationen an diese Person tippen"</string>
+    <string name="outbound_me_profile_text" msgid="5594998841143667989">"Zum Weitergeben deiner Kontaktinformationen an diese Person tippen"</string>
     <string name="accessibility_nfc_enabled" msgid="7796246979948787735">"NFC aktiviert"</string>
     <string name="touch" msgid="4727218133711188355">"Zum Beamen berühren"</string>
     <string name="beam_progress" msgid="7453634884807323920">"Beam wird empfangen..."</string>
