@@ -589,6 +589,9 @@ class NfcDispatcher {
         intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_DEVICE, handover.device);
         intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_NAME, handover.name);
         intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_TRANSPORT, handover.transport);
+        if (handover.oobData != null) {
+            intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_OOB_DATA, handover.oobData);
+        }
         mContext.startServiceAsUser(intent, UserHandle.CURRENT);
 
         return true;
