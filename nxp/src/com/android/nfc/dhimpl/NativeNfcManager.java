@@ -135,27 +135,43 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
-    public boolean sendRawFrame(byte[] data)
-    {
+    public boolean sendRawFrame(byte[] data) {
         return false;
     }
 
     @Override
-    public boolean routeAid(byte[] aid, int route)
-    {
+    public boolean routeAid(byte[] aid, int route) {
         return false;
     }
 
     @Override
-    public boolean unrouteAid(byte[] aid)
-    {
+    public boolean unrouteAid(byte[] aid) {
        return false;
     }
 
     @Override
-    public boolean commitRouting()
-    {
+    public boolean commitRouting() {
         return false;
+    }
+
+    @Override
+    public void registerT3tIdentifier(byte[] t3tIdentifier) {
+        return;
+    }
+
+    @Override
+    public void deregisterT3tIdentifier(byte[] t3tIdentifier) {
+        return;
+    }
+
+    @Override
+    public void clearT3tIdentifiersCache() {
+        return;
+    }
+
+    @Override
+    public int getLfT3tMax() {
+        return 0;
     }
 
     private native void doEnableDiscovery(int techMask,
@@ -373,6 +389,18 @@ public class NativeNfcManager implements DeviceHost {
      */
     private void notifyLlcpLinkDeactivated(NativeP2pDevice device) {
         mListener.onLlcpLinkDeactivated(device);
+    }
+
+    private void notifyHostEmuActivated(int technology) {
+        mListener.onHostCardEmulationActivated(technology);
+    }
+
+    private void notifyHostEmuData(int technology, byte[] data) {
+        mListener.onHostCardEmulationData(technology, data);
+    }
+
+    private void notifyHostEmuDeactivated(int technology) {
+        mListener.onHostCardEmulationDeactivated(technology);
     }
 
     private void notifyRfFieldActivated() {
