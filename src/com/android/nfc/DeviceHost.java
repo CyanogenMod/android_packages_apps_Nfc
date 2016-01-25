@@ -28,9 +28,9 @@ public interface DeviceHost {
 
         /**
          */
-        public void onHostCardEmulationActivated();
-        public void onHostCardEmulationData(byte[] data);
-        public void onHostCardEmulationDeactivated();
+        public void onHostCardEmulationActivated(int technology);
+        public void onHostCardEmulationData(int technology, byte[] data);
+        public void onHostCardEmulationDeactivated(int technology);
 
         /**
          * Notifies P2P Device detected, to activate LLCP link
@@ -188,6 +188,14 @@ public interface DeviceHost {
     public boolean unrouteAid(byte[] aid);
 
     public boolean commitRouting();
+
+    public void registerT3tIdentifier(byte[] t3tIdentifier);
+
+    public void deregisterT3tIdentifier(byte[] t3tIdentifier);
+
+    public void clearT3tIdentifiersCache();
+
+    public int getLfT3tMax();
 
     public LlcpConnectionlessSocket createLlcpConnectionlessSocket(int nSap, String sn)
             throws LlcpException;

@@ -54,12 +54,26 @@ RoutingManager::RoutingManager ()
     else
         mActiveSe = 0x00;
 
+    // Get the active SE for Nfc-F
+    if (GetNumValue("ACTIVE_SE_NFCF", &num, sizeof(num)))
+        mActiveSeNfcF = num;
+    else
+        mActiveSeNfcF = 0x00;
+    ALOGD("%s: Active SE for Nfc-F is 0x%02X", fn, mActiveSeNfcF);
+
     // Get the "default" route
     if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
         mDefaultEe = num;
     else
         mDefaultEe = 0x00;
     ALOGD("%s: default route is 0x%02X", fn, mDefaultEe);
+
+    // Get the "default" route for Nfc-F
+    if (GetNumValue("DEFAULT_NFCF_ROUTE", &num, sizeof(num)))
+        mDefaultEeNfcF = num;
+    else
+        mDefaultEeNfcF = 0x00;
+    ALOGD("%s: default route for Nfc-F is 0x%02X", fn, mDefaultEeNfcF);
 
     // Get the default "off-host" route.  This is hard-coded at the Java layer
     // but we can override it here to avoid forcing Java changes.
@@ -78,6 +92,8 @@ RoutingManager::RoutingManager ()
     memset (&mEeInfo, 0, sizeof(mEeInfo));
     mReceivedEeInfo = false;
     mSeTechMask = 0x00;
+
+    mNfcFOnDhHandle = NFA_HANDLE_INVALID;
 }
 
 RoutingManager::~RoutingManager ()
@@ -105,7 +121,9 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
 
     mRxDataBuffer.clear ();
 
-    if (mActiveSe != 0) {
+    if ((mActiveSe != 0) || (mActiveSeNfcF != 0))
+    {
+        ALOGD ("%s: Technology Routing (NfcASe:0x%02x, NfcFSe:0x%02x)", fn, mActiveSe, mActiveSeNfcF);
         {
             // Wait for EE info if needed
             SyncEventGuard guard (mEeInfoEvent);
@@ -115,31 +133,46 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
                 mEeInfoEvent.wait();
             }
         }
+
+        ALOGD ("%s: Number of EE is %d", fn, mEeInfo.num_ee);
         for (UINT8 i = 0; i < mEeInfo.num_ee; i++)
         {
-             ALOGD ("%s   EE[%u] Handle: 0x%04x  techA: 0x%02x  techB: 0x%02x  techF: 0x%02x  techBprime: 0x%02x",
-                fn, i, mEeInfo.ee_disc_info[i].ee_handle,
-                mEeInfo.ee_disc_info[i].la_protocol,
-                mEeInfo.ee_disc_info[i].lb_protocol,
-                mEeInfo.ee_disc_info[i].lf_protocol,
-                mEeInfo.ee_disc_info[i].lbp_protocol);
-             if (mEeInfo.ee_disc_info[i].ee_handle == (mActiveSe | NFA_HANDLE_GROUP_EE))
-             {
-                 if (mEeInfo.ee_disc_info[i].la_protocol != 0) mSeTechMask |= NFA_TECHNOLOGY_MASK_A;
+            tNFA_HANDLE eeHandle = mEeInfo.ee_disc_info[i].ee_handle;
+            tNFA_TECHNOLOGY_MASK seTechMask = 0;
 
-                 if (mSeTechMask != 0x00)
-                 {
-                     ALOGD("Configuring tech mask 0x%02x on EE 0x%04x", mSeTechMask, mEeInfo.ee_disc_info[i].ee_handle);
-                     nfaStat = NFA_CeConfigureUiccListenTech(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask);
-                     if (nfaStat != NFA_STATUS_OK)
-                         ALOGE ("Failed to configure UICC listen technologies.");
-                     // Set technology routes to UICC if it's there
-                     nfaStat = NFA_EeSetDefaultTechRouting(mEeInfo.ee_disc_info[i].ee_handle, mSeTechMask, mSeTechMask,
-                             mSeTechMask);
-                     if (nfaStat != NFA_STATUS_OK)
-                         ALOGE ("Failed to configure UICC technology routing.");
-                 }
-             }
+            ALOGD ("%s   EE[%u] Handle: 0x%04x  techA: 0x%02x  techB: 0x%02x  techF: 0x%02x  techBprime: 0x%02x",
+                   fn, i, eeHandle,
+                   mEeInfo.ee_disc_info[i].la_protocol,
+                   mEeInfo.ee_disc_info[i].lb_protocol,
+                   mEeInfo.ee_disc_info[i].lf_protocol,
+                   mEeInfo.ee_disc_info[i].lbp_protocol);
+            if ((mActiveSe != 0) && (eeHandle == (mActiveSe | NFA_HANDLE_GROUP_EE)))
+            {
+                if (mEeInfo.ee_disc_info[i].la_protocol != 0)
+                    seTechMask |= NFA_TECHNOLOGY_MASK_A;
+            }
+            if ((mActiveSeNfcF != 0) && (eeHandle == (mActiveSeNfcF | NFA_HANDLE_GROUP_EE)))
+            {
+                if (mEeInfo.ee_disc_info[i].lf_protocol != 0)
+                    seTechMask |= NFA_TECHNOLOGY_MASK_F;
+            }
+
+            ALOGD ("%s: seTechMask[%u]=0x%02x", fn, i, seTechMask);
+            if (seTechMask != 0x00)
+            {
+                ALOGD("Configuring tech mask 0x%02x on EE 0x%04x", seTechMask, eeHandle);
+
+                nfaStat = NFA_CeConfigureUiccListenTech(eeHandle, seTechMask);
+                if (nfaStat != NFA_STATUS_OK)
+                    ALOGE ("Failed to configure UICC listen technologies.");
+
+                // Set technology routes to UICC if it's there
+                nfaStat = NFA_EeSetDefaultTechRouting(eeHandle, seTechMask, seTechMask, seTechMask);
+                if (nfaStat != NFA_STATUS_OK)
+                    ALOGE ("Failed to configure UICC technology routing.");
+
+                mSeTechMask |= seTechMask;
+            }
         }
     }
 
@@ -165,51 +198,130 @@ RoutingManager& RoutingManager::getInstance ()
 void RoutingManager::enableRoutingToHost()
 {
     tNFA_STATUS nfaStat;
+    tNFA_TECHNOLOGY_MASK techMask;
+    tNFA_PROTOCOL_MASK protoMask;
+    SyncEventGuard guard (mRoutingEvent);
 
+    // Set default routing at one time when the NFCEE IDs for Nfc-A and Nfc-F are same
+    if (mDefaultEe == mDefaultEeNfcF)
     {
-        SyncEventGuard guard (mRoutingEvent);
-
-        // Route Nfc-A to host if we don't have a SE
-        if (mSeTechMask == 0)
+        // Route Nfc-A/Nfc-F to host if we don't have a SE
+        techMask = (mSeTechMask ^ (NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_F));
+        if (techMask != 0)
         {
-            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, NFA_TECHNOLOGY_MASK_A, 0, 0);
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, techMask, 0, 0);
             if (nfaStat == NFA_STATUS_OK)
                 mRoutingEvent.wait ();
             else
-                ALOGE ("Fail to set default tech routing");
+                ALOGE ("Fail to set default tech routing for Nfc-A/Nfc-F");
         }
-
-        // Default routing for IsoDep protocol
-        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, NFA_PROTOCOL_MASK_ISO_DEP, 0, 0);
+        // Default routing for IsoDep and T3T protocol
+        protoMask = (NFA_PROTOCOL_MASK_ISO_DEP | NFA_PROTOCOL_MASK_T3T);
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, protoMask, 0, 0);
         if (nfaStat == NFA_STATUS_OK)
             mRoutingEvent.wait ();
         else
-            ALOGE ("Fail to set default proto routing");
+            ALOGE ("Fail to set default proto routing for IsoDep and T3T");
+    }
+    else
+    {
+        // Route Nfc-A to host if we don't have a SE
+        techMask = NFA_TECHNOLOGY_MASK_A;
+        if ((mSeTechMask & NFA_TECHNOLOGY_MASK_A) == 0)
+        {
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, techMask, 0, 0);
+            if (nfaStat == NFA_STATUS_OK)
+                mRoutingEvent.wait ();
+            else
+                ALOGE ("Fail to set default tech routing for Nfc-A");
+        }
+        // Default routing for IsoDep protocol
+        protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, protoMask, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing for IsoDep");
+
+        // Route Nfc-F to host if we don't have a SE
+        techMask = NFA_TECHNOLOGY_MASK_F;
+        if ((mSeTechMask & NFA_TECHNOLOGY_MASK_F) == 0)
+        {
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEeNfcF, techMask, 0, 0);
+            if (nfaStat == NFA_STATUS_OK)
+                mRoutingEvent.wait ();
+            else
+                ALOGE ("Fail to set default tech routing for Nfc-F");
+        }
+        // Default routing for T3T protocol
+        protoMask = NFA_PROTOCOL_MASK_T3T;
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEeNfcF, protoMask, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing for T3T");
     }
 }
 
 void RoutingManager::disableRoutingToHost()
 {
     tNFA_STATUS nfaStat;
+    tNFA_TECHNOLOGY_MASK techMask;
+    SyncEventGuard guard (mRoutingEvent);
 
+    // Set default routing at one time when the NFCEE IDs for Nfc-A and Nfc-F are same
+    if (mDefaultEe == mDefaultEeNfcF)
     {
-        SyncEventGuard guard (mRoutingEvent);
-        // Default routing for NFC-A technology if we don't have a SE
-        if (mSeTechMask == 0)
+        // Default routing for Nfc-A/Nfc-F technology if we don't have a SE
+        techMask = (mSeTechMask ^ (NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_F));
+        if (techMask != 0)
         {
             nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0, 0, 0);
             if (nfaStat == NFA_STATUS_OK)
                 mRoutingEvent.wait ();
             else
-                ALOGE ("Fail to set default tech routing");
+                ALOGE ("Fail to set default tech routing for Nfc-A/Nfc-F");
         }
-
+        // Default routing for IsoDep and T3T protocol
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, 0, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing for IsoDep and T3T");
+    }
+    else
+    {
+        // Default routing for Nfc-A technology if we don't have a SE
+        if ((mSeTechMask & NFA_TECHNOLOGY_MASK_A) == 0)
+        {
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEe, 0, 0, 0);
+            if (nfaStat == NFA_STATUS_OK)
+                mRoutingEvent.wait ();
+            else
+                ALOGE ("Fail to set default tech routing for Nfc-A");
+        }
         // Default routing for IsoDep protocol
         nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEe, 0, 0, 0);
         if (nfaStat == NFA_STATUS_OK)
             mRoutingEvent.wait ();
         else
-            ALOGE ("Fail to set default proto routing");
+            ALOGE ("Fail to set default proto routing for IsoDep");
+
+        // Default routing for Nfc-F technology if we don't have a SE
+        if ((mSeTechMask & NFA_TECHNOLOGY_MASK_F) == 0)
+        {
+            nfaStat = NFA_EeSetDefaultTechRouting (mDefaultEeNfcF, 0, 0, 0);
+            if (nfaStat == NFA_STATUS_OK)
+                mRoutingEvent.wait ();
+            else
+                ALOGE ("Fail to set default tech routing for Nfc-F");
+        }
+        // Default routing for T3T protocol
+        nfaStat = NFA_EeSetDefaultProtoRouting(mDefaultEeNfcF, 0, 0, 0);
+        if (nfaStat == NFA_STATUS_OK)
+            mRoutingEvent.wait ();
+        else
+            ALOGE ("Fail to set default proto routing for T3T");
     }
 }
 
@@ -303,7 +415,7 @@ void RoutingManager::onNfccShutdown ()
     }
 }
 
-void RoutingManager::notifyActivated ()
+void RoutingManager::notifyActivated (UINT8 technology)
 {
     JNIEnv* e = NULL;
     ScopedAttach attach(mNativeData->vm, &e);
@@ -313,7 +425,7 @@ void RoutingManager::notifyActivated ()
         return;
     }
 
-    e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuActivated);
+    e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuActivated, (int)technology);
     if (e->ExceptionCheck())
     {
         e->ExceptionClear();
@@ -321,7 +433,7 @@ void RoutingManager::notifyActivated ()
     }
 }
 
-void RoutingManager::notifyDeactivated ()
+void RoutingManager::notifyDeactivated (UINT8 technology)
 {
     mRxDataBuffer.clear();
     JNIEnv* e = NULL;
@@ -332,7 +444,7 @@ void RoutingManager::notifyDeactivated ()
         return;
     }
 
-    e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuDeactivated);
+    e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuDeactivated, (int)technology);
     if (e->ExceptionCheck())
     {
         e->ExceptionClear();
@@ -340,7 +452,7 @@ void RoutingManager::notifyDeactivated ()
     }
 }
 
-void RoutingManager::handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS status)
+void RoutingManager::handleData (UINT8 technology, const UINT8* data, UINT32 dataLen, tNFA_STATUS status)
 {
     if (dataLen <= 0)
     {
@@ -389,7 +501,8 @@ void RoutingManager::handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS 
             goto TheEnd;
         }
 
-        e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuData, dataJavaArray.get());
+        e->CallVoidMethod (mNativeData->manager, android::gCachedNfcManagerNotifyHostEmuData,
+                (int)technology, dataJavaArray.get());
         if (e->ExceptionCheck())
         {
             e->ExceptionClear();
@@ -424,7 +537,7 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
 
     case NFA_CE_ACTIVATED_EVT:
         {
-            routingManager.notifyActivated();
+            routingManager.notifyActivated(NFA_TECHNOLOGY_MASK_A);
         }
         break;
 
@@ -432,7 +545,7 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
     case NFA_CE_DEACTIVATED_EVT:
         {
             ALOGD("%s: NFA_DEACTIVATED_EVT, NFA_CE_DEACTIVATED_EVT", fn);
-            routingManager.notifyDeactivated();
+            routingManager.notifyDeactivated(NFA_TECHNOLOGY_MASK_A);
             SyncEventGuard g (gDeactivatedEvent);
             gActivated = false; //guard this variable from multi-threaded access
             gDeactivatedEvent.notifyOne ();
@@ -443,7 +556,7 @@ void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
         {
             tNFA_CE_DATA& ce_data = eventData->ce_data;
             ALOGD("%s: NFA_CE_DATA_EVT; stat=0x%X; h=0x%X; data len=%u", fn, ce_data.status, ce_data.handle, ce_data.len);
-            getInstance().handleData(ce_data.p_data, ce_data.len, ce_data.status);
+            getInstance().handleData(NFA_TECHNOLOGY_MASK_A, ce_data.p_data, ce_data.len, ce_data.status);
         }
         break;
     }
@@ -564,6 +677,113 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
 
     default:
         ALOGE ("%s: unknown event=%u ????", fn, event);
+        break;
+    }
+}
+
+int RoutingManager::registerT3tIdentifier(UINT8* t3tId, UINT8 t3tIdLen)
+{
+    static const char fn [] = "RoutingManager::registerT3tIdentifier";
+
+    ALOGD ("%s: Start to register NFC-F system on DH", fn);
+
+    if (t3tIdLen != (2 + NCI_RF_F_UID_LEN))
+    {
+        ALOGE ("%s: Invalid length of T3T Identifier", fn);
+        return NFA_HANDLE_INVALID;
+    }
+
+    SyncEventGuard guard (mRoutingEvent);
+    mNfcFOnDhHandle = NFA_HANDLE_INVALID;
+
+    int systemCode;
+    UINT8 nfcid2[NCI_RF_F_UID_LEN];
+
+    systemCode = (((int)t3tId[0] << 8) | ((int)t3tId[1] << 0));
+    memcpy(nfcid2, t3tId + 2, NCI_RF_F_UID_LEN);
+
+    tNFA_STATUS nfaStat = NFA_CeRegisterFelicaSystemCodeOnDH (systemCode, nfcid2, nfcFCeCallback);
+    if (nfaStat == NFA_STATUS_OK)
+    {
+        mRoutingEvent.wait ();
+    }
+    else
+    {
+        ALOGE ("%s: Fail to register NFC-F system on DH", fn);
+        return NFA_HANDLE_INVALID;
+    }
+
+    ALOGD ("%s: Succeed to register NFC-F system on DH", fn);
+
+    return mNfcFOnDhHandle;
+}
+
+void RoutingManager::deregisterT3tIdentifier(int handle)
+{
+    static const char fn [] = "RoutingManager::deregisterT3tIdentifier";
+
+    ALOGD ("%s: Start to deregister NFC-F system on DH", fn);
+
+    SyncEventGuard guard (mRoutingEvent);
+    tNFA_STATUS nfaStat = NFA_CeDeregisterFelicaSystemCodeOnDH (handle);
+    if (nfaStat == NFA_STATUS_OK)
+    {
+        mRoutingEvent.wait ();
+        ALOGD ("%s: Succeeded in deregistering NFC-F system on DH", fn);
+    }
+    else
+    {
+        ALOGE ("%s: Fail to deregister NFC-F system on DH", fn);
+    }
+}
+
+void RoutingManager::nfcFCeCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
+{
+    static const char fn [] = "RoutingManager::nfcFCeCallback";
+    RoutingManager& routingManager = RoutingManager::getInstance();
+
+    ALOGD("%s: 0x%x", __FUNCTION__, event);
+
+    switch (event)
+    {
+    case NFA_CE_REGISTERED_EVT:
+        {
+            ALOGD ("%s: registerd event notified", fn);
+            routingManager.mNfcFOnDhHandle = eventData->ce_registered.handle;
+            SyncEventGuard guard(routingManager.mRoutingEvent);
+            routingManager.mRoutingEvent.notifyOne();
+        }
+        break;
+    case NFA_CE_DEREGISTERED_EVT:
+        {
+            ALOGD ("%s: deregisterd event notified", fn);
+            SyncEventGuard guard(routingManager.mRoutingEvent);
+            routingManager.mRoutingEvent.notifyOne();
+        }
+        break;
+    case NFA_CE_ACTIVATED_EVT:
+        {
+            ALOGD ("%s: activated event notified", fn);
+            routingManager.notifyActivated(NFA_TECHNOLOGY_MASK_F);
+        }
+        break;
+    case NFA_CE_DEACTIVATED_EVT:
+        {
+            ALOGD ("%s: deactivated event notified", fn);
+            routingManager.notifyDeactivated(NFA_TECHNOLOGY_MASK_F);
+        }
+        break;
+    case NFA_CE_DATA_EVT:
+        {
+            ALOGD ("%s: data event notified", fn);
+            tNFA_CE_DATA& ce_data = eventData->ce_data;
+            routingManager.handleData(NFA_TECHNOLOGY_MASK_F, ce_data.p_data, ce_data.len, ce_data.status);
+        }
+        break;
+    default:
+        {
+            ALOGE ("%s: unknown event=%u ????", fn, event);
+        }
         break;
     }
 }
