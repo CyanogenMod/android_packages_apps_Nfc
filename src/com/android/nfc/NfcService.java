@@ -42,6 +42,7 @@ import android.nfc.IAppCallback;
 import android.nfc.INfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcCardEmulation;
+import android.nfc.INfcFCardEmulation;
 import android.nfc.INfcTag;
 import android.nfc.INfcUnlockHandler;
 import android.nfc.NdefMessage;
@@ -80,6 +81,7 @@ import com.android.nfc.handover.HandoverDataParser;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -116,6 +118,8 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_RF_FIELD_ACTIVATED = 9;
     static final int MSG_RF_FIELD_DEACTIVATED = 10;
     static final int MSG_RESUME_POLLING = 11;
+    static final int MSG_REGISTER_T3T_IDENTIFIER = 12;
+    static final int MSG_DEREGISTER_T3T_IDENTIFIER = 13;
 
     static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
@@ -220,6 +224,7 @@ public class NfcService implements DeviceHostListener {
     boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
+    boolean mIsHceFCapable;
 
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
@@ -246,23 +251,23 @@ public class NfcService implements DeviceHostListener {
      * Notifies transaction
      */
     @Override
-    public void onHostCardEmulationActivated() {
+    public void onHostCardEmulationActivated(int technology) {
         if (mCardEmulationManager != null) {
-            mCardEmulationManager.onHostCardEmulationActivated();
+            mCardEmulationManager.onHostCardEmulationActivated(technology);
         }
     }
 
     @Override
-    public void onHostCardEmulationData(byte[] data) {
+    public void onHostCardEmulationData(int technology, byte[] data) {
         if (mCardEmulationManager != null) {
-            mCardEmulationManager.onHostCardEmulationData(data);
+            mCardEmulationManager.onHostCardEmulationData(technology, data);
         }
     }
 
     @Override
-    public void onHostCardEmulationDeactivated() {
+    public void onHostCardEmulationDeactivated(int technology) {
         if (mCardEmulationManager != null) {
-            mCardEmulationManager.onHostCardEmulationDeactivated();
+            mCardEmulationManager.onHostCardEmulationDeactivated(technology);
         }
     }
 
@@ -388,7 +393,11 @@ public class NfcService implements DeviceHostListener {
         updatePackageCache();
 
         PackageManager pm = mContext.getPackageManager();
-        mIsHceCapable = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION);
+        mIsHceCapable =
+                pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
+                pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION_NFCF);
+        mIsHceFCapable =
+                pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION_NFCF);
         if (mIsHceCapable) {
             mCardEmulationManager = new CardEmulationManager(mContext);
         }
@@ -906,6 +915,15 @@ public class NfcService implements DeviceHostListener {
         public INfcCardEmulation getNfcCardEmulationInterface() {
             if (mIsHceCapable) {
                 return mCardEmulationManager.getNfcCardEmulationInterface();
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public INfcFCardEmulation getNfcFCardEmulationInterface() {
+            if (mIsHceFCapable) {
+                return mCardEmulationManager.getNfcFCardEmulationInterface();
             } else {
                 return null;
             }
@@ -1643,6 +1661,41 @@ public class NfcService implements DeviceHostListener {
         sendMessage(MSG_UNROUTE_AID, aid);
     }
 
+    private byte[] getT3tIdentifierBytes(String systemCode, String nfcId2) {
+        ByteBuffer buffer = ByteBuffer.allocate(2 + 8);
+        buffer.put(hexStringToBytes(systemCode));
+        buffer.put(hexStringToBytes(nfcId2));
+
+        byte[] t3tIdBytes = new byte[buffer.position()];
+        buffer.position(0);
+        buffer.get(t3tIdBytes);
+
+        return t3tIdBytes;
+    }
+
+    public void registerT3tIdentifier(String systemCode, String nfcId2) {
+        Log.d(TAG, "request to register LF_T3T_IDENTIFIER");
+
+        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2);
+        sendMessage(MSG_REGISTER_T3T_IDENTIFIER, t3tIdentifier);
+    }
+
+    public void deregisterT3tIdentifier(String systemCode, String nfcId2) {
+        Log.d(TAG, "request to deregister LF_T3T_IDENTIFIER");
+
+        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2);
+        sendMessage(MSG_DEREGISTER_T3T_IDENTIFIER, t3tIdentifier);
+    }
+
+    public void clearT3tIdentifiersCache() {
+        Log.d(TAG, "clear T3t Identifiers Cache");
+        mDeviceHost.clearT3tIdentifiersCache();
+    }
+
+    public int getLfT3tMax() {
+        return mDeviceHost.getLfT3tMax();
+    }
+
     public void commitRouting() {
         mHandler.sendEmptyMessage(MSG_COMMIT_ROUTING);
     }
@@ -1672,6 +1725,30 @@ public class NfcService implements DeviceHostListener {
                 case MSG_UNROUTE_AID: {
                     String aid = (String) msg.obj;
                     mDeviceHost.unrouteAid(hexStringToBytes(aid));
+                    break;
+                }
+                case MSG_REGISTER_T3T_IDENTIFIER: {
+                    Log.d(TAG, "message to register LF_T3T_IDENTIFIER");
+                    mDeviceHost.disableDiscovery();
+
+                    byte[] t3tIdentifier = (byte[]) msg.obj;
+                    mDeviceHost.registerT3tIdentifier(t3tIdentifier);
+
+                    NfcDiscoveryParameters params = computeDiscoveryParameters(mScreenState);
+                    boolean shouldRestart = mCurrentDiscoveryParameters.shouldEnableDiscovery();
+                    mDeviceHost.enableDiscovery(params, shouldRestart);
+                    break;
+                }
+                case MSG_DEREGISTER_T3T_IDENTIFIER: {
+                    Log.d(TAG, "message to deregister LF_T3T_IDENTIFIER");
+                    mDeviceHost.disableDiscovery();
+
+                    byte[] t3tIdentifier = (byte[]) msg.obj;
+                    mDeviceHost.deregisterT3tIdentifier(t3tIdentifier);
+
+                    NfcDiscoveryParameters params = computeDiscoveryParameters(mScreenState);
+                    boolean shouldRestart = mCurrentDiscoveryParameters.shouldEnableDiscovery();
+                    mDeviceHost.enableDiscovery(params, shouldRestart);
                     break;
                 }
                 case MSG_INVOKE_BEAM: {

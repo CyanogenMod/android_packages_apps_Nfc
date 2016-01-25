@@ -38,6 +38,8 @@ public:
     bool addAidRouting(const UINT8* aid, UINT8 aidLen, int route);
     bool removeAidRouting(const UINT8* aid, UINT8 aidLen);
     bool commitRouting();
+    int registerT3tIdentifier(UINT8* t3tId, UINT8 t3tIdLen);
+    void deregisterT3tIdentifier(int handle);
     void onNfccShutdown();
     int registerJniFunctions (JNIEnv* e);
 private:
@@ -46,9 +48,9 @@ private:
     RoutingManager(const RoutingManager&);
     RoutingManager& operator=(const RoutingManager&);
 
-    void handleData (const UINT8* data, UINT32 dataLen, tNFA_STATUS status);
-    void notifyActivated ();
-    void notifyDeactivated ();
+    void handleData (UINT8 technology, const UINT8* data, UINT32 dataLen, tNFA_STATUS status);
+    void notifyActivated (UINT8 technology);
+    void notifyDeactivated (UINT8 technology);
 
     // See AidRoutingManager.java for corresponding
     // AID_MATCHING_ constants
@@ -62,6 +64,8 @@ private:
 
     static void nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventData);
     static void stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
+    static void nfcFCeCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData);
+
     static int com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv* e);
     static int com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv* e);
     static int com_android_nfc_cardemulation_doGetAidMatchingMode (JNIEnv* e);
@@ -71,9 +75,12 @@ private:
     // Fields below are final after initialize()
     nfc_jni_native_data* mNativeData;
     int mDefaultEe;
+    int mDefaultEeNfcF;
     int mOffHostEe;
     int mActiveSe;
+    int mActiveSeNfcF;
     int mAidMatchingMode;
+    int mNfcFOnDhHandle;
     bool mReceivedEeInfo;
     tNFA_EE_DISCOVER_REQ mEeInfo;
     tNFA_TECHNOLOGY_MASK mSeTechMask;
