@@ -26,6 +26,10 @@ import com.android.nfc.DeviceHost;
 import com.android.nfc.LlcpException;
 import com.android.nfc.NfcDiscoveryParameters;
 
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.HashMap;
+
 /**
  * Native interface to the NFC Manager functions
  */
@@ -42,13 +46,14 @@ public class NativeNfcManager implements DeviceHost {
         System.loadLibrary("nfc_nci_jni");
     }
 
-
     /* Native structure */
     private long mNative;
 
     private final DeviceHostListener mListener;
     private final Context mContext;
 
+    private final Object mLock = new Object();
+    private final HashMap<Integer, byte[]> mT3tIdentifiers = new HashMap<Integer, byte[]>();
 
     public NativeNfcManager(Context context, DeviceHostListener listener) {
         mListener = listener;
@@ -97,6 +102,46 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public native boolean commitRouting();
+
+    public native int doRegisterT3tIdentifier(byte[] t3tIdentifier);
+
+    @Override
+    public void registerT3tIdentifier(byte[] t3tIdentifier) {
+        synchronized (mLock) {
+            int handle = doRegisterT3tIdentifier(t3tIdentifier);
+            if (handle != 0xffff) {
+                mT3tIdentifiers.put(Integer.valueOf(handle), t3tIdentifier);
+            }
+        }
+    }
+
+    public native void doDeregisterT3tIdentifier(int handle);
+
+    @Override
+    public void deregisterT3tIdentifier(byte[] t3tIdentifier) {
+        synchronized (mLock) {
+            Iterator<Integer> it = mT3tIdentifiers.keySet().iterator();
+            while (it.hasNext()) {
+                int handle = it.next().intValue();
+                byte[] value = mT3tIdentifiers.get(handle);
+                if (Arrays.equals(value, t3tIdentifier)) {
+                    doDeregisterT3tIdentifier(handle);
+                    mT3tIdentifiers.remove(handle);
+                    break;
+                }
+            }
+        }
+    }
+
+    @Override
+    public void clearT3tIdentifiersCache() {
+        synchronized (mLock) {
+            mT3tIdentifiers.clear();
+        }
+    }
+
+    @Override
+    public native int getLfT3tMax();
 
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,
@@ -326,16 +371,16 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onLlcpFirstPacketReceived(device);
     }
 
-    private void notifyHostEmuActivated() {
-        mListener.onHostCardEmulationActivated();
+    private void notifyHostEmuActivated(int technology) {
+        mListener.onHostCardEmulationActivated(technology);
     }
 
-    private void notifyHostEmuData(byte[] data) {
-        mListener.onHostCardEmulationData(data);
+    private void notifyHostEmuData(int technology, byte[] data) {
+        mListener.onHostCardEmulationData(technology, data);
     }
 
-    private void notifyHostEmuDeactivated() {
-        mListener.onHostCardEmulationDeactivated();
+    private void notifyHostEmuDeactivated(int technology) {
+        mListener.onHostCardEmulationDeactivated(technology);
     }
 
     private void notifyRfFieldActivated() {
