@@ -26,6 +26,7 @@ import java.util.Random;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.OobData;
 import android.content.Context;
 import android.content.Intent;
 import android.nfc.FormatException;
@@ -59,7 +60,11 @@ public class HandoverDataParser {
     private static final int BT_HANDOVER_TYPE_LE_ROLE = 0x1C;
     private static final int BT_HANDOVER_TYPE_LONG_LOCAL_NAME = 0x09;
     private static final int BT_HANDOVER_TYPE_SHORT_LOCAL_NAME = 0x08;
+    private static final int BT_HANDOVER_TYPE_SECURITY_MANAGER_TK = 0x10;
+
     public static final int BT_HANDOVER_LE_ROLE_CENTRAL_ONLY = 0x01;
+
+    public static final int SECURITY_MANAGER_TK_SIZE = 16;
 
     private final BluetoothAdapter mBluetoothAdapter;
 
@@ -74,6 +79,7 @@ public class HandoverDataParser {
         public String name;
         public boolean carrierActivating = false;
         public int transport = BluetoothDevice.TRANSPORT_AUTO;
+        public OobData oobData;
     }
 
     public static class IncomingHandoverData {
@@ -408,7 +414,6 @@ public class HandoverDataParser {
         try {
 
             while (payload.remaining() > 0) {
-                byte[] nameBytes;
                 int len = payload.get();
                 int type = payload.get();
                 switch (type) {
@@ -427,9 +432,29 @@ public class HandoverDataParser {
                         }
                         break;
                     case BT_HANDOVER_TYPE_LONG_LOCAL_NAME:
-                        nameBytes = new byte[len - 1];
+                        byte[] nameBytes = new byte[len - 1];
                         payload.get(nameBytes);
                         result.name = new String(nameBytes, StandardCharsets.UTF_8);
+                        break;
+                    case BT_HANDOVER_TYPE_SECURITY_MANAGER_TK:
+                        if (len-1 != SECURITY_MANAGER_TK_SIZE) {
+                            Log.i(TAG, "BT OOB: invalid size of SM TK, should be " +
+                                  SECURITY_MANAGER_TK_SIZE + " bytes.");
+                            break;
+                        }
+
+                        byte[] reversedTK = new byte[len - 1];
+                        payload.get(reversedTK);
+
+                        byte[] securityManagerTK = new byte[len - 1];
+
+                        //TK in AD is in reverse order
+                        for (int i = 0; i < reversedTK.length; i++) {
+                            securityManagerTK[i] = reversedTK[securityManagerTK.length - 1 - i];
+                        }
+
+                        result.oobData = new OobData();
+                        result.oobData.setSecurityManagerTk(securityManagerTK);
                         break;
                     default:
                         payload.position(payload.position() + len - 1);
