@@ -408,7 +408,7 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
     }
     else
     {
-        ALOGE ("%s: unknown protocol ????", fn);
+        ALOGE ("%s: unknown protocol 0x%x", fn, rfDetail.protocol);
         mTechList [mNumTechList] = TARGET_TYPE_UNKNOWN;
     }
 
@@ -530,7 +530,7 @@ void NfcTag::discoverTechnologies (tNFA_DISC_RESULT& discoveryData)
     }
     else
     {
-        ALOGE ("%s: unknown protocol ????", fn);
+        ALOGE ("%s: unknown protocol 0x%x", fn, discovery_ntf.protocol);
         mTechList [mNumTechList] = TARGET_TYPE_UNKNOWN;
     }
 
