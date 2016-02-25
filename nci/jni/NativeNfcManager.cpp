@@ -109,10 +109,6 @@ namespace android
 namespace android
 {
 static jint                 sLastError = ERROR_BUFFER_TOO_SMALL;
-static jmethodID            sCachedNfcManagerNotifySeApduReceived;
-static jmethodID            sCachedNfcManagerNotifySeMifareAccess;
-static jmethodID            sCachedNfcManagerNotifySeEmvCardRemoval;
-static jmethodID            sCachedNfcManagerNotifyTargetDeselected;
 static SyncEvent            sNfaEnableEvent;  //event for NFA_Enable()
 static SyncEvent            sNfaDisableEvent;  //event for NFA_Disable()
 static SyncEvent            sNfaEnableDisablePollingEvent;  //event for NFA_EnablePolling(), NFA_DisablePolling()
@@ -1056,8 +1052,6 @@ static void nfcManager_enableDiscovery (JNIEnv* e, jobject o, jint technologies_
         ALOGE ("%s: already discovering", __FUNCTION__);
         return;
     }
-
-    tNFA_STATUS stat = NFA_STATUS_OK;
 
     PowerSwitch::getInstance ().setLevel (PowerSwitch::FULL_POWER);
 

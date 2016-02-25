@@ -10,7 +10,7 @@ ifneq ($(NCI_VERSION),)
 LOCAL_CFLAGS += -DNCI_VERSION=$(NCI_VERSION) -O0 -g
 endif
 
-LOCAL_CFLAGS += -Wall -Wextra
+LOCAL_CFLAGS += -Wall -Wextra -Wno-unused-parameter -Werror
 
 LOCAL_SRC_FILES := $(call all-subdir-cpp-files) $(call all-subdir-c-files)
 

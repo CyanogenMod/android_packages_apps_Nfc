@@ -1709,7 +1709,7 @@ bool P2pServer::accept(PeerToPeer::tJNI_HANDLE serverJniHandle, PeerToPeer::tJNI
 
     if (maxInfoUnit > (int)LLCP_MIU)
     {
-        ALOGD ("%s: overriding the miu passed by the app(%d) with stack miu(%d)", fn, maxInfoUnit, LLCP_MIU);
+        ALOGD ("%s: overriding the miu passed by the app(%d) with stack miu(%zu)", fn, maxInfoUnit, LLCP_MIU);
         maxInfoUnit = LLCP_MIU;
     }
 

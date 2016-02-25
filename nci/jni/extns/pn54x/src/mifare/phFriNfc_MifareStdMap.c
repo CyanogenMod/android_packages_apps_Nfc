@@ -2796,8 +2796,8 @@ static NFCSTATUS phFriNfc_MifStd_H_ChkTLVs(phFriNfc_NdefMap_t *NdefMap,
                             + PH_FRINFC_MIFARESTD_VAL2):
                             PH_FRINFC_MIFARESTD_VAL0);
 
-            if(( NdefMap->SendRecvBuf[TempLength] ==
-                        PH_FRINFC_MIFARESTD_VAL0))
+            if(NdefMap->SendRecvBuf[TempLength] ==
+                        PH_FRINFC_MIFARESTD_VAL0)
             {
                 Result = PHNFCSTVAL(CID_FRI_NFC_NDEF_MAP,
                             NFCSTATUS_INVALID_PARAMETER);
@@ -3687,8 +3687,8 @@ static NFCSTATUS phFriNfc_MifStd_H_ProAcsBits(phFriNfc_NdefMap_t        *NdefMap
                 {
                     NdefMap->StdMifareContainer.NFCforumSectFlag =
                         (((NdefMap->StdMifareContainer.currentBlock == 64) &&
-                        (NdefMap->CardType == PH_FRINFC_NDEFMAP_MIFARE_STD_4K_CARD)||
-                        (NdefMap->CardType == PH_FRINFC_NDEFMAP_MIFARE_STD_2K_CARD))?
+                        ((NdefMap->CardType == PH_FRINFC_NDEFMAP_MIFARE_STD_4K_CARD) ||
+                        (NdefMap->CardType == PH_FRINFC_NDEFMAP_MIFARE_STD_2K_CARD))) ?
                         NdefMap->StdMifareContainer.NFCforumSectFlag:
                                             PH_FRINFC_MIFARESTD_FLAG1);
                 }
