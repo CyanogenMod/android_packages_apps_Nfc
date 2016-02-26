@@ -426,9 +426,9 @@ public class NfcService implements DeviceHostListener {
     }
 
     void registerForAirplaneMode(IntentFilter filter) {
-        final String airplaneModeRadios = Settings.System.getString(mContentResolver,
+        final String airplaneModeRadios = Settings.Global.getString(mContentResolver,
                 Settings.Global.AIRPLANE_MODE_RADIOS);
-        final String toggleableRadios = Settings.System.getString(mContentResolver,
+        final String toggleableRadios = Settings.Global.getString(mContentResolver,
                 Settings.Global.AIRPLANE_MODE_TOGGLEABLE_RADIOS);
 
         mIsAirplaneSensitive = airplaneModeRadios == null ? true :
@@ -2085,7 +2085,7 @@ public class NfcService implements DeviceHostListener {
                 new ApplyRoutingTask().execute(Integer.valueOf(screenState));
             } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean isAirplaneModeOn = intent.getBooleanExtra("state", false);
-                // Query the airplane mode from Settings.System just to make sure that
+                // Query the airplane mode from Settings.Global just to make sure that
                 // some random app is not sending this intent
                 if (isAirplaneModeOn != isAirplaneModeOn()) {
                     return;
@@ -2148,7 +2148,7 @@ public class NfcService implements DeviceHostListener {
      * Returns true if airplane mode is currently on
      */
     boolean isAirplaneModeOn() {
-        return Settings.System.getInt(mContentResolver,
+        return Settings.Global.getInt(mContentResolver,
                 Settings.Global.AIRPLANE_MODE_ON, 0) == 1;
     }
 
