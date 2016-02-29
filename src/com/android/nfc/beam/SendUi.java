@@ -369,7 +369,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         if (promptToNfcTap) {
             mTextHint.setText(mContext.getResources().getString(R.string.ask_nfc_tap));
         } else {
-            mTextHint.setText(mContext.getResources().getString(R.string.touch));
+            mTextHint.setText(mContext.getResources().getString(R.string.tap_to_beam));
         }
         mTextHint.setAlpha(0.0f);
         mTextHint.setVisibility(View.VISIBLE);
