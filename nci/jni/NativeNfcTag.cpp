@@ -994,7 +994,7 @@ static jbyteArray nativeNfcTag_doTransceive (JNIEnv* e, jobject o, jbyteArray da
             break;
         }
 
-        ALOGD ("%s: response %d bytes", __FUNCTION__, sRxDataBuffer.size());
+        ALOGD ("%s: response %zu bytes", __FUNCTION__, sRxDataBuffer.size());
 
         if ((natTag.getProtocol () == NFA_PROTOCOL_T2T) &&
             natTag.isT2tNackResponse (sRxDataBuffer.data(), sRxDataBuffer.size()))
