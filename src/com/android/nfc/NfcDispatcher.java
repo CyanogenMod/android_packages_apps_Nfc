@@ -259,6 +259,17 @@ class NfcDispatcher {
             }
         }
 
+        if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
+
+        DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
+
+        resumeAppSwitches();
+
+        if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters,
+                overrideTechLists)) {
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
+        }
+
         if (provisioningOnly) {
             if (message == null) {
                 // We only allow NDEF-message dispatch in provisioning mode
@@ -271,17 +282,6 @@ class NfcDispatcher {
                 Log.e(TAG, "Dropping NFC intent in provisioning mode.");
                 return DISPATCH_FAIL;
             }
-        }
-
-        if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
-
-        DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
-
-        resumeAppSwitches();
-
-        if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters,
-                overrideTechLists)) {
-            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (tryPeripheralHandover(message)) {
