@@ -104,7 +104,6 @@ public class NfcService implements DeviceHostListener {
     static final boolean NDEF_PUSH_ON_DEFAULT = true;
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
-    static final String PREF_AIRPLANE_OVERRIDE = "airplane_override";
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_LLCP_LINK_ACTIVATION = 1;
@@ -220,8 +219,6 @@ public class NfcService implements DeviceHostListener {
     P2pLinkManager mP2pLinkManager;
     TagService mNfcTagService;
     NfcAdapterService mNfcAdapter;
-    boolean mIsAirplaneSensitive;
-    boolean mIsAirplaneToggleable;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
     boolean mIsHceFCapable;
@@ -374,7 +371,6 @@ public class NfcService implements DeviceHostListener {
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
-        registerForAirplaneMode(filter);
         mContext.registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
 
         IntentFilter ownerFilter = new IntentFilter(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
@@ -422,22 +418,6 @@ public class NfcService implements DeviceHostListener {
                 mSoundPool.release();
                 mSoundPool = null;
             }
-        }
-    }
-
-    void registerForAirplaneMode(IntentFilter filter) {
-        final String airplaneModeRadios = Settings.Global.getString(mContentResolver,
-                Settings.Global.AIRPLANE_MODE_RADIOS);
-        final String toggleableRadios = Settings.Global.getString(mContentResolver,
-                Settings.Global.AIRPLANE_MODE_TOGGLEABLE_RADIOS);
-
-        mIsAirplaneSensitive = airplaneModeRadios == null ? true :
-                airplaneModeRadios.contains(Settings.Global.RADIO_NFC);
-        mIsAirplaneToggleable = toggleableRadios == null ? false :
-                toggleableRadios.contains(Settings.Global.RADIO_NFC);
-
-        if (mIsAirplaneSensitive) {
-            filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
         }
     }
 
@@ -506,9 +486,7 @@ public class NfcService implements DeviceHostListener {
                     break;
                 case TASK_BOOT:
                     Log.d(TAG, "checking on firmware download");
-                    boolean airplaneOverride = mPrefs.getBoolean(PREF_AIRPLANE_OVERRIDE, false);
-                    if (mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT) &&
-                            (!mIsAirplaneSensitive || !isAirplaneModeOn() || airplaneOverride)) {
+                    if (mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT)) {
                         Log.d(TAG, "NFC is on. Doing normal stuff");
                         enableInternal();
                     } else {
@@ -711,15 +689,6 @@ public class NfcService implements DeviceHostListener {
 
             saveNfcOnSetting(true);
 
-            if (mIsAirplaneSensitive && isAirplaneModeOn()) {
-                if (!mIsAirplaneToggleable) {
-                    Log.i(TAG, "denying enable() request (airplane mode)");
-                    return false;
-                }
-                // Make sure the override survives a reboot
-                mPrefsEditor.putBoolean(PREF_AIRPLANE_OVERRIDE, true);
-                mPrefsEditor.apply();
-            }
             new EnableDisableTask().execute(TASK_ENABLE);
 
             return true;
@@ -2083,23 +2052,6 @@ public class NfcService implements DeviceHostListener {
                 }
 
                 new ApplyRoutingTask().execute(Integer.valueOf(screenState));
-            } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
-                boolean isAirplaneModeOn = intent.getBooleanExtra("state", false);
-                // Query the airplane mode from Settings.Global just to make sure that
-                // some random app is not sending this intent
-                if (isAirplaneModeOn != isAirplaneModeOn()) {
-                    return;
-                }
-                if (!mIsAirplaneSensitive) {
-                    return;
-                }
-                mPrefsEditor.putBoolean(PREF_AIRPLANE_OVERRIDE, false);
-                mPrefsEditor.apply();
-                if (isAirplaneModeOn) {
-                    new EnableDisableTask().execute(TASK_DISABLE);
-                } else if (!isAirplaneModeOn && mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT)) {
-                    new EnableDisableTask().execute(TASK_ENABLE);
-                }
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0);
                 synchronized (this) {
@@ -2145,14 +2097,6 @@ public class NfcService implements DeviceHostListener {
     };
 
     /**
-     * Returns true if airplane mode is currently on
-     */
-    boolean isAirplaneModeOn() {
-        return Settings.Global.getInt(mContentResolver,
-                Settings.Global.AIRPLANE_MODE_ON, 0) == 1;
-    }
-
-    /**
      * for debugging only - no i18n
      */
     static String stateToString(int state) {
@@ -2183,8 +2127,6 @@ public class NfcService implements DeviceHostListener {
             pw.println("mState=" + stateToString(mState));
             pw.println("mIsZeroClickRequested=" + mIsNdefPushEnabled);
             pw.println("mScreenState=" + ScreenStateHelper.screenStateToString(mScreenState));
-            pw.println("mIsAirplaneSensitive=" + mIsAirplaneSensitive);
-            pw.println("mIsAirplaneToggleable=" + mIsAirplaneToggleable);
             pw.println(mCurrentDiscoveryParameters);
             mP2pLinkManager.dump(fd, pw, args);
             if (mIsHceCapable) {
