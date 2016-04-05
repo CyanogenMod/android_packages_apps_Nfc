@@ -16,7 +16,9 @@
 
 package com.android.nfc;
 
+import android.app.ActivityManager;
 import android.bluetooth.BluetoothAdapter;
+import android.os.UserManager;
 
 import com.android.nfc.RegisteredComponentCache.ComponentInfo;
 import com.android.nfc.handover.HandoverDataParser;
@@ -587,6 +589,12 @@ class NfcDispatcher {
 
         HandoverDataParser.BluetoothHandoverData handover = mHandoverDataParser.parseBluetooth(m);
         if (handover == null || !handover.valid) return false;
+        if (UserManager.get(mContext).hasUserRestriction(
+                UserManager.DISALLOW_CONFIG_BLUETOOTH,
+                // hasUserRestriction does not support UserHandle.CURRENT
+                UserHandle.of(ActivityManager.getCurrentUser()))) {
+            return false;
+        }
 
         Intent intent = new Intent(mContext, PeripheralHandoverService.class);
         intent.putExtra(PeripheralHandoverService.EXTRA_PERIPHERAL_DEVICE, handover.device);
