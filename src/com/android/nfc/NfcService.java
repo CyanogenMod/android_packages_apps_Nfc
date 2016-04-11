@@ -364,8 +364,6 @@ public class NfcService implements DeviceHostListener {
 
         mScreenState = mScreenStateHelper.checkScreenState();
 
-        ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
-
         // Intents for all users
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
@@ -398,6 +396,10 @@ public class NfcService implements DeviceHostListener {
             mCardEmulationManager = new CardEmulationManager(mContext);
         }
         mForegroundUtils = ForegroundUtils.getInstance();
+
+        // Make sure this is only called when object construction is complete.
+        ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
+
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
     }
 
