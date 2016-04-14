@@ -45,6 +45,7 @@ import android.nfc.INfcCardEmulation;
 import android.nfc.INfcFCardEmulation;
 import android.nfc.INfcTag;
 import android.nfc.INfcUnlockHandler;
+import android.nfc.ITagRemovedCallback;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
@@ -119,6 +120,7 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_RESUME_POLLING = 11;
     static final int MSG_REGISTER_T3T_IDENTIFIER = 12;
     static final int MSG_DEREGISTER_T3T_IDENTIFIER = 13;
+    static final int MSG_TAG_DEBOUNCE = 14;
 
     static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
@@ -197,9 +199,10 @@ public class NfcService implements DeviceHostListener {
 
     private int mUserId;
     boolean mPollingPaused;
+
     byte mDebounceTagUid[];
-    long mDebounceTagLastSeen;
     int mDebounceTagDebounceMs;
+    ITagRemovedCallback mDebounceTagRemovedCallback;
 
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
@@ -835,6 +838,33 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
+        public boolean ignore(int nativeHandle, int debounceMs, ITagRemovedCallback callback)
+                throws RemoteException {
+            NfcPermissions.enforceUserPermissions(mContext);
+
+            TagEndpoint tag = (TagEndpoint) findAndRemoveObject(nativeHandle);
+            if (tag != null) {
+                // Store UID and params
+                int uidLength = tag.getUid().length;
+                synchronized (NfcService.this) {
+                    mDebounceTagDebounceMs = debounceMs;
+                    mDebounceTagUid = new byte[uidLength];
+                    mDebounceTagRemovedCallback = callback;
+                    System.arraycopy(tag.getUid(), 0, mDebounceTagUid, 0, uidLength);
+                }
+
+                // Disconnect from this tag; this should resume the normal
+                // polling loop (and enter listen mode for a while), before
+                // we pick up any tags again.
+                tag.disconnect();
+                mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceMs);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        @Override
         public void verifyNfcPermission() {
             NfcPermissions.enforceUserPermissions(mContext);
         }
@@ -1308,29 +1338,6 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
-        public boolean done(int nativeHandle, int debounceMs) throws RemoteException {
-            NfcPermissions.enforceUserPermissions(mContext);
-
-            TagEndpoint tag = (TagEndpoint) findObject(nativeHandle);
-            if (tag != null) {
-                // Store UID and params
-                int uidLength = tag.getUid().length;
-                mDebounceTagDebounceMs = debounceMs;
-                mDebounceTagLastSeen = SystemClock.elapsedRealtime();
-                mDebounceTagUid = new byte[uidLength];
-                System.arraycopy(tag.getUid(), 0, mDebounceTagUid, 0, uidLength);
-
-                // Disconnect from this tag; this should resume the normal
-                // polling loop (and enter listen mode for a while), before
-                // we pick up any tags again.
-                unregisterObject(nativeHandle);
-                tag.disconnect();
-                return true;
-            } else {
-                return false;
-            }
-        }
-        @Override
         public int setTimeout(int tech, int timeout) throws RemoteException {
             NfcPermissions.enforceUserPermissions(mContext);
             boolean success = mDeviceHost.setTimeout(tech, timeout);
@@ -1580,6 +1587,18 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
+    Object findAndRemoveObject(int handle) {
+        synchronized (this) {
+            Object device = mObjectMap.get(handle);
+            if (device == null) {
+                Log.w(TAG, "Handle not found");
+            } else {
+                mObjectMap.remove(handle);
+            }
+            return device;
+        }
+    }
+
     void registerTagObject(TagEndpoint tag) {
         synchronized (this) {
             mObjectMap.put(tag.getHandle(), tag);
@@ -1764,20 +1783,33 @@ public class NfcService implements DeviceHostListener {
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
                     TagEndpoint tag = (TagEndpoint) msg.obj;
-                    if (mDebounceTagUid != null && Arrays.equals(mDebounceTagUid, tag.getUid())) {
-                        // This is a tag we're debouncing.  Check if it's been long enough
-                        if (SystemClock.elapsedRealtime() - mDebounceTagLastSeen < mDebounceTagDebounceMs) {
-                            mDebounceTagLastSeen = SystemClock.elapsedRealtime();
-                             // Still ignoring this tag...poll again
+                    byte[] debounceTagUid;
+                    int debounceTagMs;
+                    ITagRemovedCallback debounceTagRemovedCallback;
+                    synchronized (NfcService.this) {
+                        debounceTagUid = mDebounceTagUid;
+                        debounceTagMs = mDebounceTagDebounceMs;
+                        debounceTagRemovedCallback = mDebounceTagRemovedCallback;
+                    }
+                    if (debounceTagUid != null) {
+                        if (Arrays.equals(debounceTagUid, tag.getUid())) {
+                             // Still ignoring this tag...poll again and reset debounce timer
+                            mHandler.removeMessages(MSG_TAG_DEBOUNCE);
+                            mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceTagMs);
                             tag.disconnect();
                             return;
                         } else {
-                            // It's been long enough since we've last seen it; dispatch again.
-                            mDebounceTagUid = null;
+                            synchronized (NfcService.this) {
+                                mDebounceTagUid = null;
+                            }
+                            if (debounceTagRemovedCallback != null) {
+                                try {
+                                    debounceTagRemovedCallback.onTagRemoved();
+                                } catch (RemoteException e) {
+                                    // Ignore
+                                }
+                            }
                         }
-                    } else {
-                        // Different UID, stop debouncing (if we were) and dispatch this tag
-                        mDebounceTagUid = null;
                     }
                     ReaderModeParams readerParams = null;
                     int presenceCheckDelay = DEFAULT_PRESENCE_CHECK_DELAY;
@@ -1879,6 +1911,21 @@ public class NfcService implements DeviceHostListener {
                     break;
                 case MSG_RESUME_POLLING:
                     mNfcAdapter.resumePolling();
+                    break;
+                case MSG_TAG_DEBOUNCE:
+                    // Didn't see the tag again, tag is gone
+                    ITagRemovedCallback tagRemovedCallback;
+                    synchronized (NfcService.this) {
+                        mDebounceTagUid = null;
+                        tagRemovedCallback = mDebounceTagRemovedCallback;
+                    }
+                    if (tagRemovedCallback != null) {
+                        try {
+                            tagRemovedCallback.onTagRemoved();
+                        } catch (RemoteException e) {
+                            // Ignore
+                        }
+                    }
                     break;
                 default:
                     Log.e(TAG, "Unknown message received");
