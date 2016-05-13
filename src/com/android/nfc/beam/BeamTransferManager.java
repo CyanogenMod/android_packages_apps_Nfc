@@ -92,7 +92,7 @@ public class BeamTransferManager implements Handler.Callback,
     // We need to receive an update within this time period
     // to still consider this transfer to be "alive" (ie
     // a reason to keep the handover transport enabled).
-    static final int ALIVE_CHECK_MS = 20000;
+    static final int ALIVE_CHECK_MS = 200000;
 
     // The amount of time to wait for a new transfer
     // once the current one completes.
