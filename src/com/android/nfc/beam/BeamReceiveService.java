@@ -92,6 +92,7 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
             unregisterReceiver(mBeamStatusReceiver);
         }
         unregisterReceiver(mBluetoothStateReceiver);
+        mTransferManager = null;
     }
 
     boolean prepareToReceive(BeamTransferRecord transferRecord) {
