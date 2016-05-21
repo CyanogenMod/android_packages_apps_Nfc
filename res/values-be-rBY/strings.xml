@@ -10,7 +10,7 @@
     <string name="beam_complete" msgid="477026736424637435">"Працэс перадачы Beam завершаны"</string>
     <string name="beam_failed" msgid="5116241718189888630">"Перадача Beam не завершана"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"Перадача Beam адменена"</string>
-    <string name="cancel" msgid="61873902552555096">"Адмена"</string>
+    <string name="cancel" msgid="61873902552555096">"Скасаваць"</string>
     <string name="beam_tap_to_view" msgid="7430394753262448349">"Краніце для прагляду"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"Прылада атрымальніка не падтрымлівае перадачу вялікіх файлаў праз Beam."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Зноў аб\'яднаць прылады"</string>
