@@ -3,10 +3,15 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
   <string name="app_name">Nfc خزمەتگوزاری</string>
   <string name="nfcUserLabel">Nfc</string>
+  <!-- A notification description string informing the user that contact details were received over NFC [CHAR-LIMIT=64] -->
   <string name="inbound_me_profile_title">ناوەکە وەرگیرا لەڕیی NFC</string>
+  <!-- A notification action string prompting the user to add contact details to the People application [CHAR-LIMIT=64] -->
   <string name="inbound_me_profile_text">دەست لێدە بۆ زیاد کردن وەکو پەیوەندی</string>
+  <!-- A notification description string asking the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <string name="outbound_me_profile_title">کالێکی NFC تەواو بو</string>
+  <!-- A notification action string prompting the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <string name="outbound_me_profile_text">دەست لێدە بۆ پێدانی زانیاری پەیوەندی خۆت بەم کەسە</string>
+  <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_nfc_enabled">NFC چالاک کرا</string>
   <string name="touch">دەست لیدە بۆ گواستنەوە</string>
   <string name="beam_progress">پەیوەندی دەیەوێ بێت</string>
@@ -18,15 +23,46 @@
   <string name="beam_touch_to_view">تاپ بکه‌ بۆ بینین</string>
   <string name="beam_handover_not_supported">ئامێری وه‌رگر توانای گونجاندنی په‌ڕگه‌ی گه‌وره‌ی نییه‌.</string>
   <string name="beam_try_again">ناساندنی دوو ئامێره‌که‌ به‌یه‌که‌وه‌ دووباره‌</string>
+  <!-- String referring to the device being connected when there is no name for the device -->
+  <!-- Toast string informing the user that the device is connecting [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device is connected [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device failed to connect [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device is disconnecting [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device is disconnected [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device is pairing [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that the device failed to pair [CHAR_LIMIT=35] -->
+  <!-- Toast string informing the user that BT could not be enabled [CHAR_LIMIT=35] -->
   <string name="failed_to_enable_bt">نه‌توانرا بلوتوس چالاک بکرێت</string>
+  <!-- Dialog string informing the user that BT could not be enabled [CHAR_LIMIT=75] -->
   <string name="confirm_pairing">دڵنیای له‌ ناساندنی ئامێری بلوتوسی <xliff:g id="device_name">%1$s</xliff:g>؟</string>
   <string name="pair_yes">بەڵێ</string>
   <string name="pair_no">نا</string>
+  <!-- String that is prompting the user to tap his NFC phone against a payment reader again, to
+         pay with the specified app -->
   <string name="tap_again_to_pay">تاپ بکه‌ دووباره‌ بۆ ناساندن له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g></string>
+  <!-- String that is prompting the user to tap his NFC phone against a generic NFC reader again, to
+         pay with the specified app -->
   <string name="tap_again_to_complete">تاپ بکه‌ دووباره‌ بۆ ته‌واوکردن له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g></string>
+  <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
   <string name="transaction_failure">گواستنه‌وه‌ نه‌توانرا ته‌واوبکرێت له‌گه‌ڵ <xliff:g id="app">%1$s</xliff:g>.</string>
+  <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
   <string name="could_not_use_app">نه‌توانرا به‌کاربهێنرێ <xliff:g id="app">%1$s</xliff:g></string>
+  <!-- Label for a dialog showing a list of applications can be paid with -->
   <string name="pay_with">ناساندن له‌گه‌ڵ</string>
+  <!-- Label for a dialog showing a list of applications that can be used to complete the NFC action -->
   <string name="complete_with">ته‌واوکردن له‌گه‌ڵ</string>
+  <!-- String that is telling the user that his default app for tap and pay has been removed,
+         and asks him to pick another app as default.-->
   <string name="default_pay_app_removed">تۆ خزمه‌تگوزاری په‌سه‌ند ده‌که‌یت بۆ تاپ وamp; ناساندن سڕدرایه‌وه‌. یه‌کێکی تر؟</string>
+  <!-- Label that is shown when the user must tap another NFC enabled device to send data -->
+  <!-- Strings for connecting to a network from WiFi NFC tags -->
+  <!-- Dialog button text for confirming the user wants to connect to the network on the tag-->
+  <!-- Text informing the user that an error ocurred during the process of connecting to the network-->
+  <!-- Text informing the user that the network was connected to successfully -->
+  <!-- Title for dialog where user confirms that they want to connect to the network on the tag they tapped-->
+  <!-- Message prompt asking the user if they wish to connect to the given network. Contains the network name (ssid).-->
+  <!-- Message shown in a dialog when user wants to use Android Beam, but NFC is not enabled -->
+  <!-- Used to refer to in the Share Menu Android Beam . This phrase is a trademark. [CHAR LIMIT=32] -->
 </resources>
