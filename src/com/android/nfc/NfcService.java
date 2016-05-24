@@ -278,6 +278,7 @@ public class NfcService implements DeviceHostListener {
     private HostEmulationManager mHostEmulationManager;
     private AidRoutingManager mAidRoutingManager;
 
+    private ForegroundUtils mForegroundUtils;
     private static NfcService sService;
 
     public static void enforceAdminPerm(Context context) {
@@ -529,6 +530,8 @@ public class NfcService implements DeviceHostListener {
 
             updatePackageCache();
         }
+
+        mForegroundUtils = ForegroundUtils.getInstance();
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
     }
@@ -1011,6 +1014,10 @@ public class NfcService implements DeviceHostListener {
                 IntentFilter[] filters, TechListParcel techListsParcel) {
             mContext.enforceCallingOrSelfPermission(NFC_PERM, NFC_PERM_ERROR);
 
+            if (!mForegroundUtils.isInForeground(Binder.getCallingUid())) {
+                Log.e(TAG, "setForegroundDispatch: Caller not in foreground.");
+                return;
+            }
             // Short-cut the disable path
             if (intent == null && filters == null && techListsParcel == null) {
                 mNfcDispatcher.setForegroundDispatch(null, null, null);
@@ -1092,6 +1099,10 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void setReaderMode(IBinder binder, IAppCallback callback, int flags, Bundle extras)
                 throws RemoteException {
+            if (!mForegroundUtils.isInForeground(Binder.getCallingUid())) {
+                Log.e(TAG, "setReaderMode: Caller not in foreground.");
+                return;
+            }
             synchronized (NfcService.this) {
                 if (flags != 0) {
                     try {
