@@ -96,9 +96,7 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
     }
 
     boolean prepareToReceive(BeamTransferRecord transferRecord) {
-        if (mTransferManager != null) {
-            return false;
-        }
+        boolean ret = true;
 
         if (transferRecord.dataLinkType != BeamTransferRecord.DATA_LINK_TYPE_BLUETOOTH) {
             // only support BT
@@ -115,16 +113,24 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
                     + Integer.toString(transferRecord.id));
         }
 
-        mTransferManager = new BeamTransferManager(this, this, transferRecord, true);
+        if (mTransferManager == null ) {
+           mTransferManager = new BeamTransferManager(this, this, transferRecord, true);
+        } else {
+            ret = false;
+        }
 
         // register Beam status receiver
-        mBeamStatusReceiver = new BeamStatusReceiver(this, mTransferManager);
-        registerReceiver(mBeamStatusReceiver, mBeamStatusReceiver.getIntentFilter(),
-                BeamStatusReceiver.BEAM_STATUS_PERMISSION, new Handler());
+        if (mBeamStatusReceiver == null) {
+            mBeamStatusReceiver = new BeamStatusReceiver(this, mTransferManager);
+            registerReceiver(mBeamStatusReceiver, mBeamStatusReceiver.getIntentFilter(),
+                    BeamStatusReceiver.BEAM_STATUS_PERMISSION, new Handler());
+        }
 
-        mTransferManager.start();
-        mTransferManager.updateNotification();
-        return true;
+        if (ret) {
+            mTransferManager.start();
+            mTransferManager.updateNotification();
+        }
+        return ret;
     }
 
     private void invokeCompleteCallback(boolean success) {

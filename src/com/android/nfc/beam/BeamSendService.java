@@ -76,6 +76,7 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
             unregisterReceiver(mBeamStatusReceiver);
         }
         unregisterReceiver(mBluetoothStateReceiver);
+        mTransferManager = null;
     }
 
     @Override
@@ -131,18 +132,21 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
     }
 
     boolean createBeamTransferManager(BeamTransferRecord transferRecord) {
-        if (mTransferManager != null) {
-            return false;
-        }
+        boolean ret = true;
 
         if (transferRecord.dataLinkType != BeamTransferRecord.DATA_LINK_TYPE_BLUETOOTH) {
             // only support BT
             return false;
         }
 
-        mTransferManager = new BeamTransferManager(this, this, transferRecord, false);
-        mTransferManager.updateNotification();
-        return true;
+        if (mTransferManager == null) {
+            mTransferManager = new BeamTransferManager(this, this, transferRecord, false);
+            mTransferManager.updateNotification();
+        } else {
+            ret = false;
+        }
+
+        return ret;
     }
 
     private void handleBluetoothStateChanged(Intent intent) {
