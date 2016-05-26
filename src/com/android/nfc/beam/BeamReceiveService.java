@@ -38,9 +38,7 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
-                        BluetoothAdapter.ERROR);
-                if (state == BluetoothAdapter.STATE_OFF) {
+                if (mBluetoothAdapter.getState() == BluetoothAdapter.STATE_OFF) {
                     mBluetoothEnabledByNfc = false;
                 }
             }
@@ -88,11 +86,7 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mBeamStatusReceiver != null) {
-            unregisterReceiver(mBeamStatusReceiver);
-        }
         unregisterReceiver(mBluetoothStateReceiver);
-        mTransferManager = null;
     }
 
     boolean prepareToReceive(BeamTransferRecord transferRecord) {
@@ -153,6 +147,11 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
         }
 
         invokeCompleteCallback(success);
+        if (mBeamStatusReceiver != null) {
+            unregisterReceiver(mBeamStatusReceiver);
+            mBeamStatusReceiver = null;
+        }
+        mTransferManager = null;
         stopSelf(mStartId);
     }
 

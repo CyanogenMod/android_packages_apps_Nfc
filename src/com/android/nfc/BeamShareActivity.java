@@ -57,6 +57,8 @@ public class BeamShareActivity extends Activity {
     NfcAdapter mNfcAdapter;
     Intent mLaunchIntent;
 
+    boolean mListening;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -76,10 +78,20 @@ public class BeamShareActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mListening) {
+            mListening = false;
+            unregisterReceiver(mReceiver);
+        }
+    }
 
     private void showNfcDialogAndExit(int msgId) {
-        IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
-        registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
+        if (!mListening) {
+            IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
+            registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
+        }
 
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this,
                 AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);
@@ -206,18 +218,22 @@ public class BeamShareActivity extends Activity {
                 }
             }
             if (numValidUris > 0) {
-                shareData = new BeamShareData(null, uriArray, myUserHandle, 0);
+                shareData = new BeamShareData(null, uriArray, myUserHandle,
+                        NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM);
             } else {
                 // No uris left
-                shareData = new BeamShareData(null, null, myUserHandle, 0);
+                shareData = new BeamShareData(null, null, myUserHandle,
+                        NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM);
             }
         } else if (mNdefMessage != null) {
-            shareData = new BeamShareData(mNdefMessage, null, myUserHandle, 0);
+            shareData = new BeamShareData(mNdefMessage, null, myUserHandle,
+                    NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM);
             if (DBG) Log.d(TAG, "Created NDEF message:" + mNdefMessage.toString());
         } else {
             if (DBG) Log.d(TAG, "Could not find any data to parse.");
             // Activity may have set something to share over NFC, so pass on anyway
-            shareData = new BeamShareData(null, null, myUserHandle, 0);
+            shareData = new BeamShareData(null, null, myUserHandle,
+                    NfcAdapter.FLAG_NDEF_PUSH_NO_CONFIRM);
         }
         mNfcAdapter.invokeBeam(shareData);
         finish();
@@ -226,7 +242,6 @@ public class BeamShareActivity extends Activity {
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
             if (NfcAdapter.ACTION_ADAPTER_STATE_CHANGED.equals(intent.getAction())) {
                 int state = intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE,
                         NfcAdapter.STATE_OFF);
