@@ -88,11 +88,7 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mBeamStatusReceiver != null) {
-            unregisterReceiver(mBeamStatusReceiver);
-        }
         unregisterReceiver(mBluetoothStateReceiver);
-        mTransferManager = null;
     }
 
     boolean prepareToReceive(BeamTransferRecord transferRecord) {
@@ -153,6 +149,11 @@ public class BeamReceiveService extends Service implements BeamTransferManager.C
         }
 
         invokeCompleteCallback(success);
+        if (mBeamStatusReceiver != null) {
+            unregisterReceiver(mBeamStatusReceiver);
+            mBeamStatusReceiver = null;
+        }
+        mTransferManager = null;
         stopSelf(mStartId);
     }
 
