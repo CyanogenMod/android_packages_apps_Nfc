@@ -277,7 +277,9 @@ public class BeamTransferManager implements Handler.Callback,
         } else {
             updateStateAndNotification(STATE_CANCELLING);
         }
-
+        Intent service = new Intent(mContext.getApplicationContext(),
+                BeamReceiveService.class);
+        mContext.stopService(service);
     }
 
     private void sendBluetoothCancelIntentAndUpdateState() {

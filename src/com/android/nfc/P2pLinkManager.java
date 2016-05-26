@@ -461,7 +461,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                         mSendFlags = shareData.flags;
                         return;
                     } catch (Exception e) {
+                        mMessageToSend = null;
+                        mUrisToSend = null;
                         Log.e(TAG, "Failed NDEF callback: ", e);
+                        return;
                     }
                 } else {
                     // This is not necessarily an error - we no longer unset callbacks from

@@ -112,6 +112,7 @@ public class BeamManager implements Handler.Callback {
         sendIntent.putExtra(BeamSendService.EXTRA_BEAM_TRANSFER_RECORD, transferRecord);
         sendIntent.putExtra(BeamSendService.EXTRA_BEAM_COMPLETE_CALLBACK,
                 new Messenger(mCallback));
+        sendIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         context.startServiceAsUser(sendIntent, userHandle);
         return true;
     }
@@ -136,6 +137,7 @@ public class BeamManager implements Handler.Callback {
         if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
         Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+        intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         context.sendBroadcastAsUser(intent, UserHandle.CURRENT);
     }
 
