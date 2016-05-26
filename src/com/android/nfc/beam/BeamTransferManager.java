@@ -277,7 +277,6 @@ public class BeamTransferManager implements Handler.Callback,
         } else {
             updateStateAndNotification(STATE_CANCELLING);
         }
-
     }
 
     private void sendBluetoothCancelIntentAndUpdateState() {
