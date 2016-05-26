@@ -136,6 +136,7 @@ public class BeamManager implements Handler.Callback {
         if (DBG) Log.d(TAG, "Whitelisting " + device + " for BT OPP");
         Intent intent = new Intent(ACTION_WHITELIST_DEVICE);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+        intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         context.sendBroadcastAsUser(intent, UserHandle.CURRENT);
     }
 

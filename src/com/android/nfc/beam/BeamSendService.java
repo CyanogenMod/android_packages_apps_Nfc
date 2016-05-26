@@ -72,9 +72,6 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
     public void onDestroy() {
         super.onDestroy();
 
-        if (mBeamStatusReceiver != null) {
-            unregisterReceiver(mBeamStatusReceiver);
-        }
         unregisterReceiver(mBluetoothStateReceiver);
     }
 
@@ -183,7 +180,13 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
             mBluetoothAdapter.disable();
         }
 
+        if (mBeamStatusReceiver != null) {
+            unregisterReceiver(mBeamStatusReceiver);
+            mBeamStatusReceiver = null;
+        }
+
         invokeCompleteCallback(success);
+        mTransferManager = null;
         stopSelf(mStartId);
     }
 
