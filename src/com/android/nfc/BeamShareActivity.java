@@ -57,6 +57,8 @@ public class BeamShareActivity extends Activity {
     NfcAdapter mNfcAdapter;
     Intent mLaunchIntent;
 
+    boolean mListening;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -76,10 +78,20 @@ public class BeamShareActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mListening) {
+            mListening = false;
+            unregisterReceiver(mReceiver);
+        }
+    }
 
     private void showNfcDialogAndExit(int msgId) {
-        IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
-        registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
+        if (!mListening) {
+            IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
+            registerReceiverAsUser(mReceiver, UserHandle.ALL, filter, null, null);
+        }
 
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this,
                 AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);
@@ -226,7 +238,6 @@ public class BeamShareActivity extends Activity {
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
             if (NfcAdapter.ACTION_ADAPTER_STATE_CHANGED.equals(intent.getAction())) {
                 int state = intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE,
                         NfcAdapter.STATE_OFF);

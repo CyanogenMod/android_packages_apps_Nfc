@@ -331,7 +331,7 @@ public class NfcService implements DeviceHostListener {
         }
 
         if (isNfcProvisioningEnabled) {
-            mInProvisionMode = Settings.Secure.getInt(mContentResolver,
+            mInProvisionMode = Settings.Global.getInt(mContentResolver,
                     Settings.Global.DEVICE_PROVISIONED, 0) == 0;
         } else {
             mInProvisionMode = false;
@@ -1471,7 +1471,7 @@ public class NfcService implements DeviceHostListener {
             }
             WatchDogThread watchDog = new WatchDogThread("applyRouting", ROUTING_WATCHDOG_MS);
             if (mInProvisionMode) {
-                mInProvisionMode = Settings.Secure.getInt(mContentResolver,
+                mInProvisionMode = Settings.Global.getInt(mContentResolver,
                         Settings.Global.DEVICE_PROVISIONED, 0) == 0;
                 if (!mInProvisionMode) {
                     // Notify dispatcher it's fine to dispatch to any package now

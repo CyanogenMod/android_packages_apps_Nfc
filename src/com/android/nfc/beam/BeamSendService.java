@@ -72,9 +72,6 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
     public void onDestroy() {
         super.onDestroy();
 
-        if (mBeamStatusReceiver != null) {
-            unregisterReceiver(mBeamStatusReceiver);
-        }
         unregisterReceiver(mBluetoothStateReceiver);
     }
 
@@ -115,8 +112,10 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
                     mTransferManager.start();
                 } else {
                     if (!mBluetoothAdapter.enableNoAutoConnect()) {
+
                         Log.e(TAG, "Error enabling Bluetooth.");
-                        mTransferManager = null;
+                        mTransferManager.cancel();
+                        onTransferComplete(mTransferManager, false);
                         return false;
                     }
                     mBluetoothEnabledByNfc = true;
@@ -146,14 +145,12 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
     }
 
     private void handleBluetoothStateChanged(Intent intent) {
-        int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
-                BluetoothAdapter.ERROR);
-        if (state == BluetoothAdapter.STATE_ON) {
+        if (mBluetoothAdapter.getState() == BluetoothAdapter.STATE_ON) {
             if (mTransferManager != null &&
                     mTransferManager.mDataLinkType == BeamTransferRecord.DATA_LINK_TYPE_BLUETOOTH) {
                 mTransferManager.start();
             }
-        } else if (state == BluetoothAdapter.STATE_OFF) {
+        } else if (mBluetoothAdapter.getState() == BluetoothAdapter.STATE_OFF) {
             mBluetoothEnabledByNfc = false;
         }
     }
@@ -183,7 +180,13 @@ public class BeamSendService extends Service implements BeamTransferManager.Call
             mBluetoothAdapter.disable();
         }
 
+        if (mBeamStatusReceiver != null) {
+            unregisterReceiver(mBeamStatusReceiver);
+            mBeamStatusReceiver = null;
+        }
+
         invokeCompleteCallback(success);
+        mTransferManager = null;
         stopSelf(mStartId);
     }
 
