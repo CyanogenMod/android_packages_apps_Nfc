@@ -33,7 +33,7 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Ezin izan da <xliff:g id="APP">%1$s</xliff:g> erabili."</string>
     <string name="pay_with" msgid="5531545488795798945">"Ordaindu honekin"</string>
     <string name="complete_with" msgid="6797459104103012992">"Ekintza osatzeko aplikazioak"</string>
-    <string name="default_pay_app_removed" msgid="4108250545457437360">"Sakatu eta ordaindu eginbidea erabiltzeko zerbitzu hobetsia kendu egin da. Beste bat aukeratu nahi duzu?"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Ukitu eta ordaindu eginbidea erabiltzeko zerbitzu hobetsia kendu egin da. Beste bat aukeratu nahi duzu?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"Datuak bidaltzeko, ukitu beste gailu bat"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"Konektatu"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"Ezin da sarera konektatu"</string>

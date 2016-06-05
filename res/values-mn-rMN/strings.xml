@@ -24,7 +24,7 @@
     <string name="pairing_peripheral" msgid="6983626861540899365">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>-г хослуулан холбож байна"</string>
     <string name="pairing_peripheral_failed" msgid="6087643307743264679">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g>-г хослуулан холбож чадсангүй"</string>
     <string name="failed_to_enable_bt" msgid="7229153323594758077">"Блютүүтийг идэвхжүүлж чадсангүй"</string>
-    <string name="confirm_pairing" msgid="4112568077038265363">"Та Блютүүт төхөөрөмж <xliff:g id="DEVICE_NAME">%1$s</xliff:g>-тэй хослуулахдаа итгэлтэй байна уу?"</string>
+    <string name="confirm_pairing" msgid="4112568077038265363">"Та Bluetooth төхөөрөмж <xliff:g id="DEVICE_NAME">%1$s</xliff:g>-тэй хослуулахдаа итгэлтэй байна уу?"</string>
     <string name="pair_yes" msgid="3525614878559994448">"Тийм"</string>
     <string name="pair_no" msgid="5022308368904055020">"Үгүй"</string>
     <string name="tap_again_to_pay" msgid="5754988005412859897">"<xliff:g id="APP">%1$s</xliff:g> ашиглан төлбөр хийхийн тулд товшино уу"</string>
