@@ -32,6 +32,8 @@ import android.nfc.cardemulation.NfcFCardEmulation;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.os.PowerManager;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -75,6 +77,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
     final Context mContext;
     final CardEmulationInterface mCardEmulationInterface;
     final NfcFCardEmulationInterface mNfcFCardEmulationInterface;
+    final PowerManager mPowerManager;
 
     public CardEmulationManager(Context context) {
         mContext = context;
@@ -91,6 +94,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 context, mNfcFServicesCache, mT3tIdentifiersCache, this);
         mServiceCache.initialize();
         mNfcFServicesCache.initialize();
+        mPowerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
     }
 
     public INfcCardEmulation getNfcCardEmulationInterface() {
@@ -103,6 +107,9 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
 
 
     public void onHostCardEmulationActivated(int technology) {
+        if (mPowerManager != null) {
+            mPowerManager.userActivity(SystemClock.uptimeMillis(), PowerManager.USER_ACTIVITY_EVENT_TOUCH, 0);
+        }
         if (technology == NFC_HCE_APDU) {
             mHostEmulationManager.onHostEmulationActivated();
             mPreferredServices.onHostEmulationActivated();
@@ -114,6 +121,9 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
     }
 
     public void onHostCardEmulationData(int technology, byte[] data) {
+        if (mPowerManager != null) {
+            mPowerManager.userActivity(SystemClock.uptimeMillis(), PowerManager.USER_ACTIVITY_EVENT_TOUCH, 0);
+        }
         if (technology == NFC_HCE_APDU) {
             mHostEmulationManager.onHostEmulationData(data);
         } else if (technology == NFC_HCE_NFCF) {
