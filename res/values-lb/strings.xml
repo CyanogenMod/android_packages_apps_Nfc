@@ -3,10 +3,15 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
   <string name="app_name">NFC-Service</string>
   <string name="nfcUserLabel">NFC</string>
+  <!-- A notification description string informing the user that contact details were received over NFC [CHAR-LIMIT=64] -->
   <string name="inbound_me_profile_title">Kontakt iwwer NFC empfaangen</string>
+  <!-- A notification action string prompting the user to add contact details to the People application [CHAR-LIMIT=64] -->
   <string name="inbound_me_profile_text">Dréck fir dës Persoun als Kontakt anzedroen.</string>
+  <!-- A notification description string asking the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <string name="outbound_me_profile_title">NFC-Interaktioun ofgeschloss</string>
+  <!-- A notification action string prompting the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <string name="outbound_me_profile_text">Drécke fir dëser Persoun deng Kontakt-Informatiounen ze ginn.</string>
+  <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_nfc_enabled">NFC aktivéiert.</string>
   <string name="touch">Dréck fir ze beamen</string>
   <string name="beam_progress">Beam gëtt empfaangen...</string>
@@ -19,31 +24,62 @@
   <string name="beam_handover_not_supported">Den Apparat vum Empfänger ënnerstëtzt keen Transfert vu grousse Fichieren iwwer Beam.</string>
   <string name="beam_try_again">Bréng d\'Apparater nees beieneen</string>
   <string name="beam_busy">Beam ass momentan beschäftegt. Probéier nees wann déi vireg Iwwerdroung fäerdeg ass.</string>
+  <!-- String referring to the device being connected when there is no name for the device -->
   <string name="device">Apparat</string>
+  <!-- Toast string informing the user that the device is connecting [CHAR_LIMIT=35] -->
   <string name="connecting_peripheral"><xliff:g id="device_name">%1$s</xliff:g> gëtt verbonnen</string>
+  <!-- Toast string informing the user that the device is connected [CHAR_LIMIT=35] -->
   <string name="connected_peripheral"><xliff:g id="device_name">%1$s</xliff:g> verbonnen</string>
+  <!-- Toast string informing the user that the device failed to connect [CHAR_LIMIT=35] -->
   <string name="connect_peripheral_failed">Konnt net mat <xliff:g id="device_name">%1$s</xliff:g> verbannen</string>
+  <!-- Toast string informing the user that the device is disconnecting [CHAR_LIMIT=35] -->
   <string name="disconnecting_peripheral"><xliff:g id="device_name">%1$s</xliff:g> gëtt getrennt</string>
+  <!-- Toast string informing the user that the device is disconnected [CHAR_LIMIT=35] -->
   <string name="disconnected_peripheral"><xliff:g id="device_name">%1$s</xliff:g> getrennt</string>
+  <!-- Toast string informing the user that the device is pairing [CHAR_LIMIT=35] -->
   <string name="pairing_peripheral"><xliff:g id="device_name">%1$s</xliff:g> gëtt gekoppelt</string>
+  <!-- Toast string informing the user that the device failed to pair [CHAR_LIMIT=35] -->
   <string name="pairing_peripheral_failed">Konnt net mat <xliff:g id="device_name">%1$s</xliff:g> koppelen</string>
+  <!-- Toast string informing the user that BT could not be enabled [CHAR_LIMIT=35] -->
   <string name="failed_to_enable_bt">Bluetooth konnt net aktivéiert ginn</string>
+  <!-- Dialog string informing the user that BT could not be enabled [CHAR_LIMIT=75] -->
   <string name="confirm_pairing">Bass du sécher datt s du de Bluetooth-Apparat <xliff:g id="device_name">%1$s</xliff:g> wëlls koppelen?</string>
   <string name="pair_yes">Jo</string>
   <string name="pair_no">Nee</string>
+  <!-- String that is prompting the user to tap his NFC phone against a payment reader again, to
+         pay with the specified app -->
   <string name="tap_again_to_pay">Dréck nees fir mat <xliff:g id="app">%1$s</xliff:g> ze bezuelen</string>
+  <!-- String that is prompting the user to tap his NFC phone against a generic NFC reader again, to
+         pay with the specified app -->
   <string name="tap_again_to_complete">Dréck nees fir mat <xliff:g id="app">%1$s</xliff:g> ofzeschléissen</string>
+  <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
   <string name="transaction_failure">Dës Transaktioun konnt net mat <xliff:g id="app">%1$s</xliff:g> ofgeschloss ginn.</string>
+  <!-- String that is telling the user that his NFC transaction couldn't be completed with the
+         indicated app -->
   <string name="could_not_use_app">Konnt <xliff:g id="app">%1$s</xliff:g> net benotzen.</string>
+  <!-- Label for a dialog showing a list of applications can be paid with -->
   <string name="pay_with">Bezuele mat</string>
+  <!-- Label for a dialog showing a list of applications that can be used to complete the NFC action -->
   <string name="complete_with">Ofschléisse mat</string>
+  <!-- String that is telling the user that his default app for tap and pay has been removed,
+         and asks him to pick another app as default.-->
   <string name="default_pay_app_removed">Däi preferréierte Service fir Drécken a Bezuelen gouf geläscht. Een aneren auswielen?</string>
+  <!-- Label that is shown when the user must tap another NFC enabled device to send data -->
   <string name="ask_nfc_tap">Dréck op en aneren Apparat fir ofzeschléissen</string>
+  <!-- Strings for connecting to a network from WiFi NFC tags -->
+  <!-- Dialog button text for confirming the user wants to connect to the network on the tag-->
   <string name="wifi_connect">Connectéieren</string>
+  <!-- Text informing the user that an error ocurred during the process of connecting to the network-->
   <string name="status_unable_to_connect">Kann net mam Netzwierk connectéieren</string>
+  <!-- Text informing the user that the network was connected to successfully -->
   <string name="status_wifi_connected">Connectéiert</string>
+  <!-- Title for dialog where user confirms that they want to connect to the network on the tag they tapped-->
   <string name="title_connect_to_network">Mam Netzwierk connectéieren</string>
+  <!-- Message prompt asking the user if they wish to connect to the given network. Contains the network name (ssid).-->
   <string name="prompt_connect_to_network">Mam Netzwierk <xliff:g id="network_ssid">%1$s</xliff:g> connectéieren?</string>
+  <!-- Message shown in a dialog when user wants to use Android Beam, but NFC is not enabled -->
   <string name="beam_requires_nfc_enabled">Fir Android Beam ze benotze muss NFC aktivéiert sinn. Wëlls du NFC elo aktivéieren?</string>
+  <!-- Used to refer to in the Share Menu Android Beam . This phrase is a trademark. [CHAR LIMIT=32] -->
   <string name="android_beam">Android Beam</string>
 </resources>
