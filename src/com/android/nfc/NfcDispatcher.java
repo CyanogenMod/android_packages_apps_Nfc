@@ -272,6 +272,16 @@ class NfcDispatcher {
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
+        if (tryPeripheralHandover(message)) {
+            if (DBG) Log.i(TAG, "matched BT HANDOVER");
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
+        }
+
+        if (NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
+            if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
+            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
+        }
+
         if (provisioningOnly) {
             if (message == null) {
                 // We only allow NDEF-message dispatch in provisioning mode
@@ -284,16 +294,6 @@ class NfcDispatcher {
                 Log.e(TAG, "Dropping NFC intent in provisioning mode.");
                 return DISPATCH_FAIL;
             }
-        }
-
-        if (tryPeripheralHandover(message)) {
-            if (DBG) Log.i(TAG, "matched BT HANDOVER");
-            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
-        }
-
-        if (NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
-            if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
-            return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (tryNdef(dispatch, message)) {
