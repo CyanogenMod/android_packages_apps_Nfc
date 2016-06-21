@@ -959,8 +959,9 @@ public class NfcService implements DeviceHostListener {
         @Override
         public void setReaderMode(IBinder binder, IAppCallback callback, int flags, Bundle extras)
                 throws RemoteException {
-            if (!mForegroundUtils.isInForeground(Binder.getCallingUid())) {
-                Log.e(TAG, "setReaderMode: Caller not in foreground.");
+            int callingUid = Binder.getCallingUid();
+            if (callingUid != Process.SYSTEM_UID && !mForegroundUtils.isInForeground(callingUid)) {
+                Log.e(TAG, "setReaderMode: Caller is not in foreground and is not system process.");
                 return;
             }
             synchronized (NfcService.this) {
