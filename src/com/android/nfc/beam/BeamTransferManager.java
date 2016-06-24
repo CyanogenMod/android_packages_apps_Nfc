@@ -251,7 +251,8 @@ public class BeamTransferManager implements Handler.Callback,
     }
 
     public boolean isRunning() {
-        if (mState != STATE_NEW && mState != STATE_IN_PROGRESS && mState != STATE_W4_NEXT_TRANSFER) {
+        if (mState != STATE_NEW && mState != STATE_IN_PROGRESS && mState != STATE_W4_NEXT_TRANSFER
+            && mState != STATE_CANCELLING) {
             return false;
         } else {
             return true;
