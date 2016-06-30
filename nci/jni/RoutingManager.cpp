@@ -454,20 +454,20 @@ void RoutingManager::notifyDeactivated (UINT8 technology)
 
 void RoutingManager::handleData (UINT8 technology, const UINT8* data, UINT32 dataLen, tNFA_STATUS status)
 {
-    if (dataLen <= 0)
-    {
-        ALOGE("no data");
-        goto TheEnd;
-    }
-
     if (status == NFA_STATUS_CONTINUE)
     {
-        mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data; more to come
+        if (dataLen > 0)
+        {
+            mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data; more to come
+        }
         return; //expect another NFA_CE_DATA_EVT to come
     }
     else if (status == NFA_STATUS_OK)
     {
-        mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data
+        if (dataLen > 0)
+        {
+            mRxDataBuffer.insert (mRxDataBuffer.end(), &data[0], &data[dataLen]); //append data
+        }
         //entire data packet has been received; no more NFA_CE_DATA_EVT
     }
     else if (status == NFA_STATUS_FAILED)
