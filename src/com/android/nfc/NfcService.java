@@ -70,6 +70,7 @@ import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
 
+import com.android.internal.logging.MetricsLogger;
 import com.android.nfc.DeviceHost.DeviceHostListener;
 import com.android.nfc.DeviceHost.LlcpConnectionlessSocket;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
@@ -83,6 +84,7 @@ import com.android.nfc.handover.HandoverDataParser;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,6 +107,10 @@ public class NfcService implements DeviceHostListener {
     static final boolean NDEF_PUSH_ON_DEFAULT = true;
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
+
+    static final String TRON_NFC_CE = "tron_nfc_ce";
+    static final String TRON_NFC_P2P = "tron_nfc_p2p";
+    static final String TRON_NFC_TAG = "tron_nfc_tag";
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_LLCP_LINK_ACTIVATION = 1;
@@ -204,6 +210,11 @@ public class NfcService implements DeviceHostListener {
     int mDebounceTagDebounceMs;
     ITagRemovedCallback mDebounceTagRemovedCallback;
 
+    // Metrics
+    AtomicInteger mNumTagsDetected;
+    AtomicInteger mNumP2pDetected;
+    AtomicInteger mNumHceDetected;
+
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
     // thread
@@ -267,6 +278,8 @@ public class NfcService implements DeviceHostListener {
     @Override
     public void onHostCardEmulationDeactivated(int technology) {
         if (mCardEmulationManager != null) {
+            // Do metrics here so we don't slow the CE path down
+            mNumHceDetected.incrementAndGet();
             mCardEmulationManager.onHostCardEmulationDeactivated(technology);
         }
     }
@@ -292,6 +305,7 @@ public class NfcService implements DeviceHostListener {
      */
     @Override
     public void onLlcpFirstPacketReceived(NfcDepEndpoint device) {
+        mNumP2pDetected.incrementAndGet();
         sendMessage(NfcService.MSG_LLCP_LINK_FIRST_PACKET, device);
     }
 
@@ -366,6 +380,10 @@ public class NfcService implements DeviceHostListener {
         mUserManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
 
         mScreenState = mScreenStateHelper.checkScreenState();
+
+        mNumTagsDetected = new AtomicInteger();
+        mNumP2pDetected = new AtomicInteger();
+        mNumHceDetected = new AtomicInteger();
 
         // Intents for all users
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
@@ -1453,6 +1471,16 @@ public class NfcService implements DeviceHostListener {
      * Read mScreenState and apply NFC-C polling and NFC-EE routing
      */
     void applyRouting(boolean force) {
+        // Since this operation may anyway take some time, and we do it
+        // regularly, update metrics here.
+        if (mNumTagsDetected.get() > 0 || mNumHceDetected.get() > 0 || mNumP2pDetected.get() > 0) {
+            MetricsLogger.count(mContext, TRON_NFC_TAG, mNumTagsDetected.get());
+            mNumTagsDetected.set(0);
+            MetricsLogger.count(mContext, TRON_NFC_CE, mNumHceDetected.get());
+            mNumHceDetected.set(0);
+            MetricsLogger.count(mContext, TRON_NFC_P2P, mNumP2pDetected.get());
+            mNumP2pDetected.set(0);
+        }
         synchronized (this) {
             if (!isNfcEnabledOrShuttingDown()) {
                 return;
@@ -1790,6 +1818,7 @@ public class NfcService implements DeviceHostListener {
 
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
+                    mNumTagsDetected.incrementAndGet();
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     byte[] debounceTagUid;
                     int debounceTagMs;
