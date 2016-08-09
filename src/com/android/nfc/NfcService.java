@@ -210,6 +210,9 @@ public class NfcService implements DeviceHostListener {
     int mDebounceTagDebounceMs;
     ITagRemovedCallback mDebounceTagRemovedCallback;
 
+    // Only accessed on one thread so doesn't need locking
+    NdefMessage mLastReadNdefMessage;
+
     // Metrics
     AtomicInteger mNumTagsDetected;
     AtomicInteger mNumP2pDetected;
@@ -1828,26 +1831,6 @@ public class NfcService implements DeviceHostListener {
                         debounceTagMs = mDebounceTagDebounceMs;
                         debounceTagRemovedCallback = mDebounceTagRemovedCallback;
                     }
-                    if (debounceTagUid != null) {
-                        if (Arrays.equals(debounceTagUid, tag.getUid())) {
-                             // Still ignoring this tag...poll again and reset debounce timer
-                            mHandler.removeMessages(MSG_TAG_DEBOUNCE);
-                            mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceTagMs);
-                            tag.disconnect();
-                            return;
-                        } else {
-                            synchronized (NfcService.this) {
-                                mDebounceTagUid = null;
-                            }
-                            if (debounceTagRemovedCallback != null) {
-                                try {
-                                    debounceTagRemovedCallback.onTagRemoved();
-                                } catch (RemoteException e) {
-                                    // Ignore
-                                }
-                            }
-                        }
-                    }
                     ReaderModeParams readerParams = null;
                     int presenceCheckDelay = DEFAULT_PRESENCE_CHECK_DELAY;
                     DeviceHost.TagDisconnectedCallback callback =
@@ -1870,8 +1853,9 @@ public class NfcService implements DeviceHostListener {
                         }
                     }
 
-                    boolean playSound = readerParams == null ||
-                        (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0;
+                    boolean playSound = (readerParams == null ||
+                        (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) &&
+                            debounceTagUid == null;
                     if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && playSound) {
                         playSound(SOUND_START);
                     }
@@ -1887,18 +1871,45 @@ public class NfcService implements DeviceHostListener {
                     }
                     NdefMessage ndefMsg = tag.findAndReadNdef();
 
-                    if (ndefMsg != null) {
-                        tag.startPresenceChecking(presenceCheckDelay, callback);
-                        dispatchTagEndpoint(tag, readerParams);
-                    } else {
-                        if (tag.reconnect()) {
-                            tag.startPresenceChecking(presenceCheckDelay, callback);
-                            dispatchTagEndpoint(tag, readerParams);
-                        } else {
+                    if (ndefMsg == null) {
+                        // First try to see if this was a bad tag read
+                        if (!tag.reconnect()) {
                             tag.disconnect();
-                            playSound(SOUND_ERROR);
+                            if (playSound) {
+                                playSound(SOUND_ERROR);
+                            }
+                            break;
                         }
                     }
+
+                    if (debounceTagUid != null) {
+                        // If we're debouncing and the UID or the NDEF message of the tag match,
+                        // don't dispatch but drop it.
+                        if (Arrays.equals(debounceTagUid, tag.getUid()) ||
+                                (ndefMsg != null && ndefMsg.equals(mLastReadNdefMessage))) {
+                            mHandler.removeMessages(MSG_TAG_DEBOUNCE);
+                            mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceTagMs);
+                            tag.disconnect();
+                            return;
+                        } else {
+                            synchronized (NfcService.this) {
+                                mDebounceTagUid = null;
+                                mDebounceTagRemovedCallback = null;
+                            }
+                            if (debounceTagRemovedCallback != null) {
+                                try {
+                                    debounceTagRemovedCallback.onTagRemoved();
+                                } catch (RemoteException e) {
+                                    // Ignore
+                                }
+                            }
+                        }
+                    }
+
+                    mLastReadNdefMessage = ndefMsg;
+
+                    tag.startPresenceChecking(presenceCheckDelay, callback);
+                    dispatchTagEndpoint(tag, readerParams);
                     break;
                 case MSG_LLCP_LINK_ACTIVATION:
                     if (mIsDebugBuild) {
@@ -1955,6 +1966,7 @@ public class NfcService implements DeviceHostListener {
                     synchronized (NfcService.this) {
                         mDebounceTagUid = null;
                         tagRemovedCallback = mDebounceTagRemovedCallback;
+                        mDebounceTagRemovedCallback = null;
                     }
                     if (tagRemovedCallback != null) {
                         try {
