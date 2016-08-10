@@ -76,6 +76,15 @@ public class BeamShareActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        try {
+            unregisterReceiver(mReceiver);
+        } catch (Exception e) {
+            Log.w(TAG, e.getMessage());
+        }
+        super.onDestroy();
+    }
 
     private void showNfcDialogAndExit(int msgId) {
         IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
