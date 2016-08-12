@@ -108,9 +108,9 @@ public class NfcService implements DeviceHostListener {
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
 
-    static final String TRON_NFC_CE = "tron_nfc_ce";
-    static final String TRON_NFC_P2P = "tron_nfc_p2p";
-    static final String TRON_NFC_TAG = "tron_nfc_tag";
+    static final String TRON_NFC_CE = "nfc_ce";
+    static final String TRON_NFC_P2P = "nfc_p2p";
+    static final String TRON_NFC_TAG = "nfc_tag";
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_LLCP_LINK_ACTIVATION = 1;
@@ -127,7 +127,10 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_REGISTER_T3T_IDENTIFIER = 12;
     static final int MSG_DEREGISTER_T3T_IDENTIFIER = 13;
     static final int MSG_TAG_DEBOUNCE = 14;
+    static final int MSG_UPDATE_STATS = 15;
 
+    // Update stats every 4 hours
+    static final long STATS_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
     static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
     static final int TASK_ENABLE = 1;
@@ -425,6 +428,8 @@ public class NfcService implements DeviceHostListener {
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
+
+        mHandler.sendEmptyMessageDelayed(MSG_UPDATE_STATS, STATS_UPDATE_INTERVAL_MS);
     }
 
     void initSoundPool() {
@@ -1474,16 +1479,6 @@ public class NfcService implements DeviceHostListener {
      * Read mScreenState and apply NFC-C polling and NFC-EE routing
      */
     void applyRouting(boolean force) {
-        // Since this operation may anyway take some time, and we do it
-        // regularly, update metrics here.
-        if (mNumTagsDetected.get() > 0 || mNumHceDetected.get() > 0 || mNumP2pDetected.get() > 0) {
-            MetricsLogger.count(mContext, TRON_NFC_TAG, mNumTagsDetected.get());
-            mNumTagsDetected.set(0);
-            MetricsLogger.count(mContext, TRON_NFC_CE, mNumHceDetected.get());
-            mNumHceDetected.set(0);
-            MetricsLogger.count(mContext, TRON_NFC_P2P, mNumP2pDetected.get());
-            mNumP2pDetected.set(0);
-        }
         synchronized (this) {
             if (!isNfcEnabledOrShuttingDown()) {
                 return;
@@ -1975,6 +1970,22 @@ public class NfcService implements DeviceHostListener {
                             // Ignore
                         }
                     }
+                    break;
+                case MSG_UPDATE_STATS:
+                    if (mNumTagsDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_TAG, mNumTagsDetected.get());
+                        mNumTagsDetected.set(0);
+                    }
+                    if (mNumHceDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_CE, mNumHceDetected.get());
+                        mNumHceDetected.set(0);
+                    }
+                    if (mNumP2pDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_P2P, mNumP2pDetected.get());
+                        mNumP2pDetected.set(0);
+                    }
+                    removeMessages(MSG_UPDATE_STATS);
+                    sendEmptyMessageDelayed(MSG_UPDATE_STATS, STATS_UPDATE_INTERVAL_MS);
                     break;
                 default:
                     Log.e(TAG, "Unknown message received");
