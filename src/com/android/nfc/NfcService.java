@@ -1848,12 +1848,6 @@ public class NfcService implements DeviceHostListener {
                         }
                     }
 
-                    boolean playSound = (readerParams == null ||
-                        (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) &&
-                            debounceTagUid == null;
-                    if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && playSound) {
-                        playSound(SOUND_START);
-                    }
                     if (tag.getConnectedTechnology() == TagTechnology.NFC_BARCODE) {
                         // When these tags start containing NDEF, they will require
                         // the stack to deal with them in a different way, since
@@ -1870,9 +1864,6 @@ public class NfcService implements DeviceHostListener {
                         // First try to see if this was a bad tag read
                         if (!tag.reconnect()) {
                             tag.disconnect();
-                            if (playSound) {
-                                playSound(SOUND_ERROR);
-                            }
                             break;
                         }
                     }
