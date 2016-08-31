@@ -1422,6 +1422,9 @@ void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
         {
             SyncEventGuard g (mReadCompleteEvent);
             mReadCompletedStatus = data->status;
+            mNdefDetectionTimedOut = data->status != NFA_STATUS_OK;
+            if (mNdefDetectionTimedOut)
+                ALOGE ("%s: NDEF detection timed out", fn);
             mReadCompleteEvent.notifyOne ();
         }
         break;
