@@ -53,6 +53,9 @@
     <uses-permission android:name="com.android.permission.WHITELIST_BLUETOOTH_DEVICE" />
     <uses-permission android:name="android.permission.DISPATCH_NFC_MESSAGE" />
     <uses-permission android:name="android.permission.OVERRIDE_WIFI_CONFIG" />
+    <uses-permission android:name="android.permission.DEVICE_POWER" />
+    <uses-permission android:name="android.permission.USER_ACTIVITY" />
+
     <application android:name=".NfcApplication"
                  android:icon="@drawable/icon"
                  android:label="@string/app_name"

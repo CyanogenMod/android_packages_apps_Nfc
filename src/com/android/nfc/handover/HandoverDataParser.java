@@ -443,15 +443,8 @@ public class HandoverDataParser {
                             break;
                         }
 
-                        byte[] reversedTK = new byte[len - 1];
-                        payload.get(reversedTK);
-
                         byte[] securityManagerTK = new byte[len - 1];
-
-                        //TK in AD is in reverse order
-                        for (int i = 0; i < reversedTK.length; i++) {
-                            securityManagerTK[i] = reversedTK[securityManagerTK.length - 1 - i];
-                        }
+                        payload.get(securityManagerTK);
 
                         result.oobData = new OobData();
                         result.oobData.setSecurityManagerTk(securityManagerTK);

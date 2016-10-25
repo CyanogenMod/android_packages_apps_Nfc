@@ -73,6 +73,7 @@ import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
 
+import com.android.internal.logging.MetricsLogger;
 import com.android.nfc.DeviceHost.DeviceHostListener;
 import com.android.nfc.DeviceHost.LlcpConnectionlessSocket;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
@@ -86,6 +87,7 @@ import com.android.nfc.handover.HandoverDataParser;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -109,6 +111,10 @@ public class NfcService implements DeviceHostListener {
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
 
+    static final String TRON_NFC_CE = "nfc_ce";
+    static final String TRON_NFC_P2P = "nfc_p2p";
+    static final String TRON_NFC_TAG = "nfc_tag";
+
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_LLCP_LINK_ACTIVATION = 1;
     static final int MSG_LLCP_LINK_DEACTIVATED = 2;
@@ -124,7 +130,10 @@ public class NfcService implements DeviceHostListener {
     static final int MSG_REGISTER_T3T_IDENTIFIER = 12;
     static final int MSG_DEREGISTER_T3T_IDENTIFIER = 13;
     static final int MSG_TAG_DEBOUNCE = 14;
+    static final int MSG_UPDATE_STATS = 15;
 
+    // Update stats every 4 hours
+    static final long STATS_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
     static final long MAX_POLLING_PAUSE_TIMEOUT = 40000;
 
     static final int TASK_ENABLE = 1;
@@ -207,6 +216,14 @@ public class NfcService implements DeviceHostListener {
     int mDebounceTagDebounceMs;
     ITagRemovedCallback mDebounceTagRemovedCallback;
 
+    // Only accessed on one thread so doesn't need locking
+    NdefMessage mLastReadNdefMessage;
+
+    // Metrics
+    AtomicInteger mNumTagsDetected;
+    AtomicInteger mNumP2pDetected;
+    AtomicInteger mNumHceDetected;
+
     // mState is protected by this, however it is only modified in onCreate()
     // and the default AsyncTask thread so it is read unprotected from that
     // thread
@@ -270,6 +287,8 @@ public class NfcService implements DeviceHostListener {
     @Override
     public void onHostCardEmulationDeactivated(int technology) {
         if (mCardEmulationManager != null) {
+            // Do metrics here so we don't slow the CE path down
+            mNumHceDetected.incrementAndGet();
             mCardEmulationManager.onHostCardEmulationDeactivated(technology);
         }
     }
@@ -295,6 +314,7 @@ public class NfcService implements DeviceHostListener {
      */
     @Override
     public void onLlcpFirstPacketReceived(NfcDepEndpoint device) {
+        mNumP2pDetected.incrementAndGet();
         sendMessage(NfcService.MSG_LLCP_LINK_FIRST_PACKET, device);
     }
 
@@ -370,6 +390,10 @@ public class NfcService implements DeviceHostListener {
 
         mScreenState = mScreenStateHelper.checkScreenState();
 
+        mNumTagsDetected = new AtomicInteger();
+        mNumP2pDetected = new AtomicInteger();
+        mNumHceDetected = new AtomicInteger();
+
         // Intents for all users
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
@@ -407,6 +431,8 @@ public class NfcService implements DeviceHostListener {
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
 
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
+
+        mHandler.sendEmptyMessageDelayed(MSG_UPDATE_STATS, STATS_UPDATE_INTERVAL_MS);
     }
 
     void initSoundPool() {
@@ -1800,6 +1826,7 @@ public class NfcService implements DeviceHostListener {
 
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
+                    mNumTagsDetected.incrementAndGet();
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     byte[] debounceTagUid;
                     int debounceTagMs;
@@ -1808,26 +1835,6 @@ public class NfcService implements DeviceHostListener {
                         debounceTagUid = mDebounceTagUid;
                         debounceTagMs = mDebounceTagDebounceMs;
                         debounceTagRemovedCallback = mDebounceTagRemovedCallback;
-                    }
-                    if (debounceTagUid != null) {
-                        if (Arrays.equals(debounceTagUid, tag.getUid())) {
-                             // Still ignoring this tag...poll again and reset debounce timer
-                            mHandler.removeMessages(MSG_TAG_DEBOUNCE);
-                            mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceTagMs);
-                            tag.disconnect();
-                            return;
-                        } else {
-                            synchronized (NfcService.this) {
-                                mDebounceTagUid = null;
-                            }
-                            if (debounceTagRemovedCallback != null) {
-                                try {
-                                    debounceTagRemovedCallback.onTagRemoved();
-                                } catch (RemoteException e) {
-                                    // Ignore
-                                }
-                            }
-                        }
                     }
                     ReaderModeParams readerParams = null;
                     int presenceCheckDelay = DEFAULT_PRESENCE_CHECK_DELAY;
@@ -1851,11 +1858,6 @@ public class NfcService implements DeviceHostListener {
                         }
                     }
 
-                    boolean playSound = readerParams == null ||
-                        (readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0;
-                    if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED && playSound) {
-                        playSound(SOUND_START);
-                    }
                     if (tag.getConnectedTechnology() == TagTechnology.NFC_BARCODE) {
                         // When these tags start containing NDEF, they will require
                         // the stack to deal with them in a different way, since
@@ -1868,18 +1870,42 @@ public class NfcService implements DeviceHostListener {
                     }
                     NdefMessage ndefMsg = tag.findAndReadNdef();
 
-                    if (ndefMsg != null) {
-                        tag.startPresenceChecking(presenceCheckDelay, callback);
-                        dispatchTagEndpoint(tag, readerParams);
-                    } else {
-                        if (tag.reconnect()) {
-                            tag.startPresenceChecking(presenceCheckDelay, callback);
-                            dispatchTagEndpoint(tag, readerParams);
-                        } else {
+                    if (ndefMsg == null) {
+                        // First try to see if this was a bad tag read
+                        if (!tag.reconnect()) {
                             tag.disconnect();
-                            playSound(SOUND_ERROR);
+                            break;
                         }
                     }
+
+                    if (debounceTagUid != null) {
+                        // If we're debouncing and the UID or the NDEF message of the tag match,
+                        // don't dispatch but drop it.
+                        if (Arrays.equals(debounceTagUid, tag.getUid()) ||
+                                (ndefMsg != null && ndefMsg.equals(mLastReadNdefMessage))) {
+                            mHandler.removeMessages(MSG_TAG_DEBOUNCE);
+                            mHandler.sendEmptyMessageDelayed(MSG_TAG_DEBOUNCE, debounceTagMs);
+                            tag.disconnect();
+                            return;
+                        } else {
+                            synchronized (NfcService.this) {
+                                mDebounceTagUid = null;
+                                mDebounceTagRemovedCallback = null;
+                            }
+                            if (debounceTagRemovedCallback != null) {
+                                try {
+                                    debounceTagRemovedCallback.onTagRemoved();
+                                } catch (RemoteException e) {
+                                    // Ignore
+                                }
+                            }
+                        }
+                    }
+
+                    mLastReadNdefMessage = ndefMsg;
+
+                    tag.startPresenceChecking(presenceCheckDelay, callback);
+                    dispatchTagEndpoint(tag, readerParams);
                     break;
                 case MSG_LLCP_LINK_ACTIVATION:
                     if (mIsDebugBuild) {
@@ -1936,6 +1962,7 @@ public class NfcService implements DeviceHostListener {
                     synchronized (NfcService.this) {
                         mDebounceTagUid = null;
                         tagRemovedCallback = mDebounceTagRemovedCallback;
+                        mDebounceTagRemovedCallback = null;
                     }
                     if (tagRemovedCallback != null) {
                         try {
@@ -1944,6 +1971,22 @@ public class NfcService implements DeviceHostListener {
                             // Ignore
                         }
                     }
+                    break;
+                case MSG_UPDATE_STATS:
+                    if (mNumTagsDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_TAG, mNumTagsDetected.get());
+                        mNumTagsDetected.set(0);
+                    }
+                    if (mNumHceDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_CE, mNumHceDetected.get());
+                        mNumHceDetected.set(0);
+                    }
+                    if (mNumP2pDetected.get() > 0) {
+                        MetricsLogger.count(mContext, TRON_NFC_P2P, mNumP2pDetected.get());
+                        mNumP2pDetected.set(0);
+                    }
+                    removeMessages(MSG_UPDATE_STATS);
+                    sendEmptyMessageDelayed(MSG_UPDATE_STATS, STATS_UPDATE_INTERVAL_MS);
                     break;
                 default:
                     Log.e(TAG, "Unknown message received");
