@@ -6,9 +6,7 @@
   <!-- A notification description string asking the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <!-- A notification action string prompting the user to share their contact details over NFC [CHAR-LIMIT=64] -->
   <!-- Content description of the NFC enabled notification icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
-  <string name="cancel">Nuligi</string>
   <!-- String referring to the device being connected when there is no name for the device -->
-  <string name="device">aparato</string>
   <!-- Toast string informing the user that the device is connecting [CHAR_LIMIT=35] -->
   <!-- Toast string informing the user that the device is connected [CHAR_LIMIT=35] -->
   <!-- Toast string informing the user that the device failed to connect [CHAR_LIMIT=35] -->
@@ -18,7 +16,6 @@
   <!-- Toast string informing the user that the device failed to pair [CHAR_LIMIT=35] -->
   <!-- Toast string informing the user that BT could not be enabled [CHAR_LIMIT=35] -->
   <!-- Dialog string informing the user that BT could not be enabled [CHAR_LIMIT=75] -->
-  <string name="pair_yes">Jes</string>
   <!-- String that is prompting the user to tap his NFC phone against a payment reader again, to
          pay with the specified app -->
   <!-- String that is prompting the user to tap his NFC phone against a generic NFC reader again, to
